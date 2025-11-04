@@ -2,11 +2,15 @@ import { Navigate, Route, Routes, type RouteProps } from 'react-router-dom'
 
 import AuthLayout from '@/layouts/AuthLayout'
 import { useAuthContext } from '@/context/useAuthContext'
-import { appRoutes, authRoutes } from '@/routes/index'
+import { routes } from '@/routes/index'
 import AdminLayout from '@/layouts/AdminLayout'
 
 const AppRouter = (props: RouteProps) => {
   const { isAuthenticated } = useAuthContext()
+
+  // Filter routes by path prefix
+  const authRoutes = routes.filter(route => route.path?.toString().startsWith('/auth'))
+  const appRoutes = routes.filter(route => !route.path?.toString().startsWith('/auth') && route.path !== '*')
 
   return (
     <Routes>

@@ -18,6 +18,7 @@ import type {
   EmailCountType,
   EmailType,
   Employee,
+  GroupType,
   NotificationType,
   PricingType,
   ProjectType,
@@ -101,6 +102,18 @@ export const getUserById = async (id: UserType['id']): Promise<UserType | void> 
   const user = usersData.find((user) => user.id === id)
   if (!user) return
   return user
+}
+
+// Group functions
+export const getJoinedGroups = async (): Promise<GroupType[]> => {
+  await sleep(300)
+  // Sample groups data - replace with actual data source if available
+  return [
+    { id: 'group-1', name: 'Frontend Team', membersCount: 5 },
+    { id: 'group-2', name: 'Backend Team', membersCount: 8 },
+    { id: 'group-3', name: 'Design Team', membersCount: 4 },
+    { id: 'group-4', name: 'Marketing', membersCount: 6 },
+  ]
 }
 
 // Timeline functions

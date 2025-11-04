@@ -23,7 +23,7 @@ import { useForm } from 'react-hook-form'
 import * as yup from 'yup'
 import { yupResolver } from '@hookform/resolvers/yup'
 
-import { messages } from '@/assets/data/social'
+import { messages } from '@/assets/data/users'
 import TextFormInput from '@/components/form/TextFormInput'
 import IconifyIcon from '@/components/wrappers/IconifyIcon'
 import SimplebarReactClient from '@/components/wrappers/SimplebarReactClient'
@@ -240,7 +240,7 @@ const ProfileDetail = ({ selectedUser }: { selectedUser: SocialUserType }) => {
                 </strong>
               </p>
               <p>
-                {selectedUser.languages.map((language, idx) => (
+                {selectedUser.languages.map((language: string, idx: number) => (
                   <Fragment key={idx}>{language}, </Fragment>
                 ))}
               </p>

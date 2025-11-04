@@ -113,6 +113,9 @@ export type UserType = {
   status?: string
 }
 
+// Alias for chat/social contexts
+export type SocialUserType = UserType
+
 
 
 export type ProjectType = {
@@ -196,6 +199,13 @@ export type ChatMessageType = {
     value: FileType[] | string
   }
   sentOn?: Date
+}
+
+export type GroupType = {
+  id: IdType
+  name: string
+  avatar?: string
+  membersCount?: number
 }
 
 export type EmailCountType = {

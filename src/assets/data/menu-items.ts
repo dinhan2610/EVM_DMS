@@ -110,6 +110,12 @@ export const MENU_ITEMS: MenuItemType[] = [
         url: '/invoice-requests',
         parentKey: 'apps-invoices',
       },
+      {
+        key: 'invoices',
+        label: 'Tạo sản phẩm, dịch vụ',
+        url: '/items',
+        parentKey: 'apps-invoices',
+      },
     ],
   },
   {

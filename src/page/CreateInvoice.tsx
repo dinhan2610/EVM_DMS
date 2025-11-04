@@ -7,9 +7,6 @@ import {
   Button,
   Stack,
   TextField,
-  Select,
-  MenuItem,
-  InputLabel,
   FormControl,
   Radio,
   RadioGroup,
@@ -18,8 +15,6 @@ import {
   Divider,
   Autocomplete,
   Alert,
-  Card,
-  CardContent,
 } from '@mui/material'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
@@ -100,7 +95,7 @@ const CreateInvoice = () => {
   }
 
   // Handlers for Invoice Details
-  const handleInvoiceDetailsChange = (field: keyof InvoiceDetails, value: any) => {
+  const handleInvoiceDetailsChange = (field: keyof InvoiceDetails, value: string | Dayjs | null) => {
     setInvoiceDetails((prev) => ({ ...prev, [field]: value }))
   }
 
@@ -263,7 +258,7 @@ const CreateInvoice = () => {
                 </Box>
                 <Box sx={{ p: 3 }}>
                   <Grid container spacing={2}>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <TextField
                         fullWidth
                         label="Tên khách hàng"
@@ -273,7 +268,7 @@ const CreateInvoice = () => {
                         required
                       />
                     </Grid>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <TextField
                         fullWidth
                         label="Email"
@@ -284,7 +279,7 @@ const CreateInvoice = () => {
                         required
                       />
                     </Grid>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <TextField
                         fullWidth
                         label="Mã số thuế"
@@ -294,7 +289,7 @@ const CreateInvoice = () => {
                         required
                       />
                     </Grid>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <TextField
                         fullWidth
                         label="Địa chỉ"
@@ -324,7 +319,7 @@ const CreateInvoice = () => {
                 </Box>
                 <Box sx={{ p: 3 }}>
                   <Grid container spacing={2}>
-                    <Grid item xs={12} md={4}>
+                    <Grid size={{ xs: 12, md: 4 }}>
                       <DatePicker
                         label="Ngày phát hành"
                         value={invoiceDetails.issueDate}
@@ -337,7 +332,7 @@ const CreateInvoice = () => {
                         }}
                       />
                     </Grid>
-                    <Grid item xs={12} md={4}>
+                    <Grid size={{ xs: 12, md: 4 }}>
                       <DatePicker
                         label="Ngày hết hạn"
                         value={invoiceDetails.dueDate}
@@ -350,7 +345,7 @@ const CreateInvoice = () => {
                         }}
                       />
                     </Grid>
-                    <Grid item xs={12} md={4}>
+                    <Grid size={{ xs: 12, md: 4 }}>
                       <TextField
                         fullWidth
                         label="Ghi chú"
@@ -384,7 +379,7 @@ const CreateInvoice = () => {
               <Stack spacing={2}>
                 {items.map((item, index) => (
                   <Grid container spacing={2} alignItems="center" key={item.id || index}>
-                    <Grid item xs={12} md={4}>
+                    <Grid size={{ xs: 12, md: 4 }}>
                       <TextField
                         fullWidth
                         label="Mô tả"
@@ -394,7 +389,7 @@ const CreateInvoice = () => {
                         size="small"
                       />
                     </Grid>
-                    <Grid item xs={6} md={2}>
+                    <Grid size={{ xs: 6, md: 2 }}>
                       <TextField
                         fullWidth
                         label="Số lượng"
@@ -405,7 +400,7 @@ const CreateInvoice = () => {
                         inputProps={{ min: 1 }}
                       />
                     </Grid>
-                    <Grid item xs={6} md={2}>
+                    <Grid size={{ xs: 6, md: 2 }}>
                       <TextField
                         fullWidth
                         label="Đơn giá"
@@ -416,7 +411,7 @@ const CreateInvoice = () => {
                         inputProps={{ min: 0 }}
                       />
                     </Grid>
-                    <Grid item xs={10} md={3}>
+                    <Grid size={{ xs: 10, md: 3 }}>
                       <TextField
                         fullWidth
                         label="Thành tiền"
@@ -431,7 +426,7 @@ const CreateInvoice = () => {
                         }}
                       />
                     </Grid>
-                    <Grid item xs={2} md={1}>
+                    <Grid size={{ xs: 2, md: 1 }}>
                       <IconButton
                         color="error"
                         onClick={() => handleRemoveItem(index)}

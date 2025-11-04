@@ -15,6 +15,7 @@ import {
   CreateAdjustmentInvoice,
   CreateReplacementInvoice,
   RequestManagement,
+  ItemsManagement,
   Welcome,
   FAQs,
   ContactUs,
@@ -119,6 +120,11 @@ const appsRoutes: RoutesProps[] = [
     name: 'Invoice Requests',
     path: '/invoice-requests',
     element: <RequestManagement />,
+  },
+  {
+    name: 'Items Management',
+    path: '/items',
+    element: <ItemsManagement />,
   },
 ]
 

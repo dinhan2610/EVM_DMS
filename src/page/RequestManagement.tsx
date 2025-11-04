@@ -114,7 +114,7 @@ const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString('vi-VN')
 }
 
-const getStatusColor = (status: string) => {
+const getStatusColor = (status: string): 'warning' | 'success' | 'error' | 'default' => {
   switch (status) {
     case 'Pending':
       return 'warning'
@@ -236,7 +236,7 @@ const RequestManagement = () => {
       renderCell: (params: GridRenderCellParams) => (
         <Chip
           label={getStatusLabel(params.row.status)}
-          color={getStatusColor(params.row.status) as any}
+          color={getStatusColor(params.row.status)}
           size="small"
           sx={{ fontWeight: 500 }}
         />

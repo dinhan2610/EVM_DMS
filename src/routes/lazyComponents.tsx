@@ -19,6 +19,7 @@ export const CreateInvoice = lazy(() => import('@/page/CreateInvoice'))
 export const CreateAdjustmentInvoice = lazy(() => import('@/page/CreateAdjustmentInvoice'))
 export const CreateReplacementInvoice = lazy(() => import('@/page/CreateReplacementInvoice'))
 export const RequestManagement = lazy(() => import('@/page/RequestManagement'))
+export const ItemsManagement = lazy(() => import('@/page/ItemsManagement'))
 
 // Pages Routes
 export const Welcome = lazy(() => import('@/app/(admin)/pages/welcome/page'))
