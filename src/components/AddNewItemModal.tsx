@@ -156,10 +156,10 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
       fullWidth
       PaperProps={{
         sx: {
-          borderRadius: 2,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-          minHeight: '500px',
-          maxHeight: '90vh',
+          borderRadius: 3,
+          boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
+          maxHeight: '95vh',
+          height: 'auto',
         },
       }}>
       {/* Header */}
@@ -171,38 +171,54 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          pb: 2.5,
+          pb: 2,
           pt: 2.5,
           px: 3,
-          borderBottom: '1px solid #eef2f7',
+          borderBottom: '1px solid #e8ecef',
+          background: 'linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)',
         }}>
-        <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-          Thêm mới hàng hóa, dịch vụ
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box
+            sx={{
+              width: 36,
+              height: 36,
+              borderRadius: 1.5,
+              background: 'linear-gradient(135deg, #1c84ee 0%, #0d6efd 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              fontSize: '1.125rem',
+              fontWeight: 700,
+            }}>
+            +
+          </Box>
+          <span style={{ fontSize: '1.125rem' }}>Thêm hàng hóa/dịch vụ mới</span>
+        </Box>
         <IconButton
           onClick={handleClose}
           size="small"
           sx={{
-            color: '#5d7186',
+            color: '#6c757d',
             '&:hover': {
+              backgroundColor: '#f8f9fa',
               color: '#ef5f5f',
-              backgroundColor: 'rgba(239, 95, 95, 0.08)',
             },
           }}>
-          <CloseIcon />
+          <CloseIcon fontSize="small" />
         </IconButton>
       </DialogTitle>
 
       {/* Content */}
-      <DialogContent sx={{ pt: 0, pb: 3, px: 3, backgroundColor: '#fafbfc' }}>
-        <Box sx={{ pt: 3.5 }}>
+      <DialogContent sx={{ pt: 0, pb: 2.5, px: 3, backgroundColor: '#fafbfc', overflow: 'visible' }}>
+        <Box sx={{ pt: 3 }}>
           {/* Grid layout cho tất cả các trường */}
           <Box
             sx={{
               display: 'grid',
               gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-              gap: 2.5,
-              rowGap: 2.5,
+              gap: 2,
+              rowGap: 2,
             }}>
             {/* Mã sản phẩm/dịch vụ */}
             <Box>
@@ -211,7 +227,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 sx={{
                   fontWeight: 600,
                   color: '#2c3e50',
-                  mb: 1,
+                  mb: 0.75,
                   fontSize: '0.8125rem',
                   letterSpacing: '0.3px',
                   textTransform: 'uppercase',
@@ -229,7 +245,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 variant="outlined"
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    height: '42px',
+                    height: '40px',
                     backgroundColor: '#fff',
                     borderRadius: 2,
                     transition: 'all 0.2s',
@@ -263,7 +279,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 sx={{
                   fontWeight: 600,
                   color: '#2c3e50',
-                  mb: 1,
+                  mb: 0.75,
                   fontSize: '0.8125rem',
                   letterSpacing: '0.3px',
                   textTransform: 'uppercase',
@@ -281,7 +297,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 variant="outlined"
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    height: '42px',
+                    height: '40px',
                     backgroundColor: '#fff',
                     borderRadius: 2,
                     transition: 'all 0.2s',
@@ -315,7 +331,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 sx={{
                   fontWeight: 600,
                   color: '#2c3e50',
-                  mb: 1,
+                  mb: 0.75,
                   fontSize: '0.8125rem',
                   letterSpacing: '0.3px',
                   textTransform: 'uppercase',
@@ -329,7 +345,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                   onChange={(e) => handleInputChange('group', e.target.value)}
                   displayEmpty
                   sx={{
-                    height: '42px',
+                    height: '40px',
                     backgroundColor: '#fff',
                     borderRadius: 2,
                     transition: 'all 0.2s',
@@ -368,7 +384,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 sx={{
                   fontWeight: 600,
                   color: '#2c3e50',
-                  mb: 1,
+                  mb: 0.75,
                   fontSize: '0.8125rem',
                   letterSpacing: '0.3px',
                   textTransform: 'uppercase',
@@ -382,7 +398,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                   onChange={(e) => handleInputChange('unit', e.target.value)}
                   displayEmpty
                   sx={{
-                    height: '42px',
+                    height: '40px',
                     backgroundColor: '#fff',
                     borderRadius: 2,
                     transition: 'all 0.2s',
@@ -421,7 +437,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 sx={{
                   fontWeight: 600,
                   color: '#2c3e50',
-                  mb: 1,
+                  mb: 0.75,
                   fontSize: '0.8125rem',
                   letterSpacing: '0.3px',
                   textTransform: 'uppercase',
@@ -443,7 +459,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 }}
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    height: '42px',
+                    height: '40px',
                     backgroundColor: '#fff',
                     borderRadius: 2,
                     transition: 'all 0.2s',
@@ -477,7 +493,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 sx={{
                   fontWeight: 600,
                   color: '#2c3e50',
-                  mb: 1,
+                  mb: 0.75,
                   fontSize: '0.8125rem',
                   letterSpacing: '0.3px',
                   textTransform: 'uppercase',
@@ -488,7 +504,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
-                  height: '42px',
+                  height: '40px',
                   px: 2,
                   border: '1px solid rgba(0, 0, 0, 0.23)',
                   borderRadius: 2,
@@ -532,7 +548,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 sx={{
                   fontWeight: 600,
                   color: '#2c3e50',
-                  mb: 1,
+                  mb: 0.75,
                   fontSize: '0.8125rem',
                   letterSpacing: '0.3px',
                   textTransform: 'uppercase',
@@ -546,7 +562,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                   onChange={(e) => handleInputChange('vatTaxRate', e.target.value)}
                   displayEmpty
                   sx={{
-                    height: '42px',
+                    height: '40px',
                     backgroundColor: '#fff',
                     borderRadius: 2,
                     transition: 'all 0.2s',
@@ -585,7 +601,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 sx={{
                   fontWeight: 600,
                   color: '#2c3e50',
-                  mb: 1,
+                  mb: 0.75,
                   fontSize: '0.8125rem',
                   letterSpacing: '0.3px',
                   textTransform: 'uppercase',
@@ -599,7 +615,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                   onChange={(e) => handleInputChange('vatReduction', e.target.value)}
                   displayEmpty
                   sx={{
-                    height: '42px',
+                    height: '40px',
                     backgroundColor: '#fff',
                     borderRadius: 2,
                     transition: 'all 0.2s',
@@ -638,7 +654,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 sx={{
                   fontWeight: 600,
                   color: '#2c3e50',
-                  mb: 1,
+                  mb: 0.75,
                   fontSize: '0.8125rem',
                   letterSpacing: '0.3px',
                   textTransform: 'uppercase',
@@ -657,7 +673,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 variant="outlined"
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    height: '42px',
+                    height: '40px',
                     backgroundColor: '#fff',
                     borderRadius: 2,
                     transition: 'all 0.2s',
@@ -691,7 +707,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 sx={{
                   fontWeight: 600,
                   color: '#2c3e50',
-                  mb: 1,
+                  mb: 0.75,
                   fontSize: '0.8125rem',
                   letterSpacing: '0.3px',
                   textTransform: 'uppercase',
@@ -711,7 +727,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 }}
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    height: '42px',
+                    height: '40px',
                     borderRadius: 2,
                   },
                   '& .Mui-disabled': {
@@ -729,13 +745,13 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
           </Box>
 
           {/* Mô tả - Full width */}
-          <Box sx={{ mt: 2.5 }}>
+          <Box sx={{ mt: 2 }}>
             <Typography
               variant="body2"
               sx={{
                 fontWeight: 600,
                 color: '#2c3e50',
-                mb: 1,
+                mb: 0.75,
                 fontSize: '0.8125rem',
                 letterSpacing: '0.3px',
                 textTransform: 'uppercase',
@@ -747,7 +763,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
               size="small"
               name="description"
               multiline
-              rows={3}
+              rows={2.5}
               value={formData.description}
               onChange={(e) => handleInputChange('description', e.target.value)}
               placeholder="Nhập mô tả chi tiết về đặc điểm, tính năng, ưu điểm của sản phẩm/dịch vụ..."
@@ -787,7 +803,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
       <DialogActions
         sx={{
           px: 3,
-          py: 2.5,
+          py: 2,
           borderTop: '1px solid #e8ecef',
           backgroundColor: '#f8f9fa',
           gap: 1.5,
@@ -796,8 +812,8 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
           onClick={handleClose}
           variant="outlined"
           sx={{
-            minWidth: 100,
-            height: 42,
+            minWidth: 90,
+            height: 38,
             borderRadius: 2,
             textTransform: 'none',
             fontSize: '0.9375rem',
@@ -820,8 +836,8 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
           onClick={handleSave}
           disabled={!formData.code || !formData.name || !formData.unit}
           sx={{
-            minWidth: 100,
-            height: 42,
+            minWidth: 90,
+            height: 38,
             borderRadius: 2,
             textTransform: 'none',
             fontSize: '0.9375rem',
@@ -846,8 +862,8 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
           onClick={handleSaveAndAdd}
           disabled={!formData.code || !formData.name || !formData.unit}
           sx={{
-            minWidth: 140,
-            height: 42,
+            minWidth: 120,
+            height: 38,
             borderRadius: 2,
             textTransform: 'none',
             fontSize: '0.9375rem',
