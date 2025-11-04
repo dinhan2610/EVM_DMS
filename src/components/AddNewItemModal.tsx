@@ -194,14 +194,14 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
       </DialogTitle>
 
       {/* Content */}
-      <DialogContent sx={{ pt: 0, pb: 3, px: 3 }}>
-        <Box sx={{ pt: 3 }}>
+      <DialogContent sx={{ pt: 0, pb: 3, px: 3, backgroundColor: '#fafbfc' }}>
+        <Box sx={{ pt: 3.5 }}>
           {/* Grid layout cho tất cả các trường */}
           <Box
             sx={{
               display: 'grid',
               gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-              gap: 3,
+              gap: 2.5,
               rowGap: 2.5,
             }}>
             {/* Mã sản phẩm/dịch vụ */}
@@ -209,10 +209,12 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
               <Typography
                 variant="body2"
                 sx={{
-                  fontWeight: 500,
-                  color: '#424e5a',
+                  fontWeight: 600,
+                  color: '#2c3e50',
                   mb: 1,
-                  fontSize: '0.875rem',
+                  fontSize: '0.8125rem',
+                  letterSpacing: '0.3px',
+                  textTransform: 'uppercase',
                 }}>
                 Mã sản phẩm/dịch vụ <span style={{ color: '#ef5f5f' }}>*</span>
               </Typography>
@@ -227,10 +229,28 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 variant="outlined"
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    height: '44px',
+                    height: '42px',
+                    backgroundColor: '#fff',
+                    borderRadius: 2,
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      backgroundColor: '#f8f9fa',
+                    },
                     '&:hover fieldset': {
                       borderColor: '#1c84ee',
+                      borderWidth: '1.5px',
                     },
+                    '&.Mui-focused': {
+                      backgroundColor: '#fff',
+                      boxShadow: '0 0 0 3px rgba(28, 132, 238, 0.1)',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#1c84ee',
+                      borderWidth: '1.5px',
+                    },
+                  },
+                  '& .MuiOutlinedInput-input': {
+                    fontSize: '0.9375rem',
                   },
                 }}
               />
@@ -241,10 +261,12 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
               <Typography
                 variant="body2"
                 sx={{
-                  fontWeight: 500,
-                  color: '#424e5a',
+                  fontWeight: 600,
+                  color: '#2c3e50',
                   mb: 1,
-                  fontSize: '0.875rem',
+                  fontSize: '0.8125rem',
+                  letterSpacing: '0.3px',
+                  textTransform: 'uppercase',
                 }}>
                 Tên hàng hóa/dịch vụ <span style={{ color: '#ef5f5f' }}>*</span>
               </Typography>
@@ -259,10 +281,28 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 variant="outlined"
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    height: '44px',
+                    height: '42px',
+                    backgroundColor: '#fff',
+                    borderRadius: 2,
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      backgroundColor: '#f8f9fa',
+                    },
                     '&:hover fieldset': {
                       borderColor: '#1c84ee',
+                      borderWidth: '1.5px',
                     },
+                    '&.Mui-focused': {
+                      backgroundColor: '#fff',
+                      boxShadow: '0 0 0 3px rgba(28, 132, 238, 0.1)',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#1c84ee',
+                      borderWidth: '1.5px',
+                    },
+                  },
+                  '& .MuiOutlinedInput-input': {
+                    fontSize: '0.9375rem',
                   },
                 }}
               />
@@ -273,10 +313,12 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
               <Typography
                 variant="body2"
                 sx={{
-                  fontWeight: 500,
-                  color: '#424e5a',
+                  fontWeight: 600,
+                  color: '#2c3e50',
                   mb: 1,
-                  fontSize: '0.875rem',
+                  fontSize: '0.8125rem',
+                  letterSpacing: '0.3px',
+                  textTransform: 'uppercase',
                 }}>
                 Nhóm hàng hóa/dịch vụ
               </Typography>
@@ -287,9 +329,27 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                   onChange={(e) => handleInputChange('group', e.target.value)}
                   displayEmpty
                   sx={{
-                    height: '44px',
+                    height: '42px',
+                    backgroundColor: '#fff',
+                    borderRadius: 2,
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      backgroundColor: '#f8f9fa',
+                    },
                     '&:hover .MuiOutlinedInput-notchedOutline': {
                       borderColor: '#1c84ee',
+                      borderWidth: '1.5px',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: '#fff',
+                      boxShadow: '0 0 0 3px rgba(28, 132, 238, 0.1)',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#1c84ee',
+                      borderWidth: '1.5px',
+                    },
+                    '& .MuiSelect-select': {
+                      fontSize: '0.9375rem',
                     },
                   }}>
                   {PRODUCT_GROUPS.map((group) => (
@@ -306,10 +366,12 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
               <Typography
                 variant="body2"
                 sx={{
-                  fontWeight: 500,
-                  color: '#424e5a',
+                  fontWeight: 600,
+                  color: '#2c3e50',
                   mb: 1,
-                  fontSize: '0.875rem',
+                  fontSize: '0.8125rem',
+                  letterSpacing: '0.3px',
+                  textTransform: 'uppercase',
                 }}>
                 Đơn vị tính <span style={{ color: '#ef5f5f' }}>*</span>
               </Typography>
@@ -320,9 +382,27 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                   onChange={(e) => handleInputChange('unit', e.target.value)}
                   displayEmpty
                   sx={{
-                    height: '44px',
+                    height: '42px',
+                    backgroundColor: '#fff',
+                    borderRadius: 2,
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      backgroundColor: '#f8f9fa',
+                    },
                     '&:hover .MuiOutlinedInput-notchedOutline': {
                       borderColor: '#1c84ee',
+                      borderWidth: '1.5px',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: '#fff',
+                      boxShadow: '0 0 0 3px rgba(28, 132, 238, 0.1)',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#1c84ee',
+                      borderWidth: '1.5px',
+                    },
+                    '& .MuiSelect-select': {
+                      fontSize: '0.9375rem',
                     },
                   }}>
                   {UNITS.map((unit) => (
@@ -339,10 +419,12 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
               <Typography
                 variant="body2"
                 sx={{
-                  fontWeight: 500,
-                  color: '#424e5a',
+                  fontWeight: 600,
+                  color: '#2c3e50',
                   mb: 1,
-                  fontSize: '0.875rem',
+                  fontSize: '0.8125rem',
+                  letterSpacing: '0.3px',
+                  textTransform: 'uppercase',
                 }}>
                 Giá bán (chưa VAT)
               </Typography>
@@ -357,14 +439,32 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 placeholder="0"
                 variant="outlined"
                 InputProps={{
-                  endAdornment: <InputAdornment position="end">VNĐ</InputAdornment>,
+                  endAdornment: <InputAdornment position="end" sx={{ color: '#6c757d', fontWeight: 500 }}>VNĐ</InputAdornment>,
                 }}
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    height: '44px',
+                    height: '42px',
+                    backgroundColor: '#fff',
+                    borderRadius: 2,
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      backgroundColor: '#f8f9fa',
+                    },
                     '&:hover fieldset': {
                       borderColor: '#1c84ee',
+                      borderWidth: '1.5px',
                     },
+                    '&.Mui-focused': {
+                      backgroundColor: '#fff',
+                      boxShadow: '0 0 0 3px rgba(28, 132, 238, 0.1)',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#1c84ee',
+                      borderWidth: '1.5px',
+                    },
+                  },
+                  '& .MuiOutlinedInput-input': {
+                    fontSize: '0.9375rem',
                   },
                 }}
               />
@@ -375,10 +475,12 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
               <Typography
                 variant="body2"
                 sx={{
-                  fontWeight: 500,
-                  color: '#424e5a',
+                  fontWeight: 600,
+                  color: '#2c3e50',
                   mb: 1,
-                  fontSize: '0.875rem',
+                  fontSize: '0.8125rem',
+                  letterSpacing: '0.3px',
+                  textTransform: 'uppercase',
                 }}>
                 Loại giá
               </Typography>
@@ -386,14 +488,16 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
-                  height: '44px',
-                  px: 1.5,
+                  height: '42px',
+                  px: 2,
                   border: '1px solid rgba(0, 0, 0, 0.23)',
-                  borderRadius: '4px',
+                  borderRadius: 2,
                   backgroundColor: '#fff',
-                  transition: 'border-color 0.2s',
+                  transition: 'all 0.2s',
                   '&:hover': {
+                    backgroundColor: '#f8f9fa',
                     borderColor: '#1c84ee',
+                    borderWidth: '1.5px',
                   },
                 }}>
                 <FormControlLabel
@@ -412,7 +516,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                     />
                   }
                   label={
-                    <Typography variant="body2" sx={{ fontSize: '0.875rem', color: '#424e5a', userSelect: 'none' }}>
+                    <Typography variant="body2" sx={{ fontSize: '0.875rem', color: '#495057', userSelect: 'none', fontWeight: 500 }}>
                       Giá bán là giá sau thuế
                     </Typography>
                   }
@@ -426,10 +530,12 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
               <Typography
                 variant="body2"
                 sx={{
-                  fontWeight: 500,
-                  color: '#424e5a',
+                  fontWeight: 600,
+                  color: '#2c3e50',
                   mb: 1,
-                  fontSize: '0.875rem',
+                  fontSize: '0.8125rem',
+                  letterSpacing: '0.3px',
+                  textTransform: 'uppercase',
                 }}>
                 Thuế giá trị gia tăng (VAT)
               </Typography>
@@ -440,9 +546,27 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                   onChange={(e) => handleInputChange('vatTaxRate', e.target.value)}
                   displayEmpty
                   sx={{
-                    height: '44px',
+                    height: '42px',
+                    backgroundColor: '#fff',
+                    borderRadius: 2,
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      backgroundColor: '#f8f9fa',
+                    },
                     '&:hover .MuiOutlinedInput-notchedOutline': {
                       borderColor: '#1c84ee',
+                      borderWidth: '1.5px',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: '#fff',
+                      boxShadow: '0 0 0 3px rgba(28, 132, 238, 0.1)',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#1c84ee',
+                      borderWidth: '1.5px',
+                    },
+                    '& .MuiSelect-select': {
+                      fontSize: '0.9375rem',
                     },
                   }}>
                   {VAT_RATES.map((rate) => (
@@ -459,10 +583,12 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
               <Typography
                 variant="body2"
                 sx={{
-                  fontWeight: 500,
-                  color: '#424e5a',
+                  fontWeight: 600,
+                  color: '#2c3e50',
                   mb: 1,
-                  fontSize: '0.875rem',
+                  fontSize: '0.8125rem',
+                  letterSpacing: '0.3px',
+                  textTransform: 'uppercase',
                 }}>
                 Giảm thuế GTGT (nếu có)
               </Typography>
@@ -473,9 +599,27 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                   onChange={(e) => handleInputChange('vatReduction', e.target.value)}
                   displayEmpty
                   sx={{
-                    height: '44px',
+                    height: '42px',
+                    backgroundColor: '#fff',
+                    borderRadius: 2,
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      backgroundColor: '#f8f9fa',
+                    },
                     '&:hover .MuiOutlinedInput-notchedOutline': {
                       borderColor: '#1c84ee',
+                      borderWidth: '1.5px',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: '#fff',
+                      boxShadow: '0 0 0 3px rgba(28, 132, 238, 0.1)',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#1c84ee',
+                      borderWidth: '1.5px',
+                    },
+                    '& .MuiSelect-select': {
+                      fontSize: '0.9375rem',
                     },
                   }}>
                   {VAT_REDUCTIONS.map((reduction) => (
@@ -492,10 +636,12 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
               <Typography
                 variant="body2"
                 sx={{
-                  fontWeight: 500,
-                  color: '#424e5a',
+                  fontWeight: 600,
+                  color: '#2c3e50',
                   mb: 1,
-                  fontSize: '0.875rem',
+                  fontSize: '0.8125rem',
+                  letterSpacing: '0.3px',
+                  textTransform: 'uppercase',
                 }}>
                 Tỷ lệ chiết khấu (%)
               </Typography>
@@ -511,10 +657,28 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 variant="outlined"
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    height: '44px',
+                    height: '42px',
+                    backgroundColor: '#fff',
+                    borderRadius: 2,
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      backgroundColor: '#f8f9fa',
+                    },
                     '&:hover fieldset': {
                       borderColor: '#1c84ee',
+                      borderWidth: '1.5px',
                     },
+                    '&.Mui-focused': {
+                      backgroundColor: '#fff',
+                      boxShadow: '0 0 0 3px rgba(28, 132, 238, 0.1)',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#1c84ee',
+                      borderWidth: '1.5px',
+                    },
+                  },
+                  '& .MuiOutlinedInput-input': {
+                    fontSize: '0.9375rem',
                   },
                 }}
               />
@@ -525,10 +689,12 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
               <Typography
                 variant="body2"
                 sx={{
-                  fontWeight: 500,
-                  color: '#424e5a',
+                  fontWeight: 600,
+                  color: '#2c3e50',
                   mb: 1,
-                  fontSize: '0.875rem',
+                  fontSize: '0.8125rem',
+                  letterSpacing: '0.3px',
+                  textTransform: 'uppercase',
                 }}>
                 Số tiền chiết khấu (tự động tính)
               </Typography>
@@ -541,14 +707,21 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 disabled
                 variant="outlined"
                 InputProps={{
-                  endAdornment: <InputAdornment position="end">VNĐ</InputAdornment>,
+                  endAdornment: <InputAdornment position="end" sx={{ color: '#6c757d', fontWeight: 500 }}>VNĐ</InputAdornment>,
                 }}
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    height: '44px',
+                    height: '42px',
+                    borderRadius: 2,
                   },
                   '& .Mui-disabled': {
-                    backgroundColor: '#f8f9fa',
+                    backgroundColor: '#e9ecef',
+                    color: '#495057',
+                    WebkitTextFillColor: '#495057',
+                  },
+                  '& .MuiOutlinedInput-input': {
+                    fontSize: '0.9375rem',
+                    fontWeight: 500,
                   },
                 }}
               />
@@ -560,10 +733,12 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
             <Typography
               variant="body2"
               sx={{
-                fontWeight: 500,
-                color: '#424e5a',
+                fontWeight: 600,
+                color: '#2c3e50',
                 mb: 1,
-                fontSize: '0.875rem',
+                fontSize: '0.8125rem',
+                letterSpacing: '0.3px',
+                textTransform: 'uppercase',
               }}>
               Mô tả sản phẩm/dịch vụ
             </Typography>
@@ -579,9 +754,28 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
               variant="outlined"
               sx={{
                 '& .MuiOutlinedInput-root': {
+                  backgroundColor: '#fff',
+                  borderRadius: 2,
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    backgroundColor: '#f8f9fa',
+                  },
                   '&:hover fieldset': {
                     borderColor: '#1c84ee',
+                    borderWidth: '1.5px',
                   },
+                  '&.Mui-focused': {
+                    backgroundColor: '#fff',
+                    boxShadow: '0 0 0 3px rgba(28, 132, 238, 0.1)',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#1c84ee',
+                    borderWidth: '1.5px',
+                  },
+                },
+                '& .MuiOutlinedInput-input': {
+                  fontSize: '0.9375rem',
+                  lineHeight: 1.6,
                 },
               }}
             />
@@ -593,19 +787,28 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
       <DialogActions
         sx={{
           px: 3,
-          pb: 3,
-          pt: 2.5,
-          borderTop: '1px solid #eef2f7',
+          py: 2.5,
+          borderTop: '1px solid #e8ecef',
+          backgroundColor: '#f8f9fa',
           gap: 1.5,
         }}>
         <Button
           onClick={handleClose}
+          variant="outlined"
           sx={{
+            minWidth: 100,
+            height: 42,
+            borderRadius: 2,
             textTransform: 'none',
-            fontWeight: 500,
-            color: '#5d7186',
+            fontSize: '0.9375rem',
+            fontWeight: 600,
+            color: '#6c757d',
+            borderColor: '#dee2e6',
+            borderWidth: '1.5px',
             '&:hover': {
-              backgroundColor: '#f8f9fa',
+              borderColor: '#adb5bd',
+              borderWidth: '1.5px',
+              backgroundColor: '#e9ecef',
             },
           }}>
           Hủy bỏ
@@ -617,36 +820,49 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
           onClick={handleSave}
           disabled={!formData.code || !formData.name || !formData.unit}
           sx={{
-            textTransform: 'none',
-            fontWeight: 500,
             minWidth: 100,
-            boxShadow: '0 2px 8px rgba(28, 132, 238, 0.24)',
+            height: 42,
+            borderRadius: 2,
+            textTransform: 'none',
+            fontSize: '0.9375rem',
+            fontWeight: 600,
+            background: 'linear-gradient(135deg, #1c84ee 0%, #0d6efd 100%)',
+            boxShadow: '0 4px 12px rgba(28, 132, 238, 0.3)',
             '&:hover': {
-              boxShadow: '0 4px 12px rgba(28, 132, 238, 0.32)',
+              background: 'linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%)',
+              boxShadow: '0 6px 16px rgba(28, 132, 238, 0.4)',
             },
             '&.Mui-disabled': {
-              backgroundColor: '#b0b0bb',
-              color: '#fff',
+              background: '#e9ecef',
+              color: '#adb5bd',
+              boxShadow: 'none',
             },
           }}>
           Lưu
         </Button>
         <Button
-          variant="contained"
+          variant="outlined"
           color="primary"
           onClick={handleSaveAndAdd}
           disabled={!formData.code || !formData.name || !formData.unit}
           sx={{
-            textTransform: 'none',
-            fontWeight: 500,
             minWidth: 140,
-            boxShadow: '0 2px 8px rgba(28, 132, 238, 0.24)',
+            height: 42,
+            borderRadius: 2,
+            textTransform: 'none',
+            fontSize: '0.9375rem',
+            fontWeight: 600,
+            color: '#1c84ee',
+            borderColor: '#1c84ee',
+            borderWidth: '1.5px',
             '&:hover': {
-              boxShadow: '0 4px 12px rgba(28, 132, 238, 0.32)',
+              borderColor: '#0d6efd',
+              borderWidth: '1.5px',
+              backgroundColor: 'rgba(28, 132, 238, 0.08)',
             },
             '&.Mui-disabled': {
-              backgroundColor: '#b0b0bb',
-              color: '#fff',
+              borderColor: '#dee2e6',
+              color: '#adb5bd',
             },
           }}>
           Lưu và Thêm
