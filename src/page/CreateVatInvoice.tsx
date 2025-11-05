@@ -230,9 +230,9 @@ const CreateVatInvoice: React.FC = () => {
   ]
 
   return (
-    <Box sx={{ backgroundColor: '#f5f5f5', minHeight: '100vh', pb: 2 }}>
+    <Box sx={{ minHeight: '100vh', pb: 2 }}>
       {/* Header NGOÀI Paper */}
-      <Box sx={{ backgroundColor: 'white', borderBottom: '1px solid #e0e0e0', px: 2, py: 1.5 }}>
+      <Box sx={{ px: 2, py: 1.5, maxWidth: '1600px', margin: '0 auto' }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Typography variant="h6" sx={{ fontWeight: 500 }}>
             Lập hóa đơn
@@ -245,7 +245,7 @@ const CreateVatInvoice: React.FC = () => {
       </Box>
 
       {/* Main Content */}
-      <Box sx={{ px: 2, pt: 1.5, maxWidth: '1600px', margin: '0 auto' }}>
+      <Box sx={{ px: 2, pt: 0, maxWidth: '1600px', margin: '0 auto' }}>
         <Paper elevation={1} sx={{ p: 2, borderRadius: 1 }}>
           {/* Hướng dẫn lập hóa đơn và Ký hiệu số hoá đơn */}
           <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2} sx={{ mb: 2, flexWrap: 'wrap' }}>
