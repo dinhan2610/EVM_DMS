@@ -88,6 +88,19 @@ export const MENU_ITEMS: MenuItemType[] = [
     url: '/apps/contacts',
   },
   {
+    key: 'apps-admin',
+    icon: 'iconamoon:settings-duotone',
+    label: 'Quản lý',
+    children: [
+      {
+        key: 'admin-templates',
+        label: 'Mẫu hoá đơn',
+        url: '/admin/templates',
+        parentKey: 'apps-admin',
+      },
+    ],
+  },
+  {
     key: 'apps-invoices',
     icon: 'iconamoon:invoice-duotone',
     label: 'Hoá đơn',

@@ -17,6 +17,9 @@ import {
   CreateReplacementInvoice,
   RequestManagement,
   ItemsManagement,
+  TemplateManagement,
+  TemplateEditor,
+  TemplatePreview,
   Welcome,
   FAQs,
   ContactUs,
@@ -91,6 +94,26 @@ const appsRoutes: RoutesProps[] = [
     name: 'Contacts',
     path: '/apps/contacts',
     element: <Contacts />,
+  },
+  {
+    name: 'Template Management',
+    path: '/admin/templates',
+    element: <TemplateManagement />,
+  },
+  {
+    name: 'Create Template',
+    path: '/admin/templates/new',
+    element: <TemplateEditor />,
+  },
+  {
+    name: 'Preview Template',
+    path: '/admin/templates/preview/:templateId',
+    element: <TemplatePreview />,
+  },
+  {
+    name: 'Edit Template',
+    path: '/admin/templates/edit/:templateId',
+    element: <TemplateEditor />,
   },
   {
     name: 'Invoices List',
