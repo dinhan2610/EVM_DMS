@@ -12,6 +12,7 @@ import {
   InvoiceManagement,
   InvoiceDetail,
   CreateInvoice,
+  CreateVatInvoice,
   CreateAdjustmentInvoice,
   CreateReplacementInvoice,
   RequestManagement,
@@ -104,6 +105,11 @@ const appsRoutes: RoutesProps[] = [
   {
     name: 'Create Invoice',
     path: '/newinvoices',
+    element: <CreateVatInvoice />,
+  },
+  {
+    name: 'Create Invoice Old',
+    path: '/newinvoices-old',
     element: <CreateInvoice />,
   },
   {

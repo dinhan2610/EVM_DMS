@@ -100,7 +100,7 @@ export const MENU_ITEMS: MenuItemType[] = [
       },
       {
         key: 'invoices-create',
-        label: 'Tạo hoá đơn mới',
+        label: 'Tạo hoá đơn VAT',
         url: '/newinvoices',
         parentKey: 'apps-invoices',
       },
