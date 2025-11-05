@@ -36,6 +36,7 @@ interface InvoiceTemplate {
   modelCode: string // Mẫu số (1K24TXN)
   status: 'Active' | 'Inactive'
   createdAt: string
+  createdBy: string // Người tạo
 }
 
 const TemplateManagement: React.FC = () => {
@@ -53,6 +54,7 @@ const TemplateManagement: React.FC = () => {
       modelCode: '1K24TXN',
       status: 'Active',
       createdAt: '2024-01-15',
+      createdBy: 'Nguyễn Văn A',
     },
     {
       id: '2',
@@ -61,6 +63,7 @@ const TemplateManagement: React.FC = () => {
       modelCode: '2K24TXN',
       status: 'Active',
       createdAt: '2024-02-20',
+      createdBy: 'Trần Thị B',
     },
     {
       id: '3',
@@ -69,6 +72,7 @@ const TemplateManagement: React.FC = () => {
       modelCode: '3K24TXN',
       status: 'Inactive',
       createdAt: '2024-03-10',
+      createdBy: 'Lê Văn C',
     },
   ]
 
@@ -151,6 +155,20 @@ const TemplateManagement: React.FC = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
           <Typography variant="body2" sx={{ fontSize: '0.875rem', color: '#666' }}>
             {new Date(params.value as string).toLocaleDateString('vi-VN')}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      field: 'createdBy',
+      headerName: 'Người tạo',
+      width: 150,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+          <Typography variant="body2" sx={{ fontSize: '0.875rem', color: '#444', fontWeight: 500 }}>
+            {params.value}
           </Typography>
         </Box>
       ),
