@@ -31,6 +31,8 @@ export interface Invoice {
   id: string
   invoiceNumber: string
   customerName: string
+  taxCode: string // Mã số thuế
+  taxAuthority: string // Mã của CQT
   issueDate: string
   status: 'Nháp' | 'Đã ký' | 'Đã phát hành' | 'Đã gửi' | 'Bị từ chối' | 'Đã thanh toán' | 'Đã hủy'
   taxStatus: 'Chờ đồng bộ' | 'Đã đồng bộ' | 'Lỗi'
@@ -43,6 +45,8 @@ const mockInvoices: Invoice[] = [
     id: '1',
     invoiceNumber: 'INV-2024-001',
     customerName: 'Công ty TNHH ABC Technology',
+    taxCode: '0123456789',
+    taxAuthority: 'TCT/24E/001',
     issueDate: '2024-10-01',
     status: 'Đã thanh toán',
     taxStatus: 'Đã đồng bộ',
@@ -52,6 +56,8 @@ const mockInvoices: Invoice[] = [
     id: '2',
     invoiceNumber: 'INV-2024-002',
     customerName: 'Công ty Cổ phần XYZ Solutions',
+    taxCode: '0987654321',
+    taxAuthority: 'TCT/24E/002',
     issueDate: '2024-10-05',
     status: 'Đã gửi',
     taxStatus: 'Đã đồng bộ',
@@ -61,6 +67,8 @@ const mockInvoices: Invoice[] = [
     id: '3',
     invoiceNumber: 'INV-2024-003',
     customerName: 'Doanh nghiệp Tư nhân DEF',
+    taxCode: '0111222333',
+    taxAuthority: 'TCT/24E/003',
     issueDate: '2024-10-10',
     status: 'Đã phát hành',
     taxStatus: 'Chờ đồng bộ',
@@ -70,6 +78,8 @@ const mockInvoices: Invoice[] = [
     id: '4',
     invoiceNumber: 'INV-2024-004',
     customerName: 'Công ty TNHH GHI Logistics',
+    taxCode: '0444555666',
+    taxAuthority: 'TCT/24E/004',
     issueDate: '2024-10-12',
     status: 'Đã ký',
     taxStatus: 'Đã đồng bộ',
@@ -79,6 +89,8 @@ const mockInvoices: Invoice[] = [
     id: '5',
     invoiceNumber: 'INV-2024-005',
     customerName: 'Tập đoàn JKL Group',
+    taxCode: '0777888999',
+    taxAuthority: 'TCT/24E/005',
     issueDate: '2024-10-15',
     status: 'Nháp',
     taxStatus: 'Chờ đồng bộ',
@@ -88,6 +100,8 @@ const mockInvoices: Invoice[] = [
     id: '6',
     invoiceNumber: 'INV-2024-006',
     customerName: 'Công ty CP MNO Trading',
+    taxCode: '0222333444',
+    taxAuthority: 'TCT/24E/006',
     issueDate: '2024-10-18',
     status: 'Bị từ chối',
     taxStatus: 'Lỗi',
@@ -97,6 +111,8 @@ const mockInvoices: Invoice[] = [
     id: '7',
     invoiceNumber: 'INV-2024-007',
     customerName: 'Doanh nghiệp PQR Services',
+    taxCode: '0555666777',
+    taxAuthority: 'TCT/24E/007',
     issueDate: '2024-10-20',
     status: 'Đã thanh toán',
     taxStatus: 'Đã đồng bộ',
@@ -106,6 +122,8 @@ const mockInvoices: Invoice[] = [
     id: '8',
     invoiceNumber: 'INV-2024-008',
     customerName: 'Công ty TNHH STU Consulting',
+    taxCode: '0888999000',
+    taxAuthority: 'TCT/24E/008',
     issueDate: '2024-10-22',
     status: 'Đã hủy',
     taxStatus: 'Lỗi',
@@ -174,6 +192,34 @@ const InvoiceManagement = () => {
       flex: 1.5,
       minWidth: 180,
       sortable: true,
+    },
+    {
+      field: 'taxCode',
+      headerName: 'Mã số thuế',
+      flex: 1,
+      minWidth: 120,
+      sortable: true,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams) => (
+        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.875rem', fontWeight: 500 }}>
+          {params.value as string}
+        </Typography>
+      ),
+    },
+    {
+      field: 'taxAuthority',
+      headerName: 'Mã của CQT',
+      flex: 1,
+      minWidth: 130,
+      sortable: true,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams) => (
+        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.875rem', fontWeight: 500, color: '#1976d2' }}>
+          {params.value as string}
+        </Typography>
+      ),
     },
     {
       field: 'issueDate',

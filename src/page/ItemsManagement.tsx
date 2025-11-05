@@ -135,8 +135,8 @@ const ItemsManagement = () => {
   const columns: GridColDef[] = [
     {
       field: 'code',
-      headerName: 'Mã',
-      width: 120,
+      headerName: 'Mã hàng hoá, dịch vụ',
+      width: 160,
       renderCell: (params: GridRenderCellParams) => (
         <Typography variant="body2" sx={{ fontWeight: 600, color: '#1c84ee' }}>
           {params.value}
@@ -145,7 +145,7 @@ const ItemsManagement = () => {
     },
     {
       field: 'name',
-      headerName: 'Tên hàng hóa / Dịch vụ',
+      headerName: 'Tên hàng hoá, dịch vụ',
       flex: 1,
       minWidth: 250,
       renderCell: (params: GridRenderCellParams) => (
@@ -165,8 +165,8 @@ const ItemsManagement = () => {
     },
     {
       field: 'group',
-      headerName: 'Nhóm',
-      width: 130,
+      headerName: 'Nhóm hàng hoá, dịch vụ',
+      width: 180,
       renderCell: (params: GridRenderCellParams) => {
         const groupLabels: Record<string, string> = {
           'hang-hoa': 'Hàng hóa',
@@ -189,8 +189,8 @@ const ItemsManagement = () => {
     },
     {
       field: 'unit',
-      headerName: 'Đơn vị',
-      width: 100,
+      headerName: 'Đơn vị tính',
+      width: 120,
       renderCell: (params: GridRenderCellParams) => (
         <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
           {params.value}
@@ -211,8 +211,8 @@ const ItemsManagement = () => {
     },
     {
       field: 'vatTaxRate',
-      headerName: 'Thuế VAT',
-      width: 100,
+      headerName: 'Thuế GTGT (%)',
+      width: 130,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
@@ -221,27 +221,14 @@ const ItemsManagement = () => {
     },
     {
       field: 'discountRate',
-      headerName: 'Chiết khấu',
-      width: 110,
+      headerName: 'Tỷ lệ CK (%)',
+      width: 120,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
         <Typography variant="body2" sx={{ color: params.value > 0 ? '#ef5f5f' : '#999' }}>
           {params.value}%
         </Typography>
-      ),
-    },
-    {
-      field: 'status',
-      headerName: 'Trạng thái',
-      width: 120,
-      renderCell: (params: GridRenderCellParams) => (
-        <Chip
-          label={params.value === 'active' ? 'Hoạt động' : 'Ngừng'}
-          size="small"
-          color={params.value === 'active' ? 'success' : 'default'}
-          sx={{ fontWeight: 500 }}
-        />
       ),
     },
     {
