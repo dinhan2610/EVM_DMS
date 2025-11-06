@@ -166,6 +166,22 @@ const InvoiceManagement = () => {
   // Định nghĩa columns
   const columns: GridColDef[] = [
     {
+      field: 'stt',
+      headerName: 'STT',
+      width: 70,
+      align: 'center',
+      headerAlign: 'center',
+      sortable: false,
+      renderCell: (params: GridRenderCellParams) => {
+        const index = filteredInvoices.findIndex((invoice) => invoice.id === params.row.id)
+        return (
+          <Typography variant="body2" sx={{ fontWeight: 500, color: '#666' }}>
+            {index + 1}
+          </Typography>
+        )
+      },
+    },
+    {
       field: 'invoiceNumber',
       headerName: 'Số hóa đơn',
       flex: 1,
@@ -265,7 +281,7 @@ const InvoiceManagement = () => {
     {
       field: 'actions',
       headerName: 'Thao tác',
-      width: 110,
+      width: 120,
       sortable: false,
       align: 'center',
       headerAlign: 'center',
@@ -276,10 +292,10 @@ const InvoiceManagement = () => {
               component={Link}
               to={`/invoices/${params.row.id}`}
               size="small"
+              color="info"
               sx={{
-                color: '#1976d2',
                 '&:hover': {
-                  backgroundColor: '#e3f2fd',
+                  backgroundColor: 'rgba(33, 150, 243, 0.08)',
                 },
               }}>
               <VisibilityOutlinedIcon fontSize="small" />
@@ -288,10 +304,10 @@ const InvoiceManagement = () => {
           <Tooltip title="Chỉnh sửa" arrow>
             <IconButton
               size="small"
+              color="primary"
               sx={{
-                color: '#2e7d32',
                 '&:hover': {
-                  backgroundColor: '#e8f5e9',
+                  backgroundColor: 'rgba(28, 132, 238, 0.08)',
                 },
               }}>
               <EditOutlinedIcon fontSize="small" />
@@ -314,201 +330,164 @@ const InvoiceManagement = () => {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Box sx={{ width: '100%', p: 3, backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
-        {/* Header */}
-        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box>
-            <Typography variant="h4" component="h1" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 0.5 }}>
-              Quản lý Hóa đơn
-            </Typography>
-            <Box
-              sx={{
-                display: 'inline-block',
-                px: 2,
-                py: 0.5,
-                borderRadius: 1,
-                backgroundColor: '#e3f2fd',
-                border: '1px solid #90caf9',
-              }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976d2' }}>
-                Tổng số: {filteredInvoices.length} hóa đơn
+      <Box sx={{ width: '100%', backgroundColor: '#f5f5f5', minHeight: '100vh', py: 4 }}>
+        <Box sx={{ width: '100%', px: { xs: 2, sm: 3, md: 4 } }}>
+          {/* Header */}
+          <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
+                Quản lý Hóa đơn
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#666' }}>
+                Quản lý và theo dõi các hóa đơn điện tử của doanh nghiệp
               </Typography>
             </Box>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<AddIcon />}
+              sx={{
+                textTransform: 'none',
+                fontWeight: 500,
+                boxShadow: '0 2px 8px rgba(28, 132, 238, 0.24)',
+                '&:hover': {
+                  boxShadow: '0 4px 12px rgba(28, 132, 238, 0.32)',
+                },
+              }}>
+              Tạo hóa đơn
+            </Button>
           </Box>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
+
+          {/* Data Table with Search & Filters */}
+          <Paper
+            elevation={0}
             sx={{
-              textTransform: 'none',
-              fontWeight: 600,
-              backgroundColor: '#1976d2',
-              boxShadow: 'none',
-              '&:hover': {
-                backgroundColor: '#1565c0',
-                boxShadow: 'none',
-              },
+              border: '1px solid #e0e0e0',
+              borderRadius: 2,
+              backgroundColor: '#fff',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+              overflow: 'hidden',
             }}>
-            Tạo hóa đơn
-          </Button>
-        </Box>
-
-        {/* Bộ lọc */}
-        <Paper
-          elevation={0}
-          sx={{
-            p: 3,
-            mb: 3,
-            border: '1px solid #e0e0e0',
-            borderRadius: 1,
-          }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#333', mb: 2 }}>
-            Bộ lọc
-          </Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Tìm kiếm theo tên khách hàng"
-                variant="outlined"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                placeholder="Nhập tên khách hàng..."
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon sx={{ color: '#999' }} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    backgroundColor: '#fff',
-                  },
-                }}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Lọc theo Trạng thái</InputLabel>
-                <Select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  label="Lọc theo Trạng thái"
-                  sx={{
-                    backgroundColor: '#fff',
-                  }}>
-                  <MenuItem value="all">Tất cả</MenuItem>
-                  <MenuItem value="Nháp">Nháp</MenuItem>
-                  <MenuItem value="Đã ký">Đã ký</MenuItem>
-                  <MenuItem value="Đã phát hành">Đã phát hành</MenuItem>
-                  <MenuItem value="Đã gửi">Đã gửi</MenuItem>
-                  <MenuItem value="Bị từ chối">Bị từ chối</MenuItem>
-                  <MenuItem value="Đã thanh toán">Đã thanh toán</MenuItem>
-                  <MenuItem value="Đã hủy">Đã hủy</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <DatePicker
-                label="Lọc theo Ngày"
-                value={dateFilter}
-                onChange={(newValue) => setDateFilter(newValue)}
-                slotProps={{
-                  textField: {
-                    fullWidth: true,
-                    size: 'small',
-                    sx: {
+            {/* Search & Filter Section */}
+            <Box sx={{ p: 3, borderBottom: '1px solid #e0e0e0' }}>
+              <Grid container spacing={2}>
+                {/* @ts-expect-error - MUI Grid compatibility */}
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Tìm kiếm theo tên khách hàng"
+                    variant="outlined"
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    placeholder="Nhập tên khách hàng..."
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon sx={{ color: '#999' }} />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
                       '& .MuiOutlinedInput-root': {
-                        backgroundColor: '#fff',
+                        backgroundColor: '#fafafa',
+                        '&:hover': {
+                          backgroundColor: '#f5f5f5',
+                        },
+                        '&.Mui-focused': {
+                          backgroundColor: '#fff',
+                        },
                       },
-                    },
-                  },
-                  field: { clearable: true },
-                }}
-              />
-            </Grid>
-          </Grid>
-        </Paper>
+                    }}
+                  />
+                </Grid>
 
-        {/* Bảng dữ liệu */}
-        <Paper
-          elevation={0}
-          sx={{
-            border: '1px solid #e0e0e0',
-            borderRadius: 1,
-            overflow: 'hidden',
-          }}>
-          <DataGrid
-            rows={filteredInvoices}
-            columns={columns}
-            initialState={{
-              pagination: {
-                paginationModel: { pageSize: 10, page: 0 },
-              },
-            }}
-            pageSizeOptions={[10, 25, 50, 100]}
-            checkboxSelection
-            disableRowSelectionOnClick
-            autoHeight
-            slotProps={{
-              pagination: {
-                labelRowsPerPage: '',
-                labelDisplayedRows: () => '',
-              },
-            }}
-            sx={{
-              border: 0,
-              '& .MuiDataGrid-cell': {
-                borderColor: '#f0f0f0',
-              },
-              '& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within': {
-                outline: 'none',
-              },
-              '& .MuiDataGrid-row:hover': {
-                backgroundColor: '#fafafa',
-              },
-              '& .MuiDataGrid-columnHeaders': {
-                backgroundColor: '#fafafa',
-                borderColor: '#e0e0e0',
-                fontWeight: 600,
-                fontSize: '0.875rem',
-              },
-              '& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within': {
-                outline: 'none',
-              },
-              '& .MuiDataGrid-footerContainer': {
-                borderColor: '#e0e0e0',
-                backgroundColor: '#fafafa',
-              },
-              '& .MuiTablePagination-displayedRows': {
-                display: 'none',
-              },
-              '& .MuiTablePagination-selectLabel': {
-                display: 'none !important',
-              },
-              '& .MuiTablePagination-toolbar': {
-                '& > p:first-of-type': {
-                  display: 'none',
+                {/* @ts-expect-error - MUI Grid compatibility */}
+                <Grid item xs={12} md={4}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Trạng thái</InputLabel>
+                    <Select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      label="Trạng thái"
+                      sx={{
+                        backgroundColor: '#fafafa',
+                        '&:hover': {
+                          backgroundColor: '#f5f5f5',
+                        },
+                        '&.Mui-focused': {
+                          backgroundColor: '#fff',
+                        },
+                      }}>
+                      <MenuItem value="all">Tất cả</MenuItem>
+                      <MenuItem value="Nháp">Nháp</MenuItem>
+                      <MenuItem value="Đã ký">Đã ký</MenuItem>
+                      <MenuItem value="Đã phát hành">Đã phát hành</MenuItem>
+                      <MenuItem value="Đã gửi">Đã gửi</MenuItem>
+                      <MenuItem value="Bị từ chối">Bị từ chối</MenuItem>
+                      <MenuItem value="Đã thanh toán">Đã thanh toán</MenuItem>
+                      <MenuItem value="Đã hủy">Đã hủy</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* @ts-expect-error - MUI Grid compatibility */}
+                <Grid item xs={12} md={4}>
+                  <DatePicker
+                    label="Ngày phát hành"
+                    value={dateFilter}
+                    onChange={(newValue) => setDateFilter(newValue)}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: 'small',
+                        sx: {
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#fafafa',
+                            '&:hover': {
+                              backgroundColor: '#f5f5f5',
+                            },
+                            '&.Mui-focused': {
+                              backgroundColor: '#fff',
+                            },
+                          },
+                        },
+                      },
+                      field: { clearable: true },
+                    }}
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+            {/* Table Section */}
+            <DataGrid
+              rows={filteredInvoices}
+              columns={columns}
+              initialState={{
+                pagination: {
+                  paginationModel: { pageSize: 10, page: 0 },
                 },
-              },
-              '& .MuiTablePagination-select': {
-                display: 'none',
-              },
-              '& .MuiTablePagination-selectIcon': {
-                display: 'none',
-              },
-              '& .MuiCheckbox-root': {
-                color: '#bdbdbd',
-                '&.Mui-checked': {
-                  color: '#1976d2',
+              }}
+              pageSizeOptions={[5, 10, 25, 50]}
+              disableRowSelectionOnClick
+              sx={{
+                border: 'none',
+                '& .MuiDataGrid-cell': {
+                  borderBottom: '1px solid #f0f0f0',
                 },
-              },
-            }}
-          />
-        </Paper>
+                '& .MuiDataGrid-columnHeaders': {
+                  backgroundColor: '#f8f9fa',
+                  borderBottom: '2px solid #e0e0e0',
+                  fontWeight: 600,
+                },
+                '& .MuiDataGrid-row:hover': {
+                  backgroundColor: '#f8f9fa',
+                },
+              }}
+              autoHeight
+            />
+          </Paper>
+        </Box>
       </Box>
     </LocalizationProvider>
   )

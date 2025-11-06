@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   Box,
   Typography,
@@ -14,6 +14,7 @@ import {
   Tooltip,
   Chip,
   Stack,
+  InputAdornment,
 } from '@mui/material'
 import { useNavigate } from 'react-router-dom'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
@@ -21,6 +22,7 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import HighlightOffIcon from '@mui/icons-material/HighlightOff'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import SearchIcon from '@mui/icons-material/Search'
+import RequestDetailModal from '../components/RequestDetailModal.tsx'
 
 // Interface
 export interface InvoiceRequest {
@@ -147,6 +149,7 @@ const RequestManagement = () => {
   const [selectedRequest, setSelectedRequest] = useState<InvoiceRequest | null>(null)
   const [rejectionReason, setRejectionReason] = useState('')
   const [searchText, setSearchText] = useState('')
+  const [viewingRequest, setViewingRequest] = useState<InvoiceRequest | null>(null)
 
   // Handlers
   const handleOpenRejectModal = (request: InvoiceRequest) => {
@@ -194,13 +197,42 @@ const RequestManagement = () => {
   }
 
   const handleViewDetails = (request: InvoiceRequest) => {
-    console.log('Viewing request details:', request.id)
-    // Có thể mở modal hoặc navigate đến trang chi tiết
-    alert(`Chi tiết yêu cầu:\n\nNgười yêu cầu: ${request.requestorName}\nDự án: ${request.projectName}\nKhách hàng: ${request.customerName}\nTài liệu đính kèm: ${request.supportingDocs.join(', ')}`)
+    setViewingRequest(request)
   }
+
+  const handleCloseViewModal = () => {
+    setViewingRequest(null)
+  }
+
+  // Filter requests với useMemo để tối ưu
+  const filteredRequests = useMemo(() => {
+    if (!searchText) return requests
+    return requests.filter(
+      (req) =>
+        req.requestorName.toLowerCase().includes(searchText.toLowerCase()) ||
+        req.projectName.toLowerCase().includes(searchText.toLowerCase()) ||
+        req.customerName.toLowerCase().includes(searchText.toLowerCase())
+    )
+  }, [requests, searchText])
 
   // DataGrid Columns
   const columns: GridColDef[] = [
+    {
+      field: 'stt',
+      headerName: 'STT',
+      width: 70,
+      align: 'center',
+      headerAlign: 'center',
+      sortable: false,
+      renderCell: (params: GridRenderCellParams) => {
+        const index = filteredRequests.findIndex((req) => req.id === params.row.id)
+        return (
+          <Typography variant="body2" sx={{ fontWeight: 500, color: '#666' }}>
+            {index + 1}
+          </Typography>
+        )
+      },
+    },
     {
       field: 'requestorName',
       headerName: 'Người yêu cầu',
@@ -251,102 +283,127 @@ const RequestManagement = () => {
       renderCell: (params: GridRenderCellParams) => {
         if (params.row.status === 'Pending') {
           return (
-            <Stack direction="row" spacing={1}>
-              <Tooltip title="Xem chi tiết">
-                <IconButton size="small" color="info" onClick={() => handleViewDetails(params.row)}>
+            <Stack direction="row" spacing={0.5}>
+              <Tooltip title="Xem chi tiết" arrow>
+                <IconButton
+                  size="small"
+                  color="info"
+                  onClick={() => handleViewDetails(params.row)}
+                  sx={{
+                    '&:hover': {
+                      backgroundColor: 'rgba(33, 150, 243, 0.08)',
+                    },
+                  }}>
                   <VisibilityOutlinedIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
-              <Tooltip title="Chấp nhận">
-                <IconButton size="small" color="success" onClick={() => handleAccept(params.row)}>
+              <Tooltip title="Chấp nhận" arrow>
+                <IconButton
+                  size="small"
+                  color="success"
+                  onClick={() => handleAccept(params.row)}
+                  sx={{
+                    '&:hover': {
+                      backgroundColor: 'rgba(76, 175, 80, 0.08)',
+                    },
+                  }}>
                   <CheckCircleOutlineIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
-              <Tooltip title="Từ chối">
-                <IconButton size="small" color="error" onClick={() => handleOpenRejectModal(params.row)}>
+              <Tooltip title="Từ chối" arrow>
+                <IconButton
+                  size="small"
+                  color="error"
+                  onClick={() => handleOpenRejectModal(params.row)}
+                  sx={{
+                    '&:hover': {
+                      backgroundColor: 'rgba(244, 67, 54, 0.08)',
+                    },
+                  }}>
                   <HighlightOffIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
             </Stack>
           )
         }
+        // Đã xử lý: chỉ hiển thị nút xem chi tiết
         return (
-          <Typography variant="body2" color="text.secondary">
-            Đã xử lý
-          </Typography>
+          <Tooltip title="Xem chi tiết" arrow>
+            <IconButton
+              size="small"
+              color="info"
+              onClick={() => handleViewDetails(params.row)}
+              sx={{
+                '&:hover': {
+                  backgroundColor: 'rgba(33, 150, 243, 0.08)',
+                },
+              }}>
+              <VisibilityOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         )
       },
     },
   ]
 
-  // Filter requests
-  const filteredRequests = requests.filter(
-    (req) =>
-      req.requestorName.toLowerCase().includes(searchText.toLowerCase()) ||
-      req.projectName.toLowerCase().includes(searchText.toLowerCase()) ||
-      req.customerName.toLowerCase().includes(searchText.toLowerCase())
-  )
-
   return (
     <Box sx={{ width: '100%', backgroundColor: '#f5f5f5', minHeight: '100vh', py: 4 }}>
-      <Box sx={{ width: '100%' }}>
+      <Box sx={{ width: '100%', px: { xs: 2, sm: 3, md: 4 } }}>
         {/* Header */}
-        <Box sx={{ mb: 4, px: { xs: 2, sm: 3, md: 4 } }}>
-          <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
-            Quản lý Yêu cầu Xuất hóa đơn
-          </Typography>
-          <Typography variant="body2" sx={{ color: '#666' }}>
-            Duyệt và xử lý các yêu cầu xuất hóa đơn từ người bán hàng
-          </Typography>
+        <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box>
+            <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
+              Quản lý Yêu cầu Xuất hóa đơn
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#666' }}>
+              Duyệt và xử lý các yêu cầu xuất hóa đơn từ người bán hàng
+            </Typography>
+          </Box>
+          
         </Box>
 
-        {/* Filters */}
-        <Paper
-          elevation={0}
-          sx={{
-            mb: 3,
-            p: 3,
-            border: '1px solid #e0e0e0',
-            borderRadius: 0,
-            backgroundColor: '#fff',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-          }}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
-            <TextField
-              placeholder="Tìm kiếm theo người yêu cầu, dự án, khách hàng..."
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              size="small"
-              sx={{ flex: 1, minWidth: 300 }}
-              InputProps={{
-                startAdornment: <SearchIcon sx={{ mr: 1, color: '#999' }} />,
-              }}
-            />
-            <Box
-              sx={{
-                px: 2,
-                py: 1,
-                borderRadius: 1,
-                backgroundColor: '#e3f2fd',
-                border: '1px solid #90caf9',
-              }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976d2', whiteSpace: 'nowrap' }}>
-                Tổng: {filteredRequests.length} yêu cầu
-              </Typography>
-            </Box>
-          </Stack>
-        </Paper>
-
-        {/* DataGrid */}
+        {/* Data Table */}
         <Paper
           elevation={0}
           sx={{
             border: '1px solid #e0e0e0',
-            borderRadius: 0,
+            borderRadius: 2,
             backgroundColor: '#fff',
             boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
             overflow: 'hidden',
           }}>
+          {/* Search Section */}
+          <Box sx={{ p: 3, borderBottom: '1px solid #e0e0e0' }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Tìm kiếm theo người yêu cầu, dự án hoặc khách hàng"
+              variant="outlined"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Nhập từ khóa tìm kiếm..."
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: '#999' }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                maxWidth: 500,
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: '#fafafa',
+                  '&:hover': {
+                    backgroundColor: '#f5f5f5',
+                  },
+                  '&.Mui-focused': {
+                    backgroundColor: '#fff',
+                  },
+                },
+              }}
+            />
+          </Box>
+          {/* Table Section */}
           <DataGrid
             rows={filteredRequests}
             columns={columns}
@@ -355,46 +412,20 @@ const RequestManagement = () => {
                 paginationModel: { page: 0, pageSize: 10 },
               },
             }}
-            pageSizeOptions={[5, 10, 25]}
+            pageSizeOptions={[5, 10, 25, 50]}
             disableRowSelectionOnClick
-            slotProps={{
-              pagination: {
-                labelRowsPerPage: '',
-                labelDisplayedRows: () => '',
-              },
-            }}
             sx={{
               border: 'none',
               '& .MuiDataGrid-cell': {
                 borderBottom: '1px solid #f0f0f0',
               },
               '& .MuiDataGrid-columnHeaders': {
-                backgroundColor: '#fafafa',
+                backgroundColor: '#f8f9fa',
                 borderBottom: '2px solid #e0e0e0',
                 fontWeight: 600,
               },
               '& .MuiDataGrid-row:hover': {
-                backgroundColor: '#f5f5f5',
-              },
-              '& .MuiDataGrid-footerContainer': {
-                borderTop: '2px solid #e0e0e0',
-              },
-              '& .MuiTablePagination-displayedRows': {
-                display: 'none',
-              },
-              '& .MuiTablePagination-selectLabel': {
-                display: 'none !important',
-              },
-              '& .MuiTablePagination-toolbar': {
-                '& > p:first-of-type': {
-                  display: 'none',
-                },
-              },
-              '& .MuiTablePagination-select': {
-                display: 'none',
-              },
-              '& .MuiTablePagination-selectIcon': {
-                display: 'none',
+                backgroundColor: '#f8f9fa',
               },
             }}
             autoHeight
@@ -451,6 +482,9 @@ const RequestManagement = () => {
             </Button>
           </DialogActions>
         </Dialog>
+
+        {/* Request Detail Modal */}
+        <RequestDetailModal request={viewingRequest} open={!!viewingRequest} onClose={handleCloseViewModal} />
       </Box>
     </Box>
   )

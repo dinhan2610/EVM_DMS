@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogTitle,
@@ -38,6 +38,7 @@ interface AddNewItemModalProps {
   open: boolean
   onClose: () => void
   onSave: (data: ItemFormData) => void
+  initialData?: ItemFormData | null
 }
 
 // Dữ liệu mẫu cho các dropdown
@@ -75,9 +76,9 @@ const VAT_REDUCTIONS = [
   { value: 'reduce-100', label: 'Giảm 100%' },
 ]
 
-const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave }) => {
-  // State quản lý dữ liệu form với giá trị khởi tạo
-  const [formData, setFormData] = useState<ItemFormData>({
+const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave, initialData }) => {
+  // Giá trị khởi tạo mặc định
+  const defaultFormData: ItemFormData = {
     code: '',
     name: '',
     group: '',
@@ -89,7 +90,22 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
     discountAmount: 0,
     vatReduction: 'none',
     description: '',
-  })
+  }
+
+  // State quản lý dữ liệu form
+  const [formData, setFormData] = useState<ItemFormData>(defaultFormData)
+
+  // useEffect để cập nhật form khi initialData thay đổi
+  useEffect(() => {
+    if (initialData) {
+      // Chế độ Edit: Điền dữ liệu vào form
+      setFormData(initialData)
+    } else {
+      // Chế độ Add: Reset form về trạng thái rỗng
+      setFormData(defaultFormData)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialData, open])
 
   // Hàm xử lý thay đổi input
   const handleInputChange = (field: keyof ItemFormData, value: string | number | boolean) => {
@@ -109,19 +125,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
 
   // Reset form về trạng thái ban đầu
   const resetForm = () => {
-    setFormData({
-      code: '',
-      name: '',
-      group: '',
-      unit: '',
-      salesPrice: 0,
-      priceIncludesTax: false,
-      vatTaxRate: '10%',
-      discountRate: 0,
-      discountAmount: 0,
-      vatReduction: 'none',
-      description: '',
-    })
+    setFormData(defaultFormData)
   }
 
   // Xử lý lưu và đóng modal
@@ -183,7 +187,9 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
               width: 36,
               height: 36,
               borderRadius: 1.5,
-              background: 'linear-gradient(135deg, #1c84ee 0%, #0d6efd 100%)',
+              background: initialData
+                ? 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)'
+                : 'linear-gradient(135deg, #1c84ee 0%, #0d6efd 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -191,9 +197,11 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
               fontSize: '1.125rem',
               fontWeight: 700,
             }}>
-            +
+            {initialData ? '✎' : '+'}
           </Box>
-          <span style={{ fontSize: '1.125rem' }}>Thêm hàng hóa/dịch vụ mới</span>
+          <span style={{ fontSize: '1.125rem' }}>
+            {initialData ? 'Chỉnh sửa Hàng hóa, Dịch vụ' : 'Thêm mới Hàng hóa, Dịch vụ'}
+          </span>
         </Box>
         <IconButton
           onClick={handleClose}

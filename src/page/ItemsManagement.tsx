@@ -16,9 +16,10 @@ import SearchIcon from '@mui/icons-material/Search'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import AddNewItemModal, { ItemFormData } from '../components/AddNewItemModal'
+import ItemDetailModal from '../components/ItemDetailModal'
 
 // Interface cho Item trong danh sách
-interface Item extends ItemFormData {
+export interface Item extends ItemFormData {
   id: number
   createdAt: string
   status: 'active' | 'inactive'
@@ -78,27 +79,44 @@ const ItemsManagement = () => {
     },
   ])
   const [searchText, setSearchText] = useState('')
+  const [editingItem, setEditingItem] = useState<Item | null>(null)
+  const [viewingItem, setViewingItem] = useState<Item | null>(null)
 
-  // Hàm mở modal
+  // Hàm mở modal thêm mới
   const handleOpenModal = () => {
+    setEditingItem(null)
     setIsModalOpen(true)
   }
 
   // Hàm đóng modal
   const handleCloseModal = () => {
     setIsModalOpen(false)
+    setEditingItem(null)
   }
 
-  // Hàm lưu item mới
+  // Hàm lưu item (thêm mới hoặc cập nhật)
   const handleSaveItem = (data: ItemFormData) => {
-    const newItem: Item = {
-      ...data,
-      id: items.length + 1,
-      createdAt: new Date().toISOString().split('T')[0],
-      status: 'active',
+    if (editingItem) {
+      // Chế độ Edit: Cập nhật item hiện tại
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === editingItem.id
+            ? { ...item, ...data }
+            : item
+        )
+      )
+      console.log('Đã cập nhật item:', editingItem.id)
+    } else {
+      // Chế độ Add: Thêm item mới
+      const newItem: Item = {
+        ...data,
+        id: items.length + 1,
+        createdAt: new Date().toISOString().split('T')[0],
+        status: 'active',
+      }
+      setItems((prev) => [newItem, ...prev])
+      console.log('Đã thêm item mới:', newItem)
     }
-    setItems((prev) => [newItem, ...prev])
-    console.log('Đã thêm item mới:', newItem)
   }
 
   // Hàm xóa item
@@ -108,11 +126,23 @@ const ItemsManagement = () => {
     }
   }
 
-  // Hàm sửa item (placeholder)
+  // Hàm sửa item
   const handleEditItem = (id: number) => {
-    console.log('Edit item:', id)
-    // TODO: Implement edit functionality
-    alert('Chức năng sửa đang được phát triển')
+    const item = items.find((item) => item.id === id)
+    if (item) {
+      setEditingItem(item)
+      setIsModalOpen(true)
+    }
+  }
+
+  // Hàm xem chi tiết
+  const handleViewDetails = (item: Item) => {
+    setViewingItem(item)
+  }
+
+  // Hàm đóng modal xem chi tiết
+  const handleCloseViewModal = () => {
+    setViewingItem(null)
   }
 
   // Filter items theo search
@@ -134,11 +164,38 @@ const ItemsManagement = () => {
   // Columns definition
   const columns: GridColDef[] = [
     {
+      field: 'stt',
+      headerName: 'STT',
+      width: 70,
+      align: 'center',
+      headerAlign: 'center',
+      sortable: false,
+      renderCell: (params: GridRenderCellParams) => {
+        const index = filteredItems.findIndex((item) => item.id === params.row.id)
+        return (
+          <Typography variant="body2" sx={{ fontWeight: 500, color: '#666' }}>
+            {index + 1}
+          </Typography>
+        )
+      },
+    },
+    {
       field: 'code',
       headerName: 'Mã hàng hoá, dịch vụ',
       width: 160,
       renderCell: (params: GridRenderCellParams) => (
-        <Typography variant="body2" sx={{ fontWeight: 600, color: '#1c84ee' }}>
+        <Typography
+          variant="body2"
+          onClick={() => handleViewDetails(params.row)}
+          sx={{
+            fontWeight: 600,
+            color: '#1c84ee',
+            cursor: 'pointer',
+            '&:hover': {
+              textDecoration: 'underline',
+              color: '#0d6efd',
+            },
+          }}>
           {params.value}
         </Typography>
       ),
@@ -297,44 +354,6 @@ const ItemsManagement = () => {
           </Button>
         </Box>
 
-        {/* Search & Filters */}
-        <Paper
-          elevation={0}
-          sx={{
-            p: 3,
-            mb: 3,
-            border: '1px solid #e0e0e0',
-            borderRadius: 2,
-            backgroundColor: '#fff',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-          }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#333', mb: 2 }}>
-            Tìm kiếm
-          </Typography>
-          <TextField
-            fullWidth
-            size="small"
-            label="Tìm kiếm theo mã, tên hoặc mô tả"
-            variant="outlined"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            placeholder="Nhập từ khóa tìm kiếm..."
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ color: '#999' }} />
-                </InputAdornment>
-              ),
-            }}
-            sx={{
-              maxWidth: 500,
-              '& .MuiOutlinedInput-root': {
-                backgroundColor: '#fff',
-              },
-            }}
-          />
-        </Paper>
-
         {/* Data Table */}
         <Paper
           elevation={0}
@@ -345,14 +364,38 @@ const ItemsManagement = () => {
             boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
             overflow: 'hidden',
           }}>
+          {/* Search Section */}
           <Box sx={{ p: 3, borderBottom: '1px solid #e0e0e0' }}>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Danh sách Hàng hóa, Dịch vụ
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#666', mt: 0.5 }}>
-              Tổng số: <strong>{filteredItems.length}</strong> sản phẩm/dịch vụ
-            </Typography>
+            <TextField
+              fullWidth
+              size="small"
+              label="Tìm kiếm theo mã, tên hoặc mô tả"
+              variant="outlined"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Nhập từ khóa tìm kiếm..."
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: '#999' }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                maxWidth: 500,
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: '#fafafa',
+                  '&:hover': {
+                    backgroundColor: '#f5f5f5',
+                  },
+                  '&.Mui-focused': {
+                    backgroundColor: '#fff',
+                  },
+                },
+              }}
+            />
           </Box>
+          {/* Table Section */}
           <DataGrid
             rows={filteredItems}
             columns={columns}
@@ -381,8 +424,16 @@ const ItemsManagement = () => {
           />
         </Paper>
 
-        {/* Modal */}
-        <AddNewItemModal open={isModalOpen} onClose={handleCloseModal} onSave={handleSaveItem} />
+        {/* Modal thêm/sửa */}
+        <AddNewItemModal
+          open={isModalOpen}
+          onClose={handleCloseModal}
+          onSave={handleSaveItem}
+          initialData={editingItem}
+        />
+
+        {/* Modal xem chi tiết */}
+        <ItemDetailModal item={viewingItem} open={!!viewingItem} onClose={handleCloseViewModal} />
       </Box>
     </Box>
   )
