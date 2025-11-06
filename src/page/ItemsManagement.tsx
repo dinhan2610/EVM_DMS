@@ -8,7 +8,6 @@ import {
   InputAdornment,
   IconButton,
   Chip,
-  Stack,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import AddIcon from '@mui/icons-material/Add'
@@ -197,21 +196,32 @@ const ItemsManagement = () => {
       field: 'code',
       headerName: 'Mã hàng hoá, dịch vụ',
       width: 160,
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
-        <Typography
-          variant="body2"
-          onClick={() => handleViewDetails(params.row)}
+        <Box
           sx={{
-            fontWeight: 600,
-            color: '#1c84ee',
-            cursor: 'pointer',
-            '&:hover': {
-              textDecoration: 'underline',
-              color: '#0d6efd',
-            },
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
           }}>
-          {params.value}
-        </Typography>
+          <Typography
+            variant="body2"
+            onClick={() => handleViewDetails(params.row)}
+            sx={{
+              fontWeight: 600,
+              color: '#1c84ee',
+              cursor: 'pointer',
+              '&:hover': {
+                textDecoration: 'underline',
+                color: '#0d6efd',
+              },
+            }}>
+            {params.value}
+          </Typography>
+        </Box>
       ),
     },
     {
@@ -220,7 +230,15 @@ const ItemsManagement = () => {
       flex: 1,
       minWidth: 250,
       renderCell: (params: GridRenderCellParams) => (
-        <Box>
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+            py: 1,
+          }}>
           <Typography variant="body2" sx={{ fontWeight: 500 }}>
             {params.value}
           </Typography>
@@ -238,6 +256,8 @@ const ItemsManagement = () => {
       field: 'group',
       headerName: 'Nhóm hàng hoá, dịch vụ',
       width: 180,
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const groupLabels: Record<string, string> = {
           'hang-hoa': 'Hàng hóa',
@@ -246,15 +266,24 @@ const ItemsManagement = () => {
           'nguyen-vat-lieu': 'Nguyên vật liệu',
         }
         return (
-          <Chip
-            label={groupLabels[params.value] || params.value}
-            size="small"
+          <Box
             sx={{
-              backgroundColor: params.value === 'hang-hoa' ? '#e3f2fd' : '#f3e5f5',
-              color: params.value === 'hang-hoa' ? '#1976d2' : '#7b1fa2',
-              fontWeight: 500,
-            }}
-          />
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              height: '100%',
+            }}>
+            <Chip
+              label={groupLabels[params.value] || params.value}
+              size="small"
+              sx={{
+                backgroundColor: params.value === 'hang-hoa' ? '#e3f2fd' : '#f3e5f5',
+                color: params.value === 'hang-hoa' ? '#1976d2' : '#7b1fa2',
+                fontWeight: 500,
+              }}
+            />
+          </Box>
         )
       },
     },
@@ -262,22 +291,42 @@ const ItemsManagement = () => {
       field: 'unit',
       headerName: 'Đơn vị tính',
       width: 120,
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
-        <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
-          {params.value}
-        </Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+          }}>
+          <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
+            {params.value}
+          </Typography>
+        </Box>
       ),
     },
     {
       field: 'salesPrice',
       headerName: 'Giá bán',
       width: 150,
-      align: 'right',
-      headerAlign: 'right',
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
-        <Typography variant="body2" sx={{ fontWeight: 600, color: '#22c55e' }}>
-          {formatCurrency(params.value)}
-        </Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+          }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, color: '#22c55e' }}>
+            {formatCurrency(params.value)}
+          </Typography>
+        </Box>
       ),
     },
     {
@@ -287,7 +336,16 @@ const ItemsManagement = () => {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
-        <Chip label={params.value} size="small" color="default" sx={{ fontWeight: 500 }} />
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+          }}>
+          <Chip label={params.value} size="small" color="default" sx={{ fontWeight: 500 }} />
+        </Box>
       ),
     },
     {
@@ -297,9 +355,18 @@ const ItemsManagement = () => {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
-        <Typography variant="body2" sx={{ color: params.value > 0 ? '#ef5f5f' : '#999' }}>
-          {params.value}%
-        </Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+          }}>
+          <Typography variant="body2" sx={{ color: params.value > 0 ? '#ef5f5f' : '#999' }}>
+            {params.value}%
+          </Typography>
+        </Box>
       ),
     },
     {
@@ -310,7 +377,15 @@ const ItemsManagement = () => {
       headerAlign: 'center',
       sortable: false,
       renderCell: (params: GridRenderCellParams) => (
-        <Stack direction="row" spacing={0.5}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 0.5,
+            width: '100%',
+            height: '100%',
+          }}>
           <IconButton
             size="small"
             color="primary"
@@ -333,7 +408,7 @@ const ItemsManagement = () => {
             }}>
             <DeleteOutlineIcon fontSize="small" />
           </IconButton>
-        </Stack>
+        </Box>
       ),
     },
   ]

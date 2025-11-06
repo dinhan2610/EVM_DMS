@@ -186,21 +186,23 @@ const TemplateManagement = () => {
             width: '100%',
             height: '100%',
           }}>
-          <Typography
-            variant="body2"
-            onClick={() => handleViewDetails(params.row)}
-            sx={{
-              fontWeight: 600,
-              color: '#1c84ee',
-              cursor: 'pointer',
-              fontFamily: 'monospace',
-              '&:hover': {
-                textDecoration: 'underline',
-                color: '#0d6efd',
-              },
-            }}>
-            {params.value}
-          </Typography>
+          <Tooltip title="Click để xem thông tin chi tiết" arrow>
+            <Typography
+              variant="body2"
+              onClick={() => handleViewDetails(params.row)}
+              sx={{
+                fontWeight: 600,
+                color: '#1c84ee',
+                cursor: 'pointer',
+                fontFamily: 'monospace',
+                '&:hover': {
+                  textDecoration: 'underline',
+                  color: '#0d6efd',
+                },
+              }}>
+              {params.value}
+            </Typography>
+          </Tooltip>
         </Box>
       ),
     },
@@ -365,10 +367,10 @@ const TemplateManagement = () => {
             width: '100%',
             height: '100%',
           }}>
-          <Tooltip title="Xem chi tiết" arrow>
+          <Tooltip title="Xem trước mẫu" arrow>
             <IconButton
               size="small"
-              onClick={() => handleViewDetails(params.row)}
+              onClick={() => navigate(`/admin/templates/preview/${params.row.id}`)}
               sx={{
                 color: '#1976d2',
                 '&:hover': {

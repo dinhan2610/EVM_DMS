@@ -232,9 +232,24 @@ const InvoiceManagement = () => {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
-        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.875rem', fontWeight: 500 }}>
-          {params.value as string}
-        </Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+          }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 500,
+              letterSpacing: '0.02em',
+              color: '#2c3e50',
+            }}>
+            {params.value as string}
+          </Typography>
+        </Box>
       ),
     },
     {
@@ -246,9 +261,28 @@ const InvoiceManagement = () => {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
-        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.875rem', fontWeight: 500, color: '#1976d2' }}>
-          {params.value as string}
-        </Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+          }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 600,
+              letterSpacing: '0.02em',
+              color: '#1976d2',
+              backgroundColor: '#e3f2fd',
+              px: 1.5,
+              py: 0.5,
+              borderRadius: 1,
+            }}>
+            {params.value as string}
+          </Typography>
+        </Box>
       ),
     },
     {
