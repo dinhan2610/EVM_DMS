@@ -227,9 +227,23 @@ const RequestManagement = () => {
       renderCell: (params: GridRenderCellParams) => {
         const index = filteredRequests.findIndex((req) => req.id === params.row.id)
         return (
-          <Typography variant="body2" sx={{ fontWeight: 500, color: '#666' }}>
-            {index + 1}
-          </Typography>
+          <Box 
+            sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              width: '100%',
+              height: '100%'
+            }}>
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                fontWeight: 500, 
+                color: '#666'
+              }}>
+              {index + 1}
+            </Typography>
+          </Box>
         )
       },
     },
