@@ -25,6 +25,7 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined'
 import { useNavigate } from 'react-router-dom'
+import IssueInvoiceModal from '@/components/IssueInvoiceModal'
 
 // Interfaces
 export interface InvoiceItem {
@@ -88,6 +89,7 @@ const CreateInvoice = () => {
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>(initialCustomerInfo)
   const [invoiceDetails, setInvoiceDetails] = useState<InvoiceDetails>(initialInvoiceDetails)
   const [items, setItems] = useState<InvoiceItem[]>([{ ...initialItemState, id: '1' }])
+  const [issueModalOpen, setIssueModalOpen] = useState(false)
 
   // Handlers for Customer Info
   const handleCustomerInfoChange = (field: keyof CustomerInfo, value: string) => {
@@ -150,6 +152,21 @@ const CreateInvoice = () => {
   }
 
   const handleSignAndIssue = () => {
+    // Mở modal để xác nhận và nhập thông tin gửi email
+    setIssueModalOpen(true)
+  }
+
+  const handleIssueInvoice = (issueData: {
+    recipientName: string
+    email: string
+    ccEmails: string[]
+    bccEmails: string[]
+    attachments: File[]
+    sendToCustomer: boolean
+    disableSms: boolean
+    autoSendOnlyWithEmail: boolean
+    language: string
+  }) => {
     const formData = {
       creationMode,
       selectedContract,
@@ -160,9 +177,10 @@ const CreateInvoice = () => {
       taxAmount,
       totalAmount,
       status: 'Đã phát hành',
+      issueData,
     }
     console.log('Ký & Phát hành:', formData)
-    // API call để ký và phát hành
+    // API call để ký và phát hành với thông tin từ modal
     alert('Đã ký và phát hành thành công!')
     navigate('/invoices')
   }
@@ -531,6 +549,20 @@ const CreateInvoice = () => {
               </Button>
             </Stack>
           </Paper>
+
+          {/* Issue Invoice Modal */}
+          <IssueInvoiceModal
+            open={issueModalOpen}
+            onClose={() => setIssueModalOpen(false)}
+            onIssue={handleIssueInvoice}
+            invoiceData={{
+              invoiceNumber: 'INV-2024-NEW',
+              serialNumber: '1K24TXN',
+              date: invoiceDetails.issueDate?.format('DD/MM/YYYY') || new Date().toLocaleDateString('vi-VN'),
+              customerName: customerInfo.name || 'Chưa có thông tin',
+              totalAmount: totalAmount.toLocaleString('vi-VN'),
+            }}
+          />
         </Box>
       </Box>
     </LocalizationProvider>

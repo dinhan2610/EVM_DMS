@@ -6,14 +6,13 @@ import {
   DialogActions,
   Button,
   Typography,
-  Grid,
   Chip,
   Divider,
   Box,
   Stack,
+  IconButton,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
-import { IconButton } from '@mui/material'
 import { Item } from '../page/ItemsManagement'
 
 interface ItemDetailModalProps {
@@ -48,30 +47,21 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, open, onClose }
   }
 
   const vatReductionLabels: Record<string, string> = {
-    none: 'Không giảm',
-    reduced: 'Giảm một phần',
-    exempt: 'Miễn thuế',
+    'khong-giam': 'Không giảm',
+    'giam-50': 'Giảm 50%',
+    'giam-100': 'Giảm 100%',
   }
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle
-        sx={{
-          fontWeight: 600,
-          fontSize: '1.25rem',
-          borderBottom: '2px solid #e0e0e0',
-          pb: 2,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}>
-        <Typography variant="h6" component="span" sx={{ fontWeight: 600, color: 'primary.main' }}>
-          Chi tiết Hàng hóa, Dịch vụ
-        </Typography>
+      <DialogTitle sx={{ fontWeight: 600, color: '#1a1a1a', borderBottom: '1px solid #e0e0e0' }}>
+        Chi tiết Hàng hóa, Dịch vụ
         <IconButton
           onClick={onClose}
-          size="small"
           sx={{
+            position: 'absolute',
+            right: 12,
+            top: 12,
             color: '#666',
             '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' },
           }}>
@@ -80,32 +70,30 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, open, onClose }
       </DialogTitle>
 
       <DialogContent sx={{ pt: 3, pb: 2 }}>
-        <Grid container spacing={3}>
+        <Stack spacing={3}>
           {/* Header - Tên hàng hóa */}
-          <Grid item xs={12}>
-            <Box
-              sx={{
-                p: 2,
-                bgcolor: '#f5f9ff',
-                borderRadius: 1,
-                borderLeft: '4px solid #1976d2',
-              }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                Tên Hàng hóa, Dịch vụ
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 600, color: '#1c1c1c' }}>
-                {item.name}
-              </Typography>
-            </Box>
-          </Grid>
+          <Box
+            sx={{
+              p: 2,
+              bgcolor: '#f5f9ff',
+              borderRadius: 1,
+              borderLeft: '4px solid #1976d2',
+            }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+              Tên Hàng hóa, Dịch vụ
+            </Typography>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: '#1c1c1c' }}>
+              {item.name}
+            </Typography>
+          </Box>
 
           {/* Thông tin cơ bản */}
-          <Grid item xs={12}>
+          <Box>
             <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2, color: '#555' }}>
               Thông tin cơ bản
             </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
                 <Stack spacing={0.5}>
                   <Typography variant="caption" color="text.secondary">
                     Mã hàng hoá, dịch vụ
@@ -114,28 +102,27 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, open, onClose }
                     {item.code}
                   </Typography>
                 </Stack>
-              </Grid>
+              </Box>
 
-              <Grid item xs={12} sm={6}>
+              <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
                 <Stack spacing={0.5}>
                   <Typography variant="caption" color="text.secondary">
                     Nhóm hàng hoá, dịch vụ
                   </Typography>
-                  <Box>
-                    <Chip
-                      label={groupLabels[item.group] || item.group}
-                      size="small"
-                      sx={{
-                        backgroundColor: item.group === 'hang-hoa' ? '#e3f2fd' : '#f3e5f5',
-                        color: item.group === 'hang-hoa' ? '#1976d2' : '#7b1fa2',
-                        fontWeight: 500,
-                      }}
-                    />
-                  </Box>
+                  <Chip
+                    label={groupLabels[item.group] || item.group}
+                    size="small"
+                    sx={{
+                      backgroundColor: item.group === 'hang-hoa' ? '#e3f2fd' : '#f3e5f5',
+                      color: item.group === 'hang-hoa' ? '#1976d2' : '#7b1fa2',
+                      fontWeight: 500,
+                      maxWidth: 'fit-content',
+                    }}
+                  />
                 </Stack>
-              </Grid>
+              </Box>
 
-              <Grid item xs={12} sm={6}>
+              <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
                 <Stack spacing={0.5}>
                   <Typography variant="caption" color="text.secondary">
                     Đơn vị tính
@@ -144,9 +131,9 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, open, onClose }
                     {unitLabels[item.unit] || item.unit}
                   </Typography>
                 </Stack>
-              </Grid>
+              </Box>
 
-              <Grid item xs={12} sm={6}>
+              <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
                 <Stack spacing={0.5}>
                   <Typography variant="caption" color="text.secondary">
                     Ngày tạo
@@ -155,21 +142,19 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, open, onClose }
                     {new Date(item.createdAt).toLocaleDateString('vi-VN')}
                   </Typography>
                 </Stack>
-              </Grid>
-            </Grid>
-          </Grid>
+              </Box>
+            </Box>
+          </Box>
 
-          <Grid item xs={12}>
-            <Divider />
-          </Grid>
+          <Divider />
 
           {/* Thông tin giá & thuế */}
-          <Grid item xs={12}>
+          <Box>
             <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2, color: '#555' }}>
               Giá & Thuế
             </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
                 <Stack spacing={0.5}>
                   <Typography variant="caption" color="text.secondary">
                     Giá bán
@@ -181,26 +166,24 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, open, onClose }
                     {item.priceIncludesTax ? '(Đã bao gồm thuế)' : '(Chưa bao gồm thuế)'}
                   </Typography>
                 </Stack>
-              </Grid>
+              </Box>
 
-              <Grid item xs={12} sm={6}>
+              <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
                 <Stack spacing={0.5}>
                   <Typography variant="caption" color="text.secondary">
                     Thuế GTGT (%)
                   </Typography>
-                  <Box>
-                    <Chip
-                      label={item.vatTaxRate}
-                      size="medium"
-                      color="primary"
-                      variant="outlined"
-                      sx={{ fontWeight: 600 }}
-                    />
-                  </Box>
+                  <Chip
+                    label={item.vatTaxRate}
+                    size="medium"
+                    color="primary"
+                    variant="outlined"
+                    sx={{ fontWeight: 600, maxWidth: 'fit-content' }}
+                  />
                 </Stack>
-              </Grid>
+              </Box>
 
-              <Grid item xs={12} sm={6}>
+              <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
                 <Stack spacing={0.5}>
                   <Typography variant="caption" color="text.secondary">
                     Tỷ lệ CK (%)
@@ -219,9 +202,9 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, open, onClose }
                     </Typography>
                   )}
                 </Stack>
-              </Grid>
+              </Box>
 
-              <Grid item xs={12} sm={6}>
+              <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
                 <Stack spacing={0.5}>
                   <Typography variant="caption" color="text.secondary">
                     Giảm trừ thuế GTGT
@@ -230,16 +213,14 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, open, onClose }
                     {vatReductionLabels[item.vatReduction] || item.vatReduction}
                   </Typography>
                 </Stack>
-              </Grid>
-            </Grid>
-          </Grid>
+              </Box>
+            </Box>
+          </Box>
 
-          <Grid item xs={12}>
-            <Divider />
-          </Grid>
+          <Divider />
 
           {/* Mô tả */}
-          <Grid item xs={12}>
+          <Box>
             <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: '#555' }}>
               Mô tả
             </Typography>
@@ -254,8 +235,8 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, open, onClose }
                 {item.description || '(Không có mô tả)'}
               </Typography>
             </Box>
-          </Grid>
-        </Grid>
+          </Box>
+        </Stack>
       </DialogContent>
 
       <DialogActions sx={{ borderTop: '1px solid #e0e0e0', p: 2.5, gap: 1 }}>

@@ -1,25 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import {
   Box,
-  Grid,
   Paper,
   Typography,
   Button,
   Stack,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
   Chip,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Alert,
-  Card,
-  CardContent,
 } from '@mui/material'
 import {
   Send,
@@ -34,6 +21,8 @@ import {
   Error as ErrorIcon,
 } from '@mui/icons-material'
 import { useParams, useNavigate } from 'react-router-dom'
+import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
+import SendInvoiceEmailModal from '@/components/SendInvoiceEmailModal'
 
 // Định nghĩa Interfaces
 export interface InvoiceItem {
@@ -42,13 +31,6 @@ export interface InvoiceItem {
   quantity: number
   unitPrice: number
   total: number
-}
-
-export interface AuditEntry {
-  id: string
-  timestamp: string
-  user: string
-  action: string
 }
 
 export interface InvoiceDetail {
@@ -110,33 +92,6 @@ const mockInvoiceDetail: InvoiceDetail = {
   ],
 }
 
-const mockAuditTrail: AuditEntry[] = [
-  {
-    id: '1',
-    timestamp: '2024-10-01 09:00:00',
-    user: 'Admin Nguyễn Văn A',
-    action: 'Tạo hóa đơn mới',
-  },
-  {
-    id: '2',
-    timestamp: '2024-10-01 10:30:00',
-    user: 'Kế toán Trần Thị B',
-    action: 'Xác nhận và ký số hóa đơn',
-  },
-  {
-    id: '3',
-    timestamp: '2024-10-01 11:00:00',
-    user: 'Hệ thống',
-    action: 'Đồng bộ dữ liệu lên cơ quan thuế',
-  },
-  {
-    id: '4',
-    timestamp: '2024-10-01 11:05:00',
-    user: 'Hệ thống',
-    action: 'Gửi email hóa đơn đến khách hàng',
-  },
-]
-
 // Helper functions
 const getStatusColor = (
   status: InvoiceDetail['status']
@@ -171,20 +126,12 @@ const getTaxStatusIcon = (taxStatus: InvoiceDetail['taxStatus']) => {
   return icons[taxStatus]
 }
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount)
-}
-
-const formatDate = (dateString: string) => {
-  return new Date(dateString).toLocaleDateString('vi-VN')
-}
-
 const InvoiceDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null)
-  const [auditTrail, setAuditTrail] = useState<AuditEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [emailModalOpen, setEmailModalOpen] = useState(false)
 
   useEffect(() => {
     // Giả lập việc fetch data từ API
@@ -193,7 +140,6 @@ const InvoiceDetail: React.FC = () => {
       // Trong thực tế, đây sẽ là API call: await api.getInvoiceById(id)
       setTimeout(() => {
         setInvoice(mockInvoiceDetail)
-        setAuditTrail(mockAuditTrail)
         setLoading(false)
       }, 500)
     }
@@ -205,13 +151,25 @@ const InvoiceDetail: React.FC = () => {
 
   // Handlers
   const handleResendEmail = () => {
-    console.log('Gửi lại email hóa đơn:', invoice?.invoiceNumber)
-    // API call để gửi email
+    setEmailModalOpen(true)
+  }
+
+  const handleSendEmail = (emailData: {
+    recipientName: string
+    email: string
+    ccEmails: string[]
+    bccEmails: string[]
+    attachments: File[]
+    includeXml: boolean
+    disableSms: boolean
+    language: string
+  }) => {
+    console.log('Gửi email hóa đơn:', invoice?.invoiceNumber, emailData)
+    // API call để gửi email với dữ liệu từ modal
+    // TODO: Implement API call
   }
 
   const handlePrint = () => {
-    console.log('In hóa đơn:', invoice?.invoiceNumber)
-    // Logic in hóa đơn
     window.print()
   }
 
@@ -259,339 +217,212 @@ const InvoiceDetail: React.FC = () => {
 
   return (
     <Box sx={{ width: '100%', backgroundColor: '#f5f5f5', minHeight: '100vh', py: 4 }}>
-      <Box sx={{ width: '100%' }}>
-        {/* Header */}
-        <Box sx={{ mb: 4, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Box sx={{ width: '100%', px: { xs: 2, sm: 3, md: 4 } }}>
+        {/* Header - Đồng bộ với TemplatePreview */}
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+          <Box>
+            <Typography variant="h4" sx={{ fontWeight: 600, fontSize: '1.75rem', mb: 0.5 }}>
+              Chi tiết Hóa đơn
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              #{invoice.invoiceNumber}
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Chip label={invoice.status} color={getStatusColor(invoice.status)} size="small" />
+              <Chip
+                icon={getTaxStatusIcon(invoice.taxStatus)}
+                label={invoice.taxStatus}
+                color={getTaxStatusColor(invoice.taxStatus)}
+                size="small"
+              />
+            </Stack>
+          </Box>
           <Button
+            variant="outlined"
             startIcon={<ArrowBack />}
             onClick={handleBack}
-            sx={{
-              mb: 3,
-              textTransform: 'none',
-              fontWeight: 500,
-              color: '#666',
-              '&:hover': {
-                backgroundColor: '#f0f0f0',
-              },
-            }}>
-            Quay lại danh sách
+            sx={{ textTransform: 'none' }}>
+            Quay lại
           </Button>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
-            <Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
-                Chi tiết Hóa đơn
-              </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 600, color: '#1976d2', mb: 1.5 }}>
-                #{invoice.invoiceNumber}
-              </Typography>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Chip label={invoice.status} color={getStatusColor(invoice.status)} size="medium" />
-                <Chip
-                  icon={getTaxStatusIcon(invoice.taxStatus)}
-                  label={invoice.taxStatus}
-                  color={getTaxStatusColor(invoice.taxStatus)}
-                  size="medium"
-                />
-              </Stack>
-            </Box>
+        </Stack>
+
+        {/* Invoice Preview - Sử dụng InvoiceTemplatePreview */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+          <Box sx={{ maxWidth: '21cm', width: '100%' }}>
+            <InvoiceTemplatePreview
+              config={{
+                companyLogo: null,
+                companyName: 'CÔNG TY TNHH GIẢI PHÁP TỔNG THỂ KỶ NGUYÊN SỐ',
+                companyTaxCode: '0123456789',
+                companyAddress: '123 Lê Lợi, Quận 1, TP. Hồ Chí Minh',
+                companyPhone: '028 1234 5678',
+                modelCode: '1K24TXN',
+                templateCode: 'C25TKN',
+              }}
+              visibility={{
+                showQrCode: true,
+                showLogo: true,
+                showCustomerInfo: true,
+                showPaymentInfo: true,
+                showSignature: true,
+                showCompanyName: true,
+                showCompanyTaxCode: true,
+                showCompanyAddress: true,
+                showCompanyPhone: true,
+                showCompanyBankAccount: true,
+              }}
+            />
           </Box>
         </Box>
 
-        {/* Action Buttons */}
-        <Paper
-          elevation={0}
-          sx={{
-            p: 3,
-            mb: 4,
-            border: '1px solid #e0e0e0',
-            borderRadius: 0,
-            backgroundColor: '#fff',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-          }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#666', mb: 2 }}>
-            Thao tác
-          </Typography>
-          <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
-            <Button
-              variant="contained"
-              startIcon={<Send />}
-              onClick={handleResendEmail}
-              sx={{
-                textTransform: 'none',
-                fontWeight: 500,
-                boxShadow: 'none',
-                '&:hover': { boxShadow: '0 2px 8px rgba(25,118,210,0.3)' },
-              }}>
-              Gửi Email
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<Print />}
-              onClick={handlePrint}
-              sx={{
-                textTransform: 'none',
-                fontWeight: 500,
-                boxShadow: 'none',
-                '&:hover': { boxShadow: '0 2px 8px rgba(25,118,210,0.3)' },
-              }}>
-              In
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<Download />}
-              onClick={handleDownload}
-              sx={{
-                textTransform: 'none',
-                fontWeight: 500,
-                boxShadow: 'none',
-                '&:hover': { boxShadow: '0 2px 8px rgba(25,118,210,0.3)' },
-              }}>
-              Tải về PDF/XML
-            </Button>
-
-            {invoice.status === 'Đã phát hành' && (
-              <>
-                <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-                <Button
-                  variant="outlined"
-                  color="error"
-                  startIcon={<Cancel />}
-                  onClick={handleCancelInvoice}
-                  sx={{ textTransform: 'none', fontWeight: 500 }}>
-                  Hủy
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="warning"
-                  startIcon={<Edit />}
-                  onClick={handleAdjustInvoice}
-                  sx={{ textTransform: 'none', fontWeight: 500 }}>
-                  Điều chỉnh
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="warning"
-                  startIcon={<Replay />}
-                  onClick={handleReplaceInvoice}
-                  sx={{ textTransform: 'none', fontWeight: 500 }}>
-                  Thay thế
-                </Button>
-              </>
-            )}
-          </Stack>
-        </Paper>
-
-        <Grid container spacing={0} sx={{ mb: 4 }}>
-          {/* Thông tin Hóa đơn */}
-          <Grid item xs={12} md={6} sx={{ px: { xs: 2, sm: 3, md: 4 }, mb: { xs: 3, md: 0 } }}>
-            <Card
-              elevation={0}
-              sx={{
-                border: '1px solid #e0e0e0',
-                height: '100%',
-                borderRadius: 2,
-                transition: 'box-shadow 0.3s',
-                '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
-              }}>
-              <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#1976d2' }}>
-                Thông tin Khách hàng
-              </Typography>
-              <Stack spacing={1.5}>
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
-                    Tên khách hàng
-                  </Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                    {invoice.customerName}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
-                    Email
-                  </Typography>
-                  <Typography variant="body1">{invoice.customerEmail}</Typography>
-                </Box>
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
-                    Mã số thuế
-                  </Typography>
-                  <Typography variant="body1">{invoice.customerTaxCode}</Typography>
-                </Box>
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
-                    Địa chỉ
-                  </Typography>
-                  <Typography variant="body1">{invoice.customerAddress}</Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-          <Grid item xs={12} md={6} sx={{ px: { xs: 2, sm: 3, md: 4 } }}>
-            <Card
-              elevation={0}
-              sx={{
-                border: '1px solid #e0e0e0',
-                height: '100%',
-                borderRadius: 2,
-                transition: 'box-shadow 0.3s',
-                '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
-              }}>
-              <CardContent sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2.5, color: '#1976d2' }}>
-                  Thông tin Hóa đơn
-                </Typography>
-              <Stack spacing={1.5}>
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
-                    Số hóa đơn
-                  </Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                    {invoice.invoiceNumber}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
-                    Ngày phát hành
-                  </Typography>
-                  <Typography variant="body1">{formatDate(invoice.issueDate)}</Typography>
-                </Box>
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
-                    Hạn thanh toán
-                  </Typography>
-                  <Typography variant="body1">{formatDate(invoice.dueDate)}</Typography>
-                </Box>
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
-                    Ghi chú
-                  </Typography>
-                  <Typography variant="body1">{invoice.notes || 'Không có'}</Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-        </Grid>
-
-          {/* Chi tiết Hàng hóa */}
+        {/* Action Buttons - Di chuyển xuống dưới hóa đơn */}
+        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
           <Paper
             elevation={0}
             sx={{
-              mb: 4,
-              border: '1px solid #e0e0e0',
-              borderRadius: 0,
-              overflow: 'hidden',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-            }}>
-              <Box sx={{ p: 3, backgroundColor: '#fafafa', borderBottom: '1px solid #e0e0e0' }}>
-                <Typography variant="h6" sx={{ fontWeight: 600, color: '#1976d2' }}>
-                  Chi tiết Hàng hóa / Dịch vụ
-                </Typography>
-              </Box>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ backgroundColor: '#fafafa' }}>
-                    <TableCell sx={{ fontWeight: 600 }}>STT</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Mô tả</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 600 }}>
-                      Số lượng
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>
-                      Đơn giá
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>
-                      Thành tiền
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {invoice.items.map((item, index) => (
-                    <TableRow key={item.id} hover>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>{item.description}</TableCell>
-                      <TableCell align="center">{item.quantity}</TableCell>
-                      <TableCell align="right">{formatCurrency(item.unitPrice)}</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 500 }}>
-                        {formatCurrency(item.total)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  <TableRow>
-                    <TableCell colSpan={4} align="right" sx={{ fontWeight: 600, borderBottom: 'none' }}>
-                      Tạm tính:
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 500, borderBottom: 'none' }}>
-                      {formatCurrency(invoice.subtotal)}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell colSpan={4} align="right" sx={{ fontWeight: 600, borderBottom: 'none' }}>
-                      Thuế VAT (10%):
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 500, borderBottom: 'none' }}>
-                      {formatCurrency(invoice.taxAmount)}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell
-                      colSpan={4}
-                      align="right"
-                      sx={{ fontWeight: 700, fontSize: '1.1rem', backgroundColor: '#fafafa' }}>
-                      Tổng cộng:
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{ fontWeight: 700, fontSize: '1.1rem', color: '#1976d2', backgroundColor: '#fafafa' }}>
-                      {formatCurrency(invoice.totalAmount)}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-
-          {/* Lịch sử & Hoạt động */}
-          <Paper
-            elevation={0}
-            sx={{
-              border: '1px solid #e0e0e0',
-              borderRadius: 0,
+              maxWidth: '21cm',
+              width: '100%',
               p: 3,
+              border: '1px solid #e0e0e0',
+              borderRadius: 2,
+              backgroundColor: '#fff',
               boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
             }}>
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2.5, color: '#1976d2' }}>
-                Lịch sử & Hoạt động
-              </Typography>
-              <Divider sx={{ mb: 3 }} />
-            <List>
-              {auditTrail.map((entry) => (
-                <ListItem
-                  key={entry.id}
-                  sx={{
-                    borderLeft: '3px solid #1976d2',
-                    mb: 1,
-                    backgroundColor: '#fafafa',
-                    borderRadius: 1,
-                  }}>
-                  <ListItemText
-                    primary={entry.action}
-                    secondary={
-                      <Box component="span">
-                        <Typography component="span" variant="body2" color="text.secondary">
-                          {entry.user} • {entry.timestamp}
-                        </Typography>
-                      </Box>
-                    }
-                    primaryTypographyProps={{ fontWeight: 500 }}
-                  />
-                </ListItem>
-              ))}
-              </List>
-            </Paper>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#1a1a1a', mb: 2.5 }}>
+              Thao tác với hóa đơn
+            </Typography>
+            <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
+              <Button
+                variant="contained"
+                startIcon={<Print />}
+                onClick={handlePrint}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 500,
+                  px: 3,
+                  py: 1,
+                  backgroundColor: '#1976d2',
+                  boxShadow: '0 2px 4px rgba(25,118,210,0.2)',
+                  '&:hover': {
+                    backgroundColor: '#1565c0',
+                    boxShadow: '0 4px 8px rgba(25,118,210,0.3)',
+                  },
+                }}>
+                In hóa đơn
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<Download />}
+                onClick={handleDownload}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 500,
+                  px: 3,
+                  py: 1,
+                  backgroundColor: '#1976d2',
+                  boxShadow: '0 2px 4px rgba(25,118,210,0.2)',
+                  '&:hover': {
+                    backgroundColor: '#1565c0',
+                    boxShadow: '0 4px 8px rgba(25,118,210,0.3)',
+                  },
+                }}>
+                Tải về PDF/XML
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<Send />}
+                onClick={handleResendEmail}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 500,
+                  px: 3,
+                  py: 1,
+                  backgroundColor: '#1976d2',
+                  boxShadow: '0 2px 4px rgba(25,118,210,0.2)',
+                  '&:hover': {
+                    backgroundColor: '#1565c0',
+                    boxShadow: '0 4px 8px rgba(25,118,210,0.3)',
+                  },
+                }}>
+                Gửi Email
+              </Button>
+
+              {invoice.status === 'Đã phát hành' && (
+                <>
+                  <Box sx={{ width: '100%', my: 1 }} />
+                  <Button
+                    variant="outlined"
+                    color="warning"
+                    startIcon={<Edit />}
+                    onClick={handleAdjustInvoice}
+                    sx={{
+                      textTransform: 'none',
+                      fontWeight: 500,
+                      px: 3,
+                      py: 1,
+                      borderWidth: 1.5,
+                      '&:hover': {
+                        borderWidth: 1.5,
+                        backgroundColor: 'rgba(237, 108, 2, 0.04)',
+                      },
+                    }}>
+                    Điều chỉnh hóa đơn
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="warning"
+                    startIcon={<Replay />}
+                    onClick={handleReplaceInvoice}
+                    sx={{
+                      textTransform: 'none',
+                      fontWeight: 500,
+                      px: 3,
+                      py: 1,
+                      borderWidth: 1.5,
+                      '&:hover': {
+                        borderWidth: 1.5,
+                        backgroundColor: 'rgba(237, 108, 2, 0.04)',
+                      },
+                    }}>
+                    Thay thế hóa đơn
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<Cancel />}
+                    onClick={handleCancelInvoice}
+                    sx={{
+                      textTransform: 'none',
+                      fontWeight: 500,
+                      px: 3,
+                      py: 1,
+                      borderWidth: 1.5,
+                      '&:hover': {
+                        borderWidth: 1.5,
+                        backgroundColor: 'rgba(211, 47, 47, 0.04)',
+                      },
+                    }}>
+                    Hủy hóa đơn
+                  </Button>
+                </>
+              )}
+            </Stack>
+          </Paper>
+        </Box>
+
+        {/* Email Modal */}
+        <SendInvoiceEmailModal
+          open={emailModalOpen}
+          onClose={() => setEmailModalOpen(false)}
+          onSend={handleSendEmail}
+          invoiceData={{
+            invoiceNumber: invoice.invoiceNumber,
+            serialNumber: '1K24TXN',
+            date: new Date(invoice.issueDate).toLocaleDateString('vi-VN'),
+            customerName: invoice.customerName,
+            totalAmount: invoice.totalAmount.toLocaleString('vi-VN'),
+          }}
+        />
       </Box>
     </Box>
   )

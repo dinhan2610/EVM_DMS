@@ -5,7 +5,6 @@ import {
   DialogContent,
   DialogActions,
   Button,
-  Grid,
   Box,
   Typography,
   Chip,
@@ -132,32 +131,32 @@ const RequestDetailModal: React.FC<RequestDetailModalProps> = ({ request, open, 
       </DialogTitle>
       <DialogContent sx={{ pt: 3 }}>
         {/* Phần 1: Thông tin chung */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} sm={6}>
+        <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+          <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
             <Typography variant="caption" sx={{ color: '#666', fontSize: '0.75rem', fontWeight: 500 }}>
               Người yêu cầu
             </Typography>
             <Typography variant="body1" sx={{ fontWeight: 600, mt: 0.5 }}>
               {request.requestorName}
             </Typography>
-          </Grid>
-          <Grid item xs={12} sm={6}>
+          </Box>
+          <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
             <Typography variant="caption" sx={{ color: '#666', fontSize: '0.75rem', fontWeight: 500 }}>
               Dự án
             </Typography>
             <Typography variant="body1" sx={{ fontWeight: 600, mt: 0.5 }}>
               {request.projectName}
             </Typography>
-          </Grid>
-          <Grid item xs={12} sm={6}>
+          </Box>
+          <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
             <Typography variant="caption" sx={{ color: '#666', fontSize: '0.75rem', fontWeight: 500 }}>
               Ngày yêu cầu
             </Typography>
             <Typography variant="body1" sx={{ mt: 0.5 }}>
               {formatDate(request.requestDate)}
             </Typography>
-          </Grid>
-          <Grid item xs={12} sm={6}>
+          </Box>
+          <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
             <Typography variant="caption" sx={{ color: '#666', fontSize: '0.75rem', fontWeight: 500 }}>
               Trạng thái
             </Typography>
@@ -169,8 +168,8 @@ const RequestDetailModal: React.FC<RequestDetailModalProps> = ({ request, open, 
                 sx={{ fontWeight: 500 }}
               />
             </Box>
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
 
         <Divider sx={{ my: 3 }} />
 
@@ -178,40 +177,40 @@ const RequestDetailModal: React.FC<RequestDetailModalProps> = ({ request, open, 
         <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, fontSize: '1rem', color: '#1a1a1a' }}>
           Thông tin Khách hàng
         </Typography>
-        <Grid container spacing={3}>
-          <Grid item xs={12} sm={6}>
+        <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+          <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
             <Typography variant="caption" sx={{ color: '#666', fontSize: '0.75rem', fontWeight: 500 }}>
               Tên khách hàng
             </Typography>
             <Typography variant="body1" sx={{ mt: 0.5 }}>
               {request.customerName}
             </Typography>
-          </Grid>
-          <Grid item xs={12} sm={6}>
+          </Box>
+          <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
             <Typography variant="caption" sx={{ color: '#666', fontSize: '0.75rem', fontWeight: 500 }}>
               Mã số thuế
             </Typography>
             <Typography variant="body1" sx={{ mt: 0.5 }}>
               {request.customerTaxCode}
             </Typography>
-          </Grid>
-          <Grid item xs={12} sm={6}>
+          </Box>
+          <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
             <Typography variant="caption" sx={{ color: '#666', fontSize: '0.75rem', fontWeight: 500 }}>
               Email
             </Typography>
             <Typography variant="body1" sx={{ mt: 0.5, color: '#1c84ee' }}>
               {request.customerEmail}
             </Typography>
-          </Grid>
-          <Grid item xs={12}>
+          </Box>
+          <Box sx={{ flex: '1 1 100%' }}>
             <Typography variant="caption" sx={{ color: '#666', fontSize: '0.75rem', fontWeight: 500 }}>
               Địa chỉ
             </Typography>
             <Typography variant="body1" sx={{ mt: 0.5 }}>
               {request.customerAddress}
             </Typography>
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
 
         <Divider sx={{ my: 3 }} />
 
@@ -271,8 +270,8 @@ const RequestDetailModal: React.FC<RequestDetailModalProps> = ({ request, open, 
         <Divider sx={{ my: 3 }} />
 
         {/* Phần 4: Tài liệu & Ghi chú */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
+        <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+          <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
             <Typography variant="h6" sx={{ fontWeight: 600, mb: 1.5, fontSize: '1rem', color: '#1a1a1a' }}>
               Tài liệu đính kèm
             </Typography>
@@ -304,8 +303,8 @@ const RequestDetailModal: React.FC<RequestDetailModalProps> = ({ request, open, 
                 Không có tài liệu đính kèm
               </Typography>
             )}
-          </Grid>
-          <Grid item xs={12} md={6}>
+          </Box>
+          <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
             <Typography variant="h6" sx={{ fontWeight: 600, mb: 1.5, fontSize: '1rem', color: '#1a1a1a' }}>
               Ghi chú
             </Typography>
@@ -315,8 +314,8 @@ const RequestDetailModal: React.FC<RequestDetailModalProps> = ({ request, open, 
                 {request.notes || '(Không có ghi chú)'}
               </Typography>
             </Box>
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #e0e0e0' }}>
         <Button

@@ -8,10 +8,8 @@ const Footer = () => {
         <Row>
           <Col xs={12} className="text-center">
             <span className="icons-center">
-              Bản quyền © {currentYear} thuộc về{' '}
-              <span className="fw-bold footer-text">
-                Công ty Cổ phần Giải pháp Tổng thể Kỷ Nguyên Số
-              </span>
+              Bản quyền © {currentYear} thuộc về&nbsp;
+              <span className="fw-bold footer-text">Công ty Cổ phần Giải pháp Tổng thể Kỷ Nguyên Số</span>
             </span>
           </Col>
         </Row>
