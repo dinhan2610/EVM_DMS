@@ -1,35 +1,28 @@
 import { useState, useMemo } from 'react'
 import {
   Box,
-  TextField,
-  MenuItem,
-  Select,
-  FormControl,
-  InputLabel,
   Typography,
-  Grid,
   Paper,
   Chip,
   Button,
   IconButton,
   Tooltip,
-  InputAdornment,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
-import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
-import dayjs, { Dayjs } from 'dayjs'
-import SearchIcon from '@mui/icons-material/Search'
+import dayjs from 'dayjs'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import AddIcon from '@mui/icons-material/Add'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import InvoiceFilter, { InvoiceFilterState } from '@/components/InvoiceFilter'
 
 // Định nghĩa kiểu dữ liệu
 export interface Invoice {
   id: string
   invoiceNumber: string
+  symbol: string // Ký hiệu hoá đơn
   customerName: string
   taxCode: string // Mã số thuế
   taxAuthority: string // Mã của CQT
@@ -44,6 +37,7 @@ const mockInvoices: Invoice[] = [
   {
     id: '1',
     invoiceNumber: 'INV-2024-001',
+    symbol: 'C24TAA',
     customerName: 'Công ty TNHH ABC Technology',
     taxCode: '0123456789',
     taxAuthority: 'TCT/24E/001',
@@ -55,6 +49,7 @@ const mockInvoices: Invoice[] = [
   {
     id: '2',
     invoiceNumber: 'INV-2024-002',
+    symbol: 'C24TAB',
     customerName: 'Công ty Cổ phần XYZ Solutions',
     taxCode: '0987654321',
     taxAuthority: 'TCT/24E/002',
@@ -66,6 +61,7 @@ const mockInvoices: Invoice[] = [
   {
     id: '3',
     invoiceNumber: 'INV-2024-003',
+    symbol: 'C24TAC',
     customerName: 'Doanh nghiệp Tư nhân DEF',
     taxCode: '0111222333',
     taxAuthority: 'TCT/24E/003',
@@ -77,6 +73,7 @@ const mockInvoices: Invoice[] = [
   {
     id: '4',
     invoiceNumber: 'INV-2024-004',
+    symbol: 'C24TAD',
     customerName: 'Công ty TNHH GHI Logistics',
     taxCode: '0444555666',
     taxAuthority: 'TCT/24E/004',
@@ -88,6 +85,7 @@ const mockInvoices: Invoice[] = [
   {
     id: '5',
     invoiceNumber: 'INV-2024-005',
+    symbol: 'C24TAE',
     customerName: 'Tập đoàn JKL Group',
     taxCode: '0777888999',
     taxAuthority: 'TCT/24E/005',
@@ -99,6 +97,7 @@ const mockInvoices: Invoice[] = [
   {
     id: '6',
     invoiceNumber: 'INV-2024-006',
+    symbol: 'C24TAF',
     customerName: 'Công ty CP MNO Trading',
     taxCode: '0222333444',
     taxAuthority: 'TCT/24E/006',
@@ -110,6 +109,7 @@ const mockInvoices: Invoice[] = [
   {
     id: '7',
     invoiceNumber: 'INV-2024-007',
+    symbol: 'C24TAG',
     customerName: 'Doanh nghiệp PQR Services',
     taxCode: '0555666777',
     taxAuthority: 'TCT/24E/007',
@@ -121,6 +121,7 @@ const mockInvoices: Invoice[] = [
   {
     id: '8',
     invoiceNumber: 'INV-2024-008',
+    symbol: 'C24TAH',
     customerName: 'Công ty TNHH STU Consulting',
     taxCode: '0888999000',
     taxAuthority: 'TCT/24E/008',
@@ -158,43 +159,45 @@ const getTaxStatusColor = (taxStatus: Invoice['taxStatus']): 'default' | 'succes
 }
 
 const InvoiceManagement = () => {
-  // State quản lý bộ lọc
-  const [searchText, setSearchText] = useState<string>('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [dateFilter, setDateFilter] = useState<Dayjs | null>(null)
+  const navigate = useNavigate()
+  
+  // State quản lý bộ lọc - sử dụng InvoiceFilterState
+  const [filters, setFilters] = useState<InvoiceFilterState>({
+    searchText: '',
+    dateFrom: null,
+    dateTo: null,
+    invoiceStatus: [],
+    taxStatus: '',
+    customer: null,
+    project: null,
+    invoiceType: [],
+    amountFrom: '',
+    amountTo: '',
+  })
+
+  // Handler khi filter thay đổi
+  const handleFilterChange = (newFilters: InvoiceFilterState) => {
+    setFilters(newFilters)
+  }
+
+  // Handler khi reset filter
+  const handleResetFilter = () => {
+    setFilters({
+      searchText: '',
+      dateFrom: null,
+      dateTo: null,
+      invoiceStatus: [],
+      taxStatus: '',
+      customer: null,
+      project: null,
+      invoiceType: [],
+      amountFrom: '',
+      amountTo: '',
+    })
+  }
 
   // Định nghĩa columns
   const columns: GridColDef[] = [
-    {
-      field: 'stt',
-      headerName: 'STT',
-      width: 70,
-      align: 'center',
-      headerAlign: 'center',
-      sortable: false,
-      renderCell: (params: GridRenderCellParams) => {
-        const index = filteredInvoices.findIndex((invoice) => invoice.id === params.row.id)
-        return (
-          <Box 
-            sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              width: '100%',
-              height: '100%'
-            }}>
-            <Typography 
-              variant="body2" 
-              sx={{ 
-                fontWeight: 500, 
-                color: '#666'
-              }}>
-              {index + 1}
-            </Typography>
-          </Box>
-        )
-      },
-    },
     {
       field: 'invoiceNumber',
       headerName: 'Số hóa đơn',
@@ -217,8 +220,37 @@ const InvoiceManagement = () => {
       ),
     },
     {
+      field: 'symbol',
+      headerName: 'Ký hiệu',
+      flex: 0.8,
+      minWidth: 100,
+      sortable: true,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams) => (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+          }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 600,
+              letterSpacing: '0.02em',
+              color: '#1976d2',
+            }}>
+            {params.value as string}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
       field: 'customerName',
-      headerName: 'Tên khách hàng',
+      headerName: 'Khách hàng',
       flex: 1.5,
       minWidth: 180,
       sortable: true,
@@ -317,7 +349,7 @@ const InvoiceManagement = () => {
     },
     {
       field: 'amount',
-      headerName: 'Số tiền',
+      headerName: 'Tổng tiền',
       flex: 1,
       minWidth: 120,
       sortable: true,
@@ -366,15 +398,46 @@ const InvoiceManagement = () => {
     },
   ]
 
-  // Logic lọc dữ liệu
+  // Logic lọc dữ liệu - tích hợp với InvoiceFilter
   const filteredInvoices = useMemo(() => {
     return mockInvoices.filter((invoice) => {
-      const matchesSearch = invoice.customerName.toLowerCase().includes(searchText.toLowerCase())
-      const matchesStatus = statusFilter === 'all' || invoice.status === statusFilter
-      const matchesDate = !dateFilter || dayjs(invoice.issueDate).isSame(dateFilter, 'day')
-      return matchesSearch && matchesStatus && matchesDate
+      // Lọc theo text search (số HĐ, ký hiệu, tên khách hàng, mã số thuế)
+      const matchesSearch =
+        !filters.searchText ||
+        invoice.invoiceNumber.toLowerCase().includes(filters.searchText.toLowerCase()) ||
+        invoice.symbol.toLowerCase().includes(filters.searchText.toLowerCase()) ||
+        invoice.customerName.toLowerCase().includes(filters.searchText.toLowerCase()) ||
+        invoice.taxCode.toLowerCase().includes(filters.searchText.toLowerCase())
+
+      // Lọc theo khoảng ngày
+      const matchesDateFrom = !filters.dateFrom || dayjs(invoice.issueDate).isAfter(filters.dateFrom, 'day') || dayjs(invoice.issueDate).isSame(filters.dateFrom, 'day')
+      const matchesDateTo = !filters.dateTo || dayjs(invoice.issueDate).isBefore(filters.dateTo, 'day') || dayjs(invoice.issueDate).isSame(filters.dateTo, 'day')
+
+      // Lọc theo trạng thái hóa đơn (multiselect)
+      const matchesInvoiceStatus = filters.invoiceStatus.length === 0 || filters.invoiceStatus.includes(invoice.status)
+
+      // Lọc theo trạng thái CQT
+      const matchesTaxStatus = !filters.taxStatus || invoice.taxStatus === filters.taxStatus
+
+      // Lọc theo khách hàng
+      const matchesCustomer = !filters.customer || invoice.customerName === filters.customer
+
+      // Lọc theo khoảng tiền
+      const matchesAmountFrom = !filters.amountFrom || invoice.amount >= parseFloat(filters.amountFrom)
+      const matchesAmountTo = !filters.amountTo || invoice.amount <= parseFloat(filters.amountTo)
+
+      return (
+        matchesSearch &&
+        matchesDateFrom &&
+        matchesDateTo &&
+        matchesInvoiceStatus &&
+        matchesTaxStatus &&
+        matchesCustomer &&
+        matchesAmountFrom &&
+        matchesAmountTo
+      )
     })
-  }, [searchText, statusFilter, dateFilter])
+  }, [filters])
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -394,6 +457,7 @@ const InvoiceManagement = () => {
               variant="contained"
               color="primary"
               startIcon={<AddIcon />}
+              onClick={() => navigate('/newinvoices')}
               sx={{
                 textTransform: 'none',
                 fontWeight: 500,
@@ -406,7 +470,10 @@ const InvoiceManagement = () => {
             </Button>
           </Box>
 
-          {/* Data Table with Search & Filters */}
+          {/* Bộ lọc nâng cao */}
+          <InvoiceFilter onFilterChange={handleFilterChange} onReset={handleResetFilter} />
+
+          {/* Data Table */}
           <Paper
             elevation={0}
             sx={{
@@ -416,108 +483,18 @@ const InvoiceManagement = () => {
               boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
               overflow: 'hidden',
             }}>
-            {/* Search & Filter Section */}
-            <Box sx={{ p: 3, borderBottom: '1px solid #e0e0e0' }}>
-              <Grid container spacing={2}>
-                {/* @ts-expect-error - MUI Grid compatibility */}
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Tìm kiếm theo tên khách hàng"
-                    variant="outlined"
-                    value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
-                    placeholder="Nhập tên khách hàng..."
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon sx={{ color: '#999' }} />
-                        </InputAdornment>
-                      ),
-                    }}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        backgroundColor: '#fafafa',
-                        '&:hover': {
-                          backgroundColor: '#f5f5f5',
-                        },
-                        '&.Mui-focused': {
-                          backgroundColor: '#fff',
-                        },
-                      },
-                    }}
-                  />
-                </Grid>
-
-                {/* @ts-expect-error - MUI Grid compatibility */}
-                <Grid item xs={12} md={4}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Trạng thái</InputLabel>
-                    <Select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      label="Trạng thái"
-                      sx={{
-                        backgroundColor: '#fafafa',
-                        '&:hover': {
-                          backgroundColor: '#f5f5f5',
-                        },
-                        '&.Mui-focused': {
-                          backgroundColor: '#fff',
-                        },
-                      }}>
-                      <MenuItem value="all">Tất cả</MenuItem>
-                      <MenuItem value="Nháp">Nháp</MenuItem>
-                      <MenuItem value="Đã ký">Đã ký</MenuItem>
-                      <MenuItem value="Đã phát hành">Đã phát hành</MenuItem>
-                      <MenuItem value="Đã gửi">Đã gửi</MenuItem>
-                      <MenuItem value="Bị từ chối">Bị từ chối</MenuItem>
-                      <MenuItem value="Đã thanh toán">Đã thanh toán</MenuItem>
-                      <MenuItem value="Đã hủy">Đã hủy</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                {/* @ts-expect-error - MUI Grid compatibility */}
-                <Grid item xs={12} md={4}>
-                  <DatePicker
-                    label="Ngày phát hành"
-                    value={dateFilter}
-                    onChange={(newValue) => setDateFilter(newValue)}
-                    slotProps={{
-                      textField: {
-                        fullWidth: true,
-                        size: 'small',
-                        sx: {
-                          '& .MuiOutlinedInput-root': {
-                            backgroundColor: '#fafafa',
-                            '&:hover': {
-                              backgroundColor: '#f5f5f5',
-                            },
-                            '&.Mui-focused': {
-                              backgroundColor: '#fff',
-                            },
-                          },
-                        },
-                      },
-                      field: { clearable: true },
-                    }}
-                  />
-                </Grid>
-              </Grid>
-            </Box>
             {/* Table Section */}
             <DataGrid
               rows={filteredInvoices}
               columns={columns}
+              checkboxSelection
+              disableRowSelectionOnClick
               initialState={{
                 pagination: {
                   paginationModel: { pageSize: 10, page: 0 },
                 },
               }}
               pageSizeOptions={[5, 10, 25, 50]}
-              disableRowSelectionOnClick
               sx={{
                 border: 'none',
                 '& .MuiDataGrid-cell': {
@@ -530,6 +507,50 @@ const InvoiceManagement = () => {
                 },
                 '& .MuiDataGrid-row:hover': {
                   backgroundColor: '#f8f9fa',
+                },
+                '& .MuiDataGrid-footerContainer': {
+                  borderTop: '2px solid #e0e0e0',
+                  backgroundColor: '#fafafa',
+                  minHeight: '56px',
+                  padding: '8px 16px',
+                },
+                '& .MuiTablePagination-root': {
+                  overflow: 'visible',
+                },
+                '& .MuiTablePagination-toolbar': {
+                  minHeight: '56px',
+                  paddingLeft: '16px',
+                  paddingRight: '8px',
+                },
+                '& .MuiTablePagination-selectLabel': {
+                  margin: 0,
+                  fontSize: '0.875rem',
+                  fontWeight: 500,
+                  color: '#666',
+                },
+                '& .MuiTablePagination-displayedRows': {
+                  margin: 0,
+                  fontSize: '0.875rem',
+                  fontWeight: 500,
+                  color: '#666',
+                },
+                '& .MuiTablePagination-select': {
+                  paddingTop: '8px',
+                  paddingBottom: '8px',
+                  fontSize: '0.875rem',
+                  fontWeight: 500,
+                },
+                '& .MuiTablePagination-actions': {
+                  marginLeft: '20px',
+                  '& .MuiIconButton-root': {
+                    padding: '8px',
+                    '&:hover': {
+                      backgroundColor: '#e3f2fd',
+                    },
+                    '&.Mui-disabled': {
+                      opacity: 0.3,
+                    },
+                  },
                 },
               }}
               autoHeight
