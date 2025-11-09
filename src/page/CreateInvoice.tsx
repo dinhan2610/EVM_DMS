@@ -7,9 +7,6 @@ import {
   Button,
   Stack,
   TextField,
-  Select,
-  MenuItem,
-  InputLabel,
   FormControl,
   Radio,
   RadioGroup,
@@ -18,8 +15,6 @@ import {
   Divider,
   Autocomplete,
   Alert,
-  Card,
-  CardContent,
 } from '@mui/material'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
@@ -30,6 +25,7 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined'
 import { useNavigate } from 'react-router-dom'
+import IssueInvoiceModal from '@/components/IssueInvoiceModal'
 
 // Interfaces
 export interface InvoiceItem {
@@ -93,6 +89,7 @@ const CreateInvoice = () => {
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>(initialCustomerInfo)
   const [invoiceDetails, setInvoiceDetails] = useState<InvoiceDetails>(initialInvoiceDetails)
   const [items, setItems] = useState<InvoiceItem[]>([{ ...initialItemState, id: '1' }])
+  const [issueModalOpen, setIssueModalOpen] = useState(false)
 
   // Handlers for Customer Info
   const handleCustomerInfoChange = (field: keyof CustomerInfo, value: string) => {
@@ -100,7 +97,7 @@ const CreateInvoice = () => {
   }
 
   // Handlers for Invoice Details
-  const handleInvoiceDetailsChange = (field: keyof InvoiceDetails, value: any) => {
+  const handleInvoiceDetailsChange = (field: keyof InvoiceDetails, value: string | Dayjs | null) => {
     setInvoiceDetails((prev) => ({ ...prev, [field]: value }))
   }
 
@@ -155,6 +152,21 @@ const CreateInvoice = () => {
   }
 
   const handleSignAndIssue = () => {
+    // Mở modal để xác nhận và nhập thông tin gửi email
+    setIssueModalOpen(true)
+  }
+
+  const handleIssueInvoice = (issueData: {
+    recipientName: string
+    email: string
+    ccEmails: string[]
+    bccEmails: string[]
+    attachments: File[]
+    sendToCustomer: boolean
+    disableSms: boolean
+    autoSendOnlyWithEmail: boolean
+    language: string
+  }) => {
     const formData = {
       creationMode,
       selectedContract,
@@ -165,9 +177,10 @@ const CreateInvoice = () => {
       taxAmount,
       totalAmount,
       status: 'Đã phát hành',
+      issueData,
     }
     console.log('Ký & Phát hành:', formData)
-    // API call để ký và phát hành
+    // API call để ký và phát hành với thông tin từ modal
     alert('Đã ký và phát hành thành công!')
     navigate('/invoices')
   }
@@ -263,7 +276,7 @@ const CreateInvoice = () => {
                 </Box>
                 <Box sx={{ p: 3 }}>
                   <Grid container spacing={2}>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <TextField
                         fullWidth
                         label="Tên khách hàng"
@@ -273,7 +286,7 @@ const CreateInvoice = () => {
                         required
                       />
                     </Grid>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <TextField
                         fullWidth
                         label="Email"
@@ -284,7 +297,7 @@ const CreateInvoice = () => {
                         required
                       />
                     </Grid>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <TextField
                         fullWidth
                         label="Mã số thuế"
@@ -294,7 +307,7 @@ const CreateInvoice = () => {
                         required
                       />
                     </Grid>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <TextField
                         fullWidth
                         label="Địa chỉ"
@@ -324,7 +337,7 @@ const CreateInvoice = () => {
                 </Box>
                 <Box sx={{ p: 3 }}>
                   <Grid container spacing={2}>
-                    <Grid item xs={12} md={4}>
+                    <Grid size={{ xs: 12, md: 4 }}>
                       <DatePicker
                         label="Ngày phát hành"
                         value={invoiceDetails.issueDate}
@@ -337,7 +350,7 @@ const CreateInvoice = () => {
                         }}
                       />
                     </Grid>
-                    <Grid item xs={12} md={4}>
+                    <Grid size={{ xs: 12, md: 4 }}>
                       <DatePicker
                         label="Ngày hết hạn"
                         value={invoiceDetails.dueDate}
@@ -350,7 +363,7 @@ const CreateInvoice = () => {
                         }}
                       />
                     </Grid>
-                    <Grid item xs={12} md={4}>
+                    <Grid size={{ xs: 12, md: 4 }}>
                       <TextField
                         fullWidth
                         label="Ghi chú"
@@ -384,7 +397,7 @@ const CreateInvoice = () => {
               <Stack spacing={2}>
                 {items.map((item, index) => (
                   <Grid container spacing={2} alignItems="center" key={item.id || index}>
-                    <Grid item xs={12} md={4}>
+                    <Grid size={{ xs: 12, md: 4 }}>
                       <TextField
                         fullWidth
                         label="Mô tả"
@@ -394,7 +407,7 @@ const CreateInvoice = () => {
                         size="small"
                       />
                     </Grid>
-                    <Grid item xs={6} md={2}>
+                    <Grid size={{ xs: 6, md: 2 }}>
                       <TextField
                         fullWidth
                         label="Số lượng"
@@ -405,7 +418,7 @@ const CreateInvoice = () => {
                         inputProps={{ min: 1 }}
                       />
                     </Grid>
-                    <Grid item xs={6} md={2}>
+                    <Grid size={{ xs: 6, md: 2 }}>
                       <TextField
                         fullWidth
                         label="Đơn giá"
@@ -416,7 +429,7 @@ const CreateInvoice = () => {
                         inputProps={{ min: 0 }}
                       />
                     </Grid>
-                    <Grid item xs={10} md={3}>
+                    <Grid size={{ xs: 10, md: 3 }}>
                       <TextField
                         fullWidth
                         label="Thành tiền"
@@ -431,7 +444,7 @@ const CreateInvoice = () => {
                         }}
                       />
                     </Grid>
-                    <Grid item xs={2} md={1}>
+                    <Grid size={{ xs: 2, md: 1 }}>
                       <IconButton
                         color="error"
                         onClick={() => handleRemoveItem(index)}
@@ -536,6 +549,20 @@ const CreateInvoice = () => {
               </Button>
             </Stack>
           </Paper>
+
+          {/* Issue Invoice Modal */}
+          <IssueInvoiceModal
+            open={issueModalOpen}
+            onClose={() => setIssueModalOpen(false)}
+            onIssue={handleIssueInvoice}
+            invoiceData={{
+              invoiceNumber: 'INV-2024-NEW',
+              serialNumber: '1K24TXN',
+              date: invoiceDetails.issueDate?.format('DD/MM/YYYY') || new Date().toLocaleDateString('vi-VN'),
+              customerName: customerInfo.name || 'Chưa có thông tin',
+              totalAmount: totalAmount.toLocaleString('vi-VN'),
+            }}
+          />
         </Box>
       </Box>
     </LocalizationProvider>

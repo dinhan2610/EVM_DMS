@@ -88,6 +88,19 @@ export const MENU_ITEMS: MenuItemType[] = [
     url: '/apps/contacts',
   },
   {
+    key: 'apps-admin',
+    icon: 'iconamoon:settings-duotone',
+    label: 'Quản lý',
+    children: [
+      {
+        key: 'admin-templates',
+        label: 'Mẫu hoá đơn',
+        url: '/admin/templates',
+        parentKey: 'apps-admin',
+      },
+    ],
+  },
+  {
     key: 'apps-invoices',
     icon: 'iconamoon:invoice-duotone',
     label: 'Hoá đơn',
@@ -100,7 +113,7 @@ export const MENU_ITEMS: MenuItemType[] = [
       },
       {
         key: 'invoices-create',
-        label: 'Tạo hoá đơn mới',
+        label: 'Tạo hoá đơn VAT',
         url: '/newinvoices',
         parentKey: 'apps-invoices',
       },
@@ -108,6 +121,12 @@ export const MENU_ITEMS: MenuItemType[] = [
         key: 'invoices-requests',
         label: 'Yêu cầu phát hành',
         url: '/invoice-requests',
+        parentKey: 'apps-invoices',
+      },
+      {
+        key: 'invoices',
+        label: 'Tạo sản phẩm, dịch vụ',
+        url: '/items',
         parentKey: 'apps-invoices',
       },
     ],
