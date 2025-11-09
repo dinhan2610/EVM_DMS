@@ -31,6 +31,7 @@ import {
   KeyboardArrowDown,
   DeleteOutline,
 } from '@mui/icons-material'
+import SendInvoiceEmailModal from '@/components/SendInvoiceEmailModal'
 import { DataGrid, GridColDef, GridRenderCellParams, GridRenderEditCellParams } from '@mui/x-data-grid'
 
 // Interface cho hàng hóa/dịch vụ
@@ -501,6 +502,7 @@ const CreateVatInvoice: React.FC = () => {
   const [showTypeColumn, setShowTypeColumn] = useState(true)
   const [discountType, setDiscountType] = useState<string>('none') // 'none' | 'per-item' | 'total'
   const [vatRate, setVatRate] = useState<number>(10) // Thuế GTGT: 0, 5, 10
+  const [sendEmailModalOpen, setSendEmailModalOpen] = useState(false)
   const calculateAfterTax = true // Tính theo giá sau thuế
 
   // State quản lý danh sách hàng hóa
@@ -519,6 +521,14 @@ const CreateVatInvoice: React.FC = () => {
       totalAfterTax: 0,
     },
   ])
+
+  const handleOpenSendEmailModal = () => {
+    setSendEmailModalOpen(true)
+  }
+
+  const handleCloseSendEmailModal = () => {
+    setSendEmailModalOpen(false)
+  }
 
   // Thêm hàng mới
   const handleAddRow = () => {
@@ -633,6 +643,26 @@ const CreateVatInvoice: React.FC = () => {
   )
 
   const totals = calculateTotals(items)
+
+  const handleSendDraftEmail = (emailData: {
+    recipientName: string
+    email: string
+    ccEmails: string[]
+    bccEmails: string[]
+    attachments: File[]
+    includeXml: boolean
+    disableSms: boolean
+    language: string
+  }) => {
+    const invoiceSnapshot = {
+      vatRate,
+      totals,
+      itemsCount: items.length,
+    }
+
+    console.log('Gửi hóa đơn nháp cho khách hàng', { emailData, invoiceSnapshot })
+    // TODO: Thay thế bằng API gửi email hóa đơn nháp
+  }
 
   // Định nghĩa columns cho DataGrid
   const columns: GridColDef[] = [
@@ -1622,7 +1652,8 @@ const CreateVatInvoice: React.FC = () => {
                 size="small"
                 variant="outlined"
                 startIcon={<Send fontSize="small" />}
-                sx={{ textTransform: 'none', color: '#666', borderColor: '#ccc', fontSize: '0.8125rem', py: 0.5 }}>
+                sx={{ textTransform: 'none', color: '#666', borderColor: '#ccc', fontSize: '0.8125rem', py: 0.5 }}
+                onClick={handleOpenSendEmailModal}>
                 Gửi hóa đơn nháp
               </Button>
               <Button
@@ -1660,6 +1691,19 @@ const CreateVatInvoice: React.FC = () => {
             </Stack>
           </Stack>
         </Paper>
+
+        <SendInvoiceEmailModal
+          open={sendEmailModalOpen}
+          onClose={handleCloseSendEmailModal}
+          onSend={handleSendDraftEmail}
+          invoiceData={{
+            invoiceNumber: 'HÓA ĐƠN NHÁP',
+            serialNumber: 'N/A',
+            date: new Date().toLocaleDateString('vi-VN'),
+            customerName: 'Khách hàng',
+            totalAmount: totals.total.toLocaleString('vi-VN'),
+          }}
+        />
       </Box>
     </Box>
   )

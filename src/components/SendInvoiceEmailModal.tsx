@@ -10,12 +10,8 @@ import {
   TextField,
   InputAdornment,
   Button,
-  Checkbox,
-  FormControlLabel,
   Divider,
   Stack,
-  Select,
-  MenuItem,
   Chip,
 } from '@mui/material'
 import {
@@ -23,8 +19,7 @@ import {
   AttachFile as AttachFileIcon,
   Email as EmailIcon,
   Send as SendIcon,
-  Visibility as VisibilityIcon,
-  Image as ImageIcon,
+  InfoOutlined as InfoIcon,
 } from '@mui/icons-material'
 
 // Props interface
@@ -69,11 +64,8 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
   const [email, setEmail] = useState('hoadon@example.com')
   const [showCc, setShowCc] = useState(false)
   const [showBcc, setShowBcc] = useState(false)
-  const [includeRecipientName, setIncludeRecipientName] = useState(true)
   const [attachments, setAttachments] = useState<File[]>([])
-  const [includeXml, setIncludeXml] = useState(false)
-  const [disableSms, setDisableSms] = useState(false)
-  const [language, setLanguage] = useState('vi')
+  
 
   // Handlers
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,41 +82,36 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
 
   const handleSend = () => {
     const data: EmailData = {
-      recipientName: includeRecipientName ? recipientName : '',
+      recipientName,
       email,
       ccEmails: [],
       bccEmails: [],
       attachments,
-      includeXml,
-      disableSms,
-      language,
+      includeXml: false,
+      disableSms: false,
+      language: 'vi',
     }
     onSend(data)
     onClose()
   }
 
-  const handlePreview = () => {
-    console.log('Preview email template')
-    // TODO: Implement preview functionality
-  }
-
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth={false} fullWidth sx={{ '& .MuiDialog-paper': { maxWidth: 700 } }}>
       {/* Header */}
       <DialogTitle
         sx={{
           fontWeight: 600,
           fontSize: '1.25rem',
           color: '#1a1a1a',
-          py: 2.5,
+          py: 2,
           px: 3,
           borderBottom: '1px solid #e0e0e0',
         }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5}}>
             <EmailIcon sx={{ color: '#1976d2', fontSize: 28 }} />
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Gửi hóa đơn cho khách hàng
+              Gửi hóa đơn nháp cho khách hàng
             </Typography>
           </Box>
           <IconButton
@@ -138,49 +125,50 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
         </Box>
       </DialogTitle>
 
-      <DialogContent sx={{ p: 3 }}>
+      <DialogContent sx={{ p: 2.5, pt: 2 }}>
         {/* Invoice Information Summary */}
         <Box
           sx={{
             backgroundColor: '#f8f9fa',
             borderRadius: 2,
-            p: 2.5,
-            mb: 3,
+            p: 1.5,
+            mb: 2,
             border: '1px solid #e9ecef',
+            marginTop: '10px',
           }}>
-          <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap' }}>
             {/* Left Column: Invoice Details */}
             <Box sx={{ flex: '1 1 55%', minWidth: 250 }}>
-              <Stack spacing={1}>
+              <Stack spacing={0.5}>
                 <Box sx={{ display: 'flex', gap: 2 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ minWidth: 90 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ minWidth: 85, fontSize: '0.8125rem' }}>
                     Ký hiệu:
                   </Typography>
-                  <Typography variant="body2" fontWeight={600}>
+                  <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.8125rem' }}>
                     {invoiceData.serialNumber}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ minWidth: 90 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ minWidth: 85, fontSize: '0.8125rem' }}>
                     Số hóa đơn:
                   </Typography>
-                  <Typography variant="body2" fontWeight={600}>
+                  <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.8125rem' }}>
                     {invoiceData.invoiceNumber}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ minWidth: 90 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ minWidth: 85, fontSize: '0.8125rem' }}>
                     Ngày HĐ:
                   </Typography>
-                  <Typography variant="body2" fontWeight={600}>
+                  <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.8125rem' }}>
                     {invoiceData.date}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ minWidth: 90 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ minWidth: 85, fontSize: '0.8125rem' }}>
                     Khách hàng:
                   </Typography>
-                  <Typography variant="body2" fontWeight={600}>
+                  <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.8125rem' }}>
                     {invoiceData.customerName}
                   </Typography>
                 </Box>
@@ -188,19 +176,19 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
             </Box>
 
             {/* Right Column: Total Amount */}
-            <Box sx={{ flex: '1 1 40%', minWidth: 200 }}>
+            <Box sx={{ flex: '1 1 15%', minWidth: 150 }}>
               <Box
                 sx={{
                   textAlign: 'right',
                   backgroundColor: '#fff',
                   borderRadius: 1.5,
-                  p: 2,
+                  p: 1.25,
                   border: '1px solid #e3f2fd',
                 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.25, display: 'block', fontSize: '0.7rem' }}>
                   Tổng tiền thanh toán
                 </Typography>
-                <Typography variant="h5" fontWeight={700} color="primary.main">
+                <Typography variant="h5" fontWeight={700} color="primary.main" sx={{ fontSize: '1.2rem' }}>
                   {invoiceData.totalAmount} VNĐ
                 </Typography>
               </Box>
@@ -209,37 +197,25 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
         </Box>
 
         {/* Email Form */}
-        <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap' }}>
           {/* Left Column: Form Inputs */}
-          <Box sx={{ flex: '1 1 55%', minWidth: 300 }}>
-            <Stack spacing={2.5}>
-              {/* Recipient Name Toggle */}
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={includeRecipientName}
-                    onChange={(e) => setIncludeRecipientName(e.target.checked)}
-                    size="small"
-                  />
-                }
-                label={
-                  <Typography variant="body2" fontWeight={500}>
-                    Tên người nhận
-                  </Typography>
-                }
-              />
-
+          <Box sx={{ flex: '1 1 55%', minWidth: 300, marginTop: '7px' }}>
+            <Stack spacing={4.5}>
               {/* Recipient Name Input */}
-              {includeRecipientName && (
-                <TextField
-                  size="small"
-                  fullWidth
-                  placeholder="Nhập tên người nhận"
-                  value={recipientName}
-                  onChange={(e) => setRecipientName(e.target.value)}
-                  sx={{ mt: -1 }}
-                />
-              )}
+              <TextField
+                size="small"
+                fullWidth
+                label="Tên người nhận"
+                placeholder="Nhập tên người nhận"
+                value={recipientName}
+                onChange={(e) => setRecipientName(e.target.value)}
+                InputLabelProps={{
+                  sx: { fontSize: '0.8125rem' },
+                }}
+                inputProps={{
+                  sx: { fontSize: '0.8125rem', py: 0.75 },
+                }}
+              />
 
               {/* Email Input */}
               <TextField
@@ -250,6 +226,12 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
                 placeholder="example@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                InputLabelProps={{
+                  sx: { fontSize: '0.8125rem' },
+                }}
+                inputProps={{
+                  sx: { fontSize: '0.8125rem', py: 0.75 },
+                }}
                 InputProps={{
                   endAdornment: (
                     <InputAdornment position="end">
@@ -261,6 +243,7 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
                           color: showCc ? 'primary.main' : 'text.secondary',
                           minWidth: 35,
                           fontWeight: showCc ? 600 : 400,
+                          fontSize: '0.75rem',
                         }}>
                         Cc
                       </Button>
@@ -273,6 +256,7 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
                           color: showBcc ? 'primary.main' : 'text.secondary',
                           minWidth: 40,
                           fontWeight: showBcc ? 600 : 400,
+                          fontSize: '0.75rem',
                         }}>
                         Bcc
                       </Button>
@@ -289,6 +273,12 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
                   label="Cc (Carbon Copy)"
                   placeholder="Nhập email Cc, phân cách bằng dấu phẩy"
                   helperText="Người nhận sẽ thấy danh sách Cc"
+                  InputLabelProps={{
+                    sx: { fontSize: '0.8125rem' },
+                  }}
+                  inputProps={{
+                    sx: { fontSize: '0.8125rem', py: 0.75 },
+                  }}
                 />
               )}
 
@@ -300,60 +290,89 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
                   label="Bcc (Blind Carbon Copy)"
                   placeholder="Nhập email Bcc, phân cách bằng dấu phẩy"
                   helperText="Người nhận sẽ không thấy danh sách Bcc"
+                  InputLabelProps={{
+                    sx: { fontSize: '0.8125rem' },
+                  }}
+                  inputProps={{
+                    sx: { fontSize: '0.8125rem', py: 0.75 },
+                  }}
                 />
               )}
             </Stack>
           </Box>
 
           {/* Right Column: Illustration */}
-          <Box sx={{ flex: '1 1 40%', minWidth: 200 }}>
+          <Box sx={{ flex: '1 1 ', minWidth: 220 }}>
             <Box
               sx={{
-                height: '100%',
-                minHeight: 180,
+                height: '70%',
+                minHeight: 110,
+                position: 'relative',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                bgcolor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)',
                 borderRadius: 2,
-                border: '2px dashed #90caf9',
-                color: '#1976d2',
-                p: 3,
+                overflow: 'hidden',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
               }}>
-              <ImageIcon sx={{ fontSize: 60, opacity: 0.6, mb: 1 }} />
-              <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
-                Email sẽ bao gồm hóa đơn định dạng PDF
-              </Typography>
+              <Box
+                component="img"
+                src="/decor_form.png"
+                alt="Email Invoice Illustration"
+                sx={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  objectPosition: 'center',
+                  borderRadius: 2,
+                }}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%)',
+                  p: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+               
+              </Box>
             </Box>
           </Box>
         </Box>
 
-        <Divider sx={{ my: 3 }} />
+        <Divider sx={{ my: 2.5 }} />
 
         {/* Attachment & Options */}
-        <Stack spacing={2}>
+        <Stack spacing={1.5}>
           {/* File Attachment */}
           <Box>
             <Button
               component="label"
               variant="outlined"
               size="small"
-              startIcon={<AttachFileIcon />}
+              startIcon={<AttachFileIcon sx={{ fontSize: 18 }} />}
               sx={{
                 textTransform: 'none',
                 fontWeight: 500,
                 borderStyle: 'dashed',
                 color: '#1976d2',
                 borderColor: '#90caf9',
+                fontSize: '0.8125rem',
+                px: 1.5,
+                py: 0.5,
                 '&:hover': {
                   borderColor: '#1976d2',
                   backgroundColor: '#e3f2fd',
                 },
               }}>
               Đính kèm tệp tin
-              <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ ml: 0.75, fontSize: '0.7rem' }}>
                 (Tối đa 5MB)
               </Typography>
               <input type="file" hidden multiple onChange={handleFileChange} />
@@ -375,70 +394,54 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
             )}
           </Box>
 
-          {/* XML Checkbox */}
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={includeXml}
-                onChange={(e) => setIncludeXml(e.target.checked)}
-                size="small"
-              />
-            }
-            label={
-              <Typography variant="body2">
-                Gửi Email đính kèm tệp XML theo{' '}
-                <Typography component="span" variant="body2" fontWeight={600}>
-                  NĐ 123/2020/NĐ-CP
-                </Typography>
-              </Typography>
-            }
-          />
-
-          {/* SMS Checkbox */}
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={disableSms}
-                onChange={(e) => setDisableSms(e.target.checked)}
-                size="small"
-              />
-            }
-            label={<Typography variant="body2">Hủy SMS thông báo phát hành hóa đơn cho khách hàng</Typography>}
-          />
-
-          {/* Language Selection & Preview */}
-          <Stack
-            direction="row"
-            spacing={2}
-            alignItems="center"
+          {/* SMS Setup Notification */}
+          <Box
             sx={{
-              pt: 1,
-              flexWrap: 'wrap',
-            }}
-            useFlexGap>
-            <Typography variant="body2" fontWeight={500}>
-              Gửi Email bằng ngôn ngữ:
-            </Typography>
-            <Select
-              size="small"
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              sx={{ minWidth: 140 }}>
-              <MenuItem value="vi">Tiếng Việt</MenuItem>
-              <MenuItem value="en">English</MenuItem>
-            </Select>
-            <Button
-              variant="text"
-              size="small"
-              startIcon={<VisibilityIcon />}
-              onClick={handlePreview}
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              pt: 0.5,
+            }}>
+            <Box
               sx={{
-                textTransform: 'none',
-                fontWeight: 500,
+                width: 24,
+                height: 24,
+                borderRadius: '50%',
+                backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 0 8px rgba(25, 118, 210, 0.2)',
+                animation: 'pulse 2s ease-in-out infinite',
+                '@keyframes pulse': {
+                  '0%, 100%': {
+                    boxShadow: '0 0 8px rgba(25, 118, 210, 0.2)',
+                  },
+                  '50%': {
+                    boxShadow: '0 0 12px rgba(25, 118, 210, 0.4)',
+                  },
+                },
               }}>
-              Xem trước
-            </Button>
-          </Stack>
+              <InfoIcon sx={{ color: '#1976d2', fontSize: 13 }} />
+            </Box>
+            <Typography variant="caption" sx={{ color: '#666', fontSize: '0.6rem' }}>
+              Hãy{' '}
+              <Typography
+                component="span"
+                sx={{
+                  color: '#1976d2',
+                  fontWeight: 600,
+                  fontSize: '0.6rem',
+                  cursor: 'pointer',
+                  '&:hover': {
+                    textDecoration: 'underline',
+                  },
+                }}>
+                Thiết lập dịch vụ SMS
+              </Typography>{' '}
+              để có thể gửi tin nhắn cho khách hàng
+            </Typography>
+          </Box>
         </Stack>
       </DialogContent>
 
@@ -446,9 +449,10 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
       <DialogActions
         sx={{
           px: 3,
-          py: 2.5,
+          py: 2,
           borderTop: '1px solid #e0e0e0',
           backgroundColor: '#fafafa',
+          justifyContent: 'flex-end',
         }}>
         <Button
           onClick={onClose}
