@@ -428,7 +428,7 @@ const TemplateManagement = () => {
             variant="contained"
             color="primary"
             startIcon={<AddIcon />}
-            onClick={() => navigate('/admin/templates/new')}
+            onClick={() => navigate('/admin/templates/select')}
             sx={{
               textTransform: 'none',
               fontWeight: 500,

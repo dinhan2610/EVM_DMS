@@ -22,6 +22,7 @@ export const CreateReplacementInvoice = lazy(() => import('@/page/CreateReplacem
 export const RequestManagement = lazy(() => import('@/page/RequestManagement'))
 export const ItemsManagement = lazy(() => import('@/page/ItemsManagement'))
 export const TemplateManagement = lazy(() => import('@/page/TemplateManagement'))
+export const TemplateSelection = lazy(() => import('@/page/TemplateSelection'))
 export const TemplateEditor = lazy(() => import('@/page/TemplateEditor'))
 export const TemplatePreview = lazy(() => import('@/page/TemplatePreview'))
 

@@ -13,13 +13,15 @@ const AppRouter = (props: RouteProps) => {
   const authRoutes = routes.filter(route => route.path?.toString().startsWith('/auth'))
   const templateEditorRoutes = routes.filter(route => 
     route.path?.toString().includes('/admin/templates/new') || 
-    route.path?.toString().includes('/admin/templates/edit')
+    route.path?.toString().includes('/admin/templates/edit') ||
+    route.path?.toString().includes('/admin/templates/select')
   )
   const appRoutes = routes.filter(route => 
     !route.path?.toString().startsWith('/auth') && 
     route.path !== '*' &&
     !route.path?.toString().includes('/admin/templates/new') &&
-    !route.path?.toString().includes('/admin/templates/edit')
+    !route.path?.toString().includes('/admin/templates/edit') &&
+    !route.path?.toString().includes('/admin/templates/select')
   )
 
   return (

@@ -18,6 +18,7 @@ import {
   RequestManagement,
   ItemsManagement,
   TemplateManagement,
+  TemplateSelection,
   TemplateEditor,
   TemplatePreview,
   Welcome,
@@ -99,6 +100,11 @@ const appsRoutes: RoutesProps[] = [
     name: 'Template Management',
     path: '/admin/templates',
     element: <TemplateManagement />,
+  },
+  {
+    name: 'Select Template',
+    path: '/admin/templates/select',
+    element: <TemplateSelection />,
   },
   {
     name: 'Create Template',

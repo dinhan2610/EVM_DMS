@@ -43,12 +43,14 @@ interface InvoiceTemplatePreviewProps {
   config: TemplateConfigProps;
   visibility?: TemplateVisibility; // Optional
   blankRows?: number; // Optional, default 8
+  backgroundFrame?: string; // Optional, background image path
 }
 
 const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({ 
   config,
   visibility = {}, // Default empty object
   blankRows = 8, // Default 8 rows
+  backgroundFrame = '/khunghoadon.png', // Default background
 }) => {
   // Set default values for visibility
   const {
@@ -65,19 +67,22 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
   } = visibility;
   return (
     <Paper
-      elevation={3}
+      elevation={0}
       sx={{
-        // Khung viền background
-        backgroundImage: 'url("/khunghoadon.png")',
+        // Khung viền background - Động theo template
+        backgroundImage: `url("${backgroundFrame}")`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
         
-        // Kích thước & Padding - Giảm padding để nội dung rộng hơn
-        padding: '2.5cm 1.5cm 2cm 1.5cm', // Top: 2.5cm, Right/Left: 1.5cm, Bottom: 2cm
-        aspectRatio: '1 / 1.41', // Tỷ lệ A4
+        // Căn giữa Paper
+        margin: '0 auto',
+        
+        // Kích thước & Padding
+        padding: '2cm 1.5cm 1.5cm 1.5cm', // Giảm padding trái phải để nội dung rộng hơn
         width: '100%',
-        minHeight: 'auto',
+        maxWidth: '1050px', // Tăng maxWidth
+        minHeight: '1342px', // Điều chỉnh chiều cao
         boxSizing: 'border-box',
         bgcolor: 'transparent', // Transparent để thấy background
         overflow: 'visible', // Hiển thị toàn bộ
@@ -86,35 +91,41 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
       }}
     >
       <Box position="relative" sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {/* Phần 1: Tiêu đề chính và Ký hiệu/Số */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.8 }}>
-          {/* Cột trái: Trống */}
-          <Box sx={{ flex: 1 }}></Box>
-          {/* Cột giữa: Tiêu đề */}
-          <Box sx={{ flex: 1, textAlign: 'center' }}>
-            <Typography
-              variant="h5"
-              fontWeight="bold"
-              sx={{ textTransform: 'uppercase', fontSize: '0.96rem', mb: 0.5, letterSpacing: 0.5 }}
-            >
-              Hóa đơn giá trị gia tăng
+        {/* Phần 1: Tiêu đề chính */}
+        <Box sx={{ mb: 1.5, position: 'relative' }}>
+          <Typography
+            variant="h5"
+            fontWeight="bold"
+            sx={{ textTransform: 'uppercase', fontSize: '1.6rem', mb: 0.4, letterSpacing: 0.5, textAlign: 'center' }}
+          >
+            Hóa đơn giá trị gia tăng
+          </Typography>
+          
+          {/* Mã CQT và Ngày - Căn giữa */}
+          <Box sx={{ textAlign: 'center', mb: 0.3 }}>
+            <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+              Mã CQT: <strong>C24TTA</strong>
             </Typography>
-            <Typography variant="body2" fontStyle="italic" sx={{ fontSize: '0.8rem' }}>
+            <Typography variant="body2" fontStyle="italic" sx={{ fontSize: '0.75rem' }}>
               Ngày 05 tháng 11 năm 2024
             </Typography>
           </Box>
-          {/* Cột phải: Ký hiệu và Số */}
-          <Box sx={{ flex: 1, textAlign: 'right' }}>
-            <Typography variant="body1" sx={{ fontSize: '0.8rem', mb: 0.3, lineHeight: 1.5 }}>
+
+          {/* Ký hiệu và Số - Căn phải */}
+          <Box sx={{ position: 'absolute', top: 35, right: 0 }}>
+            <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.3, textAlign: 'right' }}>
               Ký hiệu: <strong>{config.templateCode || 'D26TTS'}</strong>
             </Typography>
-            <Typography variant="body1" sx={{ fontSize: '0.8rem', lineHeight: 1.5 }}>
+            <Typography variant="body2" sx={{ fontSize: '0.75rem', textAlign: 'right' }}>
               Số: <Box component="span" sx={{ color: 'red', fontWeight: 500 }}>[Chưa cấp số]</Box>
             </Typography>
           </Box>
+
+          <Divider sx={{ my: 1 }} />
         </Box>
+
         {/* Phần 2: Thông tin Công ty & QR (2 cột với Box) */}
-        <Box sx={{ display: 'flex', gap: 3, mb: 1.5 }}>
+        <Box sx={{ display: 'flex', gap: 3, mb: 1.2 }}>
           {/* Cột Trái: Thông tin Công ty */}
           <Box sx={{ flex: 7 }}>
             {showLogo && config.companyLogo && (
@@ -125,27 +136,27 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
               />
             )}
             {showCompanyName && (
-              <Typography variant="h6" fontWeight="bold" sx={{ fontSize: '0.9rem', mb: 0.4 }}>
+              <Typography variant="h6" fontWeight="bold" sx={{ fontSize: '1.15rem', mb: 0.35 }}>
                 {config.companyName || 'GLOBAL SOLUTIONS LTD'}
               </Typography>
             )}
             {showCompanyTaxCode && (
-              <Typography variant="body2" sx={{ fontSize: '0.8rem', mb: 0.25, lineHeight: 1.5 }}>
+              <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.2, lineHeight: 1.5 }}>
                 Mã số thuế: {config.companyTaxCode || '6868686868-666'}
               </Typography>
             )}
             {showCompanyAddress && (
-              <Typography variant="body2" sx={{ fontSize: '0.8rem', mb: 0.25, lineHeight: 1.5 }}>
+              <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.2, lineHeight: 1.5 }}>
                 Địa chỉ: {config.companyAddress || '95 Nguyễn Trãi, Thanh Xuân, Hà Nội'}
               </Typography>
             )}
             {showCompanyPhone && (
-              <Typography variant="body2" sx={{ fontSize: '0.8rem', mb: 0.25, lineHeight: 1.5 }}>
+              <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.2, lineHeight: 1.5 }}>
                 Điện thoại: {config.companyPhone || '...............'}
               </Typography>
             )}
             {showCompanyBankAccount && (
-              <Typography variant="body2" sx={{ fontSize: '0.8rem', lineHeight: 1.5 }}>
+              <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5 }}>
                 Số tài khoản: ...............
               </Typography>
             )}
@@ -174,31 +185,31 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
           )}
         </Box>
 
-        <Divider sx={{ my: 1.2 }} />
+        <Divider sx={{ my: 1 }} />
 
         {/* Phần 3: Thông tin Người mua (Mockup) */}
         {showCustomerInfo && (
-          <Stack spacing={0.3} sx={{ mb: 1.2 }}>
-            <Typography variant="body2" sx={{ fontSize: '0.8rem', lineHeight: 1.6 }}>
+          <Stack spacing={0.25} sx={{ mb: 1 }}>
+            <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5 }}>
               Họ tên người mua hàng: <strong>Kế toán A</strong>
             </Typography>
-            <Typography variant="body2" sx={{ fontSize: '0.8rem', lineHeight: 1.6 }}>
+            <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5 }}>
               Tên đơn vị: <strong>CÔNG TY CỔ PHẦN MISA</strong>
             </Typography>
-            <Typography variant="body2" sx={{ fontSize: '0.8rem', lineHeight: 1.6 }}>
+            <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5 }}>
               Mã số thuế: <strong>0101243150-136</strong>
             </Typography>
-            <Typography variant="body2" sx={{ fontSize: '0.8rem', lineHeight: 1.6 }}>
+            <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5 }}>
               Địa chỉ: Tầng 9, tòa nhà Technosoft, Phố Duy Tân, ...
             </Typography>
             {showPaymentInfo && (
-              <Typography variant="body2" sx={{ fontSize: '0.8rem', lineHeight: 1.6 }}>
+              <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5 }}>
                 Hình thức thanh toán: <strong>TM/CK</strong>
               </Typography>
             )}
           </Stack>
         )}        {/* Phần 4: Bảng Hàng hóa (Mockup) - Transparent với chỉ có đường kẻ */}
-        <TableContainer sx={{ my: 1.2, bgcolor: 'transparent' }}>
+        <TableContainer sx={{ my: 1, bgcolor: 'transparent' }}>
           <Table size="small" sx={{ border: '1px solid #000', bgcolor: 'transparent' }}>
             <TableHead>
               <TableRow>
@@ -206,8 +217,8 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                   align="center" 
                   sx={{ 
                     fontWeight: 'bold', 
-                    fontSize: '0.8rem', 
-                    padding: '6px 8px',
+                    fontSize: '0.75rem', 
+                    padding: '5px 6px',
                     border: '1px solid #000',
                     bgcolor: 'transparent'
                   }}
@@ -217,8 +228,8 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                 <TableCell 
                   sx={{ 
                     fontWeight: 'bold', 
-                    fontSize: '0.8rem', 
-                    padding: '6px 8px',
+                    fontSize: '0.75rem', 
+                    padding: '5px 6px',
                     border: '1px solid #000',
                     bgcolor: 'transparent'
                   }}
@@ -229,8 +240,8 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                   align="center" 
                   sx={{ 
                     fontWeight: 'bold', 
-                    fontSize: '0.8rem', 
-                    padding: '6px 8px',
+                    fontSize: '0.75rem', 
+                    padding: '5px 6px',
                     border: '1px solid #000',
                     bgcolor: 'transparent'
                   }}
@@ -241,8 +252,8 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                   align="center" 
                   sx={{ 
                     fontWeight: 'bold', 
-                    fontSize: '0.8rem', 
-                    padding: '6px 8px',
+                    fontSize: '0.75rem', 
+                    padding: '5px 6px',
                     border: '1px solid #000',
                     bgcolor: 'transparent'
                   }}
@@ -253,8 +264,8 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                   align="right" 
                   sx={{ 
                     fontWeight: 'bold', 
-                    fontSize: '0.8rem', 
-                    padding: '6px 8px',
+                    fontSize: '0.75rem', 
+                    padding: '5px 6px',
                     border: '1px solid #000',
                     bgcolor: 'transparent'
                   }}
@@ -265,8 +276,8 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                   align="right" 
                   sx={{ 
                     fontWeight: 'bold', 
-                    fontSize: '0.8rem', 
-                    padding: '6px 8px',
+                    fontSize: '0.75rem', 
+                    padding: '5px 6px',
                     border: '1px solid #000',
                     bgcolor: 'transparent'
                   }}
