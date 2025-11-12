@@ -29,13 +29,30 @@ export const MENU_ITEMS: MenuItemType[] = [
     icon: 'iconamoon:shopping-bag-duotone',
     label: 'Thương mại',
     children: [
-      
-    
       {
         key: 'ecommerce-customers',
         label: 'Khách hàng',
-        url: '/ecommerce/customers',
         parentKey: 'ecommerce',
+        children: [
+          {
+            key: 'ecommerce-customers-invoices',
+            label: 'Hóa đơn của tôi',
+            url: '/ecommerce/customers',
+            parentKey: 'ecommerce-customers',
+          },
+          {
+            key: 'ecommerce-customers-info',
+            label: 'Thông tin cá nhân',
+            url: '/ecommerce/customers/profile',
+            parentKey: 'ecommerce-customers',
+          },
+          {
+            key: 'ecommerce-customers-password',
+            label: 'Đổi mật khẩu',
+            url: '/ecommerce/customers/password',
+            parentKey: 'ecommerce-customers',
+          },
+        ],
       },
       {
         key: 'ecommerce-sellers',
@@ -43,9 +60,6 @@ export const MENU_ITEMS: MenuItemType[] = [
         url: '/ecommerce/sellers',
         parentKey: 'ecommerce',
       },
-      
-      
-      
     ],
   },
   {
@@ -65,7 +79,7 @@ export const MENU_ITEMS: MenuItemType[] = [
         url: '/calendar/schedule',
         parentKey: 'apps-calendar',
       },
-      
+
       {
         key: 'calendar-help',
         label: 'Trợ giúp',
@@ -80,7 +94,7 @@ export const MENU_ITEMS: MenuItemType[] = [
     label: 'Công việc',
     url: '/apps/todo',
   },
-  
+
   {
     key: 'apps-contacts',
     icon: 'iconamoon:profile-circle-duotone',
@@ -160,7 +174,7 @@ export const MENU_ITEMS: MenuItemType[] = [
         url: '/pages/profile',
         parentKey: 'pages',
       },
-      
+
       {
         key: 'page-contact-us',
         label: 'Liên hệ',
@@ -191,10 +205,9 @@ export const MENU_ITEMS: MenuItemType[] = [
         url: '/pages/pricing',
         parentKey: 'pages',
       },
-      
     ],
   },
-  
+
   {
     key: 'page-authentication',
     label: 'Xác thực',
@@ -213,10 +226,9 @@ export const MENU_ITEMS: MenuItemType[] = [
         url: '/auth/sign-up',
         parentKey: 'page-authentication',
       },
-      
     ],
   },
-  
+
   {
     key: 'components',
     label: 'THÀNH PHẦN',
