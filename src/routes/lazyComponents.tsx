@@ -24,7 +24,7 @@ export const ItemsManagement = lazy(() => import('@/page/ItemsManagement'))
 export const TemplateManagement = lazy(() => import('@/page/TemplateManagement'))
 export const TemplateSelection = lazy(() => import('@/page/TemplateSelection'))
 export const TemplateEditor = lazy(() => import('@/page/TemplateEditor'))
-export const TemplatePreview = lazy(() => import('@/page/TemplatePreview'))
+export const TemplatePreview = lazy(() => import('@/page/TemplatePreviewPage'))
 
 // Pages Routes
 export const Welcome = lazy(() => import('@/app/(admin)/pages/welcome/page'))

@@ -71,23 +71,23 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
       sx={{
         // Khung viền background - Động theo template
         backgroundImage: `url("${backgroundFrame}")`,
-        backgroundSize: 'cover',
+        backgroundSize: 'contain', // contain thay vì cover để giữ nguyên tỉ lệ
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
         
         // Căn giữa Paper
         margin: '0 auto',
         
-        // Kích thước & Padding
-        padding: '2cm 1.5cm 1.5cm 1.5cm', // Giảm padding trái phải để nội dung rộng hơn
-        width: '100%',
-        maxWidth: '1050px', // Tăng maxWidth
-        minHeight: '1342px', // Điều chỉnh chiều cao
+        // Kích thước chuẩn A4 (210mm × 297mm tỉ lệ) - với padding cho viền
+        padding: '2cm 1.5cm', // Tăng padding để viền hiển thị đầy đủ
+        width: '210mm', // Chuẩn A4 width
+        minHeight: '287mm', // Min height để đảm bảo viền đủ
         boxSizing: 'border-box',
-        bgcolor: 'transparent', // Transparent để thấy background
-        overflow: 'visible', // Hiển thị toàn bộ
+        bgcolor: 'white', // White background để thấy rõ
+        overflow: 'visible', // Visible để không cắt viền
         display: 'flex',
         flexDirection: 'column',
+        position: 'relative',
       }}
     >
       <Box position="relative" sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>

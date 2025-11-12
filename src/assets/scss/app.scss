@@ -23,6 +23,12 @@
 @import 'structure/page-title';
 @import 'structure/footer';
 
+// Custom - Menu Always Visible Optimization
+@import 'custom/menu-always-visible';
+
+// Custom - Print & PDF Export Optimization
+@import 'custom/print';
+
 // Bootstrap
 @import 'components/accordion';
 @import 'components/alerts';

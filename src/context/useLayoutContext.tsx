@@ -28,7 +28,7 @@ const LayoutProvider = ({ children }: ChildrenType) => {
     topbarTheme: queryParams['topbar_theme'] ? (queryParams['topbar_theme'] as ThemeType) : 'light',
     menu: {
       theme: queryParams['menu_theme'] ? (queryParams['menu_theme'] as MenuType['theme']) : 'light',
-      size: queryParams['menu_size'] ? (queryParams['menu_size'] as MenuType['size']) : 'sm-hover-active',
+      size: queryParams['menu_size'] ? (queryParams['menu_size'] as MenuType['size']) : 'default',
     },
   }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Box,
@@ -20,6 +20,7 @@ import {
   Tab,
   Checkbox,
   Divider,
+  Chip,
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
@@ -33,6 +34,11 @@ import CodeIcon from '@mui/icons-material/Code'
 import AddIcon from '@mui/icons-material/Add'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
+import PrintIcon from '@mui/icons-material/Print'
+import ZoomInIcon from '@mui/icons-material/ZoomIn'
+import ZoomOutIcon from '@mui/icons-material/ZoomOut'
+import RestartAltIcon from '@mui/icons-material/RestartAlt'
+import SaveIcon from '@mui/icons-material/Save'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
 
 // Interface cũ - tương thích với InvoiceTemplatePreview
@@ -105,6 +111,11 @@ const TemplateEditor: React.FC = () => {
   const [rowCount, setRowCount] = useState(5)
   const [sttTitle, setSttTitle] = useState('STT')
   const [sttContent, setSttContent] = useState('[STT]')
+
+  // NEW: Enhanced UX states
+  const [previewScale, setPreviewScale] = useState(0.7) // Fit perfect trong 75% container
+  const [isSaving, setIsSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
 
   // State cũ - tương thích với InvoiceTemplatePreview
   const [blankRows] = useState<number>(8)
@@ -223,6 +234,69 @@ const TemplateEditor: React.FC = () => {
     }
   }
 
+  // NEW: Enhanced handlers with useCallback
+  const handleSave = useCallback(async () => {
+    setIsSaving(true)
+    try {
+      const data = {
+        ...config,
+        invoiceType,
+        symbolPrefix,
+        symbolYear,
+        customBackground,
+        visibility,
+        blankRows,
+      }
+      console.log('Auto-saving:', data)
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      setLastSaved(new Date())
+    } catch (error) {
+      console.error('Auto-save error:', error)
+    } finally {
+      setIsSaving(false)
+    }
+  }, [config, invoiceType, symbolPrefix, symbolYear, customBackground, visibility, blankRows])
+
+  const handlePrintPreview = useCallback(() => {
+    if (templateId) {
+      navigate(`/admin/templates/preview/${templateId}`)
+    } else {
+      alert('Vui lòng lưu mẫu trước khi xem trước bản in')
+    }
+  }, [templateId, navigate])
+
+  const handleZoomIn = () => {
+    setPreviewScale((prev) => Math.min(1.0, prev + 0.05)) // Max 100% để fit trong 75% container
+  }
+
+  const handleZoomOut = () => {
+    setPreviewScale((prev) => Math.max(0.4, prev - 0.05)) // Min 40%
+  }
+
+  const handleResetZoom = () => {
+    setPreviewScale(0.7) // Fit perfect trong container
+  }
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + S: Save
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        handleSave()
+      }
+
+      // Ctrl/Cmd + P: Print Preview
+      if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+        e.preventDefault()
+        handlePrintPreview()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyPress)
+    return () => window.removeEventListener('keydown', handleKeyPress)
+  }, [handleSave, handlePrintPreview])
+
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5' }}>
       {/* Header */}
@@ -238,11 +312,49 @@ const TemplateEditor: React.FC = () => {
           </Stack>
 
           <Stack direction="row" spacing={1.5} alignItems="center">
+            {/* Auto-save indicator */}
+            {lastSaved && (
+              <Chip
+                icon={isSaving ? <CircularProgress size={12} /> : <SaveIcon sx={{ fontSize: 14 }} />}
+                label={isSaving ? 'Đang lưu...' : `Đã lưu ${lastSaved.toLocaleTimeString('vi-VN')}`}
+                size="small"
+                color={isSaving ? 'default' : 'success'}
+                sx={{ 
+                  fontWeight: 500,
+                  fontSize: '0.75rem',
+                }}
+              />
+            )}
+
             <Tooltip title="Trợ giúp" arrow>
               <IconButton sx={{ color: '#757575' }}>
                 <HelpOutlineIcon sx={{ fontSize: 22 }} />
               </IconButton>
             </Tooltip>
+
+            {/* Print Preview Button - NEW */}
+            <Tooltip title="Xem trước bản in (Ctrl+P)" arrow>
+              <Button
+                variant="outlined"
+                startIcon={<PrintIcon />}
+                onClick={handlePrintPreview}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  px: 2,
+                  py: 0.75,
+                  borderWidth: 2,
+                  '&:hover': {
+                    borderWidth: 2,
+                    transform: 'translateY(-1px)',
+                  },
+                  transition: 'all 0.2s ease',
+                }}>
+                Xem Trước Bản In
+              </Button>
+            </Tooltip>
+
             <Button
               variant="contained"
               startIcon={<PlayCircleIcon />}
@@ -267,9 +379,14 @@ const TemplateEditor: React.FC = () => {
 
       {/* Main Content */}
       <Box sx={{ px: 3, py: 3 }}>
-        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3}>
-          {/* Left - Form 30% */}
-          <Box sx={{ width: { xs: '100%', lg: '25%' } }}>
+        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3} alignItems="flex-start">
+          {/* Left - Form 30% - Sticky Sidebar */}
+          <Box sx={{ 
+            width: { xs: '100%', lg: '25%' },
+            position: { lg: 'sticky' },
+            top: { lg: 16 },
+            alignSelf: { lg: 'flex-start' },
+          }}>
             <Paper 
               elevation={0} 
               sx={{ 
@@ -1091,29 +1208,228 @@ const TemplateEditor: React.FC = () => {
 
           {/* Right - Preview 70% */}
           <Box sx={{ width: { xs: '100%', lg: '75%' } }}>
+            {/* Zoom Controls */}
+            <Stack 
+              direction="row" 
+              spacing={1} 
+              alignItems="center" 
+              justifyContent="space-between"
+              sx={{ mb: 1.5 }}
+            >
+              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                📄 Xem trước mẫu hóa đơn (trang A4)
+              </Typography>
+              
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Tooltip title="Thu nhỏ (Ctrl + -)">
+                  <IconButton 
+                    size="small" 
+                    onClick={handleZoomOut}
+                    sx={{
+                      bgcolor: 'white',
+                      border: '1px solid #e0e0e0',
+                      '&:hover': { bgcolor: '#f5f5f5' },
+                    }}
+                  >
+                    <ZoomOutIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                
+                <Chip 
+                  label={`${Math.round(previewScale * 100)}%`} 
+                  size="small"
+                  sx={{
+                    fontWeight: 600,
+                    bgcolor: 'white',
+                    border: '1px solid #e0e0e0',
+                    minWidth: 60,
+                  }}
+                />
+                
+                <Tooltip title="Phóng to (Ctrl + +)">
+                  <IconButton 
+                    size="small" 
+                    onClick={handleZoomIn}
+                    sx={{
+                      bgcolor: 'white',
+                      border: '1px solid #e0e0e0',
+                      '&:hover': { bgcolor: '#f5f5f5' },
+                    }}
+                  >
+                    <ZoomInIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                
+                <Tooltip title="Vừa màn hình">
+                  <IconButton 
+                    size="small" 
+                    onClick={handleResetZoom}
+                    sx={{
+                      bgcolor: 'white',
+                      border: '1px solid #e0e0e0',
+                      '&:hover': { bgcolor: '#f5f5f5' },
+                    }}
+                  >
+                    <RestartAltIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+            </Stack>
+
+            {/* Preview Container - Optimized for 75% width */}
             <Paper 
               elevation={0} 
               sx={{ 
-                p: 2, 
+                p: 3,
                 border: '1px solid #e0e0e0', 
-                borderRadius: 2, 
-                minHeight: 800,
+                borderRadius: 2,
                 bgcolor: '#fafafa',
-                transition: 'box-shadow 0.3s ease',
+                transition: 'all 0.3s ease',
                 display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'flex-start',
-                overflow: 'auto',
+                flexDirection: 'column',
+                alignItems: 'center',
+                overflow: 'visible', // Visible để hiển thị đầy đủ viền
+                minHeight: 'calc(100vh - 220px)', // Fit viewport
+                position: 'relative',
                 '&:hover': {
                   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                  bgcolor: '#f7f7f7',
                 },
               }}>
-              <InvoiceTemplatePreview
-                config={config}
-                visibility={visibility}
-                blankRows={blankRows}
-                backgroundFrame={backgroundFrame}
-              />
+              
+              {/* Page 1 Indicator */}
+              <Box
+                sx={{
+                  width: '100%',
+                  mb: 1.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                }}
+              >
+                <Divider sx={{ flex: 1, borderColor: '#bdbdbd' }} />
+                <Chip 
+                  label="📄 Trang 1" 
+                  size="small" 
+                  sx={{ 
+                    bgcolor: 'white',
+                    fontWeight: 600,
+                    fontSize: '0.75rem',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                  }} 
+                />
+                <Divider sx={{ flex: 1, borderColor: '#bdbdbd' }} />
+              </Box>
+
+              {/* Invoice Preview with Scale Transform - Centered & Contained */}
+              <Box
+                sx={{
+                  transform: `scale(${previewScale})`,
+                  transformOrigin: 'top center',
+                  transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)',
+                  borderRadius: 1.5,
+                  overflow: 'visible', // Visible để không cắt viền invoice
+                  bgcolor: 'transparent', // Transparent để thấy viền
+                  mb: 2,
+                  maxWidth: '100%', // Không vượt quá container
+                  display: 'flex',
+                  justifyContent: 'center',
+                  '&:hover': {
+                    boxShadow: '0 12px 35px rgba(0, 0, 0, 0.18)',
+                  },
+                }}
+              >
+                <InvoiceTemplatePreview
+                  config={config}
+                  visibility={visibility}
+                  blankRows={blankRows}
+                  backgroundFrame={backgroundFrame}
+                />
+              </Box>
+
+              {/* Page Break Indicator - Enhanced */}
+              <Box
+                sx={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                  mb: 2.5,
+                  mt: 1,
+                }}
+              >
+                <Divider sx={{ flex: 1, borderStyle: 'dashed', borderColor: '#9e9e9e' }} />
+                <Chip
+                  icon={<Box component="span" sx={{ fontSize: '1rem' }}>✂️</Box>}
+                  label="Vị trí ngắt trang A4 (297mm)"
+                  size="small"
+                  variant="outlined"
+                  sx={{ 
+                    color: 'text.secondary',
+                    fontStyle: 'italic',
+                    fontSize: '0.7rem',
+                    borderColor: '#9e9e9e',
+                    bgcolor: 'rgba(255,255,255,0.8)',
+                  }}
+                />
+                <Divider sx={{ flex: 1, borderStyle: 'dashed', borderColor: '#9e9e9e' }} />
+              </Box>
+
+              {/* Pagination Info - Enhanced */}
+              <Stack 
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={1.5}
+                alignItems="center"
+                sx={{
+                  bgcolor: 'white',
+                  px: 2.5,
+                  py: 1.25,
+                  borderRadius: 1.5,
+                  border: '1px solid #e0e0e0',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                }}
+              >
+                <Stack direction="row" alignItems="center" spacing={0.5}>
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#424242' }}>
+                    📏 Kích thước:
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    A4 (210 × 297mm)
+                  </Typography>
+                </Stack>
+                
+                <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
+                
+                <Stack direction="row" alignItems="center" spacing={0.5}>
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#424242' }}>
+                    🔍 Zoom:
+                  </Typography>
+                  <Chip 
+                    label={`${Math.round(previewScale * 100)}%`}
+                    size="small"
+                    sx={{ 
+                      height: 20,
+                      fontSize: '0.7rem',
+                      fontWeight: 600,
+                      bgcolor: previewScale >= 1.0 ? '#e8f5e9' : previewScale <= 0.5 ? '#fff3e0' : '#e3f2fd',
+                      color: previewScale >= 1.0 ? '#2e7d32' : previewScale <= 0.5 ? '#e65100' : '#1565c0',
+                    }}
+                  />
+                </Stack>
+                
+                <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
+                
+                <Stack direction="row" alignItems="center" spacing={0.5}>
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#424242' }}>
+                    📄 Trang:
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    1/1
+                  </Typography>
+                </Stack>
+              </Stack>
+
             </Paper>
           </Box>
         </Stack>

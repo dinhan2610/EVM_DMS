@@ -18,12 +18,20 @@ const HoverMenuToggle = () => {
   }, [width])
 
   const handleHoverMenu = () => {
-    if (size === 'sm-hover-active') changeMenuSize('sm-hover')
-    else changeMenuSize('sm-hover-active')
+    // Handle all menu sizes
+    if (size === 'default' || size === 'condensed') {
+      // Thu nhỏ menu
+      changeMenuSize('sm-hover')
+    } else if (size === 'sm-hover-active') {
+      changeMenuSize('sm-hover')
+    } else {
+      // Mở rộng menu về default
+      changeMenuSize('default')
+    }
   }
 
   return (
-    <button onClick={handleHoverMenu} type="button" className="button-sm-hover" aria-label="Show Full Sidebar">
+    <button onClick={handleHoverMenu} type="button" className="button-sm-hover" aria-label="Toggle Menu">
       <span className="button-sm-hover-icon">
         <IconifyIcon icon="iconamoon:arrow-left-4-square-duotone" />
       </span>

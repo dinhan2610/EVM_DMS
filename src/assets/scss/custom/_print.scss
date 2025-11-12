@@ -1,0 +1,444 @@
+//
+// Print & PDF Export Optimization
+// ================================
+//
+// 📋 OVERVIEW:
+// CSS tối ưu cho việc in ấn và xuất PDF với phân trang tự động
+// Header và Footer của hóa đơn sẽ tự động lặp lại trên mỗi trang
+//
+// 🎯 FEATURES:
+// - Tự động phân trang khi nội dung dài
+// - Lặp lại header (thông tin công ty, tiêu đề) trên mỗi trang
+// - Lặp lại footer (tổng tiền, chữ ký) trên mỗi trang
+// - Lặp lại table header (STT, Tên hàng hóa, ĐVT...) khi table dài
+// - Tránh ngắt trang giữa một dòng sản phẩm
+// - Áp dụng khung nền cho mỗi trang
+//
+// 📄 A4 PAGE SIZE: 210mm x 297mm
+// 🖨️ PRINT CONTEXT ONLY: Chỉ áp dụng khi in hoặc xuất PDF
+//
+
+@media print {
+  // ============================================
+  // 1. ẨN TẤT CẢ ELEMENTS NGOÀI HÓA ĐƠN
+  // ============================================
+  
+  // Ẩn toàn bộ page
+  body * {
+    visibility: hidden !important;
+  }
+
+  // Chỉ hiện invoice print area
+  #invoice-print-area,
+  #invoice-print-area * {
+    visibility: visible !important;
+  }
+
+  // Position invoice ở top-left
+  #invoice-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  // Ẩn các thành phần UI không cần thiết
+  .main-nav,
+  .topbar,
+  .button-toggle-menu,
+  .button-sm-hover,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+
+  // ============================================
+  // 2. PAGE SETUP - THIẾT LẬP TRANG IN
+  // ============================================
+  
+  @page {
+    size: A4 portrait; // Kích thước A4 dọc
+    margin: 1.5cm 1.2cm; // Lề trên/dưới 1.5cm, trái/phải 1.2cm
+    
+    // Nếu muốn thêm header/footer cho toàn trang (số trang, ngày in...)
+    // Uncomment nếu cần:
+    // @top-right {
+    //   content: "Trang " counter(page) " / " counter(pages);
+    //   font-size: 9pt;
+    //   color: #666;
+    // }
+  }
+
+  // Loại bỏ page break mặc định của browser
+  * {
+    -webkit-print-color-adjust: exact !important; // Safari
+    print-color-adjust: exact !important; // Firefox, Chrome
+    color-adjust: exact !important; // Standard
+  }
+
+  // ============================================
+  // 3. TABLE LAYOUT - CẤU TRÚC CHÍNH
+  // ============================================
+  
+  // Table wrapper chính của hóa đơn
+  .invoice-print-wrapper {
+    width: 100%;
+    height: 100%;
+    position: relative;
+  }
+
+  // Table layout chính
+  table.invoice-page-layout {
+    width: 100%;
+    border-collapse: collapse;
+    page-break-after: auto;
+    
+    // QUAN TRỌNG: Cho phép table ngắt trang
+    page-break-inside: auto;
+  }
+
+  // ============================================
+  // 4. HEADER - PHẦN ĐẦU TRANG (LẶP LẠI)
+  // ============================================
+  
+  thead.invoice-page-header {
+    // QUAN TRỌNG: Lặp lại header trên mỗi trang
+    display: table-header-group;
+  }
+
+  thead.invoice-page-header td {
+    padding-bottom: 0.5cm;
+  }
+
+  // Styling cho header content
+  .invoice-header-content {
+    // Logo
+    .company-logo {
+      max-height: 40px;
+      width: auto;
+    }
+
+    // Thông tin công ty
+    .company-info {
+      margin-bottom: 0.3cm;
+    }
+
+    // QR Code
+    .qr-code-box {
+      width: 65px;
+      height: 65px;
+    }
+  }
+
+  // ============================================
+  // 5. BODY - NỘI DUNG CHÍNH (NGẮT TRANG)
+  // ============================================
+  
+  tbody.invoice-page-body {
+    // QUAN TRỌNG: Cho phép ngắt trang trong body
+    display: table-row-group;
+    page-break-inside: auto;
+  }
+
+  tbody.invoice-page-body td {
+    padding: 0;
+  }
+
+  // ============================================
+  // 6. TABLE SẢN PHẨM - PHẦN QUAN TRỌNG NHẤT
+  // ============================================
+  
+  // Table sản phẩm bên trong
+  .invoice-products-table {
+    width: 100%;
+    border-collapse: collapse;
+    page-break-inside: auto;
+    
+    // Border cho table
+    border: 1px solid #000;
+  }
+
+  // Header của table sản phẩm - LẶP LẠI
+  .invoice-products-table thead {
+    // QUAN TRỌNG: Lặp lại table header trên mỗi trang
+    display: table-header-group;
+    
+    tr {
+      page-break-inside: avoid;
+      page-break-after: auto;
+    }
+    
+    th {
+      background-color: #f5f5f5 !important;
+      border: 1px solid #000 !important;
+      padding: 5px 6px !important;
+      font-weight: bold !important;
+      font-size: 7.5pt !important;
+    }
+  }
+
+  // Body của table sản phẩm
+  .invoice-products-table tbody {
+    display: table-row-group;
+  }
+
+  // QUAN TRỌNG: Tránh ngắt trang giữa một dòng sản phẩm
+  .invoice-products-table tbody tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+    
+    td {
+      border: 1px solid #000 !important;
+      padding: 6px 8px !important;
+      font-size: 8pt !important;
+    }
+  }
+
+  // Dòng đầu tiên của trang mới (optional)
+  .invoice-products-table tbody tr:first-child {
+    page-break-before: auto;
+  }
+
+  // ============================================
+  // 7. FOOTER - PHẦN CUỐI TRANG (LẶP LẠI)
+  // ============================================
+  
+  tfoot.invoice-page-footer {
+    // QUAN TRỌNG: Lặp lại footer trên mỗi trang
+    display: table-footer-group;
+  }
+
+  tfoot.invoice-page-footer td {
+    padding-top: 0.5cm;
+  }
+
+  // Styling cho footer content
+  .invoice-footer-content {
+    // Tổng tiền
+    .invoice-summary {
+      margin-bottom: 0.3cm;
+    }
+
+    // Chữ ký
+    .invoice-signatures {
+      margin-top: 0.4cm;
+    }
+  }
+
+  // ============================================
+  // 8. BACKGROUND & BORDERS
+  // ============================================
+  
+  // Background frame cho mỗi trang
+  .invoice-background-frame {
+    background-image: var(--invoice-bg-url);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    min-height: 100%;
+  }
+
+  // Border và background colors
+  .MuiPaper-root {
+    box-shadow: none !important;
+    background: white !important;
+  }
+
+  // ============================================
+  // 9. TYPOGRAPHY & SPACING OPTIMIZATION
+  // ============================================
+  
+  // Font sizes tối ưu cho in
+  .invoice-print-wrapper {
+    font-size: 9pt;
+    line-height: 1.4;
+    color: #000;
+    
+    h1, h2, h3, h4, h5, h6 {
+      page-break-after: avoid;
+    }
+    
+    p {
+      orphans: 3; // Tối thiểu 3 dòng ở cuối trang
+      widows: 3;  // Tối thiểu 3 dòng ở đầu trang mới
+    }
+  }
+
+  // Tiêu đề hóa đơn
+  .invoice-title {
+    font-size: 14pt !important;
+    font-weight: bold !important;
+    margin-bottom: 0.2cm !important;
+  }
+
+  // Thông tin công ty
+  .company-name {
+    font-size: 11pt !important;
+    font-weight: bold !important;
+  }
+
+  .company-details {
+    font-size: 7.5pt !important;
+    line-height: 1.5 !important;
+  }
+
+  // Thông tin khách hàng
+  .customer-info {
+    font-size: 7.5pt !important;
+    line-height: 1.5 !important;
+    margin-bottom: 0.3cm !important;
+  }
+
+  // Tổng tiền
+  .invoice-total {
+    font-size: 8.5pt !important;
+    font-weight: bold !important;
+  }
+
+  // Chữ ký
+  .signature-box {
+    font-size: 8pt !important;
+  }
+
+  // ============================================
+  // 10. PREVENT BREAKING IN SPECIFIC SECTIONS
+  // ============================================
+  
+  // Các sections không được ngắt giữa chừng
+  .no-page-break-inside {
+    page-break-inside: avoid;
+  }
+
+  // Force page break trước element
+  .page-break-before {
+    page-break-before: always;
+  }
+
+  // Force page break sau element
+  .page-break-after {
+    page-break-after: always;
+  }
+
+  // ============================================
+  // 11. HIDE ELEMENTS IN PRINT
+  // ============================================
+  
+  // Ẩn các buttons và controls
+  button:not(.print-only),
+  .btn:not(.print-only),
+  .MuiButton-root:not(.print-only),
+  input,
+  select,
+  textarea,
+  .edit-controls,
+  .toolbar,
+  .navigation,
+  .pagination {
+    display: none !important;
+  }
+
+  // ============================================
+  // 12. LINKS & COLORS
+  // ============================================
+  
+  // Links không underline khi in
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+
+  // Đảm bảo colors được in đúng
+  * {
+    background: transparent !important;
+  }
+
+  // Exceptions: giữ background cho các elements cần thiết
+  thead th,
+  .signature-box,
+  .has-background {
+    background: var(--bg-color) !important;
+  }
+
+  // ============================================
+  // 13. RESPONSIVE PRINT - ĐIỀU CHỈNH THEO NỘI DUNG
+  // ============================================
+  
+  // Nếu hóa đơn quá dài (>100 dòng sản phẩm)
+  @media print and (min-height: 297mm) {
+    .invoice-products-table tbody tr {
+      // Giảm padding để fit nhiều hơn
+      td {
+        padding: 4px 6px !important;
+        font-size: 7.5pt !important;
+      }
+    }
+  }
+
+  // ============================================
+  // 14. QUALITY OPTIMIZATION
+  // ============================================
+  
+  // Render quality cao
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  // Image quality
+  img {
+    max-width: 100%;
+    height: auto;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+
+  // ============================================
+  // 15. DEBUG MODE (Uncomment để debug)
+  // ============================================
+  
+  // Uncomment để xem border của các phần tử khi develop
+  // * {
+  //   outline: 1px solid red !important;
+  // }
+  
+  // thead {
+  //   outline: 2px solid blue !important;
+  // }
+  
+  // tbody {
+  //   outline: 2px solid green !important;
+  // }
+  
+  // tfoot {
+  //   outline: 2px solid orange !important;
+  // }
+}
+
+// ============================================
+// 16. SCREEN PREVIEW MODE
+// ============================================
+
+// Thêm class này để preview print trên màn hình
+.print-preview-mode {
+  // Giống như @media print nhưng cho screen
+  width: 210mm;
+  min-height: 287mm;
+  margin: 2cm auto;
+  background: white;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+  padding: 1.5cm 1.2cm;
+  
+  // Apply các styles giống print
+  font-size: 9pt;
+  line-height: 1.4;
+  color: #000;
+  
+  // Ẩn buttons
+  button:not(.print-only),
+  .btn:not(.print-only),
+  .edit-controls {
+    display: none;
+  }
+}
