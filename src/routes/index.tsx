@@ -4,6 +4,8 @@ import {
   Dashboard,
   EcommerceCustomers,
   EcommerceSellers,
+  CustomerProfile,
+  CustomerPassword,
   Chat,
   Schedule,
   Help,
@@ -65,6 +67,16 @@ const appsRoutes: RoutesProps[] = [
     name: 'Customers',
     path: '/ecommerce/customers',
     element: <EcommerceCustomers />,
+  },
+  {
+    name: 'Customer Profile',
+    path: '/ecommerce/customers/profile',
+    element: <CustomerProfile />,
+  },
+  {
+    name: 'Change Password',
+    path: '/ecommerce/customers/password',
+    element: <CustomerPassword />,
   },
   {
     name: 'Sellers',

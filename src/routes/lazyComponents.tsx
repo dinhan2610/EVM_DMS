@@ -6,6 +6,8 @@ export const Dashboard = lazy(() => import('@/page/Dashboard'))
 // Apps Routes
 export const EcommerceCustomers = lazy(() => import('@/app/(admin)/ecommerce/customers/page'))
 export const EcommerceSellers = lazy(() => import('@/app/(admin)/ecommerce/sellers/page'))
+export const CustomerProfile = lazy(() => import('@/app/(admin)/ecommerce/customers/profile/page'))
+export const CustomerPassword = lazy(() => import('@/app/(admin)/ecommerce/customers/password/page'))
 export const Chat = lazy(() => import('@/app/(admin)/apps/chat/page'))
 export const Schedule = lazy(() => import('@/app/(admin)/calendar/schedule/page'))
 export const Help = lazy(() => import('@/app/(admin)/calendar/help/page'))
