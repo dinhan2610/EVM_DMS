@@ -18,8 +18,8 @@ const Customers = () => {
 
   return (
     <>
-      <PageBreadcrumb subName="Ecommerce" title="Customers List" />
-      <PageMetaData title="Customers" />
+      <PageBreadcrumb subName="Tổng quan" title="Khách hàng" />
+      <PageMetaData title="Khách hàng" />
       {customers && <CustomersList customers={customers} />}
     </>
   )
