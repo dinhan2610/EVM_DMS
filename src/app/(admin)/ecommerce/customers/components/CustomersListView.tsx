@@ -219,8 +219,14 @@ const CustomersListView = () => {
   }
 
   const getSortedInvoices = () => {
-    const sortedInvoices = [...invoices]
+    let sortedInvoices = [...invoices]
 
+    // Filter by search query
+    if (searchQuery.trim()) {
+      sortedInvoices = sortedInvoices.filter((invoice) => invoice.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()))
+    }
+
+    // Sort if sort config is set
     if (sortConfig.key) {
       sortedInvoices.sort((a, b) => {
         const aValue = a[sortConfig.key!]
@@ -275,7 +281,7 @@ const CustomersListView = () => {
 
   const renderSearchTooltip = (props: OverlayInjectedProps) => (
     <Tooltip id="search-tooltip" {...props}>
-      Có thể tìm kiếm hóa đơn theo Mã số thuế, tên người bán, số hóa đơn...
+      Tìm kiếm hóa đơn theo số hóa đơn
     </Tooltip>
   )
 
@@ -305,7 +311,7 @@ const CustomersListView = () => {
                   </InputGroup.Text>
                   <Form.Control
                     type="text"
-                    placeholder="Nhập MST, tên người bán để tìm..."
+                    placeholder="Nhập số hóa đơn để tìm kiếm..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
