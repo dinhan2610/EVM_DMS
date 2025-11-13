@@ -21,6 +21,11 @@ import {
   TemplateSelection,
   TemplateEditor,
   TemplatePreview,
+  UserManagement,
+  SystemConfiguration,
+  AuditLogsPage,
+  ReportsPage,
+  CustomerManagement,
   Welcome,
   FAQs,
   ContactUs,
@@ -160,6 +165,31 @@ const appsRoutes: RoutesProps[] = [
     name: 'Items Management',
     path: '/items',
     element: <ItemsManagement />,
+  },
+  {
+    name: 'User Management',
+    path: '/admin/usermanager',
+    element: <UserManagement />,
+  },
+  {
+    name: 'System Configuration',
+    path: '/admin/settings',
+    element: <SystemConfiguration />,
+  },
+  {
+    name: 'Audit Logs',
+    path: '/admin/audit-logs',
+    element: <AuditLogsPage />,
+  },
+  {
+    name: 'Reports Center',
+    path: '/admin/reports',
+    element: <ReportsPage />,
+  },
+  {
+    name: 'Customer Management',
+    path: '/admin/customers',
+    element: <CustomerManagement />,
   },
 ]
 

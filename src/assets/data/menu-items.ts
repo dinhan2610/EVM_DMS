@@ -98,6 +98,36 @@ export const MENU_ITEMS: MenuItemType[] = [
         url: '/admin/templates',
         parentKey: 'apps-admin',
       },
+      {
+        key: 'admin-users',
+        label: 'Người dùng',
+        url: '/admin/usermanager',
+        parentKey: 'apps-admin',
+      },
+      {
+        key: 'admin-settings',
+        label: 'Cấu hình hệ thống',
+        url: '/admin/settings',
+        parentKey: 'apps-admin',
+      },
+      {
+        key: 'admin-audit-logs',
+        label: 'Nhật ký hệ thống',
+        url: '/admin/audit-logs',
+        parentKey: 'apps-admin',
+      },
+      {
+        key: 'admin-reports',
+        label: 'Trung tâm Báo cáo',
+        url: '/admin/reports',
+        parentKey: 'apps-admin',
+      },
+      {
+        key: 'admin-customers',
+        label: 'Quản lý Khách hàng',
+        url: '/admin/customers',
+        parentKey: 'apps-admin',
+      },
     ],
   },
   {
