@@ -14,6 +14,9 @@ const templateReducer = (state: TemplateState, action: TemplateAction): Template
       return { ...state, invoiceType: newType, modelCode: newModelCode }
     }
     
+    case 'SET_INVOICE_DATE':
+      return { ...state, invoiceDate: action.payload }
+    
     case 'SET_SYMBOL_YEAR': {
       const newYear = action.payload
       const newTemplateCode = `${state.symbol.prefix}${newYear}`
@@ -30,6 +33,9 @@ const templateReducer = (state: TemplateState, action: TemplateAction): Template
         URL.revokeObjectURL(state.logo)
       }
       return { ...state, logo: action.payload }
+    
+    case 'SET_LOGO_SIZE':
+      return { ...state, logoSize: action.payload }
     
     case 'SET_BACKGROUND_CUSTOM':
       if (state.background.custom && state.background.custom.startsWith('blob:')) {
@@ -165,6 +171,34 @@ const templateReducer = (state: TemplateState, action: TemplateAction): Template
           visibility: {
             ...state.settings.visibility,
             [action.payload]: !state.settings.visibility[action.payload],
+          },
+        },
+      }
+    
+    case 'TOGGLE_CUSTOMER_FIELD':
+      return {
+        ...state,
+        settings: {
+          ...state.settings,
+          customerVisibility: {
+            ...state.settings.customerVisibility,
+            [action.payload]: !state.settings.customerVisibility[action.payload],
+          },
+        },
+      }
+    
+    case 'SET_ALL_CUSTOMER_FIELDS':
+      return {
+        ...state,
+        settings: {
+          ...state.settings,
+          customerVisibility: {
+            customerName: action.payload,
+            customerTaxCode: action.payload,
+            customerAddress: action.payload,
+            customerPhone: action.payload,
+            customerEmail: action.payload,
+            paymentMethod: action.payload,
           },
         },
       }

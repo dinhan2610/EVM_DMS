@@ -246,6 +246,14 @@ export default function TemplatePreviewPage() {
                 showCompanyInfo: true,
               }}
               backgroundFrame="khunghoadon/Group 1.png"
+              customerVisibility={{
+                customerName: false,
+                customerTaxCode: false,
+                customerAddress: false,
+                customerPhone: false,
+                customerEmail: false,
+                paymentMethod: false,
+              }}
             />
           </Paper>
         </Fade>

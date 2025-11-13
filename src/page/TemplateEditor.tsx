@@ -18,6 +18,7 @@ import {
   AccordionDetails,
   Checkbox,
   Divider,
+  
   Chip,
   Dialog,
   DialogTitle,
@@ -84,23 +85,26 @@ const TemplateEditor: React.FC = () => {
   const initialState: TemplateState = {
     templateName: 'Hóa đơn bán hàng (mẫu CB)',
     invoiceType: 'withCode',
+    invoiceDate: new Date().toISOString(),
     symbol: { prefix: '2C25T', year: 'YY' },
     logo: null,
+    logoSize: 150,
     background: { custom: null, frame: '/khunghoadon.png' },
     company: {
-      name: 'CÔNG TY CP HOÀNG LONG',
-      taxCode: '6868688688-9f5',
-      address: 'Số 499 Nguyễn Trãi, Thanh Xuân, Hà Nội',
-      phone: '0974993653',
-      bankAccount: '5678000 - Ngân hàng TMCP Á Châu',
+      name: 'Công ty Cổ phần Giải pháp Tổng thể Kỷ Nguyên Số',
+      taxCode: '0316882091',
+      address: 'Tòa nhà ABC, 123 Đường XYZ, Phường Tân Định, Quận 1, TP. Hồ Chí Minh, Việt Nam',
+      phone: '(028) 38 995 822',
+      bankAccount: '245889119 - Ngân hàng TMCP Á Châu - CN Sài Gòn',
       fields: [
-        { id: 'taxCode', label: 'Mã số thuế', value: '6868688688-9f5', visible: false },
-        { id: 'address', label: 'Địa chỉ', value: 'Số 499 Nguyễn Trãi, Thanh Xuân, Hà Nội', visible: true },
-        { id: 'phone', label: 'Điện thoại', value: '0974993653', visible: true },
+        { id: 'name', label: 'Đơn vị bán', value: 'Công ty Cổ phần Giải pháp Tổng thể Kỷ Nguyên Số', visible: true },
+        { id: 'taxCode', label: 'Mã số thuế', value: '0316882091', visible: false },
+        { id: 'address', label: 'Địa chỉ', value: 'Tòa nhà ABC, 123 Đường XYZ, Phường Tân Định, Quận 1, TP. Hồ Chí Minh, Việt Nam', visible: true },
+        { id: 'phone', label: 'Điện thoại', value: '(028) 38 995 822', visible: true },
         { id: 'fax', label: 'Fax', value: '', visible: false },
-        { id: 'website', label: 'Website', value: 'hoanglong@com.vn', visible: false },
-        { id: 'email', label: 'Email', value: 'hoanglong@gmail.com', visible: false },
-        { id: 'bankAccount', label: 'Số tài khoản', value: '5678000 - TMCP Á Châu', visible: true },
+        { id: 'website', label: 'Website', value: 'kns.com.vn', visible: false },
+        { id: 'email', label: 'Email', value: 'contact@kns.com.vn', visible: false },
+        { id: 'bankAccount', label: 'Số tài khoản', value: '245889119 - Ngân hàng TMCP Á Châu - CN Sài Gòn', visible: true },
       ],
     },
     table: {
@@ -132,9 +136,15 @@ const TemplateEditor: React.FC = () => {
         showCompanyAddress: true,
         showCompanyPhone: true,
         showCompanyBankAccount: true,
-        showCustomerInfo: true,
-        showPaymentInfo: true,
         showSignature: true,
+      },
+      customerVisibility: {
+        customerName: false,
+        customerTaxCode: false,
+        customerAddress: false,
+        customerPhone: false,
+        customerEmail: false,
+        paymentMethod: false,
       },
     },
   }
@@ -143,7 +153,7 @@ const TemplateEditor: React.FC = () => {
 
   // ============ UI STATES (giữ lại cho component) ============
   const [loading, setLoading] = useState(false)
-  const [previewScale, setPreviewScale] = useState(0.7)
+  const [previewScale, setPreviewScale] = useState(1.0)
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [openAddDialog, setOpenAddDialog] = useState(false)
@@ -180,8 +190,6 @@ const TemplateEditor: React.FC = () => {
     showCompanyAddress: state.settings.visibility.showCompanyAddress,
     showCompanyPhone: state.settings.visibility.showCompanyPhone,
     showCompanyBankAccount: state.settings.visibility.showCompanyBankAccount,
-    showCustomerInfo: state.settings.visibility.showCustomerInfo,
-    showPaymentInfo: state.settings.visibility.showPaymentInfo,
     showSignature: state.settings.visibility.showSignature,
   }), [state.settings, state.logo])
 
@@ -200,8 +208,8 @@ const TemplateEditor: React.FC = () => {
     if (!value || value.trim().length === 0) {
       return 'Ký hiệu năm không được để trống'
     }
-    if (value.length < 2 || value.length > 4) {
-      return 'Ký hiệu năm phải từ 2-4 ký tự'
+    if (value.length !== 2) {
+      return 'Ký hiệu năm phải đúng 2 ký tự'
     }
     if (!/^[A-Za-z0-9]+$/.test(value)) {
       return 'Ký hiệu năm chỉ chứa chữ cái và số'
@@ -290,11 +298,19 @@ const TemplateEditor: React.FC = () => {
 
   const handleSymbolYearChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.toUpperCase()
+    
+    // Cho phép xóa về rỗng khi đang nhập
+    if (value === '') {
+      dispatch({ type: 'SET_SYMBOL_YEAR', payload: value })
+      setErrors(prev => ({ ...prev, symbolYear: '' }))
+      return
+    }
+    
     const error = validateSymbolYear(value)
     setErrors(prev => ({ ...prev, symbolYear: error || '' }))
-    if (!error) {
-      dispatch({ type: 'SET_SYMBOL_YEAR', payload: value })
-    }
+    
+    // Cập nhật value ngay cả khi có lỗi, để user có thể tiếp tục nhập
+    dispatch({ type: 'SET_SYMBOL_YEAR', payload: value })
   }, [dispatch, validateSymbolYear])
 
   const handleLogoUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -440,7 +456,7 @@ const TemplateEditor: React.FC = () => {
   }
 
   const handleResetZoom = () => {
-    setPreviewScale(0.7) // Fit perfect trong container
+    setPreviewScale(1.0) // Reset về 100%
   }
 
   // Keyboard shortcuts - Enhanced with Undo/Redo
@@ -711,7 +727,7 @@ const TemplateEditor: React.FC = () => {
                       placeholder="YY"
                       error={!!errors.symbolYear}
                       inputProps={{
-                        maxLength: 4,
+                        maxLength: 2,
                         style: { 
                           textAlign: 'center', 
                           fontWeight: 600, 
@@ -1056,20 +1072,8 @@ const TemplateEditor: React.FC = () => {
                           letterSpacing: '-0.01em',
                           flex: 1,
                         }}>
-                          Điều chỉnh nhanh các thông tin
+                          Thông tin cơ bản
                         </Typography>
-                        <Chip 
-                          label={`${Object.values(state.settings.visibility).filter(Boolean).length}/9`}
-                          size="small"
-                          sx={{ 
-                            height: 20,
-                            fontSize: '0.6875rem',
-                            fontWeight: 600,
-                            bgcolor: '#e3f2fd',
-                            color: '#1976d2',
-                            '& .MuiChip-label': { px: 1 },
-                          }}
-                        />
                       </Box>
                     </AccordionSummary>
                     <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
@@ -1104,6 +1108,62 @@ const TemplateEditor: React.FC = () => {
                               },
                             }}
                           />
+                        </Box>
+
+                        {/* Ngày lập hóa đơn */}
+                        <Box>
+                          <Typography sx={{ 
+                            fontSize: '0.8125rem', 
+                            fontWeight: 600, 
+                            color: '#37474f',
+                            mb: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                          }}>
+                            📅 Ngày lập hóa đơn (Invoice Date)
+                          </Typography>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            type="date"
+                            value={new Date(state.invoiceDate).toISOString().split('T')[0]}
+                            onChange={(e) => dispatch({ type: 'SET_INVOICE_DATE', payload: new Date(e.target.value).toISOString() })}
+                            InputLabelProps={{ shrink: true }}
+                            sx={{
+                              '& .MuiOutlinedInput-root': {
+                                fontSize: '0.8125rem',
+                                bgcolor: '#fafafa',
+                                '&:hover': { bgcolor: '#f5f5f5' },
+                                '&.Mui-focused': { bgcolor: '#fff' },
+                              },
+                            }}
+                            helperText="Tự động lấy ngày hiện tại, có thể chỉnh sửa"
+                          />
+                          <Box sx={{ 
+                            mt: 0.5, 
+                            p: 1, 
+                            bgcolor: '#e3f2fd', 
+                            borderRadius: 1,
+                            border: '1px solid #bbdefb',
+                          }}>
+                            <Typography sx={{ fontSize: '0.75rem', color: '#1565c0', fontWeight: 500 }}>
+                              📌 Hiển thị: {new Date(state.invoiceDate).toLocaleDateString('vi-VN', { 
+                                weekday: 'long', 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                              })}
+                            </Typography>
+                            <Typography sx={{ fontSize: '0.7rem', color: '#1976d2', mt: 0.25 }}>
+                              English: {new Date(state.invoiceDate).toLocaleDateString('en-US', { 
+                                weekday: 'long', 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                              })}
+                            </Typography>
+                          </Box>
                         </Box>
 
                         {/* QR Code */}
@@ -1167,9 +1227,9 @@ const TemplateEditor: React.FC = () => {
                             label={
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                 <Typography sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
-                                  🌐 Song ngữ (Việt - Anh)
+                                  🌐 Hóa đơn song ngữ (Vietnamese - English)
                                 </Typography>
-                                <Tooltip title="Hiển thị nội dung hóa đơn bằng 2 ngôn ngữ">
+                                <Tooltip title="Hiển thị nội dung hóa đơn bằng tiếng Việt và tiếng Anh theo chuẩn quốc tế">
                                   <InfoIcon sx={{ fontSize: 14, color: '#9e9e9e' }} />
                                 </Tooltip>
                               </Box>
@@ -1186,16 +1246,6 @@ const TemplateEditor: React.FC = () => {
                             justifyContent: 'space-between',
                             mb: 1.5,
                           }}>
-                            <Typography sx={{ 
-                              fontSize: '0.8125rem', 
-                              fontWeight: 600, 
-                              color: '#37474f',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 0.5,
-                            }}>
-                              👁️ Tùy chọn hiển thị thông tin
-                            </Typography>
                             <Box sx={{ display: 'flex', gap: 0.5 }}>
                               <Button
                                 size="small"
@@ -1249,8 +1299,6 @@ const TemplateEditor: React.FC = () => {
                               { key: 'showCompanyAddress', label: 'Địa chỉ', icon: '📍' },
                               { key: 'showCompanyPhone', label: 'Điện thoại', icon: '📞' },
                               { key: 'showCompanyBankAccount', label: 'Tài khoản ngân hàng', icon: '🏦' },
-                              { key: 'showCustomerInfo', label: 'Thông tin khách hàng', icon: '👤' },
-                              { key: 'showPaymentInfo', label: 'Thông tin thanh toán', icon: '💳' },
                               { key: 'showSignature', label: 'Chữ ký', icon: '✍️' },
                             ] as const).map(({ key, label, icon }) => (
                               <Paper
@@ -1290,12 +1338,129 @@ const TemplateEditor: React.FC = () => {
                             ))}
                           </Stack>
                         </Box>
+
+                        {/* Số dòng trong bảng */}
+                        <Box>
+                          <Typography sx={{ 
+                            fontSize: '0.8125rem', 
+                            fontWeight: 600, 
+                            color: '#37474f',
+                            mb: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                          }}>
+                            📊 Số dòng trong bảng danh sách
+                          </Typography>
+                          <Stack 
+                            direction="row" 
+                            alignItems="center" 
+                            spacing={1.5}
+                            sx={{ 
+                              p: 1.5,
+                              bgcolor: '#fafafa',
+                              borderRadius: 1.5,
+                              border: '1px solid #e0e0e0',
+                            }}
+                          >
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                if (state.table.rowCount > 1) {
+                                  dispatch({ type: 'SET_TABLE_ROW_COUNT', payload: state.table.rowCount - 1 });
+                                }
+                              }}
+                              disabled={state.table.rowCount <= 1}
+                              sx={{
+                                bgcolor: state.table.rowCount > 1 ? '#fff' : '#f5f5f5',
+                                border: '1px solid',
+                                borderColor: state.table.rowCount > 1 ? '#e0e0e0' : '#eeeeee',
+                                width: 36,
+                                height: 36,
+                                '&:hover': {
+                                  bgcolor: state.table.rowCount > 1 ? '#f5f5f5' : '#f5f5f5',
+                                  borderColor: state.table.rowCount > 1 ? '#1976d2' : '#eeeeee',
+                                },
+                                '&.Mui-disabled': {
+                                  opacity: 0.5,
+                                },
+                              }}
+                            >
+                              <Box component="span" sx={{ fontSize: '1.25rem', fontWeight: 'bold', color: state.table.rowCount > 1 ? '#1976d2' : '#bdbdbd' }}>
+                                −
+                              </Box>
+                            </IconButton>
+                            
+                            <Box sx={{ 
+                              flex: 1,
+                              textAlign: 'center',
+                              bgcolor: '#fff',
+                              py: 1,
+                              px: 2,
+                              borderRadius: 1,
+                              border: '2px solid #1976d2',
+                            }}>
+                              <Typography sx={{ 
+                                fontSize: '1.125rem', 
+                                fontWeight: 700,
+                                color: '#1976d2',
+                                lineHeight: 1,
+                              }}>
+                                {state.table.rowCount}
+                              </Typography>
+                              <Typography sx={{ 
+                                fontSize: '0.7rem', 
+                                color: '#616161',
+                                fontWeight: 500,
+                                mt: 0.3,
+                              }}>
+                                dòng
+                              </Typography>
+                            </Box>
+                            
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                if (state.table.rowCount < 25) {
+                                  dispatch({ type: 'SET_TABLE_ROW_COUNT', payload: state.table.rowCount + 1 });
+                                }
+                              }}
+                              disabled={state.table.rowCount >= 25}
+                              sx={{
+                                bgcolor: state.table.rowCount < 25 ? '#fff' : '#f5f5f5',
+                                border: '1px solid',
+                                borderColor: state.table.rowCount < 25 ? '#e0e0e0' : '#eeeeee',
+                                width: 36,
+                                height: 36,
+                                '&:hover': {
+                                  bgcolor: state.table.rowCount < 25 ? '#f5f5f5' : '#f5f5f5',
+                                  borderColor: state.table.rowCount < 25 ? '#1976d2' : '#eeeeee',
+                                },
+                                '&.Mui-disabled': {
+                                  opacity: 0.5,
+                                },
+                              }}
+                            >
+                              <Box component="span" sx={{ fontSize: '1.25rem', fontWeight: 'bold', color: state.table.rowCount < 25 ? '#1976d2' : '#bdbdbd' }}>
+                                +
+                              </Box>
+                            </IconButton>
+                          </Stack>
+                          <Typography sx={{ 
+                            fontSize: '0.75rem', 
+                            color: '#757575', 
+                            mt: 0.75,
+                            fontStyle: 'italic',
+                          }}>
+                            Nhấn + hoặc − để thay đổi (tối thiểu 1, tối đa 25 dòng)
+                          </Typography>
+                        </Box>
                       </Stack>
                     </AccordionDetails>
                   </Accordion>
 
-                  {/* Section 2: Logo, khung viền, hình nền, logo chìm */}
-                  <Accordion 
+                  {/* Section 2: Thông tin khách hàng */}
+                  <Accordion  
                     disableGutters
                     elevation={0}
                     sx={{
@@ -1325,25 +1490,112 @@ const TemplateEditor: React.FC = () => {
                           bgcolor: '#f9fafb',
                         },
                       }}>
-                      <Typography sx={{ 
-                        fontSize: '0.9375rem', 
-                        fontWeight: 600, 
-                        color: '#2c3e50',
-                        letterSpacing: '-0.01em',
-                      }}>
-                        Logo, khung viền, hình nền, logo chìm
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                        <Typography sx={{ 
+                          fontSize: '0.9375rem', 
+                          fontWeight: 600, 
+                          color: '#2c3e50',
+                          letterSpacing: '-0.01em',
+                          flex: 1,
+                        }}>
+                          👤 Thông tin khách hàng
+                        </Typography>
+                      </Box>
                     </AccordionSummary>
                     <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
-                      <Typography sx={{ 
-                        fontSize: '0.8125rem', 
-                        color: '#616161', 
-                        lineHeight: 1.6,
-                      }}>
-                        Cài đặt logo, khung viền, hình nền, logo chìm cho mẫu hóa đơn.
-                      </Typography>
+                      <Stack spacing={1.5}>
+                        {/* Tùy chọn hiển thị */}
+                        <Box>
+                          <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'space-between',
+                            mb: 1.5,
+                          }}>
+                            <Box sx={{ display: 'flex', gap: 0.75 }}>
+                              <Button
+                                size="small"
+                                onClick={() => dispatch({ type: 'SET_ALL_CUSTOMER_FIELDS', payload: true })}
+                                sx={{
+                                  fontSize: '0.6875rem',
+                                  minWidth: 'auto',
+                                  px: 1,
+                                  py: 0.5,
+                                  textTransform: 'none',
+                                  color: '#1976d2',
+                                  '&:hover': { bgcolor: '#e3f2fd' },
+                                }}
+                              >
+                                Bật tất cả
+                              </Button>
+                              <Button
+                                size="small"
+                                onClick={() => dispatch({ type: 'SET_ALL_CUSTOMER_FIELDS', payload: false })}
+                                sx={{
+                                  fontSize: '0.6875rem',
+                                  minWidth: 'auto',
+                                  px: 1,
+                                  py: 0.5,
+                                  textTransform: 'none',
+                                  color: '#757575',
+                                  '&:hover': { bgcolor: '#f5f5f5' },
+                                }}
+                              >
+                                Tắt tất cả
+                              </Button>
+                            </Box>
+                          </Box>
+                          <Stack spacing={0.5}>
+                            {([
+                              { key: 'customerName', label: 'Tên khách hàng', icon: '👤' },
+                              { key: 'customerTaxCode', label: 'Mã số thuế', icon: '🔢' },
+                              { key: 'customerAddress', label: 'Địa chỉ', icon: '📍' },
+                              { key: 'customerPhone', label: 'Số điện thoại', icon: '📞' },
+                              { key: 'customerEmail', label: 'Email', icon: '📧' },
+                              { key: 'paymentMethod', label: 'Hình thức thanh toán', icon: '💳' },
+                            ] as const).map(({ key, label, icon }) => (
+                              <Paper
+                                key={key}
+                                elevation={0}
+                                sx={{
+                                  border: '1px solid',
+                                  borderColor: '#f5f5f5',
+                                  borderRadius: 1,
+                                  bgcolor: '#fafafa',
+                                  transition: 'all 0.15s ease',
+                                  '&:hover': {
+                                    borderColor: '#1976d2',
+                                    bgcolor: '#f9fafb',
+                                  },
+                                }}
+                              >
+                                <FormControlLabel
+                                  control={
+                                    <Checkbox
+                                      checked={state.settings.customerVisibility[key]}
+                                      onChange={() => dispatch({ type: 'TOGGLE_CUSTOMER_FIELD', payload: key })}
+                                      size="small"
+                                    />
+                                  }
+                                  label={
+                                    <Typography sx={{ 
+                                      fontSize: '0.8125rem', 
+                                      fontWeight: 400,
+                                    }}>
+                                      {icon} {label}
+                                    </Typography>
+                                  }
+                                  sx={{ width: '100%', m: 0, py: 0.75, px: 1.5 }}
+                                />
+                              </Paper>
+                            ))}
+                          </Stack>
+                        </Box>
+                      </Stack>
                     </AccordionDetails>
                   </Accordion>
+
+                  
                 </Box>
               </Stack>
 
@@ -1539,35 +1791,13 @@ const TemplateEditor: React.FC = () => {
                   visibility={visibility}
                   blankRows={blankRows}
                   backgroundFrame={state.background.custom || state.background.frame}
+                  bilingual={state.settings.bilingual}
+                  invoiceDate={state.invoiceDate}
+                  logoSize={state.logoSize}
+                  invoiceType={state.invoiceType}
+                  symbol={state.symbol}
+                  customerVisibility={state.settings.customerVisibility}
                 />
-              </Box>
-
-              {/* Page Break Indicator - Enhanced */}
-              <Box
-                sx={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1.5,
-                  mb: 2.5,
-                  mt: 1,
-                }}
-              >
-                <Divider sx={{ flex: 1, borderStyle: 'dashed', borderColor: '#9e9e9e' }} />
-                <Chip
-                  icon={<Box component="span" sx={{ fontSize: '1rem' }}>✂️</Box>}
-                  label="Vị trí ngắt trang A4 (297mm)"
-                  size="small"
-                  variant="outlined"
-                  sx={{ 
-                    color: 'text.secondary',
-                    fontStyle: 'italic',
-                    fontSize: '0.7rem',
-                    borderColor: '#9e9e9e',
-                    bgcolor: 'rgba(255,255,255,0.8)',
-                  }}
-                />
-                <Divider sx={{ flex: 1, borderStyle: 'dashed', borderColor: '#9e9e9e' }} />
               </Box>
 
               {/* Pagination Info - Enhanced */}

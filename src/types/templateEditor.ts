@@ -14,11 +14,13 @@ export interface Field {
 export interface TemplateState {
   templateName: string
   invoiceType: 'withCode' | 'withoutCode'
+  invoiceDate: string // ISO date string
   symbol: {
     prefix: string
     year: string
   }
   logo: string | null
+  logoSize: number // Logo size in pixels (default: 60)
   background: {
     custom: string | null
     frame: string
@@ -51,9 +53,15 @@ export interface TemplateState {
       showCompanyAddress: boolean
       showCompanyPhone: boolean
       showCompanyBankAccount: boolean
-      showCustomerInfo: boolean
-      showPaymentInfo: boolean
       showSignature: boolean
+    }
+    customerVisibility: {
+      customerName: boolean
+      customerTaxCode: boolean
+      customerAddress: boolean
+      customerPhone: boolean
+      customerEmail: boolean
+      paymentMethod: boolean
     }
   }
 }
@@ -62,8 +70,10 @@ export interface TemplateState {
 export type TemplateAction =
   | { type: 'SET_TEMPLATE_NAME'; payload: string }
   | { type: 'SET_INVOICE_TYPE'; payload: 'withCode' | 'withoutCode' }
+  | { type: 'SET_INVOICE_DATE'; payload: string }
   | { type: 'SET_SYMBOL_YEAR'; payload: string }
   | { type: 'SET_LOGO'; payload: string | null }
+  | { type: 'SET_LOGO_SIZE'; payload: number }
   | { type: 'SET_BACKGROUND_CUSTOM'; payload: string | null }
   | { type: 'SET_BACKGROUND_FRAME'; payload: string }
   | { type: 'SET_COMPANY_NAME'; payload: string }
@@ -87,3 +97,5 @@ export type TemplateAction =
   | { type: 'TOGGLE_QR_CODE' }
   | { type: 'TOGGLE_BILINGUAL' }
   | { type: 'TOGGLE_VISIBILITY'; payload: keyof TemplateState['settings']['visibility'] }
+  | { type: 'TOGGLE_CUSTOMER_FIELD'; payload: keyof TemplateState['settings']['customerVisibility'] }
+  | { type: 'SET_ALL_CUSTOMER_FIELDS'; payload: boolean }

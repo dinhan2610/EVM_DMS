@@ -47,12 +47,24 @@ interface TemplateVisibility {
   showCompanyBankAccount?: boolean;
 }
 
+interface CustomerVisibility {
+  customerName: boolean;
+  customerTaxCode: boolean;
+  customerAddress: boolean;
+  customerPhone: boolean;
+  customerEmail: boolean;
+  paymentMethod: boolean;
+}
+
 interface InvoiceTemplatePreviewProps {
   config: TemplateConfigProps;
   visibility?: TemplateVisibility;
   products?: ProductItem[]; // Danh sách sản phẩm động
   blankRows?: number; // Số dòng trống (nếu không có products)
   backgroundFrame?: string;
+  invoiceType?: 'withCode' | 'withoutCode';
+  symbol?: { prefix: string; year: string };
+  customerVisibility?: CustomerVisibility;
 }
 
 const InvoiceTemplatePreviewPrintable: React.FC<InvoiceTemplatePreviewProps> = ({ 
@@ -61,6 +73,16 @@ const InvoiceTemplatePreviewPrintable: React.FC<InvoiceTemplatePreviewProps> = (
   products = [], // Mặc định rỗng
   blankRows = 8,
   backgroundFrame = '/khunghoadon.png',
+  invoiceType = 'withCode',
+  symbol = { prefix: '2C25T', year: 'YY' },
+  customerVisibility = {
+    customerName: false,
+    customerTaxCode: false,
+    customerAddress: false,
+    customerPhone: false,
+    customerEmail: false,
+    paymentMethod: false,
+  },
 }) => {
   // Set default values for visibility
   const {
@@ -76,33 +98,23 @@ const InvoiceTemplatePreviewPrintable: React.FC<InvoiceTemplatePreviewProps> = (
     showCompanyBankAccount = true,
   } = visibility;
 
-  // Nếu không có products, tạo dòng mẫu + dòng trống
+  // Nếu không có products, tạo dòng trống
   const displayProducts = products.length > 0 
     ? products 
-    : [
-        {
-          stt: 1,
-          name: 'Xăng RON95',
-          unit: 'Lít',
-          quantity: 2,
-          price: 19055,
-          total: 45455,
-        },
-        ...Array(blankRows).fill(null).map((_, i) => ({
-          stt: i + 2,
-          name: '',
-          unit: '',
-          quantity: 0,
-          price: 0,
-          total: 0,
-        })),
-      ];
+    : Array(blankRows).fill(null).map((_, i) => ({
+        stt: i + 1,
+        name: '',
+        unit: '',
+        quantity: 0,
+        price: 0,
+        total: 0,
+      }));
 
-  // Tính tổng
-  const subtotal = displayProducts.reduce((sum, p) => sum + (p.total || 0), 0);
-  const taxRate = 0.1; // 10%
-  const taxAmount = subtotal * taxRate;
-  const grandTotal = subtotal + taxAmount;
+  // Tính tổng (không sử dụng nhưng giữ lại cho sau này)
+  // const subtotal = displayProducts.reduce((sum, p) => sum + (p.total || 0), 0);
+  // const taxRate = 0.1; // 10%
+  // const taxAmount = subtotal * taxRate;
+  // const grandTotal = subtotal + taxAmount;
 
   const formatNumber = (num: number) => {
     return num.toLocaleString('vi-VN');
@@ -155,11 +167,13 @@ const InvoiceTemplatePreviewPrintable: React.FC<InvoiceTemplatePreviewProps> = (
                     Hóa đơn giá trị gia tăng
                   </Typography>
                   
-                  {/* Mã CQT và Ngày - Căn giữa */}
+                  {/* Mã CQT (chỉ hiện khi invoiceType = 'withCode') và Ngày - Căn giữa */}
                   <Box sx={{ textAlign: 'center', mb: 0.3 }}>
-                    <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
-                      Mã CQT: <strong>C24TTA</strong>
-                    </Typography>
+                    {invoiceType === 'withCode' && (
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                        Mã CQT: <strong></strong>
+                      </Typography>
+                    )}
                     <Typography variant="body2" fontStyle="italic" sx={{ fontSize: '0.75rem' }}>
                       Ngày 05 tháng 11 năm 2024
                     </Typography>
@@ -168,7 +182,7 @@ const InvoiceTemplatePreviewPrintable: React.FC<InvoiceTemplatePreviewProps> = (
                   {/* Ký hiệu và Số - Căn phải */}
                   <Box sx={{ position: 'absolute', top: 35, right: 0 }}>
                     <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.3, textAlign: 'right' }}>
-                      Ký hiệu: <strong>{config.templateCode || 'D26TTS'}</strong>
+                      Ký hiệu: <strong>{symbol.prefix}{symbol.year}</strong>
                     </Typography>
                     <Typography variant="body2" sx={{ fontSize: '0.75rem', textAlign: 'right' }}>
                       Số: <Box component="span" sx={{ color: 'red', fontWeight: 500 }}>[Chưa cấp số]</Box>
@@ -190,30 +204,33 @@ const InvoiceTemplatePreviewPrintable: React.FC<InvoiceTemplatePreviewProps> = (
                         style={{ maxHeight: 40, marginBottom: 8, objectFit: 'contain' }}
                       />
                     )}
+                    
+                    {/* Đơn vị bán - Chung dòng */}
                     {showCompanyName && (
-                      <Typography className="company-name" variant="h6" fontWeight="bold" sx={{ fontSize: '1.15rem', mb: 0.35 }}>
-                        {config.companyName || 'GLOBAL SOLUTIONS LTD'}
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.25, lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        Đơn vị bán (Seller): <strong>{config.companyName || 'Công ty Cổ phần Giải pháp Tổng thể Kỷ Nguyên Số'}</strong>
                       </Typography>
                     )}
+                    
                     <div className="company-details">
                       {showCompanyTaxCode && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.2, lineHeight: 1.5 }}>
-                          Mã số thuế: {config.companyTaxCode || '6868686868-666'}
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.25, lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                          Mã số thuế (Tax ID): <strong>{config.companyTaxCode || '0316882091'}</strong>
                         </Typography>
                       )}
                       {showCompanyAddress && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.2, lineHeight: 1.5 }}>
-                          Địa chỉ: {config.companyAddress || '95 Nguyễn Trãi, Thanh Xuân, Hà Nội'}
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.25, lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                          Địa chỉ (Address): <strong>{config.companyAddress || 'Tòa nhà ABC, 123 Đường XYZ, Phường Tân Định, Quận 1, TP. Hồ Chí Minh, Việt Nam'}</strong>
                         </Typography>
                       )}
                       {showCompanyPhone && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.2, lineHeight: 1.5 }}>
-                          Điện thoại: {config.companyPhone || '...............'}
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.25, lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                          Điện thoại (Phone): <strong>{config.companyPhone || '(028) 38 995 822'}</strong>
                         </Typography>
                       )}
                       {showCompanyBankAccount && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5 }}>
-                          Số tài khoản: ...............
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                          Số tài khoản (Account No.): <strong>245889119</strong> - Tại Ngân hàng (At Bank): <strong>Ngân hàng TMCP Á Châu - CN Sài Gòn</strong>
                         </Typography>
                       )}
                     </div>
@@ -250,21 +267,39 @@ const InvoiceTemplatePreviewPrintable: React.FC<InvoiceTemplatePreviewProps> = (
                 {/* Phần 3: Thông tin Người mua */}
                 {showCustomerInfo && (
                   <Stack className="customer-info" spacing={0.25} sx={{ mb: 1 }}>
-                    <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5 }}>
-                      Họ tên người mua hàng: <strong>Kế toán A</strong>
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5 }}>
-                      Tên đơn vị: <strong>CÔNG TY CỔ PHẦN MISA</strong>
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5 }}>
-                      Mã số thuế: <strong>0101243150-136</strong>
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5 }}>
-                      Địa chỉ: Tầng 9, tòa nhà Technosoft, Phố Duy Tân, ...
-                    </Typography>
-                    {showPaymentInfo && (
-                      <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5 }}>
-                        Hình thức thanh toán: <strong>TM/CK</strong>
+                    {customerVisibility.customerName && (
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        Họ tên người mua hàng (Buyer Name): <strong>......................................................</strong>
+                      </Typography>
+                    )}
+                    {customerVisibility.customerName && (
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        Tên đơn vị (Company Name): <strong>......................................................</strong>
+                      </Typography>
+                    )}
+                    {customerVisibility.customerTaxCode && (
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        Mã số thuế (Tax ID): <strong>......................................................</strong>
+                      </Typography>
+                    )}
+                    {customerVisibility.customerAddress && (
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        Địa chỉ (Address): <strong>......................................................</strong>
+                      </Typography>
+                    )}
+                    {customerVisibility.customerPhone && (
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        Số điện thoại (Phone): <strong>......................................................</strong>
+                      </Typography>
+                    )}
+                    {customerVisibility.customerEmail && (
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        Email (Email): <strong>......................................................</strong>
+                      </Typography>
+                    )}
+                    {showPaymentInfo && customerVisibility.paymentMethod && (
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        Hình thức thanh toán (Payment Method): <strong>......................................................</strong>
                       </Typography>
                     )}
                   </Stack>
@@ -483,23 +518,21 @@ const InvoiceTemplatePreviewPrintable: React.FC<InvoiceTemplatePreviewProps> = (
               <div className="invoice-footer-content">
                 {/* Phần 5: Tổng tiền */}
                 <Box className="invoice-summary" sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, alignItems: 'flex-start' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'flex-end', height: '100%', pb: 3.2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', pt: 2 }}>
                     <Typography variant="body2" sx={{ fontSize: '0.8rem', lineHeight: 1.6 }}>
-                      Thuế suất GTGT: <strong>10%</strong>
+                      Thuế suất GTGT: <strong></strong>
                     </Typography>
                   </Box>
                   <Box sx={{ width: '45%' }}>
                     <Stack spacing={0.4}>
                       <Stack direction="row" justifyContent="space-between">
-                        <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>Cộng tiền hàng:</Typography>
+                        <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>Tiền hàng:</Typography>
                         <Typography variant="body2" fontWeight="bold" sx={{ fontSize: '0.8rem' }}>
-                          {formatNumber(subtotal)}
                         </Typography>
                       </Stack>
                       <Stack direction="row" justifyContent="space-between">
                         <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>Tiền thuế GTGT:</Typography>
                         <Typography variant="body2" fontWeight="bold" sx={{ fontSize: '0.8rem' }}>
-                          {formatNumber(taxAmount)}
                         </Typography>
                       </Stack>
                       <Divider sx={{ my: 0.4 }} />
@@ -508,7 +541,6 @@ const InvoiceTemplatePreviewPrintable: React.FC<InvoiceTemplatePreviewProps> = (
                           Tổng tiền thanh toán:
                         </Typography>
                         <Typography className="invoice-total" variant="body1" fontWeight="bold" sx={{ fontSize: '0.85rem', color: 'primary.main' }}>
-                          {formatNumber(grandTotal)}
                         </Typography>
                       </Stack>
                     </Stack>
@@ -516,7 +548,7 @@ const InvoiceTemplatePreviewPrintable: React.FC<InvoiceTemplatePreviewProps> = (
                 </Box>
 
                 <Typography variant="body2" sx={{ mb: 1.5, fontStyle: 'italic', fontSize: '0.8rem', lineHeight: 1.6 }}>
-                  Số tiền viết bằng chữ: <strong>Năm mươi nghìn đồng chẵn.</strong>
+                  Số tiền viết bằng chữ: <strong></strong>
                 </Typography>
 
                 {/* Phần 6: Chữ ký */}
@@ -537,31 +569,6 @@ const InvoiceTemplatePreviewPrintable: React.FC<InvoiceTemplatePreviewProps> = (
                       <Typography variant="caption" fontStyle="italic" sx={{ fontSize: '0.75rem', color: 'text.secondary', display: 'block', mb: 1 }}>
                         (Chữ ký điện tử, Chữ ký số)
                       </Typography>
-                      {/* Box chữ ký (Mockup) */}
-                      <Box 
-                        className="signature-box has-background"
-                        sx={{ 
-                          mt: 0.5, 
-                          p: 0.6, 
-                          border: '1.5px solid #4caf50', 
-                          bgcolor: '#f1f8f4', 
-                          width: '75%', 
-                          margin: '5px auto 0 auto',
-                          fontSize: '0.75rem',
-                          borderRadius: 1.5,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                        }}
-                      >
-                        <Typography variant="body2" color="success.main" fontWeight="bold" sx={{ fontSize: '0.75rem', mb: 0.3 }}>
-                          ✓ Signature Valid
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', display: 'block', lineHeight: 1.4 }}>
-                          Ký bởi: Admin
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', lineHeight: 1.4 }}>
-                          Ký ngày: 05/11/2024
-                        </Typography>
-                      </Box>
                     </Box>
                   </Box>
                 )}
