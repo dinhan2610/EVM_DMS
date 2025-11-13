@@ -10,79 +10,24 @@ import {
   TableBody,
   Stack,
 } from '@mui/material';
+import type {
+  InvoiceTemplatePrintProps,
+} from '@/types/invoiceTemplate';
+import {
+  DEFAULT_CUSTOMER_VISIBILITY,
+  DEFAULT_INVOICE_SYMBOL,
+  TEMPLATE_DEFAULTS,
+} from '@/types/invoiceTemplate';
 
-// Interface cho Product Item
-interface ProductItem {
-  stt: number;
-  name: string;
-  unit: string;
-  quantity: number;
-  price: number;
-  total: number;
-}
-
-// Interface cho Props
-interface TemplateConfigProps {
-  companyLogo: string | null;
-  companyName: string;
-  companyTaxCode: string;
-  companyAddress: string;
-  companyPhone: string;
-  modelCode: string;
-  templateCode: string;
-}
-
-// Interface cho Visibility (tùy chọn hiển thị)
-interface TemplateVisibility {
-  showQrCode?: boolean;
-  showLogo?: boolean;
-  showCompanyInfo?: boolean;
-  showCustomerInfo?: boolean;
-  showPaymentInfo?: boolean;
-  showSignature?: boolean;
-  showCompanyName?: boolean;
-  showCompanyTaxCode?: boolean;
-  showCompanyAddress?: boolean;
-  showCompanyPhone?: boolean;
-  showCompanyBankAccount?: boolean;
-}
-
-interface CustomerVisibility {
-  customerName: boolean;
-  customerTaxCode: boolean;
-  customerAddress: boolean;
-  customerPhone: boolean;
-  customerEmail: boolean;
-  paymentMethod: boolean;
-}
-
-interface InvoiceTemplatePreviewProps {
-  config: TemplateConfigProps;
-  visibility?: TemplateVisibility;
-  products?: ProductItem[]; // Danh sách sản phẩm động
-  blankRows?: number; // Số dòng trống (nếu không có products)
-  backgroundFrame?: string;
-  invoiceType?: 'withCode' | 'withoutCode';
-  symbol?: { prefix: string; year: string };
-  customerVisibility?: CustomerVisibility;
-}
-
-const InvoiceTemplatePreviewPrintable: React.FC<InvoiceTemplatePreviewProps> = ({ 
+const InvoiceTemplatePreviewPrintable: React.FC<InvoiceTemplatePrintProps> = ({ 
   config,
   visibility = {},
   products = [], // Mặc định rỗng
-  blankRows = 8,
-  backgroundFrame = '/khunghoadon.png',
-  invoiceType = 'withCode',
-  symbol = { prefix: '2C25T', year: 'YY' },
-  customerVisibility = {
-    customerName: false,
-    customerTaxCode: false,
-    customerAddress: false,
-    customerPhone: false,
-    customerEmail: false,
-    paymentMethod: false,
-  },
+  blankRows = TEMPLATE_DEFAULTS.BLANK_ROWS,
+  backgroundFrame = TEMPLATE_DEFAULTS.BACKGROUND_FRAME,
+  invoiceType = TEMPLATE_DEFAULTS.INVOICE_TYPE,
+  symbol = DEFAULT_INVOICE_SYMBOL,
+  customerVisibility = DEFAULT_CUSTOMER_VISIBILITY,
 }) => {
   // Set default values for visibility
   const {

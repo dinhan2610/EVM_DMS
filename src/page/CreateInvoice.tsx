@@ -19,40 +19,33 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
-import { Dayjs } from 'dayjs'
+import dayjs, { Dayjs } from 'dayjs'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined'
 import { useNavigate } from 'react-router-dom'
 import IssueInvoiceModal from '@/components/IssueInvoiceModal'
+import type { InvoiceItem, CustomerInfo } from '@/types/invoiceTemplate'
+import {
+  formatCurrency,
+  calculateInvoiceAmounts,
+  createInitialItem,
+  updateItemWithTotal,
+} from '@/utils/invoiceHelpers'
 
-// Interfaces
-export interface InvoiceItem {
-  id: string
-  description: string
-  quantity: number
-  unitPrice: number
-  total: number
-}
-
-interface CustomerInfo {
-  name: string
-  email: string
-  taxCode: string
-  address: string
-}
-
-interface InvoiceDetails {
+// Local interface với Dayjs type cụ thể cho component này
+interface LocalInvoiceDetails {
   issueDate: Dayjs | null
   dueDate: Dayjs | null
   notes: string
 }
 
 // Initial States
-const initialItemState: InvoiceItem = {
+const initialItemState: Partial<InvoiceItem> = {
   id: '',
   description: '',
+  unit: '',
   quantity: 1,
   unitPrice: 0,
   total: 0,
@@ -65,7 +58,7 @@ const initialCustomerInfo: CustomerInfo = {
   address: '',
 }
 
-const initialInvoiceDetails: InvoiceDetails = {
+const initialInvoiceDetails: LocalInvoiceDetails = {
   issueDate: null,
   dueDate: null,
   notes: '',
@@ -78,17 +71,13 @@ const mockContracts = [
   { id: 3, label: 'DA-2024-003 - Dự án Web Application', value: 'project-1' },
 ]
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount)
-}
-
 const CreateInvoice = () => {
   const navigate = useNavigate()
   const [creationMode, setCreationMode] = useState<'manual' | 'auto'>('manual')
   const [selectedContract, setSelectedContract] = useState<{ id: number; label: string; value: string } | null>(null)
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>(initialCustomerInfo)
-  const [invoiceDetails, setInvoiceDetails] = useState<InvoiceDetails>(initialInvoiceDetails)
-  const [items, setItems] = useState<InvoiceItem[]>([{ ...initialItemState, id: '1' }])
+  const [invoiceDetails, setInvoiceDetails] = useState<LocalInvoiceDetails>(initialInvoiceDetails)
+  const [items, setItems] = useState<InvoiceItem[]>([{ ...initialItemState, id: '1' } as InvoiceItem])
   const [issueModalOpen, setIssueModalOpen] = useState(false)
 
   // Handlers for Customer Info
@@ -97,26 +86,23 @@ const CreateInvoice = () => {
   }
 
   // Handlers for Invoice Details
-  const handleInvoiceDetailsChange = (field: keyof InvoiceDetails, value: string | Dayjs | null) => {
+  const handleInvoiceDetailsChange = (field: keyof LocalInvoiceDetails, value: string | Dayjs | null) => {
     setInvoiceDetails((prev) => ({ ...prev, [field]: value }))
   }
 
   // Handlers for Items
   const handleItemChange = (index: number, field: keyof InvoiceItem, value: string | number) => {
     const updatedItems = [...items]
-    updatedItems[index] = { ...updatedItems[index], [field]: value }
+    const currentItem = updatedItems[index]
+    if (!currentItem) return
 
-    // Auto calculate total
-    if (field === 'quantity' || field === 'unitPrice') {
-      updatedItems[index].total = updatedItems[index].quantity * updatedItems[index].unitPrice
-    }
-
+    updatedItems[index] = updateItemWithTotal(currentItem, { [field]: value })
     setItems(updatedItems)
   }
 
   const handleAddItem = () => {
-    const newId = (items.length + 1).toString()
-    setItems([...items, { ...initialItemState, id: newId }])
+    const newItem = createInitialItem({ id: (items.length + 1).toString() })
+    setItems([...items, newItem])
   }
 
   const handleRemoveItem = (index: number) => {
@@ -125,12 +111,9 @@ const CreateInvoice = () => {
     }
   }
 
-  // Calculations
+  // Calculations - sử dụng helper từ utils
   const { subtotal, taxAmount, totalAmount } = useMemo(() => {
-    const subtotal = items.reduce((sum, item) => sum + item.total, 0)
-    const taxAmount = subtotal * 0.1 // 10% VAT
-    const totalAmount = subtotal + taxAmount
-    return { subtotal, taxAmount, totalAmount }
+    return calculateInvoiceAmounts(items)
   }, [items])
 
   // Form Actions
@@ -558,7 +541,7 @@ const CreateInvoice = () => {
             invoiceData={{
               invoiceNumber: 'INV-2024-NEW',
               serialNumber: '1K24TXN',
-              date: invoiceDetails.issueDate?.format('DD/MM/YYYY') || new Date().toLocaleDateString('vi-VN'),
+              date: invoiceDetails.issueDate?.format('DD/MM/YYYY') || dayjs().format('DD/MM/YYYY'),
               customerName: customerInfo.name || 'Chưa có thông tin',
               totalAmount: totalAmount.toLocaleString('vi-VN'),
             }}

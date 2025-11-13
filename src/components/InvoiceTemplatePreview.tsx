@@ -13,72 +13,27 @@ import {
   TableHead,
   TableRow,
 } from '@mui/material';
-
-// Props interfaces (copy từ file gốc)
-interface TemplateConfigProps {
-  companyLogo: string | null;
-  companyName: string;
-  companyTaxCode: string;
-  companyAddress: string;
-  companyPhone: string;
-  modelCode: string;
-  templateCode: string;
-}
-
-interface TemplateVisibility {
-  showQrCode?: boolean;
-  showLogo?: boolean;
-  showCompanyInfo?: boolean;
-  showCustomerInfo?: boolean;
-  showPaymentInfo?: boolean;
-  showSignature?: boolean;
-  showCompanyName?: boolean;
-  showCompanyTaxCode?: boolean;
-  showCompanyAddress?: boolean;
-  showCompanyPhone?: boolean;
-  showCompanyBankAccount?: boolean;
-}
-
-interface CustomerVisibility {
-  customerName: boolean;
-  customerTaxCode: boolean;
-  customerAddress: boolean;
-  customerPhone: boolean;
-  customerEmail: boolean;
-  paymentMethod: boolean;
-}
-
-interface InvoiceTemplatePreviewProps {
-  config: TemplateConfigProps;
-  visibility?: TemplateVisibility;
-  blankRows?: number;
-  backgroundFrame?: string;
-  bilingual?: boolean;
-  invoiceDate?: string;
-  logoSize?: number;
-  invoiceType?: 'withCode' | 'withoutCode';
-  symbol?: { prefix: string; year: string };
-  customerVisibility?: CustomerVisibility;
-}
+import type {
+  InvoiceTemplatePreviewProps,
+} from '@/types/invoiceTemplate';
+import {
+  DEFAULT_CUSTOMER_VISIBILITY,
+  DEFAULT_INVOICE_SYMBOL,
+  TEMPLATE_DEFAULTS,
+  INVOICE_PAGINATION,
+} from '@/types/invoiceTemplate';
 
 const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({ 
   config,
   visibility = {},
-  blankRows = 8,
-  backgroundFrame = '/khunghoadon.png',
+  blankRows = TEMPLATE_DEFAULTS.BLANK_ROWS,
+  backgroundFrame = TEMPLATE_DEFAULTS.BACKGROUND_FRAME,
   bilingual = false,
   invoiceDate,
-  logoSize = 150,
-  invoiceType = 'withCode',
-  symbol = { prefix: '2C25T', year: 'YY' },
-  customerVisibility = {
-    customerName: false,
-    customerTaxCode: false,
-    customerAddress: false,
-    customerPhone: false,
-    customerEmail: false,
-    paymentMethod: false,
-  },
+  logoSize = TEMPLATE_DEFAULTS.LOGO_SIZE,
+  invoiceType = TEMPLATE_DEFAULTS.INVOICE_TYPE,
+  symbol = DEFAULT_INVOICE_SYMBOL,
+  customerVisibility = DEFAULT_CUSTOMER_VISIBILITY,
 }) => {
   const {
     showQrCode = true,
@@ -94,8 +49,7 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
   } = visibility;
 
   // **PAGINATION LOGIC - Professional approach**
-  const ROWS_PER_FIRST_PAGE = 10; // Trang 1: header đầy đủ + 10 rows
-  const ROWS_PER_NEXT_PAGE = 22;  // Trang 2+: chỉ table + 22 rows mỗi trang
+  const { ROWS_PER_FIRST_PAGE, ROWS_PER_NEXT_PAGE } = INVOICE_PAGINATION;
   
   const totalRows = blankRows + 1; // +1 for sample data row
   
