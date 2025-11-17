@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   Box,
   Paper,
@@ -21,6 +21,7 @@ import {
   Grid,
   Divider,
   Alert,
+  CircularProgress,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import AddIcon from '@mui/icons-material/Add'
@@ -31,77 +32,37 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined'
 import AddNewItemModal, { ItemFormData } from '../components/AddNewItemModal'
 import ItemDetailModal from '../components/ItemDetailModal'
+import { useProducts } from '@/hooks/useProducts'
+import productService from '@/services/productService'
+import type { CreateProductRequest, UpdateProductRequest } from '@/services/productService'
 
-// Interface cho Item trong danh sách
+// Interface cho Item trong danh sách (giữ tương thích với UI cũ)
 export interface Item extends ItemFormData {
   id: number
+  categoryID?: number
   createdAt: string
   status: 'active' | 'inactive'
 }
 
 const ItemsManagement = () => {
+  const { products, loading, error } = useProducts()
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [items, setItems] = useState<Item[]>([
-    // Dữ liệu mẫu
-    {
-      id: 1,
-      code: 'SP001',
-      name: 'Laptop Dell Inspiron 15',
-      group: 'hang-hoa',
-      unit: 'chiec',
-      salesPrice: 15000000,
-      priceIncludesTax: false,
-      vatTaxRate: '10%',
-      discountRate: 5,
-      discountAmount: 750000,
-      vatReduction: 'none',
-      description: 'Laptop Dell Inspiron 15, Intel Core i5, RAM 8GB, SSD 256GB',
-      createdAt: '2025-01-15',
-      status: 'active',
-    },
-    {
-      id: 2,
-      code: 'DV001',
-      name: 'Dịch vụ bảo trì phần mềm',
-      group: 'dich-vu',
-      unit: 'thang',
-      salesPrice: 5000000,
-      priceIncludesTax: true,
-      vatTaxRate: '10%',
-      discountRate: 0,
-      discountAmount: 0,
-      vatReduction: 'none',
-      description: 'Dịch vụ bảo trì, nâng cấp phần mềm hàng tháng',
-      createdAt: '2025-02-01',
-      status: 'active',
-    },
-    {
-      id: 3,
-      code: 'SP002',
-      name: 'Chuột không dây Logitech',
-      group: 'hang-hoa',
-      unit: 'cai',
-      salesPrice: 350000,
-      priceIncludesTax: false,
-      vatTaxRate: '10%',
-      discountRate: 10,
-      discountAmount: 35000,
-      vatReduction: 'none',
-      description: 'Chuột không dây Logitech MX Master 3',
-      createdAt: '2025-03-10',
-      status: 'active',
-    },
-  ])
+  const [items, setItems] = useState<Item[]>([])
   const [searchText, setSearchText] = useState('')
   const [editingItem, setEditingItem] = useState<Item | null>(null)
   const [viewingItem, setViewingItem] = useState<Item | null>(null)
-  
-  // Group Filter State
   const [groupFilter, setGroupFilter] = useState<string>('all')
-  
-  // Toggle Status Modal States
   const [confirmModalOpen, setConfirmModalOpen] = useState(false)
   const [selectedItemForToggle, setSelectedItemForToggle] = useState<Item | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  // Sync products từ API vào items state
+  useEffect(() => {
+    if (products.length > 0) {
+      setItems(products as Item[])
+    }
+  }, [products])
 
   // Hàm mở modal thêm mới
   const handleOpenModal = () => {
@@ -116,27 +77,85 @@ const ItemsManagement = () => {
   }
 
   // Hàm lưu item (thêm mới hoặc cập nhật)
-  const handleSaveItem = (data: ItemFormData) => {
-    if (editingItem) {
-      // Chế độ Edit: Cập nhật item hiện tại
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === editingItem.id
-            ? { ...item, ...data }
-            : item
+  const handleSaveItem = async (data: ItemFormData) => {
+    setSaving(true)
+    setActionError(null)
+
+    try {
+      // Parse vatTaxRate từ "10%" thành số 10
+      const vatRate = parseFloat(data.vatTaxRate.replace('%', ''))
+
+      if (editingItem) {
+        // Chế độ Edit: Gọi API PUT
+        const updateRequest: UpdateProductRequest = {
+          code: data.code,
+          name: data.name,
+          categoryID: data.categoryID || editingItem.categoryID || 1,
+          unit: data.unit,
+          basePrice: data.salesPrice,
+          vatRate: vatRate,
+          description: data.description,
+          isActive: editingItem.status === 'active',
+        }
+
+        await productService.updateProduct(editingItem.id, updateRequest)
+        
+        // Cập nhật optimistic UI: Update item ngay lập tức với data từ form
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === editingItem.id
+              ? {
+                  ...item,
+                  code: data.code,
+                  name: data.name,
+                  categoryID: data.categoryID || editingItem.categoryID || 1,
+                  unit: data.unit,
+                  salesPrice: data.salesPrice,
+                  vatTaxRate: data.vatTaxRate,
+                  description: data.description,
+                }
+              : item
+          )
         )
-      )
-      console.log('Đã cập nhật item:', editingItem.id)
-    } else {
-      // Chế độ Add: Thêm item mới
-      const newItem: Item = {
-        ...data,
-        id: items.length + 1,
-        createdAt: new Date().toISOString().split('T')[0],
-        status: 'active',
+      } else {
+        // Chế độ Add: Gọi API POST
+        const createRequest: CreateProductRequest = {
+          code: data.code,
+          name: data.name,
+          categoryID: data.categoryID || 1,
+          unit: data.unit,
+          basePrice: data.salesPrice,
+          vatRate: vatRate,
+          description: data.description,
+          isActive: true,
+        }
+
+        const response = await productService.createProduct(createRequest)
+        
+        // Thêm item mới vào đầu danh sách ngay lập tức
+        const newItem: Item = {
+          id: response.productID,
+          code: response.code,
+          name: response.name,
+          group: 'hang-hoa',
+          categoryID: response.categoryID,
+          unit: response.unit,
+          salesPrice: response.basePrice,
+          vatTaxRate: `${response.vatRate}%`,
+          discountRate: 0,
+          discountAmount: 0,
+          description: response.description,
+          status: response.isActive ? 'active' : 'inactive',
+          createdAt: response.createdDate,
+        }
+        setItems((prev) => [newItem, ...prev])
       }
-      setItems((prev) => [newItem, ...prev])
-      console.log('Đã thêm item mới:', newItem)
+
+      handleCloseModal()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Lỗi khi lưu sản phẩm')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -151,19 +170,44 @@ const ItemsManagement = () => {
     setConfirmModalOpen(false)
   }
 
-  const handleConfirmToggleStatus = () => {
+  const handleConfirmToggleStatus = async () => {
     if (!selectedItemForToggle) return
 
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === selectedItemForToggle.id
-          ? { ...item, status: item.status === 'active' ? 'inactive' : 'active' }
-          : item
-      )
-    )
+    setSaving(true)
+    setActionError(null)
 
-    console.log(`Đã thay đổi trạng thái của item: ${selectedItemForToggle.id}`)
-    handleCloseConfirmModal()
+    try {
+      const newStatus = selectedItemForToggle.status === 'active' ? 'inactive' : 'active'
+      const vatRate = parseFloat(selectedItemForToggle.vatTaxRate.replace('%', ''))
+
+      const updateRequest: UpdateProductRequest = {
+        code: selectedItemForToggle.code,
+        name: selectedItemForToggle.name,
+        categoryID: selectedItemForToggle.categoryID || 1,
+        unit: selectedItemForToggle.unit,
+        basePrice: selectedItemForToggle.salesPrice,
+        vatRate: vatRate,
+        description: selectedItemForToggle.description,
+        isActive: newStatus === 'active',
+      }
+
+      await productService.updateProduct(selectedItemForToggle.id, updateRequest)
+      
+      // Cập nhật optimistic UI: Update status ngay lập tức
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === selectedItemForToggle.id
+            ? { ...item, status: newStatus }
+            : item
+        )
+      )
+      
+      handleCloseConfirmModal()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Lỗi khi cập nhật trạng thái')
+    } finally {
+      setSaving(false)
+    }
   }
 
   // Hàm sửa item
@@ -497,6 +541,7 @@ const ItemsManagement = () => {
             color="primary"
             startIcon={<AddIcon />}
             onClick={handleOpenModal}
+            disabled={loading}
             sx={{
               textTransform: 'none',
               fontWeight: 500,
@@ -519,6 +564,13 @@ const ItemsManagement = () => {
             boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
             overflow: 'hidden',
           }}>
+          {/* Error Alert */}
+          {actionError && (
+            <Alert severity="error" onClose={() => setActionError(null)} sx={{ m: 2 }}>
+              {actionError}
+            </Alert>
+          )}
+
           {/* Search Section */}
           <Box sx={{ p: 3, borderBottom: '1px solid #e0e0e0' }}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
@@ -577,18 +629,35 @@ const ItemsManagement = () => {
               </FormControl>
             </Stack>
           </Box>
+
+          {/* Error Alert */}
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
+
+          {/* Loading State */}
+          {loading && items.length === 0 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+              <CircularProgress />
+            </Box>
+          )}
+
           {/* Table Section */}
-          <DataGrid
-            rows={filteredItems}
-            columns={columns}
-            initialState={{
-              pagination: {
-                paginationModel: { page: 0, pageSize: 10 },
-              },
-            }}
-            pageSizeOptions={[5, 10, 25, 50]}
-            disableRowSelectionOnClick
-            sx={{
+          {!loading || items.length > 0 ? (
+            <DataGrid
+              rows={filteredItems}
+              columns={columns}
+              loading={loading}
+              initialState={{
+                pagination: {
+                  paginationModel: { page: 0, pageSize: 10 },
+                },
+              }}
+              pageSizeOptions={[5, 10, 25, 50]}
+              disableRowSelectionOnClick
+              sx={{
               border: 'none',
               '& .MuiDataGrid-cell': {
                 borderBottom: '1px solid #f0f0f0',
@@ -604,6 +673,7 @@ const ItemsManagement = () => {
             }}
             autoHeight
           />
+          ) : null}
         </Paper>
 
         {/* Modal thêm/sửa */}
@@ -766,6 +836,7 @@ const ItemsManagement = () => {
               onClick={handleConfirmToggleStatus}
               variant="contained"
               color={selectedItemForToggle?.status === 'active' ? 'error' : 'success'}
+              disabled={saving}
               startIcon={
                 selectedItemForToggle?.status === 'active' ? 
                 <LockOutlinedIcon /> : 
@@ -781,7 +852,7 @@ const ItemsManagement = () => {
                 },
               }}
             >
-              {selectedItemForToggle?.status === 'active' ? 'Vô hiệu hóa' : 'Kích hoạt'}
+              {saving ? 'Đang xử lý...' : (selectedItemForToggle?.status === 'active' ? 'Vô hiệu hóa' : 'Kích hoạt')}
             </Button>
           </DialogActions>
         </Dialog>

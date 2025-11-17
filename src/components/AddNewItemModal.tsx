@@ -10,26 +10,25 @@ import {
   FormControl,
   Button,
   IconButton,
-  Checkbox,
-  FormControlLabel,
+  
   Box,
   Typography,
   InputAdornment,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
+import { useCategories } from '@/hooks/useCategories'
 
 // Interface cho dữ liệu form
 export interface ItemFormData {
   code: string
   name: string
   group: string
+  categoryID?: number
   unit: string
   salesPrice: number
-  priceIncludesTax: boolean
   vatTaxRate: string
   discountRate: number
   discountAmount: number
-  vatReduction: string
   description: string
 }
 
@@ -42,13 +41,6 @@ interface AddNewItemModalProps {
 }
 
 // Dữ liệu mẫu cho các dropdown
-const PRODUCT_GROUPS = [
-  { value: 'hang-hoa', label: 'Hàng hóa' },
-  { value: 'dich-vu', label: 'Dịch vụ' },
-  { value: 'tai-san', label: 'Tài sản' },
-  { value: 'nguyen-vat-lieu', label: 'Nguyên vật liệu' },
-]
-
 const UNITS = [
   { value: 'cai', label: 'Cái' },
   { value: 'chiec', label: 'Chiếc' },
@@ -62,21 +54,9 @@ const UNITS = [
   { value: 'bo', label: 'Bộ' },
 ]
 
-const VAT_RATES = [
-  { value: '0%', label: '0%' },
-  { value: '5%', label: '5%' },
-  { value: '8%', label: '8%' },
-  { value: '10%', label: '10%' },
-]
-
-const VAT_REDUCTIONS = [
-  { value: 'none', label: 'Không giảm' },
-  { value: 'reduce-30', label: 'Giảm 30%' },
-  { value: 'reduce-50', label: 'Giảm 50%' },
-  { value: 'reduce-100', label: 'Giảm 100%' },
-]
-
 const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave, initialData }) => {
+  const { categories } = useCategories()
+
   // Giá trị khởi tạo mặc định
   const defaultFormData: ItemFormData = {
     code: '',
@@ -84,11 +64,9 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
     group: '',
     unit: '',
     salesPrice: 0,
-    priceIncludesTax: false,
     vatTaxRate: '10%',
     discountRate: 0,
     discountAmount: 0,
-    vatReduction: 'none',
     description: '',
   }
 
@@ -107,6 +85,34 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialData, open])
 
+  // Auto-select first category if available and no categoryID set
+  useEffect(() => {
+    if (!formData.categoryID && categories.length > 0 && !initialData) {
+      const firstCategory = categories[0]
+      setFormData(prev => ({ 
+        ...prev, 
+        categoryID: firstCategory.id,
+        vatTaxRate: `${firstCategory.vatRate}%`
+      }))
+    }
+  }, [categories, formData.categoryID, initialData])
+
+  // Auto-update VAT rate when category changes
+  useEffect(() => {
+    if (formData.categoryID && categories.length > 0) {
+      const selectedCategory = categories.find(cat => cat.id === formData.categoryID)
+      if (selectedCategory && formData.vatTaxRate !== `${selectedCategory.vatRate}%`) {
+        setFormData(prev => ({ ...prev, vatTaxRate: `${selectedCategory.vatRate}%` }))
+      }
+    }
+  }, [formData.categoryID, categories, formData.vatTaxRate])
+
+  // Hàm format số tiền với dấu phân cách hàng nghìn
+  const formatNumber = (value: number): string => {
+    if (!value && value !== 0) return ''
+    return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  }
+
   // Hàm xử lý thay đổi input
   const handleInputChange = (field: keyof ItemFormData, value: string | number | boolean) => {
     setFormData((prev) => {
@@ -121,6 +127,19 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
 
       return updated
     })
+  }
+
+  // Hàm xử lý thay đổi giá bán (với format số tiền)
+  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputValue = e.target.value
+    // Loại bỏ tất cả dấu "." và ký tự không phải số
+    const numericValue = inputValue.replace(/\D/g, '')
+    
+    // Loại bỏ số 0 ở đầu (trừ khi giá trị là "0")
+    const cleanedValue = numericValue.replace(/^0+/, '') || '0'
+    
+    const price = Number(cleanedValue)
+    handleInputChange('salesPrice', price)
   }
 
   // Reset form về trạng thái ban đầu
@@ -332,7 +351,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
               />
             </Box>
 
-            {/* Nhóm hàng hóa/dịch vụ */}
+            {/* Nhóm hàng hóa/dịch vụ (Danh mục từ API) */}
             <Box>
               <Typography
                 variant="body2"
@@ -344,14 +363,15 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                   letterSpacing: '0.3px',
                   textTransform: 'uppercase',
                 }}>
-                Nhóm hàng hóa/dịch vụ
+                Danh mục sản phẩm <span style={{ color: '#ef5f5f' }}>*</span>
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
-                  name="group"
-                  value={formData.group}
-                  onChange={(e) => handleInputChange('group', e.target.value)}
+                  name="categoryID"
+                  value={formData.categoryID || ''}
+                  onChange={(e) => handleInputChange('categoryID', Number(e.target.value))}
                   displayEmpty
+                  disabled={categories.length === 0}
                   sx={{
                     height: '40px',
                     backgroundColor: '#fff',
@@ -376,11 +396,17 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                       fontSize: '0.9375rem',
                     },
                   }}>
-                  {PRODUCT_GROUPS.map((group) => (
-                    <MenuItem key={group.value} value={group.value}>
-                      {group.label}
+                  {categories.length === 0 ? (
+                    <MenuItem value="" disabled>
+                      Đang tải danh mục...
                     </MenuItem>
-                  ))}
+                  ) : (
+                    categories.map((cat) => (
+                      <MenuItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </MenuItem>
+                    ))
+                  )}
                 </Select>
               </FormControl>
             </Box>
@@ -456,10 +482,9 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 fullWidth
                 size="small"
                 name="salesPrice"
-                type="number"
-                value={formData.salesPrice}
-                onChange={(e) => handleInputChange('salesPrice', Number(e.target.value))}
-                inputProps={{ min: 0, step: 1000 }}
+                type="text"
+                value={formatNumber(formData.salesPrice)}
+                onChange={handlePriceChange}
                 placeholder="0"
                 variant="outlined"
                 InputProps={{
@@ -494,61 +519,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
               />
             </Box>
 
-            {/* Checkbox giá sau thuế */}
-            <Box>
-              <Typography
-                variant="body2"
-                sx={{
-                  fontWeight: 600,
-                  color: '#2c3e50',
-                  mb: 0.75,
-                  fontSize: '0.8125rem',
-                  letterSpacing: '0.3px',
-                  textTransform: 'uppercase',
-                }}>
-                Loại giá
-              </Typography>
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  height: '40px',
-                  px: 2,
-                  border: '1px solid rgba(0, 0, 0, 0.23)',
-                  borderRadius: 2,
-                  backgroundColor: '#fff',
-                  transition: 'all 0.2s',
-                  '&:hover': {
-                    backgroundColor: '#f8f9fa',
-                    borderColor: '#1c84ee',
-                    borderWidth: '1.5px',
-                  },
-                }}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      size="small"
-                      name="priceIncludesTax"
-                      checked={formData.priceIncludesTax}
-                      onChange={(e) => handleInputChange('priceIncludesTax', e.target.checked)}
-                      sx={{
-                        color: '#1c84ee',
-                        '&.Mui-checked': {
-                          color: '#1c84ee',
-                        },
-                      }}
-                    />
-                  }
-                  label={
-                    <Typography variant="body2" sx={{ fontSize: '0.875rem', color: '#495057', userSelect: 'none', fontWeight: 500 }}>
-                      Giá bán là giá sau thuế
-                    </Typography>
-                  }
-                  sx={{ m: 0, width: '100%' }}
-                />
-              </Box>
-            </Box>
-
+          
             {/* Thuế GTGT */}
             <Box>
               <Typography
@@ -563,96 +534,29 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({ open, onClose, onSave
                 }}>
                 Thuế giá trị gia tăng (VAT)
               </Typography>
-              <FormControl fullWidth size="small">
-                <Select
-                  name="vatTaxRate"
-                  value={formData.vatTaxRate}
-                  onChange={(e) => handleInputChange('vatTaxRate', e.target.value)}
-                  displayEmpty
-                  sx={{
-                    height: '40px',
-                    backgroundColor: '#fff',
-                    borderRadius: 2,
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                      backgroundColor: '#f8f9fa',
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#1c84ee',
-                      borderWidth: '1.5px',
-                    },
-                    '&.Mui-focused': {
-                      backgroundColor: '#fff',
-                      boxShadow: '0 0 0 3px rgba(28, 132, 238, 0.1)',
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#1c84ee',
-                      borderWidth: '1.5px',
-                    },
-                    '& .MuiSelect-select': {
-                      fontSize: '0.9375rem',
-                    },
-                  }}>
-                  {VAT_RATES.map((rate) => (
-                    <MenuItem key={rate.value} value={rate.value}>
-                      {rate.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-
-            {/* Giảm thuế GTGT */}
-            <Box>
-              <Typography
-                variant="body2"
+              <TextField
+                fullWidth
+                size="small"
+                name="vatTaxRate"
+                value={formData.vatTaxRate}
+                disabled
+                placeholder="Tự động từ danh mục"
                 sx={{
-                  fontWeight: 600,
-                  color: '#2c3e50',
-                  mb: 0.75,
-                  fontSize: '0.8125rem',
-                  letterSpacing: '0.3px',
-                  textTransform: 'uppercase',
-                }}>
-                Giảm thuế GTGT (nếu có)
-              </Typography>
-              <FormControl fullWidth size="small">
-                <Select
-                  name="vatReduction"
-                  value={formData.vatReduction}
-                  onChange={(e) => handleInputChange('vatReduction', e.target.value)}
-                  displayEmpty
-                  sx={{
+                  '& .MuiOutlinedInput-root': {
                     height: '40px',
-                    backgroundColor: '#fff',
+                    fontSize: '0.9375rem',
+                    backgroundColor: '#f5f5f5',
                     borderRadius: 2,
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                      backgroundColor: '#f8f9fa',
+                    '&.Mui-disabled': {
+                      backgroundColor: '#f5f5f5',
                     },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#1c84ee',
-                      borderWidth: '1.5px',
+                    '& .MuiOutlinedInput-input.Mui-disabled': {
+                      WebkitTextFillColor: '#495057',
+                      fontWeight: 500,
                     },
-                    '&.Mui-focused': {
-                      backgroundColor: '#fff',
-                      boxShadow: '0 0 0 3px rgba(28, 132, 238, 0.1)',
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#1c84ee',
-                      borderWidth: '1.5px',
-                    },
-                    '& .MuiSelect-select': {
-                      fontSize: '0.9375rem',
-                    },
-                  }}>
-                  {VAT_REDUCTIONS.map((reduction) => (
-                    <MenuItem key={reduction.value} value={reduction.value}>
-                      {reduction.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                  },
+                }}
+              />
             </Box>
 
             {/* Tỷ lệ chiết khấu */}

@@ -46,12 +46,6 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, open, onClose }
     bo: 'Bộ',
   }
 
-  const vatReductionLabels: Record<string, string> = {
-    'khong-giam': 'Không giảm',
-    'giam-50': 'Giảm 50%',
-    'giam-100': 'Giảm 100%',
-  }
-
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ fontWeight: 600, color: '#1a1a1a', borderBottom: '1px solid #e0e0e0' }}>
@@ -162,9 +156,6 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, open, onClose }
                   <Typography variant="h6" sx={{ fontWeight: 600, color: '#22c55e' }}>
                     {formatCurrency(item.salesPrice)}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {item.priceIncludesTax ? '(Đã bao gồm thuế)' : '(Chưa bao gồm thuế)'}
-                  </Typography>
                 </Stack>
               </Box>
 
@@ -201,17 +192,6 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, open, onClose }
                       Số tiền CK: {formatCurrency(item.discountAmount)}
                     </Typography>
                   )}
-                </Stack>
-              </Box>
-
-              <Box sx={{ flex: '1 1 45%', minWidth: 200 }}>
-                <Stack spacing={0.5}>
-                  <Typography variant="caption" color="text.secondary">
-                    Giảm trừ thuế GTGT
-                  </Typography>
-                  <Typography variant="body1">
-                    {vatReductionLabels[item.vatReduction] || item.vatReduction}
-                  </Typography>
                 </Stack>
               </Box>
             </Box>
