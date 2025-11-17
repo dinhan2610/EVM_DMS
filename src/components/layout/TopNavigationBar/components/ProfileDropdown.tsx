@@ -20,24 +20,12 @@ import {
   LockOutlined,
   SettingsOutlined,
 } from '@mui/icons-material'
-
-// Mock Auth Hook - Trong thực tế sẽ lấy từ AuthContext
-const useAuth = () => ({
-  user: {
-    name: 'Ngô Đăng Hà An',
-    email: 'anndh2@fe.edu.vn',
-    role: 'Supervisor',
-  },
-  logout: () => {
-    console.log('User logging out...')
-    // Trong production: xóa token, clear session, redirect to login
-  },
-})
+import { useAuthContext } from '@/context/useAuthContext'
 
 const ProfileDropdown = () => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
-  const { user, logout } = useAuth()
+  const { user, logout } = useAuthContext()
   const navigate = useNavigate()
 
   // Get initials from name
@@ -48,6 +36,9 @@ const ProfileDropdown = () => {
     }
     return name.slice(0, 2).toUpperCase()
   }
+
+  const userName = user?.name || user?.email?.split('@')[0] || 'User'
+  const userEmail = user?.email || ''
 
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget)
@@ -87,10 +78,9 @@ const ProfileDropdown = () => {
     handleClose()
   }
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
     handleClose()
-    navigate('/auth/sign-in')
+    await logout()
   }
 
   return (
@@ -112,7 +102,7 @@ const ProfileDropdown = () => {
             fontWeight: 600,
           }}
         >
-          {getInitials(user.name)}
+          {getInitials(userName)}
         </Avatar>
       </IconButton>
 
@@ -154,10 +144,10 @@ const ProfileDropdown = () => {
         {/* User Info Header */}
         <Box sx={{ px: 2, py: 1.5, mb: 1 }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-            {user.name}
+            {userName}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-            {user.email}
+            {userEmail}
           </Typography>
         </Box>
 
