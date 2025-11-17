@@ -22,6 +22,7 @@ import {
   TemplateEditor,
   TemplatePreview,
   UserManagement,
+  RolesPermissions,
   SystemConfiguration,
   AuditLogsPage,
   ReportsPage,
@@ -170,6 +171,11 @@ const appsRoutes: RoutesProps[] = [
     name: 'User Management',
     path: '/admin/usermanager',
     element: <UserManagement />,
+  },
+  {
+    name: 'Roles & Permissions',
+    path: '/admin/roles-permissions',
+    element: <RolesPermissions />,
   },
   {
     name: 'System Configuration',

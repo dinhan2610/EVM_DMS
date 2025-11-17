@@ -33,6 +33,7 @@ import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined'
 import AddNewItemModal, { ItemFormData } from '../components/AddNewItemModal'
 import ItemDetailModal from '../components/ItemDetailModal'
 import { useProducts } from '@/hooks/useProducts'
+import { useCategories } from '@/hooks/useCategories'
 import productService from '@/services/productService'
 import type { CreateProductRequest, UpdateProductRequest } from '@/services/productService'
 
@@ -46,12 +47,13 @@ export interface Item extends ItemFormData {
 
 const ItemsManagement = () => {
   const { products, loading, error } = useProducts()
+  const { categories } = useCategories()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [items, setItems] = useState<Item[]>([])
   const [searchText, setSearchText] = useState('')
   const [editingItem, setEditingItem] = useState<Item | null>(null)
   const [viewingItem, setViewingItem] = useState<Item | null>(null)
-  const [groupFilter, setGroupFilter] = useState<string>('all')
+  const [categoryFilter, setCategoryFilter] = useState<number | 'all'>('all')
   const [confirmModalOpen, setConfirmModalOpen] = useState(false)
   const [selectedItemForToggle, setSelectedItemForToggle] = useState<Item | null>(null)
   const [saving, setSaving] = useState(false)
@@ -229,13 +231,20 @@ const ItemsManagement = () => {
     setViewingItem(null)
   }
 
+  // Hàm lấy tên category từ categoryID
+  const getCategoryName = (categoryID?: number) => {
+    if (!categoryID) return 'Chưa phân loại'
+    const category = categories.find((cat) => cat.id === categoryID)
+    return category?.name || 'Chưa xác định'
+  }
+
   // Filter items theo search
   const filteredItems = useMemo(() => {
     return items
       .filter((item) => {
-        // Lọc theo Nhóm
-        if (groupFilter === 'all') return true
-        return item.group === groupFilter
+        // Lọc theo Danh mục
+        if (categoryFilter === 'all') return true
+        return item.categoryID === categoryFilter
       })
       .filter((item) => {
         // Lọc theo SearchText
@@ -246,7 +255,7 @@ const ItemsManagement = () => {
           item.description.toLowerCase().includes(searchText.toLowerCase())
         )
       })
-  }, [items, searchText, groupFilter])
+  }, [items, searchText, categoryFilter])
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -346,18 +355,13 @@ const ItemsManagement = () => {
       ),
     },
     {
-      field: 'group',
-      headerName: 'Nhóm hàng hoá, dịch vụ',
-      width: 180,
+      field: 'categoryID',
+      headerName: 'Danh mục',
+      width: 200,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
-        const groupLabels: Record<string, string> = {
-          'hang-hoa': 'Hàng hóa',
-          'dich-vu': 'Dịch vụ',
-          'tai-san': 'Tài sản',
-          'nguyen-vat-lieu': 'Nguyên vật liệu',
-        }
+        const categoryName = getCategoryName(params.value)
         return (
           <Box
             sx={{
@@ -368,11 +372,11 @@ const ItemsManagement = () => {
               height: '100%',
             }}>
             <Chip
-              label={groupLabels[params.value] || params.value}
+              label={categoryName}
               size="small"
               sx={{
-                backgroundColor: params.value === 'hang-hoa' ? '#e3f2fd' : '#f3e5f5',
-                color: params.value === 'hang-hoa' ? '#1976d2' : '#7b1fa2',
+                backgroundColor: '#e3f2fd',
+                color: '#1976d2',
                 fontWeight: 500,
               }}
             />
@@ -603,13 +607,13 @@ const ItemsManagement = () => {
                 }}
               />
               
-              {/* Group Filter */}
+              {/* Category Filter */}
               <FormControl size="small" sx={{ minWidth: 220, width: { xs: '100%', md: 'auto' } }}>
-                <InputLabel>Lọc theo Nhóm</InputLabel>
+                <InputLabel>Lọc theo Danh mục</InputLabel>
                 <Select
-                  value={groupFilter}
-                  label="Lọc theo Nhóm"
-                  onChange={(e) => setGroupFilter(e.target.value)}
+                  value={categoryFilter}
+                  label="Lọc theo Danh mục"
+                  onChange={(e) => setCategoryFilter(e.target.value as number | 'all')}
                   sx={{
                     backgroundColor: '#fafafa',
                     '&:hover': {
@@ -620,11 +624,12 @@ const ItemsManagement = () => {
                     },
                   }}
                 >
-                  <MenuItem value="all">Tất cả Nhóm</MenuItem>
-                  <MenuItem value="hang-hoa">Hàng hóa</MenuItem>
-                  <MenuItem value="dich-vu">Dịch vụ</MenuItem>
-                  <MenuItem value="tai-san">Tài sản</MenuItem>
-                  <MenuItem value="nguyen-vat-lieu">Nguyên vật liệu</MenuItem>
+                  <MenuItem value="all">Tất cả Danh mục</MenuItem>
+                  {categories.map((category) => (
+                    <MenuItem key={category.id} value={category.id}>
+                      {category.name}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Stack>

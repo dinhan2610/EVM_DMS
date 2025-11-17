@@ -105,6 +105,12 @@ export const MENU_ITEMS: MenuItemType[] = [
         parentKey: 'apps-admin',
       },
       {
+        key: 'admin-roles-permissions',
+        label: 'Vai trò & Phân quyền',
+        url: '/admin/roles-permissions',
+        parentKey: 'apps-admin',
+      },
+      {
         key: 'admin-settings',
         label: 'Cấu hình hệ thống',
         url: '/admin/settings',
