@@ -122,6 +122,18 @@ class ProductService {
     await httpClient.delete(`${this.endpoint}/${id}`)
   }
 
+  /**
+   * Toggle product status (active/inactive) using dedicated PATCH endpoint
+   * This is more efficient than updating the entire product
+   */
+  async toggleProductStatus(id: number, isActive: boolean): Promise<void> {
+    await httpClient.patch(`${this.endpoint}/${id}/status`, isActive, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+  }
+
   async getCategories(): Promise<Category[]> {
     const response: AxiosResponse<CategoryResponse[]> = await httpClient.get(`${this.endpoint}/categories`)
     return response.data.map(cat => ({

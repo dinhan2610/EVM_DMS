@@ -29,7 +29,8 @@ import SearchIcon from '@mui/icons-material/Search'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import LockOpenOutlinedIcon from '@mui/icons-material/LockOpenOutlined'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
-import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined'
+import { toast } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
 import AddNewItemModal, { ItemFormData } from '../components/AddNewItemModal'
 import ItemDetailModal from '../components/ItemDetailModal'
 import { useProducts } from '@/hooks/useProducts'
@@ -154,8 +155,51 @@ const ItemsManagement = () => {
       }
 
       handleCloseModal()
+      
+      // Toast notification thành công với gradient xanh dương
+      if (editingItem) {
+        toast.success(
+          `Cập nhật sản phẩm "${data.name}" thành công!`,
+          {
+            position: 'top-right',
+            autoClose: 3000,
+            style: {
+              background: 'linear-gradient(135deg, #1c84ee 0%, #0d6efd 100%)',
+              color: '#fff',
+            },
+            progressStyle: {
+              background: 'rgba(255, 255, 255, 0.7)',
+            },
+          }
+        )
+      } else {
+        toast.success(
+          `Thêm mới sản phẩm "${data.name}" thành công!`,
+          {
+            position: 'top-right',
+            autoClose: 3000,
+            style: {
+              background: 'linear-gradient(135deg, #1c84ee 0%, #0d6efd 100%)',
+              color: '#fff',
+            },
+            progressStyle: {
+              background: 'rgba(255, 255, 255, 0.7)',
+            },
+          }
+        )
+      }
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Lỗi khi lưu sản phẩm')
+      const errorMessage = err instanceof Error ? err.message : 'Lỗi khi lưu sản phẩm'
+      setActionError(errorMessage)
+      
+      // Toast thông báo lỗi
+      toast.error(
+        `✗ ${errorMessage}`,
+        {
+          position: 'top-right',
+          autoClose: 4000,
+        }
+      )
     } finally {
       setSaving(false)
     }
@@ -180,20 +224,11 @@ const ItemsManagement = () => {
 
     try {
       const newStatus = selectedItemForToggle.status === 'active' ? 'inactive' : 'active'
-      const vatRate = parseFloat(selectedItemForToggle.vatTaxRate.replace('%', ''))
+      const isActive = newStatus === 'active'
+      const productName = selectedItemForToggle.name
 
-      const updateRequest: UpdateProductRequest = {
-        code: selectedItemForToggle.code,
-        name: selectedItemForToggle.name,
-        categoryID: selectedItemForToggle.categoryID || 1,
-        unit: selectedItemForToggle.unit,
-        basePrice: selectedItemForToggle.salesPrice,
-        vatRate: vatRate,
-        description: selectedItemForToggle.description,
-        isActive: newStatus === 'active',
-      }
-
-      await productService.updateProduct(selectedItemForToggle.id, updateRequest)
+      // Sử dụng API PATCH chuyên dụng - tối ưu hơn nhiều so với PUT toàn bộ sản phẩm
+      await productService.toggleProductStatus(selectedItemForToggle.id, isActive)
       
       // Cập nhật optimistic UI: Update status ngay lập tức
       setItems((prev) =>
@@ -204,9 +239,60 @@ const ItemsManagement = () => {
         )
       )
       
+      // Hiển thị toast notification với màu sắc đồng bộ
+      if (isActive) {
+        toast.success(
+          `Sản phẩm "${productName}" đã được kích hoạt thành công!`,
+          {
+            position: 'top-right',
+            autoClose: 3000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            style: {
+              background: 'linear-gradient(135deg, #1c84ee 0%, #0d6efd 100%)',
+              color: '#fff',
+            },
+            progressStyle: {
+              background: 'rgba(255, 255, 255, 0.7)',
+            },
+          }
+        )
+      } else {
+        toast.warning(
+          `Sản phẩm "${productName}" đã bị vô hiệu hóa!`,
+          {
+            position: 'top-right',
+            autoClose: 3000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            style: {
+              background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+              color: '#fff',
+            },
+            progressStyle: {
+              background: 'rgba(255, 255, 255, 0.7)',
+            },
+          }
+        )
+      }
+      
       handleCloseConfirmModal()
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Lỗi khi cập nhật trạng thái')
+      const errorMessage = err instanceof Error ? err.message : 'Lỗi khi cập nhật trạng thái'
+      setActionError(errorMessage)
+      
+      // Toast thông báo lỗi
+      toast.error(
+        `✗ ${errorMessage}`,
+        {
+          position: 'top-right',
+          autoClose: 4000,
+        }
+      )
     } finally {
       setSaving(false)
     }
@@ -695,13 +781,14 @@ const ItemsManagement = () => {
         {/* Toggle Status Confirmation Dialog */}
         <Dialog
           open={confirmModalOpen}
-          onClose={handleCloseConfirmModal}
+          onClose={!saving ? handleCloseConfirmModal : undefined}
           maxWidth="sm"
           fullWidth
           PaperProps={{
             sx: {
               borderRadius: 3,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
+              overflow: 'hidden',
             },
           }}
         >
@@ -711,38 +798,52 @@ const ItemsManagement = () => {
               alignItems: 'center',
               gap: 1.5,
               fontWeight: 600,
-              p: 3,
+              pb: 2,
+              pt: 2.5,
+              px: 3,
+              borderBottom: '1px solid #e8ecef',
+              background: 'linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)',
             }}
           >
             <Box
               sx={{
+                width: 36,
+                height: 36,
+                borderRadius: 1.5,
+                background: selectedItemForToggle?.status === 'active'
+                  ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)'
+                  : 'linear-gradient(135deg, #1c84ee 0%, #0d6efd 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: 48,
-                height: 48,
-                borderRadius: '50%',
-                bgcolor: selectedItemForToggle?.status === 'active' ? 'error.lighter' : 'success.lighter',
+                color: '#fff',
+                boxShadow: selectedItemForToggle?.status === 'active' 
+                  ? '0 4px 12px rgba(251, 191, 36, 0.3)' 
+                  : '0 4px 12px rgba(28, 132, 238, 0.3)',
               }}
             >
-              <WarningAmberOutlinedIcon 
-                sx={{ 
-                  fontSize: 28, 
-                  color: selectedItemForToggle?.status === 'active' ? 'error.main' : 'success.main' 
-                }} 
-              />
+              {selectedItemForToggle?.status === 'active' ? (
+                <LockOutlinedIcon sx={{ fontSize: 20 }} />
+              ) : (
+                <LockOpenOutlinedIcon sx={{ fontSize: 20 }} />
+              )}
             </Box>
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
+            <Typography variant="h6" component="span" sx={{ fontWeight: 600, color: '#1a1a1a', fontSize: '1.125rem' }}>
               Xác nhận thay đổi trạng thái
             </Typography>
           </DialogTitle>
 
-          <Divider />
+          <Divider sx={{ borderColor: '#e8ecef' }} />
 
-          <DialogContent sx={{ p: 3 }}>
-            <Typography variant="body1" sx={{ mb: 2.5 }}>
+          <DialogContent sx={{ pt: 3, pb: 2.5, px: 3, backgroundColor: '#fafbfc' }}>
+            <Typography variant="body1" sx={{ mb: 2.5, color: '#374151', lineHeight: 1.6 }}>
               Bạn có chắc chắn muốn{' '}
-              <strong>
+              <strong
+                style={{
+                  color: selectedItemForToggle?.status === 'active' ? '#f59e0b' : '#1c84ee',
+                  fontWeight: 700,
+                }}
+              >
                 {selectedItemForToggle?.status === 'active' ? 'vô hiệu hóa' : 'kích hoạt'}
               </strong>{' '}
               sản phẩm/dịch vụ sau?
@@ -752,34 +853,34 @@ const ItemsManagement = () => {
               elevation={0}
               sx={{
                 p: 2.5,
-                bgcolor: 'grey.50',
-                border: '1px solid',
-                borderColor: 'divider',
+                bgcolor: '#fff',
+                border: '2px solid',
+                borderColor: '#e0e0e0',
                 borderRadius: 2,
                 mb: 2.5,
               }}
             >
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>
                     Mã sản phẩm/dịch vụ
                   </Typography>
-                  <Typography variant="body2" sx={{ mt: 0.5, fontFamily: 'monospace', color: 'primary.main' }}>
+                  <Typography variant="body2" sx={{ mt: 0.5, fontFamily: 'monospace', color: '#1c84ee', fontWeight: 600, fontSize: '0.9375rem' }}>
                     {selectedItemForToggle?.code}
                   </Typography>
                 </Grid>
 
                 <Grid size={{ xs: 12 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>
                     Tên sản phẩm/dịch vụ
                   </Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 600, mt: 0.5 }}>
+                  <Typography variant="body1" sx={{ fontWeight: 600, mt: 0.5, color: '#1a1a1a' }}>
                     {selectedItemForToggle?.name}
                   </Typography>
                 </Grid>
 
                 <Grid size={{ xs: 12 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>
                     Nhóm
                   </Typography>
                   <Box sx={{ mt: 0.5 }}>
@@ -797,7 +898,8 @@ const ItemsManagement = () => {
                       sx={{
                         backgroundColor: selectedItemForToggle?.group === 'hang-hoa' ? '#e3f2fd' : '#f3e5f5',
                         color: selectedItemForToggle?.group === 'hang-hoa' ? '#1976d2' : '#7b1fa2',
-                        fontWeight: 500,
+                        fontWeight: 600,
+                        borderRadius: 1.5,
                       }}
                     />
                   </Box>
@@ -807,9 +909,22 @@ const ItemsManagement = () => {
 
             <Alert 
               severity={selectedItemForToggle?.status === 'active' ? 'warning' : 'info'}
-              sx={{ borderRadius: 2 }}
+              icon={
+                selectedItemForToggle?.status === 'active' ? 
+                <LockOutlinedIcon fontSize="inherit" /> : 
+                <LockOpenOutlinedIcon fontSize="inherit" />
+              }
+              sx={{ 
+                borderRadius: 2,
+                border: '1px solid',
+                borderColor: selectedItemForToggle?.status === 'active' ? '#fbbf24' : '#3b82f6',
+                bgcolor: selectedItemForToggle?.status === 'active' ? '#fffbeb' : '#eff6ff',
+                '& .MuiAlert-icon': {
+                  fontSize: '1.25rem',
+                },
+              }}
             >
-              <Typography variant="body2">
+              <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.875rem' }}>
                 {selectedItemForToggle?.status === 'active' ? (
                   <>
                     Sản phẩm/Dịch vụ sẽ <strong>không thể được chọn</strong> khi tạo hóa đơn mới sau khi bị vô hiệu hóa.
@@ -823,37 +938,76 @@ const ItemsManagement = () => {
             </Alert>
           </DialogContent>
 
-          <Divider />
+          <Divider sx={{ borderColor: '#e8ecef' }} />
 
-          <DialogActions sx={{ p: 3, gap: 1 }}>
+          <DialogActions sx={{ p: 3, gap: 1.5, bgcolor: '#fafbfc' }}>
             <Button
               onClick={handleCloseConfirmModal}
+              disabled={saving}
+              variant="outlined"
               color="inherit"
               sx={{
-                textTransform: 'none',
+                minWidth: 90,
+                height: 38,
                 borderRadius: 2,
-                px: 3,
+                textTransform: 'none',
+                fontSize: '0.9375rem',
+                fontWeight: 600,
+                color: '#6c757d',
+                borderColor: '#dee2e6',
+                borderWidth: '1.5px',
+                '&:hover': {
+                  borderColor: '#adb5bd',
+                  borderWidth: '1.5px',
+                  backgroundColor: '#e9ecef',
+                },
+                '&:disabled': {
+                  borderColor: '#e9ecef',
+                  color: '#adb5bd',
+                },
               }}
             >
               Hủy
             </Button>
+            <Box sx={{ flex: 1 }} />
             <Button
               onClick={handleConfirmToggleStatus}
               variant="contained"
-              color={selectedItemForToggle?.status === 'active' ? 'error' : 'success'}
               disabled={saving}
               startIcon={
-                selectedItemForToggle?.status === 'active' ? 
-                <LockOutlinedIcon /> : 
-                <LockOpenOutlinedIcon />
+                saving ? (
+                  <CircularProgress size={18} sx={{ color: 'white' }} />
+                ) : selectedItemForToggle?.status === 'active' ? (
+                  <LockOutlinedIcon sx={{ fontSize: 20 }} />
+                ) : (
+                  <LockOpenOutlinedIcon sx={{ fontSize: 20 }} />
+                )
               }
               sx={{
-                textTransform: 'none',
+                minWidth: 140,
+                height: 38,
                 borderRadius: 2,
-                px: 3,
-                boxShadow: 2,
+                textTransform: 'none',
+                fontSize: '0.9375rem',
+                fontWeight: 600,
+                background: selectedItemForToggle?.status === 'active'
+                  ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)'
+                  : 'linear-gradient(135deg, #1c84ee 0%, #0d6efd 100%)',
+                boxShadow: selectedItemForToggle?.status === 'active' 
+                  ? '0 4px 12px rgba(251, 191, 36, 0.3)' 
+                  : '0 4px 12px rgba(28, 132, 238, 0.3)',
                 '&:hover': {
-                  boxShadow: 4,
+                  background: selectedItemForToggle?.status === 'active'
+                    ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                    : 'linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%)',
+                  boxShadow: selectedItemForToggle?.status === 'active' 
+                    ? '0 6px 16px rgba(251, 191, 36, 0.4)' 
+                    : '0 6px 16px rgba(28, 132, 238, 0.4)',
+                },
+                '&:disabled': {
+                  background: '#e9ecef',
+                  color: '#adb5bd',
+                  boxShadow: 'none',
                 },
               }}
             >
