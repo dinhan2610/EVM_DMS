@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   Box,
   Typography,
@@ -26,6 +26,7 @@ import {
   Snackbar,
   useTheme,
   useMediaQuery,
+  CircularProgress,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import AddIcon from '@mui/icons-material/Add'
@@ -37,90 +38,45 @@ import PersonAddOutlinedIcon from '@mui/icons-material/PersonAddOutlined'
 import VpnKeyOutlinedIcon from '@mui/icons-material/VpnKeyOutlined'
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined'
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined'
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
+import userService, { UserApiResponse } from '@/services/userService'
 
-// Interface: User
+// Interface: User (mapped from API)
 export interface User {
-  id: string
+  id: number
   fullName: string
   email: string
-  role: 'Admin' | 'Accountant' | 'PM'
+  phoneNumber: string
+  role: string
   status: 'Active' | 'Inactive'
   joinDate: string
 }
 
-// Mock Data
-const mockUsers: User[] = [
-  {
-    id: '1',
-    fullName: 'Nguyễn Văn An',
-    email: 'an.nguyen@company.com',
-    role: 'Admin',
-    status: 'Active',
-    joinDate: '2023-01-15',
-  },
-  {
-    id: '2',
-    fullName: 'Trần Thị Bình',
-    email: 'binh.tran@company.com',
-    role: 'Accountant',
-    status: 'Active',
-    joinDate: '2023-03-20',
-  },
-  {
-    id: '3',
-    fullName: 'Lê Hoàng Cường',
-    email: 'cuong.le@company.com',
-    role: 'PM',
-    status: 'Active',
-    joinDate: '2023-05-10',
-  },
-  {
-    id: '4',
-    fullName: 'Phạm Mai Dung',
-    email: 'dung.pham@company.com',
-    role: 'Accountant',
-    status: 'Inactive',
-    joinDate: '2023-07-05',
-  },
-  {
-    id: '5',
-    fullName: 'Vũ Quang Hải',
-    email: 'hai.vu@company.com',
-    role: 'PM',
-    status: 'Active',
-    joinDate: '2023-09-12',
-  },
-  {
-    id: '6',
-    fullName: 'Đỗ Thị Lan',
-    email: 'lan.do@company.com',
-    role: 'Accountant',
-    status: 'Active',
-    joinDate: '2023-11-01',
-  },
-  {
-    id: '7',
-    fullName: 'Bùi Minh Tuấn',
-    email: 'tuan.bui@company.com',
-    role: 'Admin',
-    status: 'Active',
-    joinDate: '2024-01-18',
-  },
-  {
-    id: '8',
-    fullName: 'Hoàng Thu Hà',
-    email: 'ha.hoang@company.com',
-    role: 'PM',
-    status: 'Inactive',
-    joinDate: '2024-03-25',
-  },
-]
+// Helper function to map API response to User interface
+const mapApiResponseToUser = (apiUser: UserApiResponse): User => ({
+  id: apiUser.userID,
+  fullName: apiUser.fullName,
+  email: apiUser.email,
+  phoneNumber: apiUser.phoneNumber,
+  role: apiUser.roleName,
+  status: apiUser.isActive ? 'Active' : 'Inactive',
+  joinDate: new Date(apiUser.createdAt).toISOString().split('T')[0],
+})
 
 // Initial Form State
-const initialFormState: Omit<User, 'id' | 'joinDate'> = {
+interface UserFormData {
+  fullName: string
+  email: string
+  phoneNumber: string
+  role: string
+  status: 'Active' | 'Inactive'
+}
+
+const initialFormState: UserFormData = {
   fullName: '',
   email: '',
-  role: 'Accountant',
+  phoneNumber: '',
+  role: 'Accountant', // Mặc định: Kế toán (backend role)
   status: 'Active',
 }
 
@@ -130,10 +86,12 @@ const UserManagement = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
   // State
-  const [users, setUsers] = useState<User[]>(mockUsers)
+  const [users, setUsers] = useState<User[]>([])
+  const [loading, setLoading] = useState(false)
+  const [actionLoading, setActionLoading] = useState(false) // ✅ Loading riêng cho actions
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
-  const [formData, setFormData] = useState<Omit<User, 'id' | 'joinDate'>>(initialFormState)
+  const [formData, setFormData] = useState<UserFormData>(initialFormState)
   const [sendInviteEmail, setSendInviteEmail] = useState(true)
 
   // Reset Password States
@@ -143,6 +101,12 @@ const UserManagement = () => {
   // Toggle Status Modal States
   const [confirmToggleModalOpen, setConfirmToggleModalOpen] = useState(false)
   const [selectedUserForToggle, setSelectedUserForToggle] = useState<User | null>(null)
+  const [deactivationReason, setDeactivationReason] = useState('')
+
+  // User Detail Modal States
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
+  const [selectedUserDetail, setSelectedUserDetail] = useState<UserApiResponse | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState('')
@@ -160,17 +124,66 @@ const UserManagement = () => {
     severity: 'success',
   })
 
-  // Filtered Data
+  // Fetch users from API - Smart filtering based on status
+  const fetchUsers = React.useCallback(async () => {
+    setLoading(true)
+    try {
+      let response
+      
+      // ✅ Smart API call based on filter
+      switch (statusFilter) {
+        case 'active':
+          response = await userService.getActiveUsers(1, 100)
+          break
+        case 'inactive':
+          response = await userService.getInactiveUsers(1, 100)
+          break
+        default:
+          response = await userService.getUsers(1, 100)
+      }
+      
+      const mappedUsers = response.items.map(mapApiResponseToUser)
+      setUsers(mappedUsers)
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Không thể tải danh sách người dùng',
+        severity: 'error',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [statusFilter])
+
+  // ✅ Re-fetch when status filter changes
+  useEffect(() => {
+    fetchUsers()
+  }, [fetchUsers])
+
+  // Filtered Data - Chỉ filter theo search và role (status đã được filter bởi API)
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
       const matchesSearch =
         user.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         user.email.toLowerCase().includes(searchQuery.toLowerCase())
-      const matchesRole = roleFilter === 'all' || user.role === roleFilter
-      const matchesStatus = statusFilter === 'all' || user.status === statusFilter
-      return matchesSearch && matchesRole && matchesStatus
+      
+      // Filter by role - sử dụng backend role names
+      let matchesRole = roleFilter === 'all'
+      if (!matchesRole) {
+        const userRoleLower = user.role.toLowerCase()
+        if (roleFilter === 'HOD') {
+          matchesRole = userRoleLower === 'hod'
+        } else if (roleFilter === 'Accountant') {
+          matchesRole = userRoleLower === 'accountant'
+        } else if (roleFilter === 'Staff') {
+          matchesRole = userRoleLower === 'staff'
+        }
+      }
+      
+      // ✅ Không cần filter status nữa vì API đã filter rồi
+      return matchesSearch && matchesRole
     })
-  }, [users, searchQuery, roleFilter, statusFilter])
+  }, [users, searchQuery, roleFilter])
 
   // Handlers
   const handleOpenModal = (user?: User) => {
@@ -179,6 +192,7 @@ const UserManagement = () => {
       setFormData({
         fullName: user.fullName,
         email: user.email,
+        phoneNumber: user.phoneNumber,
         role: user.role,
         status: user.status,
       })
@@ -187,6 +201,7 @@ const UserManagement = () => {
       setFormData(initialFormState)
       setSendInviteEmail(true)
     }
+    setActionLoading(false) // ✅ Reset loading state khi mở modal
     setIsModalOpen(true)
   }
 
@@ -195,11 +210,12 @@ const UserManagement = () => {
     setEditingUser(null)
     setFormData(initialFormState)
     setSendInviteEmail(true)
+    setActionLoading(false) // ✅ Reset loading state khi đóng modal
   }
 
-  const handleSaveUser = () => {
+  const handleSaveUser = async () => {
     // Validation
-    if (!formData.fullName.trim() || !formData.email.trim()) {
+    if (!formData.fullName.trim() || !formData.email.trim() || !formData.phoneNumber.trim()) {
       setSnackbar({
         open: true,
         message: 'Vui lòng điền đầy đủ thông tin bắt buộc!',
@@ -219,44 +235,69 @@ const UserManagement = () => {
       return
     }
 
-    if (editingUser) {
-      // Update existing user
-      setUsers((prev) =>
-        prev.map((user) =>
-          user.id === editingUser.id
-            ? { ...user, ...formData }
-            : user
-        )
-      )
+    // Phone validation (basic)
+    const phoneRegex = /^[0-9]{10,11}$/
+    if (!phoneRegex.test(formData.phoneNumber.replace(/\s/g, ''))) {
       setSnackbar({
         open: true,
-        message: `Cập nhật người dùng "${formData.fullName}" thành công!`,
-        severity: 'success',
+        message: 'Số điện thoại không hợp lệ! (10-11 số)',
+        severity: 'error',
       })
-    } else {
-      // Add new user
-      const newUser: User = {
-        id: (users.length + 1).toString(),
-        ...formData,
-        joinDate: new Date().toISOString().split('T')[0],
-      }
-      setUsers((prev) => [...prev, newUser])
-      setSnackbar({
-        open: true,
-        message: sendInviteEmail
-          ? `Thêm người dùng "${formData.fullName}" thành công! Email mời đã được gửi.`
-          : `Thêm người dùng "${formData.fullName}" thành công!`,
-        severity: 'success',
-      })
+      return
     }
 
-    handleCloseModal()
+    setActionLoading(true) // ✅ Chỉ loading action, không block UI
+    try {
+      if (editingUser) {
+        // Note: API doesn't support update, so we handle status change separately
+        setSnackbar({
+          open: true,
+          message: 'Chức năng cập nhật thông tin người dùng chưa được hỗ trợ',
+          severity: 'info',
+        })
+      } else {
+        // Create new user
+        const createData = {
+          fullName: formData.fullName,
+          email: formData.email,
+          phoneNumber: formData.phoneNumber,
+          roleName: formData.role,
+        }
+        
+        // ✅ Call API và nhận response
+        const newUserResponse = await userService.createUser(createData)
+        
+        // ✅ OPTIMISTIC UPDATE: Thêm user mới vào list ngay (không cần fetch lại)
+        const newUser: User = mapApiResponseToUser(newUserResponse)
+        setUsers((prev) => [...prev, newUser])
+        
+        setSnackbar({
+          open: true,
+          message: sendInviteEmail
+            ? `Thêm người dùng "${formData.fullName}" thành công! Email mời đã được gửi.`
+            : `Thêm người dùng "${formData.fullName}" thành công!`,
+          severity: 'success',
+        })
+      }
+
+      handleCloseModal()
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Không thể lưu người dùng',
+        severity: 'error',
+      })
+    } finally {
+      setActionLoading(false)
+    }
   }
 
-  const handleToggleStatus = (userId: string) => {
+  const handleToggleStatus = (userId: number) => {
     const user = users.find((u) => u.id === userId)
     if (user) {
       setSelectedUserForToggle(user)
+      setDeactivationReason('')
+      setActionLoading(false) // ✅ Reset loading state khi mở modal
       setConfirmToggleModalOpen(true)
     }
   }
@@ -264,33 +305,107 @@ const UserManagement = () => {
   const handleCloseToggleModal = () => {
     setConfirmToggleModalOpen(false)
     setSelectedUserForToggle(null)
+    setDeactivationReason('')
+    setActionLoading(false) // ✅ Reset loading state khi đóng modal
   }
 
-  const handleConfirmToggleStatus = () => {
+  // ✅ Handle View User Detail
+  const handleViewDetail = async (userId: number) => {
+    setIsDetailModalOpen(true)
+    setDetailLoading(true)
+    try {
+      const userDetail = await userService.getUserDetail(userId)
+      setSelectedUserDetail(userDetail)
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Không thể tải thông tin người dùng',
+        severity: 'error',
+      })
+      setIsDetailModalOpen(false)
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  const handleCloseDetailModal = () => {
+    setIsDetailModalOpen(false)
+    setSelectedUserDetail(null)
+  }
+
+  const handleConfirmToggleStatus = async () => {
     if (!selectedUserForToggle) return
 
+    // Validate deactivation reason if deactivating
+    if (selectedUserForToggle.status === 'Active' && !deactivationReason.trim()) {
+      setSnackbar({
+        open: true,
+        message: 'Vui lòng nhập lý do khóa tài khoản!',
+        severity: 'error',
+      })
+      return
+    }
+
+    setActionLoading(true)
+    
+    // ✅ OPTIMISTIC UPDATE: Cập nhật UI ngay lập tức
+    const newStatus: 'Active' | 'Inactive' = selectedUserForToggle.status === 'Active' ? 'Inactive' : 'Active'
+    const previousUsers = [...users] // Backup để rollback nếu lỗi
+    const userToToggle = selectedUserForToggle // Save reference
+    const reasonToSave = deactivationReason // Save reason
+    
+    // Cập nhật UI ngay (optimistic)
     setUsers((prev) =>
       prev.map((user) =>
-        user.id === selectedUserForToggle.id
-          ? {
-              ...user,
-              status: user.status === 'Active' ? 'Inactive' : 'Active',
-            }
+        user.id === userToToggle.id
+          ? { ...user, status: newStatus }
           : user
       )
     )
-
-    const newStatus = selectedUserForToggle.status === 'Active' ? 'Inactive' : 'Active'
-    setSnackbar({
-      open: true,
-      message: `Đã ${newStatus === 'Active' ? 'kích hoạt' : 'vô hiệu hóa'} tài khoản "${selectedUserForToggle.fullName}"`,
-      severity: 'info',
-    })
-
-    handleCloseToggleModal()
+    
+    try {
+      if (userToToggle.status === 'Active') {
+        // Deactivate user
+        await userService.deactivateUser(userToToggle.id, reasonToSave)
+        setSnackbar({
+          open: true,
+          message: `Đã vô hiệu hóa tài khoản "${userToToggle.fullName}"`,
+          severity: 'info',
+        })
+      } else {
+        // Activate user
+        await userService.activateUser(userToToggle.id)
+        setSnackbar({
+          open: true,
+          message: `Đã kích hoạt tài khoản "${userToToggle.fullName}"`,
+          severity: 'success',
+        })
+      }
+      
+      // ✅ API thành công - Đóng modal với flushSync để force immediate update
+      setActionLoading(false)
+      
+      // Use setTimeout to ensure state updates are flushed
+      setTimeout(() => {
+        setConfirmToggleModalOpen(false)
+        setSelectedUserForToggle(null)
+        setDeactivationReason('')
+      }, 0)
+      
+    } catch (error) {
+      // ❌ ROLLBACK: Khôi phục lại state cũ nếu API fail
+      setUsers(previousUsers)
+      setActionLoading(false)
+      
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Không thể thay đổi trạng thái người dùng',
+        severity: 'error',
+      })
+    }
   }
 
-  const handleFormChange = (field: keyof typeof formData, value: string) => {
+  const handleFormChange = (field: keyof UserFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
@@ -320,6 +435,30 @@ const UserManagement = () => {
     handleCloseResetModal()
   }
 
+  // Helper function to get role color (Tối ưu cho 3 vai trò - Backend roles)
+  const getRoleColor = (role: string): 'error' | 'success' | 'info' => {
+    const roleLower = role.toLowerCase()
+    // HOD (Kế toán trưởng) - Màu đỏ (cao nhất)
+    if (roleLower === 'hod' || roleLower.includes('trưởng')) return 'error'
+    // Accountant (Kế toán) - Màu xanh lá
+    if (roleLower === 'accountant' || roleLower === 'kế toán') return 'success'
+    // Staff (Nhân viên bán hàng) - Màu xanh dương
+    if (roleLower === 'staff' || roleLower.includes('bán hàng')) return 'info'
+    // Default
+    return 'success'
+  }
+
+  // Helper function to get role label (Tối ưu cho 3 vai trò - Backend roles)
+  const getRoleLabel = (role: string): string => {
+    const roleLower = role.toLowerCase()
+    // Mapping các tên role từ API sang tiếng Việt
+    if (roleLower === 'hod') return 'Kế toán trưởng'
+    if (roleLower === 'accountant') return 'Kế toán'
+    if (roleLower === 'staff') return 'Nhân viên bán hàng'
+    // Trả về role gốc nếu không match
+    return role
+  }
+
   // DataGrid Columns
   const columns: GridColDef[] = [
     {
@@ -335,24 +474,19 @@ const UserManagement = () => {
       minWidth: 220,
     },
     {
+      field: 'phoneNumber',
+      headerName: 'Số điện thoại',
+      width: 130,
+    },
+    {
       field: 'role',
       headerName: 'Vai trò',
       width: 140,
       renderCell: (params: GridRenderCellParams<User>) => {
-        const roleColors: Record<User['role'], 'error' | 'success' | 'info'> = {
-          Admin: 'error',
-          Accountant: 'success',
-          PM: 'info',
-        }
-        const roleLabels: Record<User['role'], string> = {
-          Admin: 'Quản trị viên',
-          Accountant: 'Kế toán',
-          PM: 'PM/Sales',
-        }
         return (
           <Chip
-            label={roleLabels[params.row.role]}
-            color={roleColors[params.row.role]}
+            label={getRoleLabel(params.row.role)}
+            color={getRoleColor(params.row.role)}
             size="small"
             sx={{ fontWeight: 500 }}
           />
@@ -390,13 +524,23 @@ const UserManagement = () => {
       field: 'actions',
       headerName: 'Hành động',
       type: 'actions',
-      width: 150,
+      width: 200,
       getActions: (params) => [
+        <Tooltip title="Xem chi tiết" key="view">
+          <IconButton
+            size="small"
+            color="info"
+            onClick={() => handleViewDetail(params.row.id)}
+          >
+            <VisibilityOutlinedIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>,
         <Tooltip title="Chỉnh sửa" key="edit">
           <IconButton
             size="small"
             color="primary"
             onClick={() => handleOpenModal(params.row)}
+            disabled
           >
             <EditOutlinedIcon fontSize="small" />
           </IconButton>
@@ -406,6 +550,7 @@ const UserManagement = () => {
             size="small"
             color="warning"
             onClick={() => handleOpenResetModal(params.row)}
+            disabled
           >
             <VpnKeyOutlinedIcon fontSize="small" />
           </IconButton>
@@ -503,9 +648,9 @@ const UserManagement = () => {
                 sx={{ borderRadius: 2 }}
               >
                 <MenuItem value="all">Tất cả vai trò</MenuItem>
-                <MenuItem value="Admin">Quản trị viên</MenuItem>
+                <MenuItem value="HOD">Kế toán trưởng</MenuItem>
                 <MenuItem value="Accountant">Kế toán</MenuItem>
-                <MenuItem value="PM">PM/Sales</MenuItem>
+                <MenuItem value="Staff">Nhân viên bán hàng</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -533,13 +678,34 @@ const UserManagement = () => {
             borderRadius: 2,
             overflow: 'hidden',
             boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            position: 'relative',
           }}
         >
+          {/* ✅ Chỉ hiển thị loading khi fetch initial data */}
+          {loading && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                zIndex: 1000,
+              }}
+            >
+              <CircularProgress />
+            </Box>
+          )}
           <DataGrid
             rows={filteredUsers}
             columns={columns}
             autoHeight
             disableRowSelectionOnClick
+            loading={loading} // ✅ Chỉ loading khi fetch
             initialState={{
               pagination: {
                 paginationModel: { pageSize: 10 },
@@ -653,6 +819,27 @@ const UserManagement = () => {
               </Grid>
 
               <Grid size={{ xs: 12 }}>
+                <TextField
+                  fullWidth
+                  label="Số điện thoại"
+                  type="tel"
+                  size="small"
+                  margin="dense"
+                  required
+                  value={formData.phoneNumber}
+                  onChange={(e) => handleFormChange('phoneNumber', e.target.value)}
+                  placeholder="0123456789"
+                  disabled={!!editingUser}
+                  helperText={editingUser ? 'Số điện thoại không thể thay đổi sau khi tạo' : 'Nhập 10-11 số'}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                    },
+                  }}
+                />
+              </Grid>
+
+              <Grid size={{ xs: 12 }}>
                 <FormControl fullWidth required size="small" margin="dense">
                   <InputLabel>Vai trò</InputLabel>
                   <Select
@@ -661,33 +848,33 @@ const UserManagement = () => {
                     onChange={(e) => handleFormChange('role', e.target.value)}
                     sx={{ borderRadius: 2 }}
                   >
-                    <MenuItem value="Admin">
+                    <MenuItem value="HOD">
                       <Box>
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          Admin
+                          Kế toán trưởng
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Quản trị viên - Toàn quyền hệ thống
+                          Quản lý toàn bộ hoạt động kế toán và tài chính
                         </Typography>
                       </Box>
                     </MenuItem>
                     <MenuItem value="Accountant">
                       <Box>
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          Accountant
+                          Kế toán
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Kế toán - Quản lý hoá đơn
+                          Quản lý và xử lý hoá đơn, chứng từ kế toán
                         </Typography>
                       </Box>
                     </MenuItem>
-                    <MenuItem value="PM">
+                    <MenuItem value="Staff">
                       <Box>
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          PM
+                          Nhân viên bán hàng
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Project Manager/Sales - Quản lý dự án
+                          Tạo yêu cầu xuất hoá đơn và theo dõi đơn hàng
                         </Typography>
                       </Box>
                     </MenuItem>
@@ -789,6 +976,8 @@ const UserManagement = () => {
             <Button
               onClick={handleSaveUser}
               variant="contained"
+              disabled={actionLoading}
+              startIcon={actionLoading ? <CircularProgress size={16} color="inherit" /> : null}
               sx={{
                 textTransform: 'none',
                 borderRadius: 2,
@@ -799,7 +988,243 @@ const UserManagement = () => {
                 },
               }}
             >
-              {editingUser ? 'Cập nhật' : 'Thêm mới'}
+              {actionLoading ? 'Đang xử lý...' : (editingUser ? 'Cập nhật' : 'Thêm mới')}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* User Detail Modal */}
+        <Dialog
+          open={isDetailModalOpen}
+          onClose={handleCloseDetailModal}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 3,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            },
+          }}
+        >
+          <DialogTitle
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              fontWeight: 600,
+              p: 3,
+              bgcolor: 'primary.lighter',
+            }}
+          >
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 48,
+                height: 48,
+                borderRadius: '50%',
+                bgcolor: 'primary.main',
+                color: 'white',
+              }}
+            >
+              <VisibilityOutlinedIcon sx={{ fontSize: 28 }} />
+            </Box>
+            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
+              Thông tin chi tiết người dùng
+            </Typography>
+          </DialogTitle>
+
+          <Divider />
+
+          <DialogContent sx={{ p: 3 }}>
+            {detailLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 5 }}>
+                <CircularProgress />
+              </Box>
+            ) : selectedUserDetail ? (
+              <Grid container spacing={3}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 2.5,
+                      bgcolor: 'grey.50',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, mb: 1, display: 'block' }}>
+                      ID Người dùng
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 600, fontFamily: 'monospace', color: 'primary.main' }}>
+                      #{selectedUserDetail.userID}
+                    </Typography>
+                  </Paper>
+                </Grid>
+
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 2.5,
+                      bgcolor: 'grey.50',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, mb: 1, display: 'block' }}>
+                      Trạng thái
+                    </Typography>
+                    <Chip
+                      label={selectedUserDetail.isActive ? 'Hoạt động' : 'Vô hiệu'}
+                      color={selectedUserDetail.isActive ? 'success' : 'default'}
+                      size="medium"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </Paper>
+                </Grid>
+
+                <Grid size={{ xs: 12 }}>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 2.5,
+                      bgcolor: 'grey.50',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, mb: 1, display: 'block' }}>
+                      Họ và Tên
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>
+                      {selectedUserDetail.fullName}
+                    </Typography>
+                  </Paper>
+                </Grid>
+
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 2.5,
+                      bgcolor: 'grey.50',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, mb: 1, display: 'block' }}>
+                      Email
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontFamily: 'monospace', color: 'primary.main', wordBreak: 'break-all' }}>
+                      {selectedUserDetail.email}
+                    </Typography>
+                  </Paper>
+                </Grid>
+
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 2.5,
+                      bgcolor: 'grey.50',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, mb: 1, display: 'block' }}>
+                      Số điện thoại
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
+                      {selectedUserDetail.phoneNumber}
+                    </Typography>
+                  </Paper>
+                </Grid>
+
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 2.5,
+                      bgcolor: 'grey.50',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, mb: 1, display: 'block' }}>
+                      Vai trò
+                    </Typography>
+                    <Chip
+                      label={
+                        selectedUserDetail.roleName === 'HOD' 
+                          ? 'Kế toán trưởng' 
+                          : selectedUserDetail.roleName === 'Accountant' 
+                          ? 'Kế toán' 
+                          : 'Nhân viên bán hàng'
+                      }
+                      color={
+                        selectedUserDetail.roleName === 'HOD' 
+                          ? 'error' 
+                          : selectedUserDetail.roleName === 'Accountant' 
+                          ? 'success' 
+                          : 'info'
+                      }
+                      size="medium"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </Paper>
+                </Grid>
+
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 2.5,
+                      bgcolor: 'grey.50',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, mb: 1, display: 'block' }}>
+                      Ngày tham gia
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {new Date(selectedUserDetail.createdAt).toLocaleString('vi-VN', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </Typography>
+                  </Paper>
+                </Grid>
+              </Grid>
+            ) : null}
+          </DialogContent>
+
+          <Divider />
+
+          <DialogActions sx={{ p: 3 }}>
+            <Button
+              onClick={handleCloseDetailModal}
+              variant="contained"
+              color="primary"
+              sx={{
+                textTransform: 'none',
+                borderRadius: 2,
+                px: 4,
+              }}
+            >
+              Đóng
             </Button>
           </DialogActions>
         </Dialog>
@@ -962,7 +1387,8 @@ const UserManagement = () => {
         {/* Toggle Status Confirmation Dialog */}
         <Dialog
           open={confirmToggleModalOpen}
-          onClose={handleCloseToggleModal}
+          onClose={actionLoading ? undefined : handleCloseToggleModal}
+          disableEscapeKeyDown={actionLoading}
           maxWidth="sm"
           fullWidth
           PaperProps={{
@@ -1089,6 +1515,29 @@ const UserManagement = () => {
                 )}
               </Typography>
             </Alert>
+
+            {/* Admin Notes Field - Only show when deactivating */}
+            {selectedUserForToggle?.status === 'Active' && (
+              <Box sx={{ mt: 2.5 }}>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  label="Lý do khóa tài khoản"
+                  placeholder="Nhập lý do vô hiệu hóa tài khoản (bắt buộc)..."
+                  value={deactivationReason}
+                  onChange={(e) => setDeactivationReason(e.target.value)}
+                  required
+                  error={!deactivationReason.trim() && deactivationReason !== ''}
+                  helperText="Vui lòng nhập lý do để tiếp tục"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                    },
+                  }}
+                />
+              </Box>
+            )}
           </DialogContent>
 
           <Divider />
@@ -1109,7 +1558,9 @@ const UserManagement = () => {
               onClick={handleConfirmToggleStatus}
               variant="contained"
               color={selectedUserForToggle?.status === 'Active' ? 'error' : 'success'}
+              disabled={actionLoading}
               startIcon={
+                actionLoading ? <CircularProgress size={16} color="inherit" /> :
                 selectedUserForToggle?.status === 'Active' ? 
                 <LockOutlinedIcon /> : 
                 <LockOpenOutlinedIcon />
@@ -1124,7 +1575,7 @@ const UserManagement = () => {
                 },
               }}
             >
-              {selectedUserForToggle?.status === 'Active' ? 'Vô hiệu hóa' : 'Kích hoạt'}
+              {actionLoading ? 'Đang xử lý...' : (selectedUserForToggle?.status === 'Active' ? 'Vô hiệu hóa' : 'Kích hoạt')}
             </Button>
           </DialogActions>
         </Dialog>

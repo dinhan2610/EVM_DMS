@@ -9,6 +9,15 @@ export const API_CONFIG = {
       LOGIN: '/Auth/login',
       LOGOUT: '/Auth/logout',
       REFRESH: '/Auth/refresh',
+      REGISTER: '/Auth/register',
+    },
+    USER: {
+      USERS: '/User/users',
+      ACTIVE_USERS: '/User/active',
+      INACTIVE_USERS: '/User/inactive',
+      USER_DETAIL: (userId: number) => `/User/${userId}`,
+      ACTIVATE: (userId: number) => `/User/admin/${userId}/active`,
+      DEACTIVATE: (userId: number) => `/User/admin/${userId}/inactive`,
     },
   },
   
