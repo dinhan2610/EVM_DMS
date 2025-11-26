@@ -4,6 +4,11 @@ import API_CONFIG from '@/config/api.config'
 // Get token from localStorage
 const getAuthHeaders = () => {
   const token = localStorage.getItem(API_CONFIG.TOKEN_KEY)
+  
+  if (!token) {
+    throw new Error('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại')
+  }
+  
   return {
     'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json',
@@ -69,7 +74,16 @@ const handleApiError = (error: unknown): string => {
           }
           return data?.message || data?.error || 'Dữ liệu không hợp lệ'
         case 401:
-          return 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại'
+          // Clear invalid token and redirect to login
+          localStorage.removeItem(API_CONFIG.TOKEN_KEY)
+          localStorage.removeItem(API_CONFIG.REFRESH_TOKEN_KEY)
+          
+          // Redirect to login after a short delay
+          setTimeout(() => {
+            window.location.href = '/auth/sign-in'
+          }, 1500)
+          
+          return 'Phiên đăng nhập hết hạn. Đang chuyển về trang đăng nhập...'
         case 403:
           return 'Bạn không có quyền thực hiện thao tác này'
         case 404:

@@ -124,6 +124,21 @@ const UserManagement = () => {
     severity: 'success',
   })
 
+  // ✅ Check authentication on mount
+  useEffect(() => {
+    const token = localStorage.getItem('eims_access_token')
+    if (!token) {
+      setSnackbar({
+        open: true,
+        message: 'Vui lòng đăng nhập để tiếp tục',
+        severity: 'error',
+      })
+      setTimeout(() => {
+        window.location.href = '/auth/sign-in'
+      }, 1500)
+    }
+  }, [])
+
   // Fetch users from API - Smart filtering based on status
   const fetchUsers = React.useCallback(async () => {
     setLoading(true)
