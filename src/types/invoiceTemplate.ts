@@ -2,10 +2,9 @@
  * Centralized Type Definitions for Invoice Template System
  * 
  * This file contains all shared interfaces and types used across:
- * - InvoiceTemplatePreview.tsx
- * - InvoiceTemplatePrint.tsx
+ * - InvoiceTemplatePreview.tsx (unified component for preview & print)
  * - TemplateEditor.tsx
- * - TemplatePreview.tsx
+ * - TemplatePreviewPage.tsx
  * 
  * Benefits:
  * - Single source of truth for all template-related types
@@ -24,8 +23,8 @@ export interface ProductItem {
   name: string;
   unit: string;
   quantity: number;
-  price: number;
-  total: number;
+  unitPrice: number; // Changed from 'price' to 'unitPrice' for clarity
+  total?: number; // Optional, can be calculated from quantity * unitPrice
 }
 
 /**
@@ -108,11 +107,12 @@ export interface InvoiceSymbol {
 // ==================== COMPONENT PROPS ====================
 
 /**
- * Props for InvoiceTemplatePreview component
+ * Props for InvoiceTemplatePreview component (unified for both preview and print)
  */
 export interface InvoiceTemplatePreviewProps {
   config: TemplateConfigProps;
   visibility?: TemplateVisibility;
+  products?: ProductItem[]; // NEW: Support actual product data
   blankRows?: number;
   backgroundFrame?: string;
   bilingual?: boolean;
@@ -123,19 +123,8 @@ export interface InvoiceTemplatePreviewProps {
   customerVisibility?: CustomerVisibility;
 }
 
-/**
- * Props for InvoiceTemplatePrint component (extends preview with products)
- */
-export interface InvoiceTemplatePrintProps {
-  config: TemplateConfigProps;
-  visibility?: TemplateVisibility;
-  products?: ProductItem[];
-  blankRows?: number;
-  backgroundFrame?: string;
-  invoiceType?: 'withCode' | 'withoutCode';
-  symbol?: InvoiceSymbol;
-  customerVisibility?: CustomerVisibility;
-}
+// NOTE: InvoiceTemplatePrintProps has been removed.
+// We now use InvoiceTemplatePreview for both preview and print functionality.
 
 // ==================== CUSTOMER & INVOICE DETAILS ====================
 

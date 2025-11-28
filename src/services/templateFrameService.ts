@@ -19,6 +19,7 @@ export interface TemplateFrameApiResponse {
  */
 export interface TemplateFrame {
   id: number
+  frameID: number // Original ID from API (same as id)
   name: string
   imageUrl: string
   imagePath: string // For backward compatibility with existing code
@@ -162,6 +163,7 @@ const mapApiResponseToTemplateFrame = (apiFrame: TemplateFrameApiResponse): Temp
 
   return {
     id: apiFrame.frameID,
+    frameID: apiFrame.frameID, // Keep original frameID for API calls
     name: apiFrame.frameName,
     imageUrl: cleanImageUrl,
     imagePath: cleanImageUrl, // For backward compatibility

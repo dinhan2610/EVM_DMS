@@ -316,13 +316,16 @@ export const areAllItemsValid = (items: InvoiceItem[]): boolean => {
  * // { stt: 1, name: 'Product A', unit: '', quantity: 2, price: 1000, total: 2000 }
  */
 export const convertToProductItem = (item: InvoiceItem, stt: number): ProductItem => {
+  const unitPrice = item.unitPrice || item.price || 0;
+  const quantity = item.quantity || 0;
+  
   return {
     stt,
     name: item.name || item.description || '',
     unit: item.unit || '',
-    quantity: item.quantity || 0,
-    price: item.unitPrice || item.price || 0,
-    total: item.total || 0,
+    quantity,
+    unitPrice,
+    total: item.total || (quantity * unitPrice),
   };
 };
 

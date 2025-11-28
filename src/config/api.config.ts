@@ -28,6 +28,16 @@ export const API_CONFIG = {
       SERIAL_STATUS: '/SerialStatus',
       INVOICE_TYPE: '/InvoiceType',
     },
+    SERIAL: {
+      CREATE: '/Serial',
+      GET_ALL: '/Serial',
+    },
+    TEMPLATE: {
+      CREATE: '/InvoiceTemplate',
+      GET_ALL: '/InvoiceTemplate',
+      GET_BY_ID: (id: number) => `/InvoiceTemplate/${id}`,
+      UPDATE: (id: number) => `/InvoiceTemplate/${id}`,
+    },
   },
   
   HTTP_STATUS: {

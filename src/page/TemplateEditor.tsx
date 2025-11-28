@@ -55,6 +55,7 @@ import invoiceSymbolService, {
   SerialStatusApiResponse, 
   InvoiceTypeApiResponse 
 } from '@/services/invoiceSymbolService'
+import templateService from '@/services/templateService'
 import API_CONFIG from '@/config/api.config'
 
 // Interface cũ - tương thích với InvoiceTemplatePreview
@@ -446,22 +447,164 @@ const TemplateEditor: React.FC = () => {
     setLoading(true)
     setIsSaving(true)
     try {
-      const data = {
-        ...config,
-        ...state,
-        visibility,
-        blankRows,
+      console.log('=== STEP 1: Creating Serial ===')
+      // Step 1: Create Serial (Mã số hóa đơn)
+      const serialData = {
+        prefixID: parseInt(state.symbol.invoiceType) || 1,
+        serialStatusID: serialStatuses.find(s => s.symbol === state.symbol.taxCode)?.serialStatusID || (state.symbol.taxCode === 'C' ? 1 : 2),
+        year: state.symbol.year,
+        invoiceTypeID: invoiceTypes.find(t => t.symbol === state.symbol.invoiceForm)?.invoiceTypeID || 1,
+        tail: state.symbol.management,
       }
-      console.log('Saving:', data)
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      console.log('Serial Data:', serialData)
+      
+      const serialResponse = await templateService.createSerial(serialData)
+      console.log('Serial Response:', serialResponse)
+      
+      console.log('=== STEP 2: Processing Logo ===')
+      // Step 2: Upload logo if exists (convert base64 to file if needed)
+      let logoUrl: string | null = null
+      if (state.logo) {
+        // If logo is base64, upload it
+        if (state.logo.startsWith('data:image')) {
+          try {
+            console.log('Converting base64 logo to file...')
+            // Convert base64 to File
+            const response = await fetch(state.logo)
+            const blob = await response.blob()
+            const file = new File([blob], 'logo.png', { type: 'image/png' })
+            logoUrl = await templateService.uploadLogo(file)
+            console.log('Logo uploaded:', logoUrl)
+          } catch (uploadError) {
+            console.warn('Logo upload failed, skipping logo:', uploadError)
+            // Skip logo instead of using base64 (backend might not accept base64)
+            logoUrl = null
+          }
+        } else {
+          logoUrl = state.logo // Already a URL
+          console.log('Using existing logo URL:', logoUrl)
+        }
+      } else {
+        console.log('No logo provided')
+      }
+      
+      console.log('=== STEP 3: Preparing Layout Definition ===')
+      // Step 3: Prepare layout definition (serialize ALL state for complete restore)
+      console.log('📊 Current blankRows value:', blankRows)
+      console.log('📊 state.table.rowCount:', state.table.rowCount)
+      
+      const layoutData = {
+        // Core template info
+        templateName: state.templateName,
+        invoiceType: state.invoiceType, // ✅ NEW: withCode/withoutCode
+        invoiceDate: state.invoiceDate,
+        symbol: state.symbol, // ✅ NEW: Full symbol object (invoiceType, taxCode, year, invoiceForm, management)
+        
+        // Company info
+        company: state.company,
+        
+        // Visual settings
+        logo: state.logo,
+        logoSize: state.logoSize, // ✅ NEW: Logo size
+        background: state.background,
+        
+        // Table & Fields
+        table: state.table,
+        customFields: state.customFields,
+        customColumns: state.customColumns,
+        
+        // Display settings
+        settings: state.settings, // Contains visibility
+        
+        // Codes
+        modelCode: state.modelCode,
+        templateCode: state.templateCode,
+        
+        // Additional metadata
+        blankRows: blankRows, // ✅ NEW: Number of blank rows
+        visibility: visibility, // ✅ NEW: Explicit visibility settings
+      }
+      const layoutDefinition = JSON.stringify(layoutData)
+      console.log('Layout Definition length:', layoutDefinition.length, 'chars')
+      console.log('Layout Data includes:', Object.keys(layoutData).join(', '))
+      console.log('✅ Saved blankRows in layoutDefinition:', layoutData.blankRows)
+      
+      console.log('=== STEP 4: Finding Template Frame ID ===')
+      // Find templateFrameID - more robust logic
+      let templateFrameID: number
+      
+      // Try to find by matching imageUrl
+      const matchedFrame = templateFrames.find(f => 
+        f.imageUrl === state.background.frame || 
+        f.imageUrl.includes(state.background.frame) ||
+        state.background.frame.includes(f.imageUrl)
+      )
+      
+      if (matchedFrame) {
+        // Use frameID property (not id)
+        templateFrameID = matchedFrame.frameID
+        console.log('Found matching frame:', matchedFrame)
+        console.log('Using frameID:', templateFrameID)
+      } else if (templateId) {
+        // Fallback to templateId from URL
+        templateFrameID = parseInt(templateId)
+        console.log('Using templateId from URL:', templateFrameID)
+      } else {
+        // Default to first frame or 1
+        templateFrameID = templateFrames.length > 0 ? templateFrames[0].frameID : 1
+        console.log('Using default frame ID:', templateFrameID)
+      }
+      
+      // Validate templateFrameID
+      if (!templateFrameID || isNaN(templateFrameID)) {
+        console.error('❌ Invalid templateFrameID:', templateFrameID)
+        throw new Error('Không tìm thấy khung viền hợp lệ. Vui lòng chọn lại khung viền.')
+      }
+      
+      console.log('=== STEP 5: Creating Template ===')
+      // Step 4: Create Template
+      const templateData = {
+        templateName: state.templateName,
+        serialID: serialResponse.serialID,
+        templateTypeID: state.invoiceType === 'withCode' ? 1 : 2,
+        layoutDefinition,
+        templateFrameID,
+        logoUrl,
+      }
+      console.log('Template Data:', {
+        ...templateData,
+        layoutDefinition: `${layoutDefinition.substring(0, 100)}... (${layoutDefinition.length} chars)`
+      })
+      
+      const templateResponse = await templateService.createTemplate(templateData)
+      console.log('Template Response:', templateResponse)
+      
       setLastSaved(new Date())
-      showSuccess('Đã lưu thành công!')
+      showSuccess(`Đã tạo mẫu hóa đơn thành công! Mã số: ${serialResponse.fullSerial || 'N/A'}`)
+      
+      // Redirect to template list after 1.5s
       setTimeout(() => {
         navigate('/admin/templates')
-      }, 1000)
-    } catch (error) {
-      console.error('Error:', error)
-      setErrors(prev => ({ ...prev, _general: 'Có lỗi xảy ra khi lưu. Vui lòng thử lại!' }))
+      }, 1500)
+    } catch (error: any) {
+      console.error('❌ Error creating template:', error)
+      
+      // More detailed error message
+      let errorMessage = 'Có lỗi xảy ra khi tạo mẫu hóa đơn.'
+      if (error.message) {
+        if (error.message.includes('Serial')) {
+          errorMessage = 'Lỗi khi tạo mã số hóa đơn: ' + error.message
+        } else if (error.message.includes('Template')) {
+          errorMessage = 'Lỗi khi tạo mẫu hóa đơn: ' + error.message
+        } else {
+          errorMessage = error.message
+        }
+      }
+      
+      setErrors(prev => ({ 
+        ...prev, 
+        _general: errorMessage
+      }))
     } finally {
       setLoading(false)
       setIsSaving(false)

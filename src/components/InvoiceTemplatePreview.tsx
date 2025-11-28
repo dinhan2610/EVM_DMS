@@ -26,6 +26,7 @@ import {
 const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({ 
   config,
   visibility = {},
+  products = [], // NEW: Support actual product data
   blankRows = TEMPLATE_DEFAULTS.BLANK_ROWS,
   backgroundFrame = TEMPLATE_DEFAULTS.BACKGROUND_FRAME,
   bilingual = false,
@@ -51,7 +52,9 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
   // **PAGINATION LOGIC - Professional approach**
   const { ROWS_PER_FIRST_PAGE, ROWS_PER_NEXT_PAGE } = INVOICE_PAGINATION;
   
-  const totalRows = blankRows + 1; // +1 for sample data row
+  // Determine if we're using actual products or blank rows
+  const hasProducts = products && products.length > 0;
+  const totalRows = hasProducts ? products.length : blankRows;
   
   // Calculate page distribution
   const calculatePages = (): Array<{ start: number; end: number; isFirst: boolean }> => {
@@ -76,6 +79,19 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
   };
   
   const pages = calculatePages();
+  
+  // Calculate totals if we have products
+  const calculateTotals = () => {
+    if (!hasProducts) return { subtotal: 0, vat: 0, total: 0 };
+    
+    const subtotal = products.reduce((sum, p) => sum + (p.quantity * p.unitPrice), 0);
+    const vat = subtotal * 0.1; // 10% VAT
+    const total = subtotal + vat;
+    
+    return { subtotal, vat, total };
+  };
+  
+  const totals = calculateTotals();
 
   // **Helper: Render bilingual text**
   const renderBilingual = (vn: string, en: string) => {
@@ -150,18 +166,11 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
               {/* Phần 1: Header - CHỈ HIỆN Ở TRANG ĐẦU TIÊN */}
               {page.isFirst && (
                 <>
-                  {/* Logo + Tiêu đề chính - Layout đơn giản, rõ ràng */}
-                  <Box sx={{ mb: 0.5, position: 'relative', minHeight: `${Math.max(logoSize, 70)}px` }}>
-                    {/* Logo bên trái */}
-                    {showLogo && config.companyLogo && (
-                      <Box
-                        sx={{
-                          position: 'absolute',
-                          left: 0,
-                          top: -20,
-                          zIndex: 1,
-                        }}
-                      >
+                  {/* Logo + Tiêu đề chính - Layout 3 cột */}
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1, position: 'relative', minHeight: '60px' }}>
+                    {/* Cột Trái: Logo */}
+                    <Box sx={{ flex: 1, display: 'flex', alignItems: 'flex-start' }}>
+                      {showLogo && config.companyLogo && (
                         <img
                           src={config.companyLogo}
                           alt="Logo"
@@ -171,52 +180,48 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                             display: 'block',
                           }}
                         />
-                      </Box>
-                    )}
+                      )}
+                    </Box>
 
-                    {/* Tiêu đề chính - Căn giữa */}
-                    <Box 
-                      sx={{ 
-                        position: 'absolute',
-                        left: '50%',
-                        top: 0,
-                        transform: 'translateX(-50%)',
-                        textAlign: 'center',
-                      }}
-                    >
+                    {/* Cột Giữa: Tiêu đề - 1 DÒNG DUY NHẤT */}
+                    <Box sx={{ flex: 2, textAlign: 'center' }}>
                       <Typography
                         variant="h5"
                         fontWeight="bold"
                         sx={{ 
                           textTransform: 'uppercase', 
-                          fontSize: '1.6rem', 
-                          lineHeight: 1.1,
-                          letterSpacing: 0.5,
+                          fontSize: '1.4rem', 
+                          lineHeight: 1.3,
+                          letterSpacing: 0.2,
                           whiteSpace: 'nowrap',
+                          mb: 0.3,
                         }}
                       >
-                        Hóa đơn giá trị gia tăng
+                        HÓA ĐƠN GIÁ TRỊ GIA TĂNG
                       </Typography>
                       {bilingual && (
                         <Typography
-                          variant="h5"
+                          variant="h6"
                           fontWeight="bold"
                           sx={{ 
-                            fontSize: '1.4rem',
+                            fontSize: '1.1rem',
                             textTransform: 'uppercase',
-                            lineHeight: 1.1,
-                            letterSpacing: 0.5,
-                            mt: 0.3,
+                            lineHeight: 1.3,
+                            letterSpacing: 0.2,
+                            whiteSpace: 'nowrap',
                           }}
                         >
-                          (VAT Invoice)
+                          (VAT INVOICE)
                         </Typography>
                       )}
                     </Box>
+
+                    {/* Cột Phải: Trống (để cân đối) */}
+                    <Box sx={{ flex: 1 }} />
                   </Box>
 
                   {/* Ký hiệu/Số và Mã CQT/Ngày - CÙNG HÀNG NGANG */}
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, mt: -10 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                     {/* Cột Trái: Trống */}
                     <Box sx={{ flex: 1 }} />
 
@@ -378,19 +383,31 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                     </TableHead>
                   )}
                   <TableBody>
-                    {/* Dòng trống động theo page range */}
+                    {/* Render products or blank rows */}
                     {[...Array(page.end - page.start)].map((_, index) => {
                       const globalIndex = page.start + index;
+                      const product = hasProducts ? products[globalIndex] : null;
+                      
                       return (
-                        <TableRow key={`empty-${globalIndex}`}>
+                        <TableRow key={`row-${globalIndex}`}>
                           <TableCell align="center" sx={{ fontSize: '0.8rem', padding: '6px 8px', border: '1px solid #000', bgcolor: 'transparent' }}>
                             {globalIndex + 1}
                           </TableCell>
-                          <TableCell sx={{ fontSize: '0.8rem', padding: '6px 8px', border: '1px solid #000', bgcolor: 'transparent' }}>&nbsp;</TableCell>
-                          <TableCell align="center" sx={{ fontSize: '0.8rem', padding: '6px 8px', border: '1px solid #000', bgcolor: 'transparent' }}>&nbsp;</TableCell>
-                          <TableCell align="center" sx={{ fontSize: '0.8rem', padding: '6px 8px', border: '1px solid #000', bgcolor: 'transparent' }}>&nbsp;</TableCell>
-                          <TableCell align="right" sx={{ fontSize: '0.8rem', padding: '6px 8px', border: '1px solid #000', bgcolor: 'transparent' }}>&nbsp;</TableCell>
-                          <TableCell align="right" sx={{ fontSize: '0.8rem', padding: '6px 8px', border: '1px solid #000', bgcolor: 'transparent' }}>&nbsp;</TableCell>
+                          <TableCell sx={{ fontSize: '0.8rem', padding: '6px 8px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                            {product?.name || '\u00A0'}
+                          </TableCell>
+                          <TableCell align="center" sx={{ fontSize: '0.8rem', padding: '6px 8px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                            {product?.unit || '\u00A0'}
+                          </TableCell>
+                          <TableCell align="center" sx={{ fontSize: '0.8rem', padding: '6px 8px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                            {product?.quantity || '\u00A0'}
+                          </TableCell>
+                          <TableCell align="right" sx={{ fontSize: '0.8rem', padding: '6px 8px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                            {product ? product.unitPrice.toLocaleString('vi-VN') : '\u00A0'}
+                          </TableCell>
+                          <TableCell align="right" sx={{ fontSize: '0.8rem', padding: '6px 8px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                            {product ? (product.quantity * product.unitPrice).toLocaleString('vi-VN') : '\u00A0'}
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -415,7 +432,7 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, alignItems: 'flex-start' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', pt: 2 }}>
                       <Typography variant="body2" sx={{ fontSize: '0.8rem', lineHeight: 1.6 }}>
-                        {renderBilingual('Thuế suất GTGT', 'VAT Rate')}: <strong></strong>
+                        {renderBilingual('Thuế suất GTGT', 'VAT Rate')}: <strong>{hasProducts ? '10%' : ''}</strong>
                       </Typography>
                     </Box>
                     <Box sx={{ width: '45%' }}>
@@ -424,27 +441,33 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                           <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
                             {renderBilingual('Tiền hàng', 'Subtotal')}:
                           </Typography>
-                          <Typography variant="body2" fontWeight="bold" sx={{ fontSize: '0.8rem' }}></Typography>
+                          <Typography variant="body2" fontWeight="bold" sx={{ fontSize: '0.8rem' }}>
+                            {hasProducts ? totals.subtotal.toLocaleString('vi-VN') : ''}
+                          </Typography>
                         </Stack>
                         <Stack direction="row" justifyContent="space-between">
                           <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
                             {renderBilingual('Tiền thuế GTGT', 'VAT Amount')}:
                           </Typography>
-                          <Typography variant="body2" fontWeight="bold" sx={{ fontSize: '0.8rem' }}></Typography>
+                          <Typography variant="body2" fontWeight="bold" sx={{ fontSize: '0.8rem' }}>
+                            {hasProducts ? totals.vat.toLocaleString('vi-VN') : ''}
+                          </Typography>
                         </Stack>
                         <Divider sx={{ my: 0.4 }} />
                         <Stack direction="row" justifyContent="space-between">
                           <Typography variant="body1" fontWeight="bold" sx={{ fontSize: '0.85rem' }}>
                             {renderBilingual('Tổng tiền thanh toán', 'Total Amount')}:
                           </Typography>
-                          <Typography variant="body1" fontWeight="bold" sx={{ fontSize: '0.85rem', color: 'primary.main' }}></Typography>
+                          <Typography variant="body1" fontWeight="bold" sx={{ fontSize: '0.85rem', color: 'primary.main' }}>
+                            {hasProducts ? totals.total.toLocaleString('vi-VN') : ''}
+                          </Typography>
                         </Stack>
                       </Stack>
                     </Box>
                   </Box>
 
                   <Typography variant="body2" sx={{ mb: 1.5, fontStyle: 'italic', fontSize: '0.8rem', lineHeight: 1.6 }}>
-                    {renderBilingual('Số tiền viết bằng chữ', 'Amount in words')}: <strong></strong>
+                    {renderBilingual('Số tiền viết bằng chữ', 'Amount in words')}: <strong>{hasProducts ? '(Tính toán tự động)' : ''}</strong>
                   </Typography>
 
                   {/* Chữ ký */}

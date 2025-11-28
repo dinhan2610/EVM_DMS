@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -14,6 +14,9 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  CircularProgress,
+  Alert,
+  Snackbar,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import SearchIcon from '@mui/icons-material/Search'
@@ -22,19 +25,19 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import CheckCircle from '@mui/icons-material/CheckCircle'
 import Cancel from '@mui/icons-material/Cancel'
+import RefreshIcon from '@mui/icons-material/Refresh'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
+import templateService, { TemplateResponse } from '@/services/templateService'
 
-// Interface cho mẫu hóa đơn
+// Interface cho UI (simplified for DataGrid)
 interface InvoiceTemplate {
-  id: string
-  templateName: string // Tên mẫu (VD: Hóa đơn GTGT (Mẫu C25TKN))
-  templateCode: string // Ký hiệu (C25TKN)
-  modelCode: string // Mẫu số (1K24TXN)
-  invoiceType: 'GTGT' | 'BanHang' | 'DichVu' | 'DieuChinh' | 'ThayThe' // Loại hóa đơn
+  id: number
+  templateName: string
+  templateCode: string // serial
   status: 'Active' | 'Inactive'
-  createdAt: string
-  createdBy: string // Người tạo
-  description?: string // Mô tả
+  templateType: string // templateTypeName
+  frameUrl: string | null // for preview
+  layoutDefinition: string // for future use
 }
 
 const TemplateManagement = () => {
@@ -42,44 +45,55 @@ const TemplateManagement = () => {
   const [searchText, setSearchText] = useState('')
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<InvoiceTemplate | null>(null)
-  const [viewingTemplate, setViewingTemplate] = useState<InvoiceTemplate | null>(null)
+  const [viewingTemplate, setViewingTemplate] = useState<TemplateResponse | null>(null)
+  
+  // API State
+  const [templates, setTemplates] = useState<InvoiceTemplate[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  })
 
-  // Mock Data - move outside to avoid dependency issue
-  const [templates] = useState<InvoiceTemplate[]>([
-    {
-      id: '1',
-      templateName: 'Hóa đơn GTGT (Mẫu C25TKN)',
-      templateCode: 'C25TKN',
-      modelCode: '1K24TXN',
-      invoiceType: 'GTGT',
-      status: 'Active',
-      createdAt: '2024-01-15',
-      createdBy: 'Nguyễn Văn A',
-      description: 'Mẫu hóa đơn giá trị gia tăng cho doanh nghiệp',
-    },
-    {
-      id: '2',
-      templateName: 'Hóa đơn Bán hàng (Mẫu D26TTS)',
-      templateCode: 'D26TTS',
-      modelCode: '2K24TXN',
-      invoiceType: 'BanHang',
-      status: 'Active',
-      createdAt: '2024-02-20',
-      createdBy: 'Trần Thị B',
-      description: 'Mẫu hóa đơn bán hàng hóa, dịch vụ',
-    },
-    {
-      id: '3',
-      templateName: 'Hóa đơn Dịch vụ (Mẫu E27DVC)',
-      templateCode: 'E27DVC',
-      modelCode: '3K24TXN',
-      invoiceType: 'DichVu',
-      status: 'Inactive',
-      createdAt: '2024-03-10',
-      createdBy: 'Lê Văn C',
-      description: 'Mẫu hóa đơn chuyên dùng cho dịch vụ',
-    },
-  ])
+  // Fetch templates from API
+  const fetchTemplates = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await templateService.getAllTemplates()
+      
+      // Map API response to UI format (API now returns full details)
+      const mappedTemplates: InvoiceTemplate[] = response.map((template) => ({
+        id: template.templateID,
+        templateName: template.templateName,
+        templateCode: template.serial,
+        status: template.isActive ? 'Active' : 'Inactive',
+        templateType: template.templateTypeName,
+        frameUrl: template.frameUrl,
+        layoutDefinition: template.layoutDefinition,
+      }))
+      
+      setTemplates(mappedTemplates)
+      console.log('✅ Loaded templates:', mappedTemplates.length, 'templates')
+    } catch (err: any) {
+      console.error('❌ Error fetching templates:', err)
+      setError(err.message || 'Không thể tải danh sách mẫu hóa đơn')
+      setSnackbar({
+        open: true,
+        message: err.message || 'Không thể tải danh sách mẫu hóa đơn',
+        severity: 'error',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Fetch on component mount
+  useEffect(() => {
+    fetchTemplates()
+  }, [])
 
   // Lọc templates theo search
   const filteredTemplates = useMemo(() => {
@@ -93,8 +107,17 @@ const TemplateManagement = () => {
   }, [templates, searchText])
 
   // Xử lý xem chi tiết
-  const handleViewDetails = (template: InvoiceTemplate) => {
-    setViewingTemplate(template)
+  const handleViewDetails = async (template: InvoiceTemplate) => {
+    try {
+      const detail = await templateService.getTemplateById(template.id)
+      setViewingTemplate(detail)
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: err.message || 'Không thể tải chi tiết mẫu hóa đơn',
+        severity: 'error',
+      })
+    }
   }
 
   // Xử lý đóng modal xem chi tiết
@@ -103,11 +126,11 @@ const TemplateManagement = () => {
   }
 
   // Xử lý chỉnh sửa
-  const handleEdit = (id: string) => {
+  const handleEdit = (id: number) => {
     navigate(`/admin/templates/edit/${id}`)
   }
 
-  // Xử lý xóa template
+  // Xử lý xóa template (placeholder - backend chưa có DELETE endpoint)
   const handleDeleteClick = (template: InvoiceTemplate) => {
     setSelectedTemplate(template)
     setOpenDeleteDialog(true)
@@ -115,6 +138,12 @@ const TemplateManagement = () => {
 
   const handleDeleteConfirm = () => {
     console.log('Deleting template:', selectedTemplate?.id)
+    // TODO: Implement delete API when backend provides endpoint
+    setSnackbar({
+      open: true,
+      message: 'Chức năng xóa mẫu đang được phát triển',
+      severity: 'info',
+    })
     setOpenDeleteDialog(false)
     setSelectedTemplate(null)
   }
@@ -124,24 +153,9 @@ const TemplateManagement = () => {
     setSelectedTemplate(null)
   }
 
-  // Mapping loại hóa đơn
-  const invoiceTypeLabels: Record<string, string> = {
-    GTGT: 'Hóa đơn GTGT',
-    BanHang: 'Hóa đơn Bán hàng',
-    DichVu: 'Hóa đơn Dịch vụ',
-    DieuChinh: 'Hóa đơn Điều chỉnh',
-    ThayThe: 'Hóa đơn Thay thế',
-  }
-
-  const invoiceTypeColors: Record<
-    string,
-    'primary' | 'success' | 'info' | 'warning' | 'error' | 'default'
-  > = {
-    GTGT: 'primary',
-    BanHang: 'success',
-    DichVu: 'info',
-    DieuChinh: 'warning',
-    ThayThe: 'error',
+  // Close snackbar
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false })
   }
 
   // Định nghĩa columns
@@ -233,11 +247,12 @@ const TemplateManagement = () => {
       ),
     },
     {
-      field: 'modelCode',
-      headerName: 'Mẫu số',
-      width: 130,
+      field: 'frameUrl',
+      headerName: 'Khung viền',
+      width: 120,
       align: 'center',
       headerAlign: 'center',
+      sortable: false,
       renderCell: (params: GridRenderCellParams) => (
         <Box
           sx={{
@@ -246,17 +261,47 @@ const TemplateManagement = () => {
             justifyContent: 'center',
             width: '100%',
             height: '100%',
+            py: 0.5,
           }}>
-          <Typography variant="body2" sx={{ fontFamily: 'monospace', color: '#444' }}>
-            {params.value}
-          </Typography>
+          {params.value ? (
+            <Tooltip title="Click để xem chi tiết" arrow>
+              <Box
+                onClick={() => handleViewDetails(params.row)}
+                sx={{
+                  width: 60,
+                  height: 80,
+                  border: '1px solid #e0e0e0',
+                  borderRadius: 1,
+                  overflow: 'hidden',
+                  cursor: 'pointer',
+                  '&:hover': {
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    transform: 'scale(1.05)',
+                  },
+                  transition: 'all 0.2s ease',
+                }}>
+                <img
+                  src={params.value}
+                  alt="Frame"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={(e) => {
+                    e.currentTarget.src = '/khunghoadon/khunghoadon1.png'
+                  }}
+                />
+              </Box>
+            </Tooltip>
+          ) : (
+            <Typography variant="caption" sx={{ color: '#999' }}>
+              N/A
+            </Typography>
+          )}
         </Box>
       ),
     },
     {
-      field: 'invoiceType',
-      headerName: 'Loại hóa đơn',
-      width: 160,
+      field: 'templateType',
+      headerName: 'Loại mẫu',
+      width: 150,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
@@ -269,56 +314,14 @@ const TemplateManagement = () => {
             height: '100%',
           }}>
           <Chip
-            label={invoiceTypeLabels[params.value] || params.value}
-            color={invoiceTypeColors[params.value] || 'default'}
+            label={params.value || 'Hóa đơn mới'}
+            color="primary"
             size="small"
             sx={{
               fontWeight: 500,
               fontSize: '0.75rem',
             }}
           />
-        </Box>
-      ),
-    },
-    {
-      field: 'createdAt',
-      headerName: 'Ngày tạo',
-      width: 120,
-      align: 'center',
-      headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) => (
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '100%',
-            height: '100%',
-          }}>
-          <Typography variant="body2" sx={{ color: '#666' }}>
-            {new Date(params.value as string).toLocaleDateString('vi-VN')}
-          </Typography>
-        </Box>
-      ),
-    },
-    {
-      field: 'createdBy',
-      headerName: 'Người tạo',
-      width: 140,
-      align: 'center',
-      headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) => (
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '100%',
-            height: '100%',
-          }}>
-          <Typography variant="body2" sx={{ color: '#444', fontWeight: 500 }}>
-            {params.value}
-          </Typography>
         </Box>
       ),
     },
@@ -421,25 +424,52 @@ const TemplateManagement = () => {
               Quản lý Mẫu hóa đơn
             </Typography>
             <Typography variant="body2" sx={{ color: '#666' }}>
-              Quản lý và cấu hình các mẫu hóa đơn điện tử
+              Quản lý và cấu hình các mẫu hóa đơn điện tử ({templates.length} mẫu)
             </Typography>
           </Box>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={() => navigate('/admin/templates/select')}
-            sx={{
-              textTransform: 'none',
-              fontWeight: 500,
-              boxShadow: '0 2px 8px rgba(28, 132, 238, 0.24)',
-              '&:hover': {
-                boxShadow: '0 4px 12px rgba(28, 132, 238, 0.32)',
-              },
-            }}>
-            Tạo mẫu mới
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            <Tooltip title="Tải lại danh sách" arrow>
+              <IconButton
+                onClick={fetchTemplates}
+                disabled={loading}
+                sx={{
+                  border: '1px solid #e0e0e0',
+                  '&:hover': { bgcolor: '#f5f5f5' },
+                }}>
+                {loading ? <CircularProgress size={20} /> : <RefreshIcon />}
+              </IconButton>
+            </Tooltip>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<AddIcon />}
+              onClick={() => navigate('/admin/templates/select')}
+              sx={{
+                textTransform: 'none',
+                fontWeight: 500,
+                boxShadow: '0 2px 8px rgba(28, 132, 238, 0.24)',
+                '&:hover': {
+                  boxShadow: '0 4px 12px rgba(28, 132, 238, 0.32)',
+                },
+              }}>
+              Tạo mẫu mới
+            </Button>
+          </Box>
         </Box>
+
+        {/* Error Alert */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
+
+        {/* Loading State */}
+        {loading && templates.length === 0 && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+            <CircularProgress />
+          </Box>
+        )}
 
         {/* Data Table */}
         <Paper
@@ -585,10 +615,10 @@ const TemplateManagement = () => {
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <Box>
                   <Typography variant="caption" sx={{ color: '#666', fontWeight: 600 }}>
-                    Ký hiệu mẫu
+                    Mã số hóa đơn (Serial)
                   </Typography>
-                  <Typography variant="body1" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
-                    {viewingTemplate.templateCode}
+                  <Typography variant="body1" sx={{ fontFamily: 'monospace', fontWeight: 600, color: '#1c84ee' }}>
+                    {viewingTemplate.serial}
                   </Typography>
                 </Box>
                 <Box>
@@ -599,61 +629,46 @@ const TemplateManagement = () => {
                 </Box>
                 <Box>
                   <Typography variant="caption" sx={{ color: '#666', fontWeight: 600 }}>
-                    Mẫu số
-                  </Typography>
-                  <Typography variant="body1" sx={{ fontFamily: 'monospace' }}>
-                    {viewingTemplate.modelCode}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" sx={{ color: '#666', fontWeight: 600 }}>
-                    Loại hóa đơn
+                    Loại mẫu
                   </Typography>
                   <Box sx={{ mt: 0.5 }}>
                     <Chip
-                      label={invoiceTypeLabels[viewingTemplate.invoiceType]}
-                      color={invoiceTypeColors[viewingTemplate.invoiceType]}
+                      label={viewingTemplate.templateTypeName}
+                      color="primary"
                       size="small"
                     />
                   </Box>
                 </Box>
-                {viewingTemplate.description && (
-                  <Box>
-                    <Typography variant="caption" sx={{ color: '#666', fontWeight: 600 }}>
-                      Mô tả
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#555' }}>
-                      {viewingTemplate.description}
-                    </Typography>
-                  </Box>
-                )}
                 <Box>
                   <Typography variant="caption" sx={{ color: '#666', fontWeight: 600 }}>
                     Trạng thái
                   </Typography>
                   <Box sx={{ mt: 0.5 }}>
                     <Chip
-                      label={viewingTemplate.status === 'Active' ? 'Đang dùng' : 'Không dùng'}
-                      color={viewingTemplate.status === 'Active' ? 'success' : 'default'}
-                      icon={viewingTemplate.status === 'Active' ? <CheckCircle /> : <Cancel />}
+                      label={viewingTemplate.isActive ? 'Đang dùng' : 'Không dùng'}
+                      color={viewingTemplate.isActive ? 'success' : 'default'}
+                      icon={viewingTemplate.isActive ? <CheckCircle /> : <Cancel />}
                       size="small"
                     />
                   </Box>
                 </Box>
-                <Box>
-                  <Typography variant="caption" sx={{ color: '#666', fontWeight: 600 }}>
-                    Người tạo
-                  </Typography>
-                  <Typography variant="body1">{viewingTemplate.createdBy}</Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" sx={{ color: '#666', fontWeight: 600 }}>
-                    Ngày tạo
-                  </Typography>
-                  <Typography variant="body1">
-                    {new Date(viewingTemplate.createdAt).toLocaleDateString('vi-VN')}
-                  </Typography>
-                </Box>
+                {viewingTemplate.frameUrl && (
+                  <Box>
+                    <Typography variant="caption" sx={{ color: '#666', fontWeight: 600 }}>
+                      Khung viền mẫu
+                    </Typography>
+                    <Box sx={{ mt: 1, maxWidth: 300 }}>
+                      <img 
+                        src={viewingTemplate.frameUrl} 
+                        alt="Template Frame"
+                        style={{ width: '100%', border: '1px solid #e0e0e0', borderRadius: 4 }}
+                        onError={(e) => {
+                          e.currentTarget.src = '/khunghoadon/khunghoadon1.png'
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                )}
               </Box>
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -675,6 +690,17 @@ const TemplateManagement = () => {
             </DialogActions>
           </Dialog>
         )}
+
+        {/* Snackbar for notifications */}
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={4000}
+          onClose={handleCloseSnackbar}
+          anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
+          <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
       </Box>
     </Box>
   )
