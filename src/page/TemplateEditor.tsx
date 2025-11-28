@@ -46,6 +46,8 @@ import { DragDropContext, DropResult } from '@hello-pangea/dnd'
 import { useTemplateReducer } from '@/hooks/useTemplateReducer'
 import { TemplateState } from '@/types/templateEditor'
 import { AddFieldDialog } from '@/components/AddFieldDialog'
+import templateFrameService, { TemplateFrame } from '@/services/templateFrameService'
+import API_CONFIG from '@/config/api.config'
 
 // Interface cũ - tương thích với InvoiceTemplatePreview
 interface TemplateConfig {
@@ -159,6 +161,11 @@ const TemplateEditor: React.FC = () => {
   const [openAddDialog, setOpenAddDialog] = useState(false)
   const [addDialogType] = useState<'field' | 'column'>('field')
   
+  // ============ API INTEGRATION STATES ============
+  const [templateFrames, setTemplateFrames] = useState<TemplateFrame[]>([])
+  const [framesLoading, setFramesLoading] = useState(false)
+  const [frameImageErrors, setFrameImageErrors] = useState<Set<number>>(new Set())
+  
   // ============ VALIDATION & FEEDBACK ============
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [successMessage, setSuccessMessage] = useState<string>('')
@@ -222,31 +229,54 @@ const TemplateEditor: React.FC = () => {
     setTimeout(() => setSuccessMessage(''), 3000)
   }, [])
 
+  // ============ FETCH TEMPLATE FRAMES FROM API ============
+  const fetchTemplateFrames = useCallback(async () => {
+    // Check authentication
+    const token = localStorage.getItem(API_CONFIG.TOKEN_KEY)
+    if (!token) {
+      console.warn('No auth token found, skipping frame fetch')
+      return
+    }
+
+    setFramesLoading(true)
+    try {
+      const frames = await templateFrameService.getAllTemplateFrames()
+      setTemplateFrames(frames)
+      console.log('Loaded template frames from API:', frames.length)
+    } catch (error) {
+      console.error('Failed to load template frames:', error)
+      // Fallback to empty array, UI will use local images
+      setTemplateFrames([])
+    } finally {
+      setFramesLoading(false)
+    }
+  }, [])
+
+  // Fetch frames on component mount
+  useEffect(() => {
+    fetchTemplateFrames()
+  }, [fetchTemplateFrames])
+
   // Load data khi edit hoặc chọn template từ selection page
   useEffect(() => {
-    if (templateId) {
+    if (templateId && templateFrames.length > 0) {
       console.log('Loading template:', templateId)
       
-      // Map templateId với background frame tương ứng
-      const templateBackgrounds: Record<string, string> = {
-        '1': '/khunghoadon/khunghoadon1.png',
-        '2': '/khunghoadon/khunghoadon2.png',
-        '3': '/khunghoadon/khunghoadon3.png',
-        '4': '/khunghoadon/khunghoadon4.png',
-        '5': '/khunghoadon/khunghoadon5.png',
-        '6': '/khunghoadon/khunghoadon6.png',
-        '7': '/khunghoadon/khunghoadon7.png',
-        '8': '/khunghoadon/khunghoadon8.png',
-        '9': '/khunghoadon/khunghoadon9.png',
-        '10': '/khunghoadon/khunghoadon10.png',
-        '11': '/khunghoadon/khunghoadon11.png',
-      }
+      // Find frame from API data
+      const selectedFrame = templateFrames.find(frame => frame.id === parseInt(templateId))
       
-      // Set background frame theo templateId
-      const selectedBackground = templateBackgrounds[templateId] || '/khunghoadon.png'
-      dispatch({ type: 'SET_BACKGROUND_FRAME', payload: selectedBackground })
+      if (selectedFrame) {
+        // Use imageUrl from API (Cloudinary)
+        dispatch({ type: 'SET_BACKGROUND_FRAME', payload: selectedFrame.imageUrl })
+        console.log('Set background from API:', selectedFrame.imageUrl)
+      } else {
+        // Fallback to local path if frame not found in API
+        const fallbackPath = `/khunghoadon/khunghoadon${templateId}.png`
+        dispatch({ type: 'SET_BACKGROUND_FRAME', payload: fallbackPath })
+        console.log('Set background from local fallback:', fallbackPath)
+      }
     }
-  }, [templateId, dispatch])
+  }, [templateId, templateFrames, dispatch])
 
   // ============ AUTOSAVE - Lưu draft mỗi 30s ============
   useEffect(() => {
@@ -932,93 +962,146 @@ const TemplateEditor: React.FC = () => {
 
               
 
-                {/* Khung viền mẫu - với Preview Grid */}
+                {/* Khung viền mẫu - với Preview Grid từ API */}
                 <Box>
                   <Typography variant="caption" sx={{ fontWeight: 600, color: '#616161', mb: 0.75, display: 'block', fontSize: '0.8125rem' }}>
                     Khung viền mẫu
                   </Typography>
                   
-                  {/* Grid preview khung viền */}
-                  <Box sx={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: 'repeat(3, 1fr)', 
-                    gap: 1,
-                    p: 1.5,
-                    bgcolor: '#f9f9f9',
-                    borderRadius: 1.5,
-                    border: '1px solid #e0e0e0',
-                  }}>
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((num) => {
-                      const framePath = `/khunghoadon/khunghoadon${num}.png`
-                      const isSelected = state.background.frame === framePath
-                      
-                      return (
-                        <Tooltip key={num} title={`Khung mẫu ${num}`} arrow>
-                          <Box
-                            onClick={() => {
-                              dispatch({ type: 'SET_BACKGROUND_FRAME', payload: framePath })
-                              showSuccess(`Đã chọn khung mẫu ${num}`)
-                            }}
-                            sx={{
-                              position: 'relative',
-                              aspectRatio: '1',
-                              border: isSelected ? '3px solid #1976d2' : '2px solid #e0e0e0',
-                              borderRadius: 1,
-                              overflow: 'hidden',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s ease',
-                              '&:hover': {
-                                transform: 'scale(1.05)',
-                                boxShadow: 2,
-                                borderColor: '#1976d2',
-                              },
-                            }}
-                          >
-                            <img 
-                              src={framePath} 
-                              alt={`Khung ${num}`}
-                              style={{ 
-                                width: '100%', 
-                                height: '100%', 
-                                objectFit: 'cover' 
+                  {/* Loading state for frames */}
+                  {framesLoading && (
+                    <Box sx={{ 
+                      display: 'flex', 
+                      justifyContent: 'center', 
+                      alignItems: 'center',
+                      p: 3,
+                      bgcolor: '#f9f9f9',
+                      borderRadius: 1.5,
+                      border: '1px solid #e0e0e0',
+                    }}>
+                      <CircularProgress size={24} />
+                      <Typography sx={{ ml: 1.5, fontSize: '0.75rem', color: '#757575' }}>
+                        Đang tải khung viền...
+                      </Typography>
+                    </Box>
+                  )}
+                  
+                  {/* Grid preview khung viền từ API */}
+                  {!framesLoading && (
+                    <Box sx={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: 'repeat(3, 1fr)', 
+                      gap: 1,
+                      p: 1.5,
+                      bgcolor: '#f9f9f9',
+                      borderRadius: 1.5,
+                      border: '1px solid #e0e0e0',
+                    }}>
+                      {(templateFrames.length > 0 ? templateFrames : 
+                        // Fallback to local frames if API fails
+                        Array.from({ length: 11 }, (_, i) => ({
+                          id: i + 1,
+                          name: `Khung ${i + 1}`,
+                          imageUrl: `/khunghoadon/khunghoadon${i + 1}.png`,
+                          imagePath: `/khunghoadon/khunghoadon${i + 1}.png`,
+                          category: 'Universal' as const,
+                          description: `Mẫu ${i + 1}`,
+                        }))
+                      ).map((frame) => {
+                        const isSelected = state.background.frame === frame.imageUrl || 
+                                         state.background.frame === frame.imagePath
+                        
+                        return (
+                          <Tooltip key={frame.id} title={frame.name} arrow>
+                            <Box
+                              onClick={() => {
+                                dispatch({ type: 'SET_BACKGROUND_FRAME', payload: frame.imageUrl })
+                                showSuccess(`Đã chọn ${frame.name}`)
                               }}
-                            />
-                            {isSelected && (
-                              <Box sx={{
+                              sx={{
+                                position: 'relative',
+                                aspectRatio: '1',
+                                border: isSelected ? '3px solid #1976d2' : '2px solid #e0e0e0',
+                                borderRadius: 1,
+                                overflow: 'hidden',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                '&:hover': {
+                                  transform: 'scale(1.05)',
+                                  boxShadow: 2,
+                                  borderColor: '#1976d2',
+                                },
+                              }}
+                            >
+                              <img 
+                                src={frameImageErrors.has(frame.id) 
+                                  ? `/khunghoadon/khunghoadon${frame.id}.png` 
+                                  : frame.imageUrl
+                                }
+                                alt={frame.name}
+                                onError={() => {
+                                  console.warn(`Failed to load frame image: ${frame.imageUrl}`)
+                                  setFrameImageErrors(prev => new Set(prev).add(frame.id))
+                                }}
+                                style={{ 
+                                  width: '100%', 
+                                  height: '100%', 
+                                  objectFit: 'cover' 
+                                }}
+                              />
+                              {isSelected && (
+                                <Box sx={{
+                                  position: 'absolute',
+                                  top: 4,
+                                  right: 4,
+                                  bgcolor: '#1976d2',
+                                  color: 'white',
+                                  borderRadius: '50%',
+                                  width: 20,
+                                  height: 20,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '0.75rem',
+                                }}>
+                                  ✓
+                                </Box>
+                              )}
+                              <Typography sx={{
                                 position: 'absolute',
-                                top: 4,
-                                right: 4,
-                                bgcolor: '#1976d2',
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                bgcolor: 'rgba(0,0,0,0.6)',
                                 color: 'white',
-                                borderRadius: '50%',
-                                width: 20,
-                                height: 20,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '0.75rem',
+                                fontSize: '0.65rem',
+                                textAlign: 'center',
+                                py: 0.3,
                               }}>
-                                ✓
-                              </Box>
-                            )}
-                            <Typography sx={{
-                              position: 'absolute',
-                              bottom: 0,
-                              left: 0,
-                              right: 0,
-                              bgcolor: 'rgba(0,0,0,0.6)',
-                              color: 'white',
-                              fontSize: '0.65rem',
-                              textAlign: 'center',
-                              py: 0.3,
-                            }}>
-                              {num}
-                            </Typography>
-                          </Box>
-                        </Tooltip>
-                      )
-                    })}
-                  </Box>
+                                {frame.id}
+                              </Typography>
+                              {frame.recommended && (
+                                <Box sx={{
+                                  position: 'absolute',
+                                  top: 4,
+                                  left: 4,
+                                  bgcolor: '#4caf50',
+                                  color: 'white',
+                                  borderRadius: 0.5,
+                                  px: 0.5,
+                                  py: 0.25,
+                                  fontSize: '0.6rem',
+                                  fontWeight: 600,
+                                }}>
+                                  Đề xuất
+                                </Box>
+                              )}
+                            </Box>
+                          </Tooltip>
+                        )
+                      })}
+                    </Box>
+                  )}
                   
                   <Typography sx={{ 
                     fontSize: '0.7rem', 
@@ -1026,7 +1109,10 @@ const TemplateEditor: React.FC = () => {
                     mt: 1,
                     textAlign: 'center',
                   }}>
-                    Click để chọn khung viền • Khung hiện tại: {state.background.frame.match(/\d+/)?.[0] || 'Mặc định'}
+                    {templateFrames.length > 0 
+                      ? `Click để chọn khung viền • ${templateFrames.length} khung có sẵn`
+                      : 'Click để chọn khung viền • Đang sử dụng khung mặc định'
+                    }
                   </Typography>
                 </Box>
 

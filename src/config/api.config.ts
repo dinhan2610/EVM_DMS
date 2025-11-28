@@ -19,6 +19,10 @@ export const API_CONFIG = {
       ACTIVATE: (userId: number) => `/User/admin/${userId}/active`,
       DEACTIVATE: (userId: number) => `/User/admin/${userId}/inactive`,
     },
+    TEMPLATE_FRAME: {
+      GET_ALL: '/TemplateFrame',
+      GET_BY_ID: (frameId: number) => `/TemplateFrame/${frameId}`,
+    },
   },
   
   HTTP_STATUS: {
