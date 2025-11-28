@@ -23,6 +23,11 @@ export const API_CONFIG = {
       GET_ALL: '/TemplateFrame',
       GET_BY_ID: (frameId: number) => `/TemplateFrame/${frameId}`,
     },
+    INVOICE_SYMBOL: {
+      PREFIX: '/Prefix',
+      SERIAL_STATUS: '/SerialStatus',
+      INVOICE_TYPE: '/InvoiceType',
+    },
   },
   
   HTTP_STATUS: {

@@ -9,6 +9,9 @@ import {
   Radio,
   RadioGroup,
   FormControlLabel,
+  FormControl,
+  Select,
+  MenuItem,
   IconButton,
   Paper,
   Tooltip,
@@ -47,6 +50,11 @@ import { useTemplateReducer } from '@/hooks/useTemplateReducer'
 import { TemplateState } from '@/types/templateEditor'
 import { AddFieldDialog } from '@/components/AddFieldDialog'
 import templateFrameService, { TemplateFrame } from '@/services/templateFrameService'
+import invoiceSymbolService, { 
+  PrefixApiResponse, 
+  SerialStatusApiResponse, 
+  InvoiceTypeApiResponse 
+} from '@/services/invoiceSymbolService'
 import API_CONFIG from '@/config/api.config'
 
 // Interface cũ - tương thích với InvoiceTemplatePreview
@@ -88,7 +96,13 @@ const TemplateEditor: React.FC = () => {
     templateName: 'Hóa đơn bán hàng (mẫu CB)',
     invoiceType: 'withCode',
     invoiceDate: new Date().toISOString(),
-    symbol: { prefix: '2C25T', year: 'YY' },
+    symbol: { 
+      invoiceType: '1', // 1: HĐ điện tử GTGT
+      taxCode: 'C', // C: Có mã CQT
+      year: new Date().getFullYear().toString().slice(-2), // 2 số cuối năm hiện tại
+      invoiceForm: 'T', // T: Hóa đơn doanh nghiệp
+      management: 'AA' // Mặc định AA
+    },
     logo: null,
     logoSize: 150,
     background: { custom: null, frame: '/khunghoadon.png' },
@@ -166,6 +180,12 @@ const TemplateEditor: React.FC = () => {
   const [framesLoading, setFramesLoading] = useState(false)
   const [frameImageErrors, setFrameImageErrors] = useState<Set<number>>(new Set())
   
+  // Invoice Symbol API data
+  const [prefixes, setPrefixes] = useState<PrefixApiResponse[]>([])
+  const [serialStatuses, setSerialStatuses] = useState<SerialStatusApiResponse[]>([])
+  const [invoiceTypes, setInvoiceTypes] = useState<InvoiceTypeApiResponse[]>([])
+  const [symbolDataLoading, setSymbolDataLoading] = useState(false)
+  
   // ============ VALIDATION & FEEDBACK ============
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [successMessage, setSuccessMessage] = useState<string>('')
@@ -211,18 +231,15 @@ const TemplateEditor: React.FC = () => {
     return null
   }, [])
 
-  const validateSymbolYear = useCallback((value: string): string | null => {
-    if (!value || value.trim().length === 0) {
-      return 'Ký hiệu năm không được để trống'
+  const validateSymbol = useCallback((): string | null => {
+    if (!state.symbol.year || state.symbol.year.length !== 2) {
+      return 'Năm phải có đúng 2 chữ số'
     }
-    if (value.length !== 2) {
-      return 'Ký hiệu năm phải đúng 2 ký tự'
-    }
-    if (!/^[A-Za-z0-9]+$/.test(value)) {
-      return 'Ký hiệu năm chỉ chứa chữ cái và số'
+    if (!state.symbol.management || state.symbol.management.length !== 2) {
+      return 'Mã quản lý mẫu phải có đúng 2 ký tự'
     }
     return null
-  }, [])
+  }, [state.symbol])
 
   const showSuccess = useCallback((message: string) => {
     setSuccessMessage(message)
@@ -242,7 +259,6 @@ const TemplateEditor: React.FC = () => {
     try {
       const frames = await templateFrameService.getAllTemplateFrames()
       setTemplateFrames(frames)
-      console.log('Loaded template frames from API:', frames.length)
     } catch (error) {
       console.error('Failed to load template frames:', error)
       // Fallback to empty array, UI will use local images
@@ -252,28 +268,48 @@ const TemplateEditor: React.FC = () => {
     }
   }, [])
 
+  // Fetch invoice symbol data (Prefix, SerialStatus, InvoiceType)
+  const fetchSymbolData = useCallback(async () => {
+    // Check authentication
+    const token = localStorage.getItem(API_CONFIG.TOKEN_KEY)
+    if (!token) {
+      console.warn('No auth token found, skipping symbol data fetch')
+      return
+    }
+
+    setSymbolDataLoading(true)
+    try {
+      const data = await invoiceSymbolService.fetchAllSymbolData()
+      setPrefixes(data.prefixes)
+      setSerialStatuses(data.serialStatuses)
+      setInvoiceTypes(data.invoiceTypes)
+    } catch (error) {
+      console.error('Failed to load symbol data:', error)
+      // Keep empty arrays, UI will show default options
+    } finally {
+      setSymbolDataLoading(false)
+    }
+  }, [])
+
   // Fetch frames on component mount
   useEffect(() => {
     fetchTemplateFrames()
-  }, [fetchTemplateFrames])
+    fetchSymbolData()
+  }, [fetchTemplateFrames, fetchSymbolData])
 
   // Load data khi edit hoặc chọn template từ selection page
   useEffect(() => {
     if (templateId && templateFrames.length > 0) {
-      console.log('Loading template:', templateId)
-      
       // Find frame from API data
       const selectedFrame = templateFrames.find(frame => frame.id === parseInt(templateId))
       
       if (selectedFrame) {
         // Use imageUrl from API (Cloudinary)
         dispatch({ type: 'SET_BACKGROUND_FRAME', payload: selectedFrame.imageUrl })
-        console.log('Set background from API:', selectedFrame.imageUrl)
       } else {
         // Fallback to local path if frame not found in API
         const fallbackPath = `/khunghoadon/khunghoadon${templateId}.png`
         dispatch({ type: 'SET_BACKGROUND_FRAME', payload: fallbackPath })
-        console.log('Set background from local fallback:', fallbackPath)
       }
     }
   }, [templateId, templateFrames, dispatch])
@@ -287,8 +323,7 @@ const TemplateEditor: React.FC = () => {
     if (savedDraft && !templateId) {
       try {
         const draft = JSON.parse(savedDraft)
-        // Có thể hỏi user có muốn restore không
-        console.log('Found draft:', draft)
+        // Có thể hỏi user có muốn restore không (future feature)
       } catch (e) {
         console.error('Failed to parse draft:', e)
       }
@@ -326,22 +361,6 @@ const TemplateEditor: React.FC = () => {
     showSuccess('Đã thay đổi loại hóa đơn')
   }, [dispatch, showSuccess])
 
-  const handleSymbolYearChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.toUpperCase()
-    
-    // Cho phép xóa về rỗng khi đang nhập
-    if (value === '') {
-      dispatch({ type: 'SET_SYMBOL_YEAR', payload: value })
-      setErrors(prev => ({ ...prev, symbolYear: '' }))
-      return
-    }
-    
-    const error = validateSymbolYear(value)
-    setErrors(prev => ({ ...prev, symbolYear: error || '' }))
-    
-    // Cập nhật value ngay cả khi có lỗi, để user có thể tiếp tục nhập
-    dispatch({ type: 'SET_SYMBOL_YEAR', payload: value })
-  }, [dispatch, validateSymbolYear])
 
   const handleLogoUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -413,12 +432,12 @@ const TemplateEditor: React.FC = () => {
   const handleContinue = async () => {
     // Validate trước khi save
     const nameError = validateTemplateName(state.templateName)
-    const symbolError = validateSymbolYear(state.symbol.year)
+    const symbolError = validateSymbol()
     
     if (nameError || symbolError) {
       setErrors({
         templateName: nameError || '',
-        symbolYear: symbolError || '',
+        symbol: symbolError || '',
       })
       setErrors(prev => ({ ...prev, _general: 'Vui lòng sửa các lỗi trước khi lưu' }))
       return
@@ -724,134 +743,231 @@ const TemplateEditor: React.FC = () => {
                   </RadioGroup>
                 </Box>
 
-                {/* Ký hiệu */}
+                {/* Ký hiệu - Theo quy định Việt Nam */}
                 <Box>
                   <Typography variant="caption" sx={{ fontWeight: 600, color: '#616161', mb: 0.75, display: 'block', fontSize: '0.8125rem' }}>
-                    Ký hiệu <span style={{ color: '#d32f2f' }}>*</span>
+                    Ký hiệu hóa đơn <span style={{ color: '#d32f2f' }}>*</span>
                   </Typography>
                   
-                  {/* Input ký hiệu */}
-                  <Stack direction="row" spacing={0} alignItems="stretch" sx={{ mb: 1.5 }}>
-                    {/* Phần cố định - 2C25T */}
-                    <Box
-                      sx={{
-                        px: 1.5,
-                        display: 'flex',
-                        alignItems: 'center',
-                        bgcolor: '#f5f5f5',
-                        border: '1px solid #e0e0e0',
-                        borderRadius: '4px 0 0 4px',
-                        borderRight: 'none',
-                        minHeight: '40px',
-                      }}>
-                      <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#424242', letterSpacing: '0.5px' }}>
-                        {state.symbol.prefix}
+                  {/* Grid layout cho 5 phần */}
+                  <Stack spacing={1.5}>
+                    {/* Phần 1: Loại hóa đơn (1 chữ số) */}
+                    <Box>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#616161', mb: 0.5 }}>
+                        1️⃣ Loại hóa đơn (1 chữ số)
                       </Typography>
+                      <FormControl fullWidth size="small">
+                        <Select
+                          value={state.symbol.invoiceType}
+                          onChange={(e) => dispatch({ type: 'SET_SYMBOL_INVOICE_TYPE', payload: e.target.value as any })}
+                          disabled={symbolDataLoading}
+                          sx={{
+                            fontSize: '0.875rem',
+                            bgcolor: '#fafafa',
+                            '&:hover': { bgcolor: '#f5f5f5' },
+                            '& .MuiSelect-select': { fontWeight: 600, letterSpacing: '0.5px' },
+                          }}
+                        >
+                          {prefixes.length > 0 ? (
+                            prefixes.map((prefix) => (
+                              <MenuItem key={prefix.prefixID} value={String(prefix.prefixID)}>
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                                  {prefix.prefixID} - {prefix.prefixName}
+                                </Typography>
+                              </MenuItem>
+                            ))
+                          ) : [
+                              <MenuItem key="1" value="1">
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                                  {symbolDataLoading && <CircularProgress size={14} sx={{ mr: 0.5, verticalAlign: 'middle' }} />}
+                                  1 - Hóa đơn điện tử giá trị gia tăng
+                                </Typography>
+                              </MenuItem>,
+                              <MenuItem key="2" value="2"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>2 - Hóa đơn điện tử bán hàng</Typography></MenuItem>,
+                              <MenuItem key="3" value="3"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>3 - Hóa đơn điện tử bán tài sản công</Typography></MenuItem>,
+                              <MenuItem key="4" value="4"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>4 - Hóa đơn điện tử bán hàng dự trữ quốc gia</Typography></MenuItem>,
+                              <MenuItem key="5" value="5"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>5 - Tem điện tử, vé điện tử, thẻ điện tử, phiếu thu điện tử</Typography></MenuItem>,
+                              <MenuItem key="6" value="6"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>6 - Phiếu xuất kho kiêm vận chuyển nội bộ/gửi bán đại lý</Typography></MenuItem>,
+                              <MenuItem key="7" value="7"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>7 - Hóa đơn thương mại điện tử</Typography></MenuItem>,
+                              <MenuItem key="8" value="8"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>8 - Hóa đơn GTGT tích hợp biên lai thu thuế, phí, lệ phí</Typography></MenuItem>,
+                              <MenuItem key="9" value="9"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>9 - Hóa đơn bán hàng tích hợp biên lai thu thuế, phí, lệ phí</Typography></MenuItem>
+                            ]}
+                        </Select>
+                      </FormControl>
                     </Box>
 
-                    {/* Phần người dùng có thể sửa - YY */}
+                    {/* Phần 2: Ký tự mã CQT (C/K) */}
+                    <Box>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#616161', mb: 0.5 }}>
+                        2️⃣ Mã cơ quan thuế (1 chữ cái)
+                      </Typography>
+                      <FormControl fullWidth size="small">
+                        <Select
+                          value={state.symbol.taxCode}
+                          onChange={(e) => dispatch({ type: 'SET_SYMBOL_TAX_CODE', payload: e.target.value as 'C' | 'K' })}
+                          disabled={symbolDataLoading}
+                          sx={{
+                            fontSize: '0.875rem',
+                            bgcolor: '#fafafa',
+                            '&:hover': { bgcolor: '#f5f5f5' },
+                            '& .MuiSelect-select': { fontWeight: 600, letterSpacing: '0.5px' },
+                          }}
+                        >
+                          {serialStatuses.length > 0 ? (
+                            serialStatuses.map((status) => (
+                              <MenuItem key={status.serialStatusID} value={status.symbol} sx={{ fontSize: '0.875rem' }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                                  {status.symbol} - {status.statusName}
+                                </Typography>
+                              </MenuItem>
+                            ))
+                          ) : [
+                              <MenuItem key="C" value="C" sx={{ fontSize: '0.875rem' }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                                  {symbolDataLoading && <CircularProgress size={14} sx={{ mr: 0.5, verticalAlign: 'middle' }} />}
+                                  C - Hóa đơn có mã của cơ quan thuế
+                                </Typography>
+                              </MenuItem>,
+                              <MenuItem key="K" value="K" sx={{ fontSize: '0.875rem' }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                                  K - Hóa đơn không có mã của cơ quan thuế
+                                </Typography>
+                              </MenuItem>
+                            ]}
+                        </Select>
+                      </FormControl>
+                    </Box>
+
+                    {/* Phần 3: Năm (2 chữ số) */}
+                    <Box>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#616161', mb: 0.5 }}>
+                        3️⃣ Năm lập hóa đơn (2 chữ số)
+                      </Typography>
                     <TextField
+                        fullWidth
                       size="small"
                       value={state.symbol.year}
-                      onChange={handleSymbolYearChange}
-                      placeholder="YY"
-                      error={!!errors.symbolYear}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 2)
+                          dispatch({ type: 'SET_SYMBOL_YEAR', payload: value })
+                        }}
+                        placeholder="25"
                       inputProps={{
                         maxLength: 2,
-                        style: { 
-                          textAlign: 'center', 
-                          fontWeight: 600, 
-                          letterSpacing: '0.5px',
-                        }
+                          style: { fontWeight: 600, letterSpacing: '0.5px' }
                       }}
                       sx={{ 
-                        width: 45,
                         '& .MuiOutlinedInput-root': { 
                           fontSize: '0.875rem',
-                          borderRadius: '0 4px 4px 0',
-                          height: '40px',
-                          '& input': {
-                            padding: '8.5px 0px',
+                            bgcolor: '#fafafa',
+                            '&:hover': { bgcolor: '#f5f5f5' },
                           },
-                          '& fieldset': {
-                            borderColor: errors.symbolYear ? '#d32f2f' : '#e0e0e0',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: errors.symbolYear ? '#d32f2f' : '#1976d2',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: errors.symbolYear ? '#d32f2f' : '#1976d2',
-                            borderWidth: 2,
-                          },
-                        },
-                      }}
-                    />
-
-                    {/* Preview box */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 1.5 }}>
-                      <Typography sx={{ fontSize: '0.75rem', color: '#9e9e9e' }}>
-                        →
-                      </Typography>
-                      <Typography sx={{ 
-                        fontSize: '0.875rem', 
-                        fontWeight: 700, 
-                        color: '#1976d2', 
-                        letterSpacing: '0.8px',
-                        px: 1.5,
-                        py: 0.5,
-                        bgcolor: '#f0f7ff',
-                        borderRadius: 1,
-                        border: '1px solid #bbdefb',
-                      }}>
-                        {state.symbol.prefix}{state.symbol.year || 'YY'}
-                      </Typography>
+                        }}
+                        helperText="Ví dụ: 2025 → 25"
+                      />
                     </Box>
 
-                    {/* Icon help - không có border */}
-                    <Tooltip 
-                      title={
-                        <Box sx={{ p: 0.5 }}>
-                          <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, mb: 0.5 }}>
-                            Hướng dẫn ký hiệu:
-                          </Typography>
-                          <Typography sx={{ fontSize: '0.7rem', mb: 0.3 }}>
-                            • <strong>{state.symbol.prefix}</strong>: Ký hiệu cố định
-                          </Typography>
-                          <Typography sx={{ fontSize: '0.7rem' }}>
-                            • <strong>YY</strong>: Năm hoặc ký tự tùy chỉnh (2-4 ký tự)
-                          </Typography>
-                          <Typography sx={{ fontSize: '0.7rem', mt: 0.5, fontStyle: 'italic', color: '#90caf9' }}>
-                            Ví dụ: {state.symbol.prefix}24, {state.symbol.prefix}2024, {state.symbol.prefix}ABC
-                          </Typography>
-                          <Typography sx={{ fontSize: '0.7rem', mt: 0.5, fontWeight: 600, color: '#90caf9' }}>
-                            → Kết quả: {state.symbol.prefix}{state.symbol.year || 'YY'}
-                          </Typography>
-                        </Box>
-                      } 
-                      arrow
-                      placement="right">
-                      <IconButton
+                    {/* Phần 4: Loại hóa đơn điện tử (1 chữ cái) */}
+                    <Box>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#616161', mb: 0.5 }}>
+                        4️⃣ Loại hóa đơn điện tử (1 chữ cái)
+                      </Typography>
+                      <FormControl fullWidth size="small">
+                        <Select
+                          value={state.symbol.invoiceForm}
+                          onChange={(e) => dispatch({ type: 'SET_SYMBOL_INVOICE_FORM', payload: e.target.value as any })}
+                          disabled={symbolDataLoading}
+                          sx={{
+                        fontSize: '0.875rem', 
+                            bgcolor: '#fafafa',
+                            '&:hover': { bgcolor: '#f5f5f5' },
+                            '& .MuiSelect-select': { fontWeight: 600 },
+                          }}
+                        >
+                          {invoiceTypes.length > 0 ? (
+                            invoiceTypes.map((type) => (
+                              <MenuItem key={type.invoiceTypeID} value={type.symbol}>
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                                  {type.symbol} - {type.typeName}
+                                </Typography>
+                              </MenuItem>
+                            ))
+                          ) : [
+                              <MenuItem key="T" value="T">
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                                  {symbolDataLoading && <CircularProgress size={14} sx={{ mr: 0.5, verticalAlign: 'middle' }} />}
+                                  T - HĐ DN, tổ chức, hộ, cá nhân kinh doanh đăng ký sử dụng
+                                </Typography>
+                              </MenuItem>,
+                              <MenuItem key="D" value="D"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>D - HĐ tài sản công và HĐ bán hàng dự trữ quốc gia</Typography></MenuItem>,
+                              <MenuItem key="L" value="L"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>L - HĐ Cơ quan thuế cấp theo từng lần phát sinh</Typography></MenuItem>,
+                              <MenuItem key="M" value="M"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>M - HĐ khởi tạo từ máy tính tiền</Typography></MenuItem>,
+                              <MenuItem key="N" value="N"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>N - Phiếu xuất kho kiêm vận chuyển nội bộ</Typography></MenuItem>,
+                              <MenuItem key="B" value="B"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>B - Phiếu xuất kho gửi bán đại lý điện</Typography></MenuItem>,
+                              <MenuItem key="G" value="G"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>G - Tem, vé, thẻ điện tử là hóa đơn GTGT</Typography></MenuItem>,
+                              <MenuItem key="H" value="H"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>H - Tem, vé, thẻ điện tử là hóa đơn bán hàng</Typography></MenuItem>,
+                              <MenuItem key="X" value="X"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>X - Hóa đơn thương mại điện tử</Typography></MenuItem>
+                            ]}
+                        </Select>
+                      </FormControl>
+                    </Box>
+
+                    {/* Phần 5: Quản lý mẫu (2 ký tự) */}
+                    <Box>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#616161', mb: 0.5 }}>
+                        5️⃣ Quản lý mẫu (2 ký tự)
+                      </Typography>
+                      <TextField
+                        fullWidth
                         size="small"
+                        value={state.symbol.management}
+                        onChange={(e) => {
+                          const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 2)
+                          dispatch({ type: 'SET_SYMBOL_MANAGEMENT', payload: value })
+                        }}
+                        placeholder="AA"
+                        inputProps={{
+                          maxLength: 2,
+                          style: { fontWeight: 600, letterSpacing: '0.5px' }
+                        }}
                         sx={{ 
-                          ml: 0.5,
-                          width: 32,
-                          height: 32,
-                          transition: 'all 0.2s ease',
-                          '&:hover': { 
-                            bgcolor: '#e3f2fd',
+                          '& .MuiOutlinedInput-root': {
+                            fontSize: '0.875rem',
+                            bgcolor: '#fafafa',
+                            '&:hover': { bgcolor: '#f5f5f5' },
                           },
-                        }}>
-                        <InfoIcon sx={{ fontSize: 20, color: '#1976d2' }} />
-                      </IconButton>
-                    </Tooltip>
+                        }}
+                        helperText="Do người bán tự xác định. Mặc định: AA"
+                      />
+                    </Box>
                   </Stack>
                   
-                  {/* Error message cho Symbol Year */}
-                  {errors.symbolYear && (
-                    <Typography sx={{ fontSize: '0.75rem', color: '#d32f2f', mt: 0.5 }}>
-                      {errors.symbolYear}
+                  {/* Preview ký hiệu hoàn chỉnh */}
+                  <Box sx={{ 
+                    mt: 2, 
+                    p: 2, 
+                    bgcolor: '#f0f7ff', 
+                    borderRadius: 1.5,
+                    border: '2px solid #1976d2',
+                  }}>
+                    <Stack direction="row" alignItems="center" spacing={1.5}>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#1565c0' }}>
+                        📋 Ký hiệu hoàn chỉnh:
                     </Typography>
-                  )}
+                      <Typography sx={{ 
+                        fontSize: '1.125rem', 
+                        fontWeight: 700, 
+                        color: '#1976d2', 
+                        letterSpacing: '1px',
+                        fontFamily: 'monospace',
+                      }}>
+                        {state.symbol.invoiceType}{state.symbol.taxCode}{state.symbol.year || '__'}{state.symbol.invoiceForm}{state.symbol.management || 'AA'}
+                      </Typography>
+                    </Stack>
+                    <Typography sx={{ fontSize: '0.7rem', color: '#1565c0', mt: 1 }}>
+                      💡 Ví dụ: 1C25TAA = Loại 1 (GTGT), có mã CQT, năm 2025, doanh nghiệp, quản lý AA
+                    </Typography>
+                  </Box>
                 </Box>
 
                 {/* Logo */}
@@ -988,15 +1104,15 @@ const TemplateEditor: React.FC = () => {
                   
                   {/* Grid preview khung viền từ API */}
                   {!framesLoading && (
-                    <Box sx={{ 
-                      display: 'grid', 
-                      gridTemplateColumns: 'repeat(3, 1fr)', 
-                      gap: 1,
-                      p: 1.5,
-                      bgcolor: '#f9f9f9',
-                      borderRadius: 1.5,
-                      border: '1px solid #e0e0e0',
-                    }}>
+                  <Box sx={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(3, 1fr)', 
+                    gap: 1,
+                    p: 1.5,
+                    bgcolor: '#f9f9f9',
+                    borderRadius: 1.5,
+                    border: '1px solid #e0e0e0',
+                  }}>
                       {(templateFrames.length > 0 ? templateFrames : 
                         // Fallback to local frames if API fails
                         Array.from({ length: 11 }, (_, i) => ({
@@ -1010,30 +1126,30 @@ const TemplateEditor: React.FC = () => {
                       ).map((frame) => {
                         const isSelected = state.background.frame === frame.imageUrl || 
                                          state.background.frame === frame.imagePath
-                        
-                        return (
+                      
+                      return (
                           <Tooltip key={frame.id} title={frame.name} arrow>
-                            <Box
-                              onClick={() => {
+                          <Box
+                            onClick={() => {
                                 dispatch({ type: 'SET_BACKGROUND_FRAME', payload: frame.imageUrl })
                                 showSuccess(`Đã chọn ${frame.name}`)
-                              }}
-                              sx={{
-                                position: 'relative',
-                                aspectRatio: '1',
-                                border: isSelected ? '3px solid #1976d2' : '2px solid #e0e0e0',
-                                borderRadius: 1,
-                                overflow: 'hidden',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                '&:hover': {
-                                  transform: 'scale(1.05)',
-                                  boxShadow: 2,
-                                  borderColor: '#1976d2',
-                                },
-                              }}
-                            >
-                              <img 
+                            }}
+                            sx={{
+                              position: 'relative',
+                              aspectRatio: '1',
+                              border: isSelected ? '3px solid #1976d2' : '2px solid #e0e0e0',
+                              borderRadius: 1,
+                              overflow: 'hidden',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              '&:hover': {
+                                transform: 'scale(1.05)',
+                                boxShadow: 2,
+                                borderColor: '#1976d2',
+                              },
+                            }}
+                          >
+                            <img 
                                 src={frameImageErrors.has(frame.id) 
                                   ? `/khunghoadon/khunghoadon${frame.id}.png` 
                                   : frame.imageUrl
@@ -1043,43 +1159,43 @@ const TemplateEditor: React.FC = () => {
                                   console.warn(`Failed to load frame image: ${frame.imageUrl}`)
                                   setFrameImageErrors(prev => new Set(prev).add(frame.id))
                                 }}
-                                style={{ 
-                                  width: '100%', 
-                                  height: '100%', 
-                                  objectFit: 'cover' 
-                                }}
-                              />
-                              {isSelected && (
-                                <Box sx={{
-                                  position: 'absolute',
-                                  top: 4,
-                                  right: 4,
-                                  bgcolor: '#1976d2',
-                                  color: 'white',
-                                  borderRadius: '50%',
-                                  width: 20,
-                                  height: 20,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: '0.75rem',
-                                }}>
-                                  ✓
-                                </Box>
-                              )}
-                              <Typography sx={{
+                              style={{ 
+                                width: '100%', 
+                                height: '100%', 
+                                objectFit: 'cover' 
+                              }}
+                            />
+                            {isSelected && (
+                              <Box sx={{
                                 position: 'absolute',
-                                bottom: 0,
-                                left: 0,
-                                right: 0,
-                                bgcolor: 'rgba(0,0,0,0.6)',
+                                top: 4,
+                                right: 4,
+                                bgcolor: '#1976d2',
                                 color: 'white',
-                                fontSize: '0.65rem',
-                                textAlign: 'center',
-                                py: 0.3,
+                                borderRadius: '50%',
+                                width: 20,
+                                height: 20,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.75rem',
                               }}>
+                                ✓
+                              </Box>
+                            )}
+                            <Typography sx={{
+                              position: 'absolute',
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              bgcolor: 'rgba(0,0,0,0.6)',
+                              color: 'white',
+                              fontSize: '0.65rem',
+                              textAlign: 'center',
+                              py: 0.3,
+                            }}>
                                 {frame.id}
-                              </Typography>
+                            </Typography>
                               {frame.recommended && (
                                 <Box sx={{
                                   position: 'absolute',
@@ -1096,11 +1212,11 @@ const TemplateEditor: React.FC = () => {
                                   Đề xuất
                                 </Box>
                               )}
-                            </Box>
-                          </Tooltip>
-                        )
-                      })}
-                    </Box>
+                          </Box>
+                        </Tooltip>
+                      )
+                    })}
+                  </Box>
                   )}
                   
                   <Typography sx={{ 

@@ -17,12 +17,52 @@ const templateReducer = (state: TemplateState, action: TemplateAction): Template
     case 'SET_INVOICE_DATE':
       return { ...state, invoiceDate: action.payload }
     
+    case 'SET_SYMBOL_INVOICE_TYPE': {
+      const newType = action.payload
+      const newTemplateCode = `${newType}${state.symbol.taxCode}${state.symbol.year}${state.symbol.invoiceForm}${state.symbol.management}`
+      return {
+        ...state,
+        symbol: { ...state.symbol, invoiceType: newType },
+        templateCode: newTemplateCode,
+      }
+    }
+    
+    case 'SET_SYMBOL_TAX_CODE': {
+      const newTaxCode = action.payload
+      const newTemplateCode = `${state.symbol.invoiceType}${newTaxCode}${state.symbol.year}${state.symbol.invoiceForm}${state.symbol.management}`
+      return {
+        ...state,
+        symbol: { ...state.symbol, taxCode: newTaxCode },
+        templateCode: newTemplateCode,
+      }
+    }
+    
     case 'SET_SYMBOL_YEAR': {
       const newYear = action.payload
-      const newTemplateCode = `${state.symbol.prefix}${newYear}`
+      const newTemplateCode = `${state.symbol.invoiceType}${state.symbol.taxCode}${newYear}${state.symbol.invoiceForm}${state.symbol.management}`
       return {
         ...state,
         symbol: { ...state.symbol, year: newYear },
+        templateCode: newTemplateCode,
+      }
+    }
+    
+    case 'SET_SYMBOL_INVOICE_FORM': {
+      const newForm = action.payload
+      const newTemplateCode = `${state.symbol.invoiceType}${state.symbol.taxCode}${state.symbol.year}${newForm}${state.symbol.management}`
+      return {
+        ...state,
+        symbol: { ...state.symbol, invoiceForm: newForm },
+        templateCode: newTemplateCode,
+      }
+    }
+    
+    case 'SET_SYMBOL_MANAGEMENT': {
+      const newManagement = action.payload
+      const newTemplateCode = `${state.symbol.invoiceType}${state.symbol.taxCode}${state.symbol.year}${state.symbol.invoiceForm}${newManagement}`
+      return {
+        ...state,
+        symbol: { ...state.symbol, management: newManagement },
         templateCode: newTemplateCode,
       }
     }

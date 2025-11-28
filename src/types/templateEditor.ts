@@ -16,8 +16,11 @@ export interface TemplateState {
   invoiceType: 'withCode' | 'withoutCode'
   invoiceDate: string // ISO date string
   symbol: {
-    prefix: string
-    year: string
+    invoiceType: '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' // Số đầu: Loại HĐ (1-9)
+    taxCode: 'C' | 'K' // C: Có mã CQT, K: Không mã CQT
+    year: string // 2 chữ số năm (VD: 25)
+    invoiceForm: 'T' | 'D' | 'L' | 'M' | 'N' | 'B' | 'G' | 'H' | 'X' // Loại hóa đơn
+    management: string // 2 ký tự quản lý mẫu (VD: AA)
   }
   logo: string | null
   logoSize: number // Logo size in pixels (default: 60)
@@ -71,7 +74,11 @@ export type TemplateAction =
   | { type: 'SET_TEMPLATE_NAME'; payload: string }
   | { type: 'SET_INVOICE_TYPE'; payload: 'withCode' | 'withoutCode' }
   | { type: 'SET_INVOICE_DATE'; payload: string }
+  | { type: 'SET_SYMBOL_INVOICE_TYPE'; payload: '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' }
+  | { type: 'SET_SYMBOL_TAX_CODE'; payload: 'C' | 'K' }
   | { type: 'SET_SYMBOL_YEAR'; payload: string }
+  | { type: 'SET_SYMBOL_INVOICE_FORM'; payload: 'T' | 'D' | 'L' | 'M' | 'N' | 'B' | 'G' | 'H' | 'X' }
+  | { type: 'SET_SYMBOL_MANAGEMENT'; payload: string }
   | { type: 'SET_LOGO'; payload: string | null }
   | { type: 'SET_LOGO_SIZE'; payload: number }
   | { type: 'SET_BACKGROUND_CUSTOM'; payload: string | null }

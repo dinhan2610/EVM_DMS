@@ -235,7 +235,7 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                     {/* Cột Phải: Ký hiệu và Số */}
                     <Box sx={{ flex: 1, textAlign: 'right' }}>
                       <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.3, lineHeight: 1.4 }}>
-                        {renderBilingual('Ký hiệu', 'Symbol')}: <strong>{symbol.prefix}{symbol.year}</strong>
+                        {renderBilingual('Ký hiệu', 'Symbol')}: <strong>{symbol.invoiceType}{symbol.taxCode}{symbol.year}{symbol.invoiceForm}{symbol.management}</strong>
                       </Typography>
                       <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.4 }}>
                         {renderBilingual('Số', 'No.')}: <Box component="span" sx={{ color: 'red', fontWeight: 500 }}>[{renderBilingual('Chưa cấp số', 'Not Issued')}]</Box>

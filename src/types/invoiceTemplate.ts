@@ -93,11 +93,16 @@ export interface CustomerVisibility {
 }
 
 /**
- * Invoice symbol configuration (e.g., "2C25TYY")
+ * Invoice symbol configuration (e.g., "1C25TAA")
+ * Structure: [invoiceType][taxCode][year][invoiceForm][management]
+ * Example: 1C25TAA = Loại 1 (GTGT), có mã CQT, năm 2025, doanh nghiệp, quản lý AA
  */
 export interface InvoiceSymbol {
-  prefix: string;
-  year: string;
+  invoiceType: '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'; // Loại hóa đơn (1-9)
+  taxCode: 'C' | 'K'; // C: Có mã CQT, K: Không mã CQT
+  year: string; // 2 chữ số năm (VD: 25)
+  invoiceForm: 'T' | 'D' | 'L' | 'M' | 'N' | 'B' | 'G' | 'H' | 'X'; // Loại hóa đơn điện tử
+  management: string; // 2 ký tự quản lý mẫu (VD: AA)
 }
 
 // ==================== COMPONENT PROPS ====================
@@ -189,8 +194,11 @@ export const DEFAULT_CUSTOMER_VISIBILITY: CustomerVisibility = {
  * Default invoice symbol
  */
 export const DEFAULT_INVOICE_SYMBOL: InvoiceSymbol = {
-  prefix: '2C25T',
-  year: 'YY',
+  invoiceType: '1', // HĐ điện tử GTGT
+  taxCode: 'C', // Có mã CQT
+  year: new Date().getFullYear().toString().slice(-2), // Năm hiện tại (2 số cuối)
+  invoiceForm: 'T', // Doanh nghiệp
+  management: 'AA', // Quản lý mẫu
 };
 
 // ==================== CONSTANTS ====================

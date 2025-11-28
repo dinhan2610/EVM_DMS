@@ -127,7 +127,7 @@ const InvoiceTemplatePreviewPrintable: React.FC<InvoiceTemplatePrintProps> = ({
                   {/* Ký hiệu và Số - Căn phải */}
                   <Box sx={{ position: 'absolute', top: 35, right: 0 }}>
                     <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.3, textAlign: 'right' }}>
-                      Ký hiệu: <strong>{symbol.prefix}{symbol.year}</strong>
+                      Ký hiệu: <strong>{symbol.invoiceType}{symbol.taxCode}{symbol.year}{symbol.invoiceForm}{symbol.management}</strong>
                     </Typography>
                     <Typography variant="body2" sx={{ fontSize: '0.75rem', textAlign: 'right' }}>
                       Số: <Box component="span" sx={{ color: 'red', fontWeight: 500 }}>[Chưa cấp số]</Box>
