@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -16,6 +16,8 @@ import {
   FormControl,
   IconButton,
   Alert,
+  CircularProgress,
+  Snackbar,
 } from '@mui/material'
 import {
   ArrowBack as ArrowBackIcon,
@@ -23,122 +25,140 @@ import {
   InfoOutlined as InfoIcon,
   PlayCircleOutline as PlayCircleIcon,
 } from '@mui/icons-material'
-
-// Interface cho template
-interface TemplateOption {
-  id: number
-  name: string
-  imagePath: string
-  category: 'GTGT' | 'Banhang' | 'Universal'
-  description: string
-  recommended?: boolean
-}
-
-// Danh sách 11 khung hóa đơn
-const templateOptions: TemplateOption[] = [
-  {
-    id: 1,
-    name: 'Mẫu tiêu chuẩn 01',
-    imagePath: '/khunghoadon/khunghoadon1.png',
-    category: 'GTGT',
-    description: 'Mẫu hóa đơn GTGT tiêu chuẩn, phổ biến nhất',
-    recommended: true,
-  },
-  {
-    id: 2,
-    name: 'Mẫu tiêu chuẩn 02',
-    imagePath: '/khunghoadon/khunghoadon2.png',
-    category: 'GTGT',
-    description: 'Mẫu hóa đơn GTGT cải tiến với bố cục rõ ràng',
-  },
-  {
-    id: 3,
-    name: 'Mẫu bán hàng 01',
-    imagePath: '/khunghoadon/khunghoadon3.png',
-    category: 'Banhang',
-    description: 'Mẫu hóa đơn bán hàng đơn giản',
-    recommended: true,
-  },
-  {
-    id: 4,
-    name: 'Mẫu bán hàng 02',
-    imagePath: '/khunghoadon/khunghoadon4.png',
-    category: 'Banhang',
-    description: 'Mẫu hóa đơn bán hàng chi tiết',
-  },
-  {
-    id: 5,
-    name: 'Mẫu chuyên nghiệp 01',
-    imagePath: '/khunghoadon/khunghoadon5.png',
-    category: 'Universal',
-    description: 'Mẫu đa năng cho mọi loại hóa đơn',
-  },
-  {
-    id: 6,
-    name: 'Mẫu chuyên nghiệp 02',
-    imagePath: '/khunghoadon/khunghoadon6.png',
-    category: 'Universal',
-    description: 'Mẫu hiện đại với thiết kế sang trọng',
-  },
-  {
-    id: 7,
-    name: 'Mẫu GTGT 03',
-    imagePath: '/khunghoadon/khunghoadon7.png',
-    category: 'GTGT',
-    description: 'Mẫu GTGT phù hợp cho doanh nghiệp lớn',
-  },
-  {
-    id: 8,
-    name: 'Mẫu GTGT 04',
-    imagePath: '/khunghoadon/khunghoadon8.png',
-    category: 'GTGT',
-    description: 'Mẫu GTGT tối ưu cho in ấn',
-  },
-  {
-    id: 9,
-    name: 'Mẫu bán hàng 03',
-    imagePath: '/khunghoadon/khunghoadon9.png',
-    category: 'Banhang',
-    description: 'Mẫu bán hàng nhỏ gọn',
-  },
-  {
-    id: 10,
-    name: 'Mẫu đa năng 01',
-    imagePath: '/khunghoadon/khunghoadon10.png',
-    category: 'Universal',
-    description: 'Mẫu linh hoạt cho mọi ngành nghề',
-  },
-  {
-    id: 11,
-    name: 'Mẫu đa năng 02',
-    imagePath: '/khunghoadon/khunghoadon11.png',
-    category: 'Universal',
-    description: 'Mẫu tối giản, dễ tùy chỉnh',
-  },
-]
+import templateFrameService, { TemplateFrame } from '@/services/templateFrameService'
+import API_CONFIG from '@/config/api.config'
 
 const TemplateSelection: React.FC = () => {
   const navigate = useNavigate()
+  
+  // ============================================================================
+  // STATE MANAGEMENT
+  // ============================================================================
   const [searchQuery] = useState('')
   const [selectedCategory] = useState<'All' | 'GTGT' | 'Banhang' | 'Universal'>('All')
   const [templateType, setTemplateType] = useState('Loại hoá đơn')
   const [baseType, setBaseType] = useState('Mẫu cơ bản')
   const [paperSize, setPaperSize] = useState('A4')
   const [hoveredId, setHoveredId] = useState<number | null>(null)
+  
+  // API Integration States
+  const [templates, setTemplates] = useState<TemplateFrame[]>([])
+  const [loading, setLoading] = useState(false)
+  const [imageErrors, setImageErrors] = useState<Set<number>>(new Set())
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean
+    message: string
+    severity: 'success' | 'error' | 'info' | 'warning'
+  }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  })
 
-  // Filter templates
-  const filteredTemplates = templateOptions.filter((template) => {
+  // ============================================================================
+  // API CALLS
+  // ============================================================================
+
+  /**
+   * Fetch all template frames from API
+   */
+  const fetchTemplateFrames = useCallback(async () => {
+    // Check authentication first
+    const token = localStorage.getItem(API_CONFIG.TOKEN_KEY)
+    if (!token) {
+      setSnackbar({
+        open: true,
+        message: 'Vui lòng đăng nhập để tiếp tục',
+        severity: 'error',
+      })
+      setTimeout(() => {
+        navigate('/auth/sign-in')
+      }, 1500)
+      return
+    }
+
+    setLoading(true)
+    try {
+      const frames = await templateFrameService.getAllTemplateFrames()
+      setTemplates(frames)
+      
+      if (frames.length === 0) {
+        setSnackbar({
+          open: true,
+          message: 'Không có mẫu hóa đơn nào',
+          severity: 'info',
+        })
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Không thể tải danh sách mẫu hóa đơn'
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: 'error',
+      })
+      console.error('Error fetching template frames:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [navigate])
+
+  // Fetch templates on component mount
+  useEffect(() => {
+    fetchTemplateFrames()
+  }, [fetchTemplateFrames])
+
+  // ============================================================================
+  // FILTERING LOGIC
+  // ============================================================================
+
+  /**
+   * Filter templates based on search query and category
+   */
+  const filteredTemplates = templates.filter((template) => {
     const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       template.description.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = selectedCategory === 'All' || template.category === selectedCategory
     return matchesSearch && matchesCategory
   })
 
-  // Handle template selection
+  // ============================================================================
+  // EVENT HANDLERS
+  // ============================================================================
+
+  /**
+   * Close snackbar
+   */
+  const handleCloseSnackbar = () => {
+    setSnackbar((prev) => ({ ...prev, open: false }))
+  }
+
+  /**
+   * Handle image load error - track failed images
+   */
+  const handleImageError = (templateId: number) => {
+    console.warn(`Failed to load image for template ${templateId}`)
+    setImageErrors((prev) => new Set(prev).add(templateId))
+  }
+
+  /**
+   * Get fallback image URL for local templates
+   */
+  const getFallbackImageUrl = (frameId: number): string => {
+    // Map frameID to local fallback images
+    return `/khunghoadon/khunghoadon${frameId}.png`
+  }
+
+  /**
+   * Handle template selection and navigate to editor
+   */
   const handleSelectTemplate = (templateId: number) => {
     // Navigate to editor with selected template
     navigate(`/admin/templates/new?templateId=${templateId}`)
   }
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5' }}>
@@ -531,63 +551,104 @@ const TemplateSelection: React.FC = () => {
 
       {/* Templates Grid */}
       <Box sx={{ px: 3, py: 3 }}>
-        <Grid container spacing={2.5}>
-          {filteredTemplates.map((template) => (
-            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={template.id}>
-              <Card
-                onMouseEnter={() => setHoveredId(template.id)}
-                onMouseLeave={() => setHoveredId(null)}
-                sx={{
-                  height: '100%',
-                  border: '1px solid',
-                  borderColor: hoveredId === template.id ? '#1976d2' : '#90caf9',
-                  borderRadius: 1,
-                  transition: 'all 0.2s ease-in-out',
-                  transform: hoveredId === template.id ? 'scale(1.02)' : 'scale(1)',
-                  boxShadow: 'none',
-                  cursor: 'pointer',
-                  bgcolor: '#fff',
-                }}>
-                <CardActionArea onClick={() => handleSelectTemplate(template.id)} sx={{ height: '100%' }}>
-                  {/* Template Image */}
-                  <CardMedia
-                    component="img"
-                    image={template.imagePath}
-                    alt={template.name}
-                    sx={{
-                      height: 400,
-                      objectFit: 'contain',
-                      p: 1,
-                      bgcolor: '#fafafa',
-                    }}
-                  />
+        {/* Loading State */}
+        {loading && (
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              minHeight: 400,
+              flexDirection: 'column',
+              gap: 2,
+            }}>
+            <CircularProgress size={48} />
+            <Typography variant="body1" color="text.secondary">
+              Đang tải danh sách mẫu hóa đơn...
+            </Typography>
+          </Box>
+        )}
 
-                  {/* Template Label */}
-                  <CardContent
-                    sx={{
-                      p: 1.5,
-                      textAlign: 'center',
-                      bgcolor: '#fff',
-                      borderTop: '1px solid #e0e0e0',
-                    }}>
-                    <Typography
-                      variant="body2"
+        {/* Templates Grid - Only show when not loading */}
+        {!loading && filteredTemplates.length > 0 && (
+          <Grid container spacing={2.5}>
+            {filteredTemplates.map((template) => (
+              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={template.id}>
+                <Card
+                  onMouseEnter={() => setHoveredId(template.id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                  sx={{
+                    height: '100%',
+                    border: '1px solid',
+                    borderColor: hoveredId === template.id ? '#1976d2' : '#90caf9',
+                    borderRadius: 1,
+                    transition: 'all 0.2s ease-in-out',
+                    transform: hoveredId === template.id ? 'scale(1.02)' : 'scale(1)',
+                    boxShadow: hoveredId === template.id 
+                      ? '0 8px 24px rgba(25, 118, 210, 0.2)' 
+                      : 'none',
+                    cursor: 'pointer',
+                    bgcolor: '#fff',
+                  }}>
+                  <CardActionArea onClick={() => handleSelectTemplate(template.id)} sx={{ height: '100%' }}>
+                    {/* Template Image with Fallback */}
+                    <CardMedia
+                      component="img"
+                      image={imageErrors.has(template.id) ? getFallbackImageUrl(template.id) : template.imageUrl}
+                      alt={template.name}
+                      onError={() => handleImageError(template.id)}
                       sx={{
-                        fontWeight: 500,
-                        fontSize: '0.875rem',
-                        color: '#424242',
+                        height: 400,
+                        objectFit: 'contain',
+                        p: 1,
+                        bgcolor: '#fafafa',
+                      }}
+                    />
+
+                    {/* Template Label */}
+                    <CardContent
+                      sx={{
+                        p: 1.5,
+                        textAlign: 'center',
+                        bgcolor: '#fff',
+                        borderTop: '1px solid #e0e0e0',
                       }}>
-                      {template.name}
-                    </Typography>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 500,
+                          fontSize: '0.875rem',
+                          color: '#424242',
+                        }}>
+                        {template.name}
+                      </Typography>
+                      {template.recommended && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            display: 'inline-block',
+                            mt: 0.5,
+                            px: 1,
+                            py: 0.25,
+                            bgcolor: '#e3f2fd',
+                            color: '#1976d2',
+                            borderRadius: 0.5,
+                            fontWeight: 600,
+                            fontSize: '0.6875rem',
+                          }}>
+                          Đề xuất
+                        </Typography>
+                      )}
+                    </CardContent>
+                  </CardActionArea>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        )}
 
         {/* Empty State */}
-        {filteredTemplates.length === 0 && (
+        {!loading && filteredTemplates.length === 0 && (
           <Fade in>
             <Box
               sx={{
@@ -602,12 +663,31 @@ const TemplateSelection: React.FC = () => {
                 Không tìm thấy mẫu phù hợp
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc
+                {templates.length === 0 
+                  ? 'Không có mẫu hóa đơn nào trong hệ thống'
+                  : 'Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc'
+                }
               </Typography>
             </Box>
           </Fade>
         )}
       </Box>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        message={snackbar.message}
+        sx={{
+          '& .MuiSnackbarContent-root': {
+            bgcolor: snackbar.severity === 'error' ? '#d32f2f' : 
+                     snackbar.severity === 'success' ? '#2e7d32' : 
+                     snackbar.severity === 'warning' ? '#ed6c02' : '#0288d1',
+          },
+        }}
+      />
     </Box>
   )
 }

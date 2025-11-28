@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Box,
@@ -9,6 +9,9 @@ import {
   Radio,
   RadioGroup,
   FormControlLabel,
+  FormControl,
+  Select,
+  MenuItem,
   IconButton,
   Paper,
   Tooltip,
@@ -16,11 +19,16 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Tabs,
-  Tab,
   Checkbox,
   Divider,
+  
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Snackbar,
+  Alert,
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
@@ -28,18 +36,27 @@ import PlayCircleIcon from '@mui/icons-material/PlayCircle'
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import InfoIcon from '@mui/icons-material/Info'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import SettingsIcon from '@mui/icons-material/Settings'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
-import CodeIcon from '@mui/icons-material/Code'
-import AddIcon from '@mui/icons-material/Add'
-import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
 import PrintIcon from '@mui/icons-material/Print'
 import ZoomInIcon from '@mui/icons-material/ZoomIn'
 import ZoomOutIcon from '@mui/icons-material/ZoomOut'
 import RestartAltIcon from '@mui/icons-material/RestartAlt'
 import SaveIcon from '@mui/icons-material/Save'
+import UndoIcon from '@mui/icons-material/Undo'
+import RedoIcon from '@mui/icons-material/Redo'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
+import { DragDropContext, DropResult } from '@hello-pangea/dnd'
+import { useTemplateReducer } from '@/hooks/useTemplateReducer'
+import { TemplateState } from '@/types/templateEditor'
+import { AddFieldDialog } from '@/components/AddFieldDialog'
+import templateFrameService, { TemplateFrame } from '@/services/templateFrameService'
+import invoiceSymbolService, { 
+  PrefixApiResponse, 
+  SerialStatusApiResponse, 
+  InvoiceTypeApiResponse 
+} from '@/services/invoiceSymbolService'
+import templateService from '@/services/templateService'
+import API_CONFIG from '@/config/api.config'
 
 // Interface cũ - tương thích với InvoiceTemplatePreview
 interface TemplateConfig {
@@ -72,165 +89,525 @@ const TemplateEditor: React.FC = () => {
   const { templateId: urlTemplateId } = useParams<{ templateId: string }>()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const [loading, setLoading] = useState(false)
   
-  // Get templateId from URL params or query params
   const templateId = urlTemplateId || searchParams.get('templateId')
 
-  // State UI mới
-  const [invoiceType, setInvoiceType] = useState<'withCode' | 'withoutCode'>('withCode')
-  const [symbolPrefix] = useState<string>('2C25T') // Cố định, không cho sửa
-  const [symbolYear, setSymbolYear] = useState<string>('YY') // Người dùng có thể sửa
-  const [customBackground, setCustomBackground] = useState<string | null>(null)
-  const [backgroundFrame, setBackgroundFrame] = useState<string>('/khunghoadon.png') // Default frame
+  // ============ KHỞI TẠO STATE MỚI VỚI REDUCER ============
+  const initialState: TemplateState = {
+    templateName: 'Hóa đơn bán hàng (mẫu CB)',
+    invoiceType: 'withCode',
+    invoiceDate: new Date().toISOString(),
+    symbol: { 
+      invoiceType: '1', // 1: HĐ điện tử GTGT
+      taxCode: 'C', // C: Có mã CQT
+      year: new Date().getFullYear().toString().slice(-2), // 2 số cuối năm hiện tại
+      invoiceForm: 'T', // T: Hóa đơn doanh nghiệp
+      management: 'AA' // Mặc định AA
+    },
+    logo: null,
+    logoSize: 150,
+    background: { custom: null, frame: '/khunghoadon.png' },
+    company: {
+      name: 'Công ty Cổ phần Giải pháp Tổng thể Kỷ Nguyên Số',
+      taxCode: '0316882091',
+      address: 'Tòa nhà ABC, 123 Đường XYZ, Phường Tân Định, Quận 1, TP. Hồ Chí Minh, Việt Nam',
+      phone: '(028) 38 995 822',
+      bankAccount: '245889119 - Ngân hàng TMCP Á Châu - CN Sài Gòn',
+      fields: [
+        { id: 'name', label: 'Đơn vị bán', value: 'Công ty Cổ phần Giải pháp Tổng thể Kỷ Nguyên Số', visible: true },
+        { id: 'taxCode', label: 'Mã số thuế', value: '0316882091', visible: false },
+        { id: 'address', label: 'Địa chỉ', value: 'Tòa nhà ABC, 123 Đường XYZ, Phường Tân Định, Quận 1, TP. Hồ Chí Minh, Việt Nam', visible: true },
+        { id: 'phone', label: 'Điện thoại', value: '(028) 38 995 822', visible: true },
+        { id: 'fax', label: 'Fax', value: '', visible: false },
+        { id: 'website', label: 'Website', value: 'kns.com.vn', visible: false },
+        { id: 'email', label: 'Email', value: 'contact@kns.com.vn', visible: false },
+        { id: 'bankAccount', label: 'Số tài khoản', value: '245889119 - Ngân hàng TMCP Á Châu - CN Sài Gòn', visible: true },
+      ],
+    },
+    table: {
+      columns: [
+        { id: 'code', label: 'Mã hàng', visible: false, hasCode: false },
+        { id: 'name', label: 'Tên hàng hóa, dịch vụ', visible: false, hasCode: false },
+        { id: 'specs', label: 'Quy cách', visible: false, hasCode: false },
+        { id: 'unit', label: 'Đơn vị tính', visible: true, hasCode: false },
+        { id: 'quantity', label: 'Số lượng', visible: true, hasCode: true },
+        { id: 'price', label: 'Đơn giá', visible: true, hasCode: true },
+        { id: 'amount', label: 'Thành tiền', visible: false, hasCode: true },
+        { id: 'note', label: 'Ghi chú', visible: false, hasCode: false },
+        { id: 'warehouse', label: 'Kho nhập', visible: false, hasCode: false },
+      ],
+      rowCount: 5,
+      sttTitle: 'STT',
+      sttContent: '[STT]',
+    },
+    modelCode: '01GTKT',
+    templateCode: '2C25TYY',
+    settings: {
+      numberFont: 'arial',
+      showQrCode: true,
+      bilingual: false,
+      visibility: {
+        showLogo: true,
+        showCompanyName: true,
+        showCompanyTaxCode: false,
+        showCompanyAddress: true,
+        showCompanyPhone: true,
+        showCompanyBankAccount: true,
+        showSignature: true,
+      },
+      customerVisibility: {
+        customerName: false,
+        customerTaxCode: false,
+        customerAddress: false,
+        customerPhone: false,
+        customerEmail: false,
+        paymentMethod: false,
+      },
+    },
+  }
 
-  // State cho accordion "Tùy chỉnh nội dung chi tiết hóa đơn"
-  const [detailTab, setDetailTab] = useState<'company' | 'stt'>('company')
-  const [companyFields, setCompanyFields] = useState([
-    { id: 1, label: 'Mã số thuế', value: '6868688688-9f5', checked: false },
-    { id: 2, label: 'Địa chỉ', value: 'Số 499 Nguyễn Trãi, Thanh Xuân, Hà Nội', checked: true },
-    { id: 3, label: 'Điện thoại', value: '0974993653', checked: true },
-    { id: 4, label: 'Fax', value: '', checked: false },
-    { id: 5, label: 'Website', value: 'hoanglong@com.vn', checked: false },
-    { id: 6, label: 'Email', value: 'hoanglong@gmail.com', checked: false },
-    { id: 7, label: 'Số tài khoản', value: '5678000 - Ngân hàng Thương Mại Cổ Phần Á Châu', checked: true },
-  ])
-  const [tableColumns, setTableColumns] = useState([
-    { id: 1, label: 'Mã hàng', checked: false, hasCode: false, hasSettings: false },
-    { id: 2, label: 'Tên hàng hóa, dịch vụ', checked: false, hasCode: false, hasSettings: false },
-    { id: 3, label: 'Quy cách', checked: false, hasCode: false, hasSettings: false },
-    { id: 4, label: 'Đơn vị tính', checked: true, hasCode: false, hasSettings: false },
-    { id: 5, label: 'Số lượng', checked: true, hasCode: true, hasSettings: false },
-    { id: 6, label: 'Đơn giá', checked: true, hasCode: true, hasSettings: false },
-    { id: 7, label: 'Thành tiền', checked: false, hasCode: true, hasSettings: false },
-    { id: 8, label: 'Ghi chú', checked: false, hasCode: false, hasSettings: false },
-    { id: 9, label: 'Kho nhập', checked: false, hasCode: false, hasSettings: false },
-    { id: 10, label: 'Mã hàng', checked: false, hasCode: false, hasSettings: true },
-    { id: 11, label: 'Ghi chú', checked: false, hasCode: false, hasSettings: true },
-  ])
-  const [rowCount, setRowCount] = useState(5)
-  const [sttTitle, setSttTitle] = useState('STT')
-  const [sttContent, setSttContent] = useState('[STT]')
+  const { state, dispatch, canUndo, canRedo } = useTemplateReducer(initialState)
 
-  // NEW: Enhanced UX states
-  const [previewScale, setPreviewScale] = useState(0.7) // Fit perfect trong 75% container
+  // ============ UI STATES (giữ lại cho component) ============
+  const [loading, setLoading] = useState(false)
+  const [previewScale, setPreviewScale] = useState(1.0)
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
-
-  // State cũ - tương thích với InvoiceTemplatePreview
-  const [blankRows] = useState<number>(8)
-  const [config, setConfig] = useState<TemplateConfig>({
-    templateName: 'Hóa đơn bán hàng (mẫu CB)',
-    companyLogo: null,
-    companyName: 'CÔNG TY CP HOÀNG LONG',
-    companyTaxCode: '6888888888-915',
-    companyAddress: 'Số 469 Nguyễn Trãi, Thanh Xuân, Hà Nội',
-    companyPhone: '0974993653',
-    companyBankAccount: '56789/0 - Ngân hàng Thương Mại Cổ Phần Á Châu',
-    modelCode: '01GTKT',
-    templateCode: '2C23TYY',
+  const [openAddDialog, setOpenAddDialog] = useState(false)
+  const [addDialogType] = useState<'field' | 'column'>('field')
+  
+  // ============ API INTEGRATION STATES ============
+  const [templateFrames, setTemplateFrames] = useState<TemplateFrame[]>([])
+  const [framesLoading, setFramesLoading] = useState(false)
+  const [frameImageErrors, setFrameImageErrors] = useState<Set<number>>(new Set())
+  
+  // Invoice Symbol API data
+  const [prefixes, setPrefixes] = useState<PrefixApiResponse[]>([])
+  const [serialStatuses, setSerialStatuses] = useState<SerialStatusApiResponse[]>([])
+  const [invoiceTypes, setInvoiceTypes] = useState<InvoiceTypeApiResponse[]>([])
+  const [symbolDataLoading, setSymbolDataLoading] = useState(false)
+  
+  // ============ VALIDATION & FEEDBACK ============
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [successMessage, setSuccessMessage] = useState<string>('')
+  const [showConfirmDelete, setShowConfirmDelete] = useState<{open: boolean; id: string; type: 'field' | 'column'}>({
+    open: false, id: '', type: 'field'
   })
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'idle'>('idle')
 
-  const [visibility] = useState<TemplateVisibility>({
-    showQrCode: true,
-    showLogo: true,
-    showCompanyName: true,
-    showCompanyTaxCode: true,
-    showCompanyAddress: true,
-    showCompanyPhone: true,
-    showCompanyBankAccount: true,
-    showCustomerInfo: true,
-    showPaymentInfo: true,
-    showSignature: true,
-  })
+  // ============ COMPATIBILITY (tương thích với Preview) ============
+  const blankRows = state.table.rowCount
+  const config: TemplateConfig = useMemo(() => ({
+    templateName: state.templateName,
+    companyLogo: state.logo,
+    companyName: state.company.name,
+    companyTaxCode: state.company.taxCode,
+    companyAddress: state.company.address,
+    companyPhone: state.company.phone,
+    companyBankAccount: state.company.bankAccount,
+    modelCode: state.modelCode,
+    templateCode: state.templateCode,
+  }), [state])
+
+  // Sync visibility từ settings
+  const visibility = useMemo<TemplateVisibility>(() => ({
+    showQrCode: state.settings.showQrCode,
+    showLogo: state.settings.visibility.showLogo && !!state.logo,
+    showCompanyName: state.settings.visibility.showCompanyName,
+    showCompanyTaxCode: state.settings.visibility.showCompanyTaxCode,
+    showCompanyAddress: state.settings.visibility.showCompanyAddress,
+    showCompanyPhone: state.settings.visibility.showCompanyPhone,
+    showCompanyBankAccount: state.settings.visibility.showCompanyBankAccount,
+    showSignature: state.settings.visibility.showSignature,
+  }), [state.settings, state.logo])
+
+  // ============ VALIDATION FUNCTIONS ============
+  const validateTemplateName = useCallback((value: string): string | null => {
+    if (!value || value.trim().length < 5) {
+      return 'Tên mẫu phải có ít nhất 5 ký tự'
+    }
+    if (value.length > 100) {
+      return 'Tên mẫu không được vượt quá 100 ký tự'
+    }
+    return null
+  }, [])
+
+  const validateSymbol = useCallback((): string | null => {
+    if (!state.symbol.year || state.symbol.year.length !== 2) {
+      return 'Năm phải có đúng 2 chữ số'
+    }
+    if (!state.symbol.management || state.symbol.management.length !== 2) {
+      return 'Mã quản lý mẫu phải có đúng 2 ký tự'
+    }
+    return null
+  }, [state.symbol])
+
+  const showSuccess = useCallback((message: string) => {
+    setSuccessMessage(message)
+    setTimeout(() => setSuccessMessage(''), 3000)
+  }, [])
+
+  // ============ FETCH TEMPLATE FRAMES FROM API ============
+  const fetchTemplateFrames = useCallback(async () => {
+    // Check authentication
+    const token = localStorage.getItem(API_CONFIG.TOKEN_KEY)
+    if (!token) {
+      console.warn('No auth token found, skipping frame fetch')
+      return
+    }
+
+    setFramesLoading(true)
+    try {
+      const frames = await templateFrameService.getAllTemplateFrames()
+      setTemplateFrames(frames)
+    } catch (error) {
+      console.error('Failed to load template frames:', error)
+      // Fallback to empty array, UI will use local images
+      setTemplateFrames([])
+    } finally {
+      setFramesLoading(false)
+    }
+  }, [])
+
+  // Fetch invoice symbol data (Prefix, SerialStatus, InvoiceType)
+  const fetchSymbolData = useCallback(async () => {
+    // Check authentication
+    const token = localStorage.getItem(API_CONFIG.TOKEN_KEY)
+    if (!token) {
+      console.warn('No auth token found, skipping symbol data fetch')
+      return
+    }
+
+    setSymbolDataLoading(true)
+    try {
+      const data = await invoiceSymbolService.fetchAllSymbolData()
+      setPrefixes(data.prefixes)
+      setSerialStatuses(data.serialStatuses)
+      setInvoiceTypes(data.invoiceTypes)
+    } catch (error) {
+      console.error('Failed to load symbol data:', error)
+      // Keep empty arrays, UI will show default options
+    } finally {
+      setSymbolDataLoading(false)
+    }
+  }, [])
+
+  // Fetch frames on component mount
+  useEffect(() => {
+    fetchTemplateFrames()
+    fetchSymbolData()
+  }, [fetchTemplateFrames, fetchSymbolData])
 
   // Load data khi edit hoặc chọn template từ selection page
   useEffect(() => {
-    if (templateId) {
-      console.log('Loading template:', templateId)
+    if (templateId && templateFrames.length > 0) {
+      // Find frame from API data
+      const selectedFrame = templateFrames.find(frame => frame.id === parseInt(templateId))
       
-      // Map templateId với background frame tương ứng
-      const templateBackgrounds: Record<string, string> = {
-        '1': '/khunghoadon/khunghoadon1.png',
-        '2': '/khunghoadon/khunghoadon2.png',
-        '3': '/khunghoadon/khunghoadon3.png',
-        '4': '/khunghoadon/khunghoadon4.png',
-        '5': '/khunghoadon/khunghoadon5.png',
-        '6': '/khunghoadon/khunghoadon6.png',
-        '7': '/khunghoadon/khunghoadon7.png',
-        '8': '/khunghoadon/khunghoadon8.png',
-        '9': '/khunghoadon/khunghoadon9.png',
-        '10': '/khunghoadon/khunghoadon10.png',
-        '11': '/khunghoadon/khunghoadon11.png',
+      if (selectedFrame) {
+        // Use imageUrl from API (Cloudinary)
+        dispatch({ type: 'SET_BACKGROUND_FRAME', payload: selectedFrame.imageUrl })
+      } else {
+        // Fallback to local path if frame not found in API
+        const fallbackPath = `/khunghoadon/khunghoadon${templateId}.png`
+        dispatch({ type: 'SET_BACKGROUND_FRAME', payload: fallbackPath })
       }
-      
-      // Set background frame theo templateId
-      const selectedBackground = templateBackgrounds[templateId] || '/khunghoadon.png'
-      setBackgroundFrame(selectedBackground)
     }
-  }, [templateId])
+  }, [templateId, templateFrames, dispatch])
 
-  // Sync modelCode và templateCode khi UI state thay đổi
+  // ============ AUTOSAVE - Lưu draft mỗi 30s ============
   useEffect(() => {
-    setConfig((prev) => ({
-      ...prev,
-      modelCode: invoiceType === 'withCode' ? '01GTKT' : '02GTTT',
-      templateCode: symbolPrefix + symbolYear,
-    }))
-  }, [invoiceType, symbolPrefix, symbolYear])
+    const AUTOSAVE_KEY = 'template-editor-draft'
+    
+    // Load draft khi mount
+    const savedDraft = localStorage.getItem(AUTOSAVE_KEY)
+    if (savedDraft && !templateId) {
+      try {
+        const draft = JSON.parse(savedDraft)
+        // Có thể hỏi user có muốn restore không (future feature)
+      } catch (e) {
+        console.error('Failed to parse draft:', e)
+      }
+    }
 
-  // Handlers
-  const handleInputChange = (field: keyof TemplateConfig) => (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    setConfig((prev) => ({
-      ...prev,
-      [field]: e.target.value,
-    }))
-  }
+    // Auto save mỗi 30s
+    const autoSaveInterval = setInterval(() => {
+      setAutoSaveStatus('saving')
+      const draft = {
+        state,
+        timestamp: new Date().toISOString(),
+      }
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(draft))
+      
+      setTimeout(() => {
+        setAutoSaveStatus('saved')
+        setTimeout(() => setAutoSaveStatus('idle'), 2000)
+      }, 500)
+    }, 30000) // 30 seconds
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    return () => clearInterval(autoSaveInterval)
+  }, [state, templateId])
+
+  // ============ NEW HANDLERS VỚI DISPATCH ============
+  
+  const handleTemplateNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    const error = validateTemplateName(value)
+    setErrors(prev => ({ ...prev, templateName: error || '' }))
+    dispatch({ type: 'SET_TEMPLATE_NAME', payload: value })
+  }, [dispatch, validateTemplateName])
+
+  const handleInvoiceTypeChange = useCallback((type: 'withCode' | 'withoutCode') => {
+    dispatch({ type: 'SET_INVOICE_TYPE', payload: type })
+    showSuccess('Đã thay đổi loại hóa đơn')
+  }, [dispatch, showSuccess])
+
+
+  const handleLogoUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      const logoUrl = URL.createObjectURL(file)
-      setConfig((prev) => ({
-        ...prev,
-        companyLogo: logoUrl,
-      }))
+      // Validate file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        setErrors(prev => ({ ...prev, logo: 'Kích thước logo không được vượt quá 2MB' }))
+        return
+      }
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setErrors(prev => ({ ...prev, logo: 'Vui lòng chọn file ảnh' }))
+        return
+      }
+      setErrors(prev => ({ ...prev, logo: '' }))
+      const fileUrl = URL.createObjectURL(file)
+      dispatch({ type: 'SET_LOGO', payload: fileUrl })
+      showSuccess('Đã tải logo thành công')
     }
-  }
+  }, [dispatch, showSuccess])
 
-  const handleCustomBackgroundUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setCustomBackground(URL.createObjectURL(file))
+  
+  const handleAddField = useCallback((label: string, value?: string) => {
+    dispatch({ type: 'ADD_COMPANY_FIELD', payload: { label, value: value || '' } })
+    setOpenAddDialog(false)
+    showSuccess(`Đã thêm trường "${label}"`)
+  }, [dispatch, showSuccess])
+
+  const handleAddColumn = useCallback((label: string) => {
+    dispatch({ type: 'ADD_TABLE_COLUMN', payload: { label } })
+    setOpenAddDialog(false)
+    showSuccess(`Đã thêm cột "${label}"`)
+  }, [dispatch, showSuccess])
+  
+  const confirmDelete = useCallback(() => {
+    if (showConfirmDelete.type === 'field') {
+      dispatch({ type: 'DELETE_COMPANY_FIELD', payload: showConfirmDelete.id })
+      showSuccess('Đã xóa trường')
+    } else {
+      dispatch({ type: 'DELETE_TABLE_COLUMN', payload: showConfirmDelete.id })
+      showSuccess('Đã xóa cột')
     }
-  }
+    setShowConfirmDelete({ open: false, id: '', type: 'field' })
+  }, [dispatch, showConfirmDelete, showSuccess])
+
+  const handleDragEnd = useCallback((result: DropResult) => {
+    const { source, destination, draggableId } = result
+    
+    if (!destination) return
+    if (source.index === destination.index) return
+    
+    if (draggableId.startsWith('company-field-')) {
+      dispatch({
+        type: 'REORDER_COMPANY_FIELDS',
+        payload: { startIndex: source.index, endIndex: destination.index },
+      })
+    } else if (draggableId.startsWith('table-column-')) {
+      dispatch({
+        type: 'REORDER_TABLE_COLUMNS',
+        payload: { startIndex: source.index, endIndex: destination.index },
+      })
+    }
+  }, [dispatch])
 
   const handleBack = () => {
     navigate('/admin/templates/select')
   }
 
   const handleContinue = async () => {
+    // Validate trước khi save
+    const nameError = validateTemplateName(state.templateName)
+    const symbolError = validateSymbol()
+    
+    if (nameError || symbolError) {
+      setErrors({
+        templateName: nameError || '',
+        symbol: symbolError || '',
+      })
+      setErrors(prev => ({ ...prev, _general: 'Vui lòng sửa các lỗi trước khi lưu' }))
+      return
+    }
+    
     setLoading(true)
+    setIsSaving(true)
     try {
-      const data = {
-        ...config,
-        invoiceType,
-        symbolPrefix,
-        symbolYear,
-        customBackground,
-        visibility,
-        blankRows,
+      console.log('=== STEP 1: Creating Serial ===')
+      // Step 1: Create Serial (Mã số hóa đơn)
+      const serialData = {
+        prefixID: parseInt(state.symbol.invoiceType) || 1,
+        serialStatusID: serialStatuses.find(s => s.symbol === state.symbol.taxCode)?.serialStatusID || (state.symbol.taxCode === 'C' ? 1 : 2),
+        year: state.symbol.year,
+        invoiceTypeID: invoiceTypes.find(t => t.symbol === state.symbol.invoiceForm)?.invoiceTypeID || 1,
+        tail: state.symbol.management,
       }
-      console.log('Saving:', data)
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      navigate('/admin/templates')
-    } catch (error) {
-      console.error('Error:', error)
-      alert('Có lỗi xảy ra!')
+      console.log('Serial Data:', serialData)
+      
+      const serialResponse = await templateService.createSerial(serialData)
+      console.log('Serial Response:', serialResponse)
+      
+      console.log('=== STEP 2: Processing Logo ===')
+      // Step 2: Upload logo if exists (convert base64 to file if needed)
+      let logoUrl: string | null = null
+      if (state.logo) {
+        // If logo is base64, upload it
+        if (state.logo.startsWith('data:image')) {
+          try {
+            console.log('Converting base64 logo to file...')
+            // Convert base64 to File
+            const response = await fetch(state.logo)
+            const blob = await response.blob()
+            const file = new File([blob], 'logo.png', { type: 'image/png' })
+            logoUrl = await templateService.uploadLogo(file)
+            console.log('Logo uploaded:', logoUrl)
+          } catch (uploadError) {
+            console.warn('Logo upload failed, skipping logo:', uploadError)
+            // Skip logo instead of using base64 (backend might not accept base64)
+            logoUrl = null
+          }
+        } else {
+          logoUrl = state.logo // Already a URL
+          console.log('Using existing logo URL:', logoUrl)
+        }
+      } else {
+        console.log('No logo provided')
+      }
+      
+      console.log('=== STEP 3: Preparing Layout Definition ===')
+      // Step 3: Prepare layout definition (serialize ALL state for complete restore)
+      console.log('📊 Current blankRows value:', blankRows)
+      console.log('📊 state.table.rowCount:', state.table.rowCount)
+      
+      const layoutData = {
+        // Core template info
+        templateName: state.templateName,
+        invoiceType: state.invoiceType, // ✅ NEW: withCode/withoutCode
+        invoiceDate: state.invoiceDate,
+        symbol: state.symbol, // ✅ NEW: Full symbol object (invoiceType, taxCode, year, invoiceForm, management)
+        
+        // Company info
+        company: state.company,
+        
+        // Visual settings
+        logo: state.logo,
+        logoSize: state.logoSize, // ✅ NEW: Logo size
+        background: state.background,
+        
+        // Table & Fields
+        table: state.table,
+        customFields: state.customFields,
+        customColumns: state.customColumns,
+        
+        // Display settings
+        settings: state.settings, // Contains visibility
+        
+        // Codes
+        modelCode: state.modelCode,
+        templateCode: state.templateCode,
+        
+        // Additional metadata
+        blankRows: blankRows, // ✅ NEW: Number of blank rows
+        visibility: visibility, // ✅ NEW: Explicit visibility settings
+      }
+      const layoutDefinition = JSON.stringify(layoutData)
+      console.log('Layout Definition length:', layoutDefinition.length, 'chars')
+      console.log('Layout Data includes:', Object.keys(layoutData).join(', '))
+      console.log('✅ Saved blankRows in layoutDefinition:', layoutData.blankRows)
+      
+      console.log('=== STEP 4: Finding Template Frame ID ===')
+      // Find templateFrameID - more robust logic
+      let templateFrameID: number
+      
+      // Try to find by matching imageUrl
+      const matchedFrame = templateFrames.find(f => 
+        f.imageUrl === state.background.frame || 
+        f.imageUrl.includes(state.background.frame) ||
+        state.background.frame.includes(f.imageUrl)
+      )
+      
+      if (matchedFrame) {
+        // Use frameID property (not id)
+        templateFrameID = matchedFrame.frameID
+        console.log('Found matching frame:', matchedFrame)
+        console.log('Using frameID:', templateFrameID)
+      } else if (templateId) {
+        // Fallback to templateId from URL
+        templateFrameID = parseInt(templateId)
+        console.log('Using templateId from URL:', templateFrameID)
+      } else {
+        // Default to first frame or 1
+        templateFrameID = templateFrames.length > 0 ? templateFrames[0].frameID : 1
+        console.log('Using default frame ID:', templateFrameID)
+      }
+      
+      // Validate templateFrameID
+      if (!templateFrameID || isNaN(templateFrameID)) {
+        console.error('❌ Invalid templateFrameID:', templateFrameID)
+        throw new Error('Không tìm thấy khung viền hợp lệ. Vui lòng chọn lại khung viền.')
+      }
+      
+      console.log('=== STEP 5: Creating Template ===')
+      // Step 4: Create Template
+      const templateData = {
+        templateName: state.templateName,
+        serialID: serialResponse.serialID,
+        templateTypeID: state.invoiceType === 'withCode' ? 1 : 2,
+        layoutDefinition,
+        templateFrameID,
+        logoUrl,
+      }
+      console.log('Template Data:', {
+        ...templateData,
+        layoutDefinition: `${layoutDefinition.substring(0, 100)}... (${layoutDefinition.length} chars)`
+      })
+      
+      const templateResponse = await templateService.createTemplate(templateData)
+      console.log('Template Response:', templateResponse)
+      
+      setLastSaved(new Date())
+      showSuccess(`Đã tạo mẫu hóa đơn thành công! Mã số: ${serialResponse.fullSerial || 'N/A'}`)
+      
+      // Redirect to template list after 1.5s
+      setTimeout(() => {
+        navigate('/admin/templates')
+      }, 1500)
+    } catch (error: any) {
+      console.error('❌ Error creating template:', error)
+      
+      // More detailed error message
+      let errorMessage = 'Có lỗi xảy ra khi tạo mẫu hóa đơn.'
+      if (error.message) {
+        if (error.message.includes('Serial')) {
+          errorMessage = 'Lỗi khi tạo mã số hóa đơn: ' + error.message
+        } else if (error.message.includes('Template')) {
+          errorMessage = 'Lỗi khi tạo mẫu hóa đơn: ' + error.message
+        } else {
+          errorMessage = error.message
+        }
+      }
+      
+      setErrors(prev => ({ 
+        ...prev, 
+        _general: errorMessage
+      }))
     } finally {
       setLoading(false)
+      setIsSaving(false)
     }
   }
 
@@ -240,10 +617,7 @@ const TemplateEditor: React.FC = () => {
     try {
       const data = {
         ...config,
-        invoiceType,
-        symbolPrefix,
-        symbolYear,
-        customBackground,
+        ...state,
         visibility,
         blankRows,
       }
@@ -255,7 +629,7 @@ const TemplateEditor: React.FC = () => {
     } finally {
       setIsSaving(false)
     }
-  }, [config, invoiceType, symbolPrefix, symbolYear, customBackground, visibility, blankRows])
+  }, [config, state, visibility, blankRows])
 
   const handlePrintPreview = useCallback(() => {
     if (templateId) {
@@ -274,10 +648,10 @@ const TemplateEditor: React.FC = () => {
   }
 
   const handleResetZoom = () => {
-    setPreviewScale(0.7) // Fit perfect trong container
+    setPreviewScale(1.0) // Reset về 100%
   }
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts - Enhanced with Undo/Redo
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       // Ctrl/Cmd + S: Save
@@ -291,24 +665,42 @@ const TemplateEditor: React.FC = () => {
         e.preventDefault()
         handlePrintPreview()
       }
+
+      // Ctrl/Cmd + Z: Undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        if (canUndo) dispatch({ type: 'UNDO' })
+      }
+
+      // Ctrl/Cmd + Y hoặc Ctrl/Cmd + Shift + Z: Redo
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault()
+        if (canRedo) dispatch({ type: 'REDO' })
+      }
     }
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [handleSave, handlePrintPreview])
+  }, [handleSave, handlePrintPreview, canUndo, canRedo, dispatch])
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5' }}>
-      {/* Header */}
-      <Box sx={{ bgcolor: '#fff', borderBottom: '1px solid #e0e0e0', px: 3, py: 2 }}>
+    <DragDropContext onDragEnd={handleDragEnd}>
+      <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5' }}>
+        {/* Header */}
+        <Box sx={{ bgcolor: '#fff', borderBottom: '1px solid #e0e0e0', px: 3, py: 2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Stack direction="row" spacing={2} alignItems="center">
             <IconButton onClick={handleBack} sx={{ color: '#555' }}>
               <ArrowBackIcon />
             </IconButton>
-            <Typography variant="h5" sx={{ fontWeight: 600, fontSize: '1.25rem', color: '#1a1a1a' }}>
-              Thiết lập mẫu hóa đơn
-            </Typography>
+           <Box>
+                         <Typography variant="h5" sx={{ fontWeight: 600, fontSize: '1.25rem', color: '#1a1a1a', lineHeight: 1.2 }}>
+                           Thiết lập mẫu hóa đơn
+                         </Typography>
+                         <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8125rem', mt: 0.25 }}>
+                           Hãy chọn một mẫu hoá đơn phù hợp với đơn vị để tiếp tục
+                         </Typography>
+                       </Box>
           </Stack>
 
           <Stack direction="row" spacing={1.5} alignItems="center">
@@ -355,6 +747,76 @@ const TemplateEditor: React.FC = () => {
               </Button>
             </Tooltip>
 
+            {/* Undo/Redo Buttons - NEW */}
+            <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+
+            <Tooltip title="Hoàn tác (Ctrl+Z)" arrow>
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={() => dispatch({ type: 'UNDO' })}
+                  disabled={!canUndo}
+                  sx={{
+                    bgcolor: 'white',
+                    border: '1px solid #e0e0e0',
+                    '&:hover': { bgcolor: '#f5f5f5' },
+                    '&:disabled': { opacity: 0.5, cursor: 'not-allowed' },
+                  }}
+                >
+                  <UndoIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+
+            <Tooltip title="Làm lại (Ctrl+Y)" arrow>
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={() => dispatch({ type: 'REDO' })}
+                  disabled={!canRedo}
+                  sx={{
+                    bgcolor: 'white',
+                    border: '1px solid #e0e0e0',
+                    '&:hover': { bgcolor: '#f5f5f5' },
+                    '&:disabled': { opacity: 0.5, cursor: 'not-allowed' },
+                  }}
+                >
+                  <RedoIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+
+            {/* Autosave Status */}
+            {autoSaveStatus === 'saved' && (
+              <Chip 
+                label="✓ Đã tự động lưu" 
+                size="small" 
+                sx={{ 
+                  bgcolor: '#e8f5e9', 
+                  color: '#2e7d32',
+                  fontSize: '0.75rem',
+                  height: 24,
+                  fontWeight: 500,
+                  '& .MuiChip-label': { px: 1 }
+                }}
+              />
+            )}
+            {autoSaveStatus === 'saving' && (
+              <Chip 
+                label="Đang lưu..." 
+                size="small" 
+                icon={<CircularProgress size={12} sx={{ color: '#1976d2' }} />}
+                sx={{ 
+                  bgcolor: '#e3f2fd', 
+                  color: '#1976d2',
+                  fontSize: '0.75rem',
+                  height: 24,
+                  fontWeight: 500,
+                  '& .MuiChip-label': { px: 1 }
+                }}
+              />
+            )}
+
             <Button
               variant="contained"
               startIcon={<PlayCircleIcon />}
@@ -399,41 +861,18 @@ const TemplateEditor: React.FC = () => {
                 },
               }}>
               <Stack spacing={2.5}>
-                {/* Tên mẫu */}
-                <Box>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#616161', mb: 0.75, display: 'block', fontSize: '0.8125rem' }}>
-                    Tên mẫu <span style={{ color: '#d32f2f' }}>*</span>
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    value={config.templateName}
-                    onChange={handleInputChange('templateName')}
-                    placeholder="Nhập tên mẫu hóa đơn"
-                    sx={{ 
-                      '& .MuiOutlinedInput-root': { 
-                        fontSize: '0.875rem',
-                        transition: 'all 0.2s ease',
-                        '&:hover': {
-                          borderColor: '#1976d2',
-                        },
-                        '&.Mui-focused': {
-                          '& .MuiOutlinedInput-notchedOutline': {
-                            borderColor: '#1976d2',
-                            borderWidth: 2,
-                          },
-                        },
-                      },
-                    }}
-                  />
-                </Box>
+                
+               
 
                 {/* Hình thức */}
                 <Box>
                   <Typography variant="caption" sx={{ fontWeight: 600, color: '#616161', mb: 0.75, display: 'block', fontSize: '0.8125rem' }}>
                     Hình thức hoá đơn <span style={{ color: '#d32f2f' }}>*</span>
                   </Typography>
-                  <RadioGroup value={invoiceType} onChange={(e) => setInvoiceType(e.target.value as 'withCode' | 'withoutCode')}>
+                  <RadioGroup 
+                    value={state.invoiceType} 
+                    onChange={(e) => handleInvoiceTypeChange(e.target.value as 'withCode' | 'withoutCode')}
+                  >
                     <FormControlLabel
                       value="withCode"
                       control={<Radio size="small" />}
@@ -447,126 +886,231 @@ const TemplateEditor: React.FC = () => {
                   </RadioGroup>
                 </Box>
 
-                {/* Ký hiệu */}
+                {/* Ký hiệu - Theo quy định Việt Nam */}
                 <Box>
                   <Typography variant="caption" sx={{ fontWeight: 600, color: '#616161', mb: 0.75, display: 'block', fontSize: '0.8125rem' }}>
-                    Ký hiệu <span style={{ color: '#d32f2f' }}>*</span>
+                    Ký hiệu hóa đơn <span style={{ color: '#d32f2f' }}>*</span>
                   </Typography>
                   
-                  {/* Input ký hiệu */}
-                  <Stack direction="row" spacing={0} alignItems="stretch" sx={{ mb: 1.5 }}>
-                    {/* Phần cố định - 2C25T */}
-                    <Box
-                      sx={{
-                        px: 1.5,
-                        display: 'flex',
-                        alignItems: 'center',
-                        bgcolor: '#f5f5f5',
-                        border: '1px solid #e0e0e0',
-                        borderRadius: '4px 0 0 4px',
-                        borderRight: 'none',
-                        minHeight: '40px',
-                      }}>
-                      <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#424242', letterSpacing: '0.5px' }}>
-                        {symbolPrefix}
+                  {/* Grid layout cho 5 phần */}
+                  <Stack spacing={1.5}>
+                    {/* Phần 1: Loại hóa đơn (1 chữ số) */}
+                    <Box>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#616161', mb: 0.5 }}>
+                        1️⃣ Loại hóa đơn (1 chữ số)
                       </Typography>
+                      <FormControl fullWidth size="small">
+                        <Select
+                          value={state.symbol.invoiceType}
+                          onChange={(e) => dispatch({ type: 'SET_SYMBOL_INVOICE_TYPE', payload: e.target.value as any })}
+                          disabled={symbolDataLoading}
+                          sx={{
+                            fontSize: '0.875rem',
+                            bgcolor: '#fafafa',
+                            '&:hover': { bgcolor: '#f5f5f5' },
+                            '& .MuiSelect-select': { fontWeight: 600, letterSpacing: '0.5px' },
+                          }}
+                        >
+                          {prefixes.length > 0 ? (
+                            prefixes.map((prefix) => (
+                              <MenuItem key={prefix.prefixID} value={String(prefix.prefixID)}>
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                                  {prefix.prefixID} - {prefix.prefixName}
+                                </Typography>
+                              </MenuItem>
+                            ))
+                          ) : [
+                              <MenuItem key="1" value="1">
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                                  {symbolDataLoading && <CircularProgress size={14} sx={{ mr: 0.5, verticalAlign: 'middle' }} />}
+                                  1 - Hóa đơn điện tử giá trị gia tăng
+                                </Typography>
+                              </MenuItem>,
+                              <MenuItem key="2" value="2"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>2 - Hóa đơn điện tử bán hàng</Typography></MenuItem>,
+                              <MenuItem key="3" value="3"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>3 - Hóa đơn điện tử bán tài sản công</Typography></MenuItem>,
+                              <MenuItem key="4" value="4"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>4 - Hóa đơn điện tử bán hàng dự trữ quốc gia</Typography></MenuItem>,
+                              <MenuItem key="5" value="5"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>5 - Tem điện tử, vé điện tử, thẻ điện tử, phiếu thu điện tử</Typography></MenuItem>,
+                              <MenuItem key="6" value="6"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>6 - Phiếu xuất kho kiêm vận chuyển nội bộ/gửi bán đại lý</Typography></MenuItem>,
+                              <MenuItem key="7" value="7"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>7 - Hóa đơn thương mại điện tử</Typography></MenuItem>,
+                              <MenuItem key="8" value="8"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>8 - Hóa đơn GTGT tích hợp biên lai thu thuế, phí, lệ phí</Typography></MenuItem>,
+                              <MenuItem key="9" value="9"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>9 - Hóa đơn bán hàng tích hợp biên lai thu thuế, phí, lệ phí</Typography></MenuItem>
+                            ]}
+                        </Select>
+                      </FormControl>
                     </Box>
 
-                    {/* Phần người dùng có thể sửa - YY */}
+                    {/* Phần 2: Ký tự mã CQT (C/K) */}
+                    <Box>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#616161', mb: 0.5 }}>
+                        2️⃣ Mã cơ quan thuế (1 chữ cái)
+                      </Typography>
+                      <FormControl fullWidth size="small">
+                        <Select
+                          value={state.symbol.taxCode}
+                          onChange={(e) => dispatch({ type: 'SET_SYMBOL_TAX_CODE', payload: e.target.value as 'C' | 'K' })}
+                          disabled={symbolDataLoading}
+                          sx={{
+                            fontSize: '0.875rem',
+                            bgcolor: '#fafafa',
+                            '&:hover': { bgcolor: '#f5f5f5' },
+                            '& .MuiSelect-select': { fontWeight: 600, letterSpacing: '0.5px' },
+                          }}
+                        >
+                          {serialStatuses.length > 0 ? (
+                            serialStatuses.map((status) => (
+                              <MenuItem key={status.serialStatusID} value={status.symbol} sx={{ fontSize: '0.875rem' }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                                  {status.symbol} - {status.statusName}
+                                </Typography>
+                              </MenuItem>
+                            ))
+                          ) : [
+                              <MenuItem key="C" value="C" sx={{ fontSize: '0.875rem' }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                                  {symbolDataLoading && <CircularProgress size={14} sx={{ mr: 0.5, verticalAlign: 'middle' }} />}
+                                  C - Hóa đơn có mã của cơ quan thuế
+                                </Typography>
+                              </MenuItem>,
+                              <MenuItem key="K" value="K" sx={{ fontSize: '0.875rem' }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                                  K - Hóa đơn không có mã của cơ quan thuế
+                                </Typography>
+                              </MenuItem>
+                            ]}
+                        </Select>
+                      </FormControl>
+                    </Box>
+
+                    {/* Phần 3: Năm (2 chữ số) */}
+                    <Box>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#616161', mb: 0.5 }}>
+                        3️⃣ Năm lập hóa đơn (2 chữ số)
+                      </Typography>
                     <TextField
+                        fullWidth
                       size="small"
-                      value={symbolYear}
-                      onChange={(e) => setSymbolYear(e.target.value.toUpperCase())}
-                      placeholder="YY"
+                      value={state.symbol.year}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 2)
+                          dispatch({ type: 'SET_SYMBOL_YEAR', payload: value })
+                        }}
+                        placeholder="25"
                       inputProps={{
-                        maxLength: 4,
-                        style: { 
-                          textAlign: 'center', 
-                          fontWeight: 600, 
-                          letterSpacing: '0.5px',
-                        }
+                        maxLength: 2,
+                          style: { fontWeight: 600, letterSpacing: '0.5px' }
                       }}
                       sx={{ 
-                        width: 45,
                         '& .MuiOutlinedInput-root': { 
                           fontSize: '0.875rem',
-                          borderRadius: '0 4px 4px 0',
-                          height: '40px',
-                          '& input': {
-                            padding: '8.5px 8px',
+                            bgcolor: '#fafafa',
+                            '&:hover': { bgcolor: '#f5f5f5' },
                           },
-                          '& fieldset': {
-                            borderColor: '#e0e0e0',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#1976d2',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#1976d2',
-                            borderWidth: 2,
-                          },
-                        },
-                      }}
-                    />
-
-                    {/* Preview box */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 1.5 }}>
-                      <Typography sx={{ fontSize: '0.75rem', color: '#9e9e9e' }}>
-                        →
-                      </Typography>
-                      <Typography sx={{ 
-                        fontSize: '0.875rem', 
-                        fontWeight: 700, 
-                        color: '#1976d2', 
-                        letterSpacing: '0.8px',
-                        px: 1.5,
-                        py: 0.5,
-                        bgcolor: '#f0f7ff',
-                        borderRadius: 1,
-                        border: '1px solid #bbdefb',
-                      }}>
-                        {symbolPrefix}{symbolYear || 'YY'}
-                      </Typography>
+                        }}
+                        helperText="Ví dụ: 2025 → 25"
+                      />
                     </Box>
 
-                    {/* Icon help - không có border */}
-                    <Tooltip 
-                      title={
-                        <Box sx={{ p: 0.5 }}>
-                          <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, mb: 0.5 }}>
-                            Hướng dẫn ký hiệu:
-                          </Typography>
-                          <Typography sx={{ fontSize: '0.7rem', mb: 0.3 }}>
-                            • <strong>{symbolPrefix}</strong>: Ký hiệu cố định
-                          </Typography>
-                          <Typography sx={{ fontSize: '0.7rem' }}>
-                            • <strong>YY</strong>: Năm hoặc ký tự tùy chỉnh (2-4 ký tự)
-                          </Typography>
-                          <Typography sx={{ fontSize: '0.7rem', mt: 0.5, fontStyle: 'italic', color: '#90caf9' }}>
-                            Ví dụ: {symbolPrefix}24, {symbolPrefix}2024, {symbolPrefix}ABC
-                          </Typography>
-                          <Typography sx={{ fontSize: '0.7rem', mt: 0.5, fontWeight: 600, color: '#90caf9' }}>
-                            → Kết quả: {symbolPrefix}{symbolYear || 'YY'}
-                          </Typography>
-                        </Box>
-                      } 
-                      arrow
-                      placement="right">
-                      <IconButton
+                    {/* Phần 4: Loại hóa đơn điện tử (1 chữ cái) */}
+                    <Box>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#616161', mb: 0.5 }}>
+                        4️⃣ Loại hóa đơn điện tử (1 chữ cái)
+                      </Typography>
+                      <FormControl fullWidth size="small">
+                        <Select
+                          value={state.symbol.invoiceForm}
+                          onChange={(e) => dispatch({ type: 'SET_SYMBOL_INVOICE_FORM', payload: e.target.value as any })}
+                          disabled={symbolDataLoading}
+                          sx={{
+                        fontSize: '0.875rem', 
+                            bgcolor: '#fafafa',
+                            '&:hover': { bgcolor: '#f5f5f5' },
+                            '& .MuiSelect-select': { fontWeight: 600 },
+                          }}
+                        >
+                          {invoiceTypes.length > 0 ? (
+                            invoiceTypes.map((type) => (
+                              <MenuItem key={type.invoiceTypeID} value={type.symbol}>
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                                  {type.symbol} - {type.typeName}
+                                </Typography>
+                              </MenuItem>
+                            ))
+                          ) : [
+                              <MenuItem key="T" value="T">
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                                  {symbolDataLoading && <CircularProgress size={14} sx={{ mr: 0.5, verticalAlign: 'middle' }} />}
+                                  T - HĐ DN, tổ chức, hộ, cá nhân kinh doanh đăng ký sử dụng
+                                </Typography>
+                              </MenuItem>,
+                              <MenuItem key="D" value="D"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>D - HĐ tài sản công và HĐ bán hàng dự trữ quốc gia</Typography></MenuItem>,
+                              <MenuItem key="L" value="L"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>L - HĐ Cơ quan thuế cấp theo từng lần phát sinh</Typography></MenuItem>,
+                              <MenuItem key="M" value="M"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>M - HĐ khởi tạo từ máy tính tiền</Typography></MenuItem>,
+                              <MenuItem key="N" value="N"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>N - Phiếu xuất kho kiêm vận chuyển nội bộ</Typography></MenuItem>,
+                              <MenuItem key="B" value="B"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>B - Phiếu xuất kho gửi bán đại lý điện</Typography></MenuItem>,
+                              <MenuItem key="G" value="G"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>G - Tem, vé, thẻ điện tử là hóa đơn GTGT</Typography></MenuItem>,
+                              <MenuItem key="H" value="H"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>H - Tem, vé, thẻ điện tử là hóa đơn bán hàng</Typography></MenuItem>,
+                              <MenuItem key="X" value="X"><Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>X - Hóa đơn thương mại điện tử</Typography></MenuItem>
+                            ]}
+                        </Select>
+                      </FormControl>
+                    </Box>
+
+                    {/* Phần 5: Quản lý mẫu (2 ký tự) */}
+                    <Box>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#616161', mb: 0.5 }}>
+                        5️⃣ Quản lý mẫu (2 ký tự)
+                      </Typography>
+                      <TextField
+                        fullWidth
                         size="small"
+                        value={state.symbol.management}
+                        onChange={(e) => {
+                          const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 2)
+                          dispatch({ type: 'SET_SYMBOL_MANAGEMENT', payload: value })
+                        }}
+                        placeholder="AA"
+                        inputProps={{
+                          maxLength: 2,
+                          style: { fontWeight: 600, letterSpacing: '0.5px' }
+                        }}
                         sx={{ 
-                          ml: 0.5,
-                          width: 32,
-                          height: 32,
-                          transition: 'all 0.2s ease',
-                          '&:hover': { 
-                            bgcolor: '#e3f2fd',
+                          '& .MuiOutlinedInput-root': {
+                            fontSize: '0.875rem',
+                            bgcolor: '#fafafa',
+                            '&:hover': { bgcolor: '#f5f5f5' },
                           },
-                        }}>
-                        <InfoIcon sx={{ fontSize: 20, color: '#1976d2' }} />
-                      </IconButton>
-                    </Tooltip>
+                        }}
+                        helperText="Do người bán tự xác định. Mặc định: AA"
+                      />
+                    </Box>
                   </Stack>
+                  
+                  {/* Preview ký hiệu hoàn chỉnh */}
+                  <Box sx={{ 
+                    mt: 2, 
+                    p: 2, 
+                    bgcolor: '#f0f7ff', 
+                    borderRadius: 1.5,
+                    border: '2px solid #1976d2',
+                  }}>
+                    <Stack direction="row" alignItems="center" spacing={1.5}>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#1565c0' }}>
+                        📋 Ký hiệu hoàn chỉnh:
+                    </Typography>
+                      <Typography sx={{ 
+                        fontSize: '1.125rem', 
+                        fontWeight: 700, 
+                        color: '#1976d2', 
+                        letterSpacing: '1px',
+                        fontFamily: 'monospace',
+                      }}>
+                        {state.symbol.invoiceType}{state.symbol.taxCode}{state.symbol.year || '__'}{state.symbol.invoiceForm}{state.symbol.management || 'AA'}
+                      </Typography>
+                    </Stack>
+                    <Typography sx={{ fontSize: '0.7rem', color: '#1565c0', mt: 1 }}>
+                      💡 Ví dụ: 1C25TAA = Loại 1 (GTGT), có mã CQT, năm 2025, doanh nghiệp, quản lý AA
+                    </Typography>
+                  </Box>
                 </Box>
 
                 {/* Logo */}
@@ -585,19 +1129,27 @@ const TemplateEditor: React.FC = () => {
                       py: 1.25,
                       borderStyle: 'dashed',
                       borderWidth: 2,
-                      borderColor: '#d0d0d0',
-                      color: '#616161',
+                      borderColor: errors.logo ? '#d32f2f' : '#d0d0d0',
+                      color: errors.logo ? '#d32f2f' : '#616161',
                       transition: 'all 0.3s ease',
                       '&:hover': { 
-                        borderColor: '#1976d2', 
-                        bgcolor: '#e3f2fd',
-                        color: '#1976d2',
+                        borderColor: errors.logo ? '#d32f2f' : '#1976d2', 
+                        bgcolor: errors.logo ? '#ffebee' : '#e3f2fd',
+                        color: errors.logo ? '#d32f2f' : '#1976d2',
                         transform: 'translateY(-2px)',
                       },
                     }}>
                     {config.companyLogo ? '✓ Đã tải lên logo' : 'Tải lên logo công ty'}
                     <input type="file" hidden accept="image/*" onChange={handleLogoUpload} />
                   </Button>
+                  
+                  {/* Error message cho Logo */}
+                  {errors.logo && (
+                    <Typography sx={{ fontSize: '0.75rem', color: '#d32f2f', mt: 0.5 }}>
+                      {errors.logo}
+                    </Typography>
+                  )}
+                  
                   {config.companyLogo && (
                     <Box 
                       sx={{ 
@@ -606,6 +1158,7 @@ const TemplateEditor: React.FC = () => {
                         bgcolor: '#f9f9f9',
                         borderRadius: 1.5,
                         border: '1px solid #e0e0e0',
+                        position: 'relative',
                         textAlign: 'center',
                         transition: 'all 0.2s ease',
                         '&:hover': {
@@ -613,6 +1166,27 @@ const TemplateEditor: React.FC = () => {
                           boxShadow: '0 2px 8px rgba(25, 118, 210, 0.1)',
                         },
                       }}>
+                      {/* Quick delete button */}
+                      <Tooltip title="Xóa logo" arrow>
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            dispatch({ type: 'SET_LOGO', payload: null })
+                            showSuccess('Đã xóa logo')
+                          }}
+                          sx={{
+                            position: 'absolute',
+                            top: 8,
+                            right: 8,
+                            bgcolor: 'white',
+                            boxShadow: 1,
+                            '&:hover': { bgcolor: '#ffebee', color: '#d32f2f' },
+                          }}
+                        >
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      
                       <img 
                         src={config.companyLogo} 
                         alt="Logo preview" 
@@ -624,77 +1198,188 @@ const TemplateEditor: React.FC = () => {
                         }} 
                       />
                       <Typography sx={{ fontSize: '0.75rem', color: '#9e9e9e', mt: 1 }}>
-                        Logo đã tải lên
+                        Logo công ty
+                      </Typography>
+                    </Box>
+                  )}
+                  
+                  {/* Empty state cho logo */}
+                  {!config.companyLogo && !errors.logo && (
+                    <Box sx={{ 
+                      mt: 1, 
+                      p: 2, 
+                      bgcolor: '#f5f9ff', 
+                      borderRadius: 1,
+                      border: '1px dashed #bbdefb',
+                    }}>
+                      <Typography sx={{ fontSize: '0.75rem', color: '#1976d2', textAlign: 'center' }}>
+                        💡 Tải lên logo công ty để hiển thị trên hóa đơn
                       </Typography>
                     </Box>
                   )}
                 </Box>
 
-                {/* Hình nền riêng */}
+              
+
+                {/* Khung viền mẫu - với Preview Grid từ API */}
                 <Box>
                   <Typography variant="caption" sx={{ fontWeight: 600, color: '#616161', mb: 0.75, display: 'block', fontSize: '0.8125rem' }}>
-                    Ký thiết lập hình nền riêng
+                    Khung viền mẫu
                   </Typography>
-                  <Button
-                    component="label"
-                    variant="outlined"
-                    fullWidth
-                    startIcon={<CloudUploadIcon />}
-                    sx={{
-                      textTransform: 'none',
-                      fontSize: '0.875rem',
-                      py: 1.25,
-                      borderStyle: 'dashed',
-                      borderWidth: 2,
-                      borderColor: '#d0d0d0',
-                      color: '#616161',
-                      transition: 'all 0.3s ease',
-                      '&:hover': { 
-                        borderColor: '#1976d2', 
-                        bgcolor: '#e3f2fd',
-                        color: '#1976d2',
-                        transform: 'translateY(-2px)',
-                      },
+                  
+                  {/* Loading state for frames */}
+                  {framesLoading && (
+                    <Box sx={{ 
+                      display: 'flex', 
+                      justifyContent: 'center', 
+                      alignItems: 'center',
+                      p: 3,
+                      bgcolor: '#f9f9f9',
+                      borderRadius: 1.5,
+                      border: '1px solid #e0e0e0',
                     }}>
-                    {customBackground ? '✓ Đã tải lên hình nền' : 'Tải lên hình nền tùy chỉnh'}
-                    <input type="file" hidden accept="image/*" onChange={handleCustomBackgroundUpload} />
-                  </Button>
-                  {customBackground && (
-                    <Box 
-                      sx={{ 
-                        mt: 1.5, 
-                        p: 1.5,
-                        bgcolor: '#f9f9f9',
-                        borderRadius: 1.5,
-                        border: '1px solid #e0e0e0',
-                        textAlign: 'center',
-                        transition: 'all 0.2s ease',
-                        '&:hover': {
-                          borderColor: '#1976d2',
-                          boxShadow: '0 2px 8px rgba(25, 118, 210, 0.1)',
-                        },
-                      }}>
-                      <img 
-                        src={customBackground} 
-                        alt="Background preview" 
-                        style={{ 
-                          maxWidth: '100%', 
-                          maxHeight: 100, 
-                          objectFit: 'contain',
-                          borderRadius: 4,
-                        }} 
-                      />
-                      <Typography sx={{ fontSize: '0.75rem', color: '#9e9e9e', mt: 1 }}>
-                        Hình nền đã tải lên
+                      <CircularProgress size={24} />
+                      <Typography sx={{ ml: 1.5, fontSize: '0.75rem', color: '#757575' }}>
+                        Đang tải khung viền...
                       </Typography>
                     </Box>
                   )}
+                  
+                  {/* Grid preview khung viền từ API */}
+                  {!framesLoading && (
+                  <Box sx={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(3, 1fr)', 
+                    gap: 1,
+                    p: 1.5,
+                    bgcolor: '#f9f9f9',
+                    borderRadius: 1.5,
+                    border: '1px solid #e0e0e0',
+                  }}>
+                      {(templateFrames.length > 0 ? templateFrames : 
+                        // Fallback to local frames if API fails
+                        Array.from({ length: 11 }, (_, i) => ({
+                          id: i + 1,
+                          name: `Khung ${i + 1}`,
+                          imageUrl: `/khunghoadon/khunghoadon${i + 1}.png`,
+                          imagePath: `/khunghoadon/khunghoadon${i + 1}.png`,
+                          category: 'Universal' as const,
+                          description: `Mẫu ${i + 1}`,
+                        }))
+                      ).map((frame) => {
+                        const isSelected = state.background.frame === frame.imageUrl || 
+                                         state.background.frame === frame.imagePath
+                      
+                      return (
+                          <Tooltip key={frame.id} title={frame.name} arrow>
+                          <Box
+                            onClick={() => {
+                                dispatch({ type: 'SET_BACKGROUND_FRAME', payload: frame.imageUrl })
+                                showSuccess(`Đã chọn ${frame.name}`)
+                            }}
+                            sx={{
+                              position: 'relative',
+                              aspectRatio: '1',
+                              border: isSelected ? '3px solid #1976d2' : '2px solid #e0e0e0',
+                              borderRadius: 1,
+                              overflow: 'hidden',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              '&:hover': {
+                                transform: 'scale(1.05)',
+                                boxShadow: 2,
+                                borderColor: '#1976d2',
+                              },
+                            }}
+                          >
+                            <img 
+                                src={frameImageErrors.has(frame.id) 
+                                  ? `/khunghoadon/khunghoadon${frame.id}.png` 
+                                  : frame.imageUrl
+                                }
+                                alt={frame.name}
+                                onError={() => {
+                                  console.warn(`Failed to load frame image: ${frame.imageUrl}`)
+                                  setFrameImageErrors(prev => new Set(prev).add(frame.id))
+                                }}
+                              style={{ 
+                                width: '100%', 
+                                height: '100%', 
+                                objectFit: 'cover' 
+                              }}
+                            />
+                            {isSelected && (
+                              <Box sx={{
+                                position: 'absolute',
+                                top: 4,
+                                right: 4,
+                                bgcolor: '#1976d2',
+                                color: 'white',
+                                borderRadius: '50%',
+                                width: 20,
+                                height: 20,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.75rem',
+                              }}>
+                                ✓
+                              </Box>
+                            )}
+                            <Typography sx={{
+                              position: 'absolute',
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              bgcolor: 'rgba(0,0,0,0.6)',
+                              color: 'white',
+                              fontSize: '0.65rem',
+                              textAlign: 'center',
+                              py: 0.3,
+                            }}>
+                                {frame.id}
+                            </Typography>
+                              {frame.recommended && (
+                                <Box sx={{
+                                  position: 'absolute',
+                                  top: 4,
+                                  left: 4,
+                                  bgcolor: '#4caf50',
+                                  color: 'white',
+                                  borderRadius: 0.5,
+                                  px: 0.5,
+                                  py: 0.25,
+                                  fontSize: '0.6rem',
+                                  fontWeight: 600,
+                                }}>
+                                  Đề xuất
+                                </Box>
+                              )}
+                          </Box>
+                        </Tooltip>
+                      )
+                    })}
+                  </Box>
+                  )}
+                  
+                  <Typography sx={{ 
+                    fontSize: '0.7rem', 
+                    color: '#9e9e9e', 
+                    mt: 1,
+                    textAlign: 'center',
+                  }}>
+                    {templateFrames.length > 0 
+                      ? `Click để chọn khung viền • ${templateFrames.length} khung có sẵn`
+                      : 'Click để chọn khung viền • Đang sử dụng khung mặc định'
+                    }
+                  </Typography>
                 </Box>
 
+               
                 {/* 3 Accordion Sections */}
                 <Box sx={{ mt: 2 }}>
                   {/* Section 1: Điều chỉnh nhanh các thông tin */}
-                  <Accordion 
+                  <Accordion  
                     disableGutters
                     elevation={0}
                     sx={{
@@ -724,433 +1409,538 @@ const TemplateEditor: React.FC = () => {
                           bgcolor: '#f9fafb',
                         },
                       }}>
-                      <Typography sx={{ 
-                        fontSize: '0.9375rem', 
-                        fontWeight: 600, 
-                        color: '#2c3e50',
-                        letterSpacing: '-0.01em',
-                      }}>
-                        Điều chỉnh nhanh các thông tin
-                      </Typography>
-                    </AccordionSummary>
-                    <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
-                      <Typography sx={{ 
-                        fontSize: '0.8125rem', 
-                        color: '#616161', 
-                        lineHeight: 1.6,
-                      }}>
-                        Tên mẫu, ký hiệu, font chữ của số, QR code, song ngữ, tùy chọn hiển thị các thông tin của hóa đơn.
-                      </Typography>
-                    </AccordionDetails>
-                  </Accordion>
-
-                  {/* Section 2: Logo, khung viền, hình nền, logo chìm */}
-                  <Accordion 
-                    disableGutters
-                    elevation={0}
-                    sx={{
-                      bgcolor: '#fff',
-                      border: '1px solid #e0e0e0',
-                      borderRadius: '8px !important',
-                      mb: 1.5,
-                      '&:before': { display: 'none' },
-                      transition: 'all 0.2s ease',
-                      '&:hover': {
-                        borderColor: '#1976d2',
-                        boxShadow: '0 2px 8px rgba(25, 118, 210, 0.08)',
-                      },
-                    }}>
-                    <AccordionSummary
-                      expandIcon={<ChevronRightIcon sx={{ color: '#757575', fontSize: 20 }} />}
-                      sx={{
-                        minHeight: 56,
-                        px: 2,
-                        '& .MuiAccordionSummary-expandIconWrapper': {
-                          transition: 'transform 0.3s ease',
-                        },
-                        '& .MuiAccordionSummary-expandIconWrapper.Mui-expanded': {
-                          transform: 'rotate(90deg)',
-                        },
-                        '&:hover': {
-                          bgcolor: '#f9fafb',
-                        },
-                      }}>
-                      <Typography sx={{ 
-                        fontSize: '0.9375rem', 
-                        fontWeight: 600, 
-                        color: '#2c3e50',
-                        letterSpacing: '-0.01em',
-                      }}>
-                        Logo, khung viền, hình nền, logo chìm
-                      </Typography>
-                    </AccordionSummary>
-                    <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
-                      <Typography sx={{ 
-                        fontSize: '0.8125rem', 
-                        color: '#616161', 
-                        lineHeight: 1.6,
-                      }}>
-                        Cài đặt logo, khung viền, hình nền, logo chìm cho mẫu hóa đơn.
-                      </Typography>
-                    </AccordionDetails>
-                  </Accordion>
-
-                  {/* Section 3: Tùy chỉnh nội dung chi tiết hóa đơn */}
-                  <Accordion 
-                    disableGutters
-                    elevation={0}
-                    sx={{
-                      bgcolor: '#fff',
-                      border: '1px solid #e0e0e0',
-                      borderRadius: '8px !important',
-                      mb: 1.5,
-                      '&:before': { display: 'none' },
-                      transition: 'all 0.2s ease',
-                      '&:hover': {
-                        borderColor: '#1976d2',
-                        boxShadow: '0 2px 8px rgba(25, 118, 210, 0.08)',
-                      },
-                    }}>
-                    <AccordionSummary
-                      expandIcon={<ChevronRightIcon sx={{ color: '#757575', fontSize: 20 }} />}
-                      sx={{
-                        minHeight: 56,
-                        px: 2,
-                        '& .MuiAccordionSummary-expandIconWrapper': {
-                          transition: 'transform 0.3s ease',
-                        },
-                        '& .MuiAccordionSummary-expandIconWrapper.Mui-expanded': {
-                          transform: 'rotate(90deg)',
-                        },
-                        '&:hover': {
-                          bgcolor: '#f9fafb',
-                        },
-                      }}>
-                      <Typography sx={{ 
-                        fontSize: '0.9375rem', 
-                        fontWeight: 600, 
-                        color: '#2c3e50',
-                        letterSpacing: '-0.01em',
-                      }}>
-                        Tùy chỉnh nội dung chi tiết hóa đơn
-                      </Typography>
-                    </AccordionSummary>
-                    <AccordionDetails sx={{ p: 0 }}>
-                      {/* Tabs */}
-                      <Tabs 
-                        value={detailTab} 
-                        onChange={(_, newValue) => setDetailTab(newValue)}
-                        sx={{
-                          borderBottom: '1px solid #e0e0e0',
-                          minHeight: 42,
-                          '& .MuiTab-root': {
-                            minHeight: 42,
-                            textTransform: 'none',
-                            fontSize: '0.8125rem',
-                            fontWeight: 500,
-                            color: '#616161',
-                            '&.Mui-selected': {
-                              color: '#1976d2',
-                              fontWeight: 600,
-                            },
-                          },
-                          '& .MuiTabs-indicator': {
-                            backgroundColor: '#1976d2',
-                          },
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                        <Typography sx={{ 
+                          fontSize: '0.9375rem', 
+                          fontWeight: 600, 
+                          color: '#2c3e50',
+                          letterSpacing: '-0.01em',
+                          flex: 1,
                         }}>
-                        <Tab label="CÔNG TY CP HOÀNG LONG" value="company" />
-                        <Tab label="STT" value="stt" />
-                      </Tabs>
-
-                      {/* Company Tab Content */}
-                      {detailTab === 'company' && (
-                        <Box sx={{ p: 2 }}>
-                          {/* Toolbar placeholder */}
-                          <Box sx={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: 1, 
-                            mb: 2,
-                            pb: 1.5,
-                            borderBottom: '1px solid #e0e0e0',
+                          Thông tin cơ bản
+                        </Typography>
+                      </Box>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                      <Stack spacing={2.5}>
+                        {/* Tên mẫu */}
+                        <Box>
+                          <Typography sx={{ 
+                            fontSize: '0.8125rem', 
+                            fontWeight: 600, 
+                            color: '#37474f',
+                            mb: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
                           }}>
-                            <Typography sx={{ fontSize: '0.75rem', color: '#9e9e9e' }}>
-                              20 ▼
-                            </Typography>
-                            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-                            <Typography sx={{ fontSize: '0.75rem', color: '#9e9e9e' }}>
-                              B I A
-                            </Typography>
-                          </Box>
-
-                          {/* Company Name Field */}
+                            📝 Tên mẫu hóa đơn
+                          </Typography>
                           <TextField
                             fullWidth
                             size="small"
-                            value={config.companyName}
-                            onChange={(e) => setConfig({ ...config, companyName: e.target.value })}
-                            sx={{ 
-                              mb: 2,
+                            value={state.templateName}
+                            onChange={handleTemplateNameChange}
+                            error={!!errors.templateName}
+                            helperText={errors.templateName}
+                            placeholder="Ví dụ: Hóa đơn bán hàng (mẫu CB)"
+                            sx={{
                               '& .MuiOutlinedInput-root': {
-                                fontSize: '0.875rem',
-                                bgcolor: '#f8f9fa',
+                                fontSize: '0.8125rem',
+                                bgcolor: '#fafafa',
+                                '&:hover': { bgcolor: '#f5f5f5' },
+                                '&.Mui-focused': { bgcolor: '#fff' },
                               },
                             }}
                           />
-
-                          {/* Company Fields List */}
-                          <Stack spacing={1}>
-                            {companyFields.map((field) => (
-                              <Box 
-                                key={field.id}
-                                sx={{ 
-                                  display: 'flex', 
-                                  alignItems: 'center',
-                                  gap: 1,
-                                  py: 0.5,
-                                  '&:hover': {
-                                    bgcolor: '#f9fafb',
-                                  },
-                                }}>
-                                <DragIndicatorIcon sx={{ fontSize: 18, color: '#ccc' }} />
-                                <Checkbox
-                                  size="small"
-                                  checked={field.checked}
-                                  onChange={(e) => {
-                                    const updated = companyFields.map(f => 
-                                      f.id === field.id ? { ...f, checked: e.target.checked } : f
-                                    )
-                                    setCompanyFields(updated)
-                                  }}
-                                  sx={{
-                                    '&.Mui-checked': {
-                                      color: '#1976d2',
-                                    },
-                                  }}
-                                />
-                                <Box sx={{ flex: 1 }}>
-                                  <Typography sx={{ fontSize: '0.8125rem', color: '#424242', mb: 0.25 }}>
-                                    {field.label}
-                                  </Typography>
-                                  <Typography sx={{ fontSize: '0.75rem', color: '#9e9e9e' }}>
-                                    {field.value}
-                                  </Typography>
-                                </Box>
-                                <IconButton size="small" sx={{ color: '#9e9e9e' }}>
-                                  <KeyboardArrowDownIcon fontSize="small" />
-                                </IconButton>
-                              </Box>
-                            ))}
-                          </Stack>
-
-                          {/* Add Button */}
-                          <Button
-                            fullWidth
-                            startIcon={<AddIcon />}
-                            sx={{
-                              mt: 2,
-                              textTransform: 'none',
-                              fontSize: '0.8125rem',
-                              color: '#1976d2',
-                              justifyContent: 'center',
-                              '&:hover': {
-                                bgcolor: '#e3f2fd',
-                              },
-                            }}>
-                            Thêm dòng
-                          </Button>
                         </Box>
-                      )}
 
-                      {/* STT Tab Content */}
-                      {detailTab === 'stt' && (
-                        <Box sx={{ p: 2 }}>
-                          {/* Title & Content Fields */}
-                          <Stack spacing={1.5} sx={{ mb: 2 }}>
-                            <Box>
-                              <Typography sx={{ fontSize: '0.75rem', color: '#616161', mb: 0.5 }}>
-                                Tiêu đề
-                              </Typography>
-                              <TextField
-                                fullWidth
-                                size="small"
-                                value={sttTitle}
-                                onChange={(e) => setSttTitle(e.target.value)}
-                                sx={{ 
-                                  '& .MuiOutlinedInput-root': {
-                                    fontSize: '0.875rem',
-                                    bgcolor: '#f8f9fa',
-                                  },
-                                }}
-                              />
-                            </Box>
-                            <Box>
-                              <Typography sx={{ fontSize: '0.75rem', color: '#616161', mb: 0.5 }}>
-                                Nội dung
-                              </Typography>
-                              <TextField
-                                fullWidth
-                                size="small"
-                                value={sttContent}
-                                onChange={(e) => setSttContent(e.target.value)}
-                                sx={{ 
-                                  '& .MuiOutlinedInput-root': {
-                                    fontSize: '0.875rem',
-                                    bgcolor: '#f8f9fa',
-                                  },
-                                }}
-                              />
-                            </Box>
-                          </Stack>
-
-                          {/* Table Columns List */}
-                          <Stack spacing={1} sx={{ mb: 2 }}>
-                            {tableColumns.map((col) => (
-                              <Box 
-                                key={col.id}
-                                sx={{ 
-                                  display: 'flex', 
-                                  alignItems: 'center',
-                                  gap: 1,
-                                  py: 0.5,
-                                  '&:hover': {
-                                    bgcolor: '#f9fafb',
-                                  },
-                                }}>
-                                <DragIndicatorIcon sx={{ fontSize: 18, color: '#ccc' }} />
-                                <Checkbox
-                                  size="small"
-                                  checked={col.checked}
-                                  onChange={(e) => {
-                                    const updated = tableColumns.map(c => 
-                                      c.id === col.id ? { ...c, checked: e.target.checked } : c
-                                    )
-                                    setTableColumns(updated)
-                                  }}
-                                  sx={{
-                                    '&.Mui-checked': {
-                                      color: '#1976d2',
-                                    },
-                                  }}
-                                />
-                                <Typography sx={{ flex: 1, fontSize: '0.8125rem', color: '#424242' }}>
-                                  {col.label}
-                                </Typography>
-                                
-                                {/* Icons */}
-                                <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                  {col.hasCode && (
-                                    <IconButton size="small" sx={{ color: '#9e9e9e' }}>
-                                      <CodeIcon fontSize="small" />
-                                    </IconButton>
-                                  )}
-                                  {col.hasSettings && (
-                                    <>
-                                      <IconButton size="small" sx={{ color: '#9e9e9e' }}>
-                                        <SettingsIcon fontSize="small" />
-                                      </IconButton>
-                                      <IconButton size="small" sx={{ color: '#f44336' }}>
-                                        <DeleteOutlineIcon fontSize="small" />
-                                      </IconButton>
-                                    </>
-                                  )}
-                                </Box>
-                              </Box>
-                            ))}
-                          </Stack>
-
-                          {/* Add Column Button */}
-                          <Button
+                        {/* Ngày lập hóa đơn */}
+                        <Box>
+                          <Typography sx={{ 
+                            fontSize: '0.8125rem', 
+                            fontWeight: 600, 
+                            color: '#37474f',
+                            mb: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                          }}>
+                            📅 Ngày lập hóa đơn (Invoice Date)
+                          </Typography>
+                          <TextField
                             fullWidth
-                            startIcon={<AddIcon />}
+                            size="small"
+                            type="date"
+                            value={new Date(state.invoiceDate).toISOString().split('T')[0]}
+                            onChange={(e) => dispatch({ type: 'SET_INVOICE_DATE', payload: new Date(e.target.value).toISOString() })}
+                            InputLabelProps={{ shrink: true }}
                             sx={{
-                              mb: 2,
-                              textTransform: 'none',
-                              fontSize: '0.8125rem',
-                              color: '#1976d2',
-                              justifyContent: 'center',
-                              '&:hover': {
-                                bgcolor: '#e3f2fd',
+                              '& .MuiOutlinedInput-root': {
+                                fontSize: '0.8125rem',
+                                bgcolor: '#fafafa',
+                                '&:hover': { bgcolor: '#f5f5f5' },
+                                '&.Mui-focused': { bgcolor: '#fff' },
                               },
-                            }}>
-                            Thêm cột
-                          </Button>
+                            }}
+                            helperText="Tự động lấy ngày hiện tại, có thể chỉnh sửa"
+                          />
+                          <Box sx={{ 
+                            mt: 0.5, 
+                            p: 1, 
+                            bgcolor: '#e3f2fd', 
+                            borderRadius: 1,
+                            border: '1px solid #bbdefb',
+                          }}>
+                            <Typography sx={{ fontSize: '0.75rem', color: '#1565c0', fontWeight: 500 }}>
+                              📌 Hiển thị: {new Date(state.invoiceDate).toLocaleDateString('vi-VN', { 
+                                weekday: 'long', 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                              })}
+                            </Typography>
+                            <Typography sx={{ fontSize: '0.7rem', color: '#1976d2', mt: 0.25 }}>
+                              English: {new Date(state.invoiceDate).toLocaleDateString('en-US', { 
+                                weekday: 'long', 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                              })}
+                            </Typography>
+                          </Box>
+                        </Box>
 
-                          {/* Row Count */}
+                        {/* QR Code */}
+                        <Paper
+                          elevation={0}
+                          sx={{
+                            border: '1px solid #e0e0e0',
+                            borderRadius: 1,
+                            bgcolor: '#fafafa',
+                            transition: 'all 0.2s ease',
+                            '&:hover': {
+                              borderColor: '#1976d2',
+                              bgcolor: '#f9fafb',
+                            },
+                          }}
+                        >
                           <FormControlLabel
                             control={
-                              <Checkbox 
-                                size="small" 
-                                defaultChecked
-                                sx={{
-                                  '&.Mui-checked': {
-                                    color: '#1976d2',
-                                  },
-                                }}
+                              <Checkbox
+                                checked={state.settings.showQrCode}
+                                onChange={() => dispatch({ type: 'TOGGLE_QR_CODE' })}
+                                size="small"
                               />
                             }
                             label={
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Typography sx={{ fontSize: '0.8125rem', color: '#424242' }}>
-                                  Số dòng hàng hóa dịch vụ và hiển thị đề trưởng
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Typography sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+                                  QR Code
                                 </Typography>
-                                <TextField
-                                  size="small"
-                                  type="number"
-                                  value={rowCount}
-                                  onChange={(e) => setRowCount(parseInt(e.target.value) || 5)}
-                                  sx={{ 
-                                    width: 60,
-                                    '& .MuiOutlinedInput-root': {
-                                      fontSize: '0.875rem',
-                                      height: 28,
-                                    },
-                                    '& input': {
-                                      textAlign: 'center',
-                                      py: 0.5,
-                                    },
-                                  }}
-                                />
+                                <Tooltip title="Mã QR tra cứu hóa đơn trên cổng Tổng cục thuế">
+                                  <InfoIcon sx={{ fontSize: 14, color: '#9e9e9e' }} />
+                                </Tooltip>
                               </Box>
                             }
-                            sx={{ mb: 2, ml: 0 }}
+                            sx={{ width: '100%', m: 0, p: 1.5 }}
                           />
+                        </Paper>
 
-                          {/* Action Buttons */}
-                          <Stack direction="row" spacing={1.5}>
-                            <Button
-                              variant="outlined"
-                              fullWidth
-                              sx={{
-                                textTransform: 'none',
-                                fontSize: '0.8125rem',
-                                color: '#616161',
-                                borderColor: '#d0d0d0',
-                                '&:hover': {
-                                  borderColor: '#999',
-                                  bgcolor: '#f5f5f5',
-                                },
-                              }}>
-                              Huỷ bỏ
-                            </Button>
-                            <Button
-                              variant="contained"
-                              fullWidth
-                              sx={{
-                                textTransform: 'none',
-                                fontSize: '0.8125rem',
-                                bgcolor: '#1976d2',
-                                '&:hover': {
-                                  bgcolor: '#1565c0',
-                                },
-                              }}>
-                              Lưu lại
-                            </Button>
+                        {/* Song ngữ */}
+                        <Paper
+                          elevation={0}
+                          sx={{
+                            border: '1px solid #e0e0e0',
+                            borderRadius: 1,
+                            bgcolor: '#fafafa',
+                            transition: 'all 0.2s ease',
+                            '&:hover': {
+                              borderColor: '#1976d2',
+                              bgcolor: '#f9fafb',
+                            },
+                          }}
+                        >
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={state.settings.bilingual}
+                                onChange={() => dispatch({ type: 'TOGGLE_BILINGUAL' })}
+                                size="small"
+                              />
+                            }
+                            label={
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Typography sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+                                  🌐 Hóa đơn song ngữ (Vietnamese - English)
+                                </Typography>
+                                <Tooltip title="Hiển thị nội dung hóa đơn bằng tiếng Việt và tiếng Anh theo chuẩn quốc tế">
+                                  <InfoIcon sx={{ fontSize: 14, color: '#9e9e9e' }} />
+                                </Tooltip>
+                              </Box>
+                            }
+                            sx={{ width: '100%', m: 0, p: 1.5 }}
+                          />
+                        </Paper>
+
+                        {/* Tùy chọn hiển thị */}
+                        <Box>
+                          <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'space-between',
+                            mb: 1.5,
+                          }}>
+                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                              <Button
+                                size="small"
+                                onClick={() => {
+                                  Object.keys(state.settings.visibility).forEach(key => {
+                                    if (!state.settings.visibility[key as keyof typeof state.settings.visibility]) {
+                                      dispatch({ type: 'TOGGLE_VISIBILITY', payload: key as keyof typeof state.settings.visibility })
+                                    }
+                                  })
+                                }}
+                                sx={{
+                                  fontSize: '0.6875rem',
+                                  minWidth: 'auto',
+                                  px: 1,
+                                  py: 0.5,
+                                  textTransform: 'none',
+                                  color: '#1976d2',
+                                  '&:hover': { bgcolor: '#e3f2fd' },
+                                }}
+                              >
+                                Bật tất cả
+                              </Button>
+                              <Button
+                                size="small"
+                                onClick={() => {
+                                  Object.keys(state.settings.visibility).forEach(key => {
+                                    if (state.settings.visibility[key as keyof typeof state.settings.visibility]) {
+                                      dispatch({ type: 'TOGGLE_VISIBILITY', payload: key as keyof typeof state.settings.visibility })
+                                    }
+                                  })
+                                }}
+                                sx={{
+                                  fontSize: '0.6875rem',
+                                  minWidth: 'auto',
+                                  px: 1,
+                                  py: 0.5,
+                                  textTransform: 'none',
+                                  color: '#757575',
+                                  '&:hover': { bgcolor: '#f5f5f5' },
+                                }}
+                              >
+                                Tắt tất cả
+                              </Button>
+                            </Box>
+                          </Box>
+                          <Stack spacing={0.5}>
+                            {([
+                              { key: 'showLogo', label: 'Logo công ty', icon: '🏢' },
+                              { key: 'showCompanyName', label: 'Tên công ty', icon: '📄' },
+                              { key: 'showCompanyTaxCode', label: 'Mã số thuế', icon: '🔢' },
+                              { key: 'showCompanyAddress', label: 'Địa chỉ', icon: '📍' },
+                              { key: 'showCompanyPhone', label: 'Điện thoại', icon: '📞' },
+                              { key: 'showCompanyBankAccount', label: 'Tài khoản ngân hàng', icon: '🏦' },
+                              { key: 'showSignature', label: 'Chữ ký', icon: '✍️' },
+                            ] as const).map(({ key, label, icon }) => (
+                              <Paper
+                                key={key}
+                                elevation={0}
+                                sx={{
+                                  border: '1px solid',
+                                  borderColor: state.settings.visibility[key] ? '#e3f2fd' : '#f5f5f5',
+                                  borderRadius: 1,
+                                  bgcolor: state.settings.visibility[key] ? '#f3f8ff' : '#fafafa',
+                                  transition: 'all 0.15s ease',
+                                  '&:hover': {
+                                    borderColor: '#1976d2',
+                                    bgcolor: state.settings.visibility[key] ? '#e3f2fd' : '#f9fafb',
+                                  },
+                                }}
+                              >
+                                <FormControlLabel
+                                  control={
+                                    <Checkbox
+                                      checked={state.settings.visibility[key]}
+                                      onChange={() => dispatch({ type: 'TOGGLE_VISIBILITY', payload: key })}
+                                      size="small"
+                                    />
+                                  }
+                                  label={
+                                    <Typography sx={{ 
+                                      fontSize: '0.8125rem', 
+                                      fontWeight: state.settings.visibility[key] ? 500 : 400,
+                                    }}>
+                                      {icon} {label}
+                                    </Typography>
+                                  }
+                                  sx={{ width: '100%', m: 0, py: 0.75, px: 1.5 }}
+                                />
+                              </Paper>
+                            ))}
                           </Stack>
                         </Box>
-                      )}
+
+                        {/* Số dòng trong bảng */}
+                        <Box>
+                          <Typography sx={{ 
+                            fontSize: '0.8125rem', 
+                            fontWeight: 600, 
+                            color: '#37474f',
+                            mb: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                          }}>
+                            📊 Số dòng trong bảng danh sách
+                          </Typography>
+                          <Stack 
+                            direction="row" 
+                            alignItems="center" 
+                            spacing={1.5}
+                            sx={{ 
+                              p: 1.5,
+                              bgcolor: '#fafafa',
+                              borderRadius: 1.5,
+                              border: '1px solid #e0e0e0',
+                            }}
+                          >
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                if (state.table.rowCount > 1) {
+                                  dispatch({ type: 'SET_TABLE_ROW_COUNT', payload: state.table.rowCount - 1 });
+                                }
+                              }}
+                              disabled={state.table.rowCount <= 1}
+                              sx={{
+                                bgcolor: state.table.rowCount > 1 ? '#fff' : '#f5f5f5',
+                                border: '1px solid',
+                                borderColor: state.table.rowCount > 1 ? '#e0e0e0' : '#eeeeee',
+                                width: 36,
+                                height: 36,
+                                '&:hover': {
+                                  bgcolor: state.table.rowCount > 1 ? '#f5f5f5' : '#f5f5f5',
+                                  borderColor: state.table.rowCount > 1 ? '#1976d2' : '#eeeeee',
+                                },
+                                '&.Mui-disabled': {
+                                  opacity: 0.5,
+                                },
+                              }}
+                            >
+                              <Box component="span" sx={{ fontSize: '1.25rem', fontWeight: 'bold', color: state.table.rowCount > 1 ? '#1976d2' : '#bdbdbd' }}>
+                                −
+                              </Box>
+                            </IconButton>
+                            
+                            <Box sx={{ 
+                              flex: 1,
+                              textAlign: 'center',
+                              bgcolor: '#fff',
+                              py: 1,
+                              px: 2,
+                              borderRadius: 1,
+                              border: '2px solid #1976d2',
+                            }}>
+                              <Typography sx={{ 
+                                fontSize: '1.125rem', 
+                                fontWeight: 700,
+                                color: '#1976d2',
+                                lineHeight: 1,
+                              }}>
+                                {state.table.rowCount}
+                              </Typography>
+                              <Typography sx={{ 
+                                fontSize: '0.7rem', 
+                                color: '#616161',
+                                fontWeight: 500,
+                                mt: 0.3,
+                              }}>
+                                dòng
+                              </Typography>
+                            </Box>
+                            
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                if (state.table.rowCount < 25) {
+                                  dispatch({ type: 'SET_TABLE_ROW_COUNT', payload: state.table.rowCount + 1 });
+                                }
+                              }}
+                              disabled={state.table.rowCount >= 25}
+                              sx={{
+                                bgcolor: state.table.rowCount < 25 ? '#fff' : '#f5f5f5',
+                                border: '1px solid',
+                                borderColor: state.table.rowCount < 25 ? '#e0e0e0' : '#eeeeee',
+                                width: 36,
+                                height: 36,
+                                '&:hover': {
+                                  bgcolor: state.table.rowCount < 25 ? '#f5f5f5' : '#f5f5f5',
+                                  borderColor: state.table.rowCount < 25 ? '#1976d2' : '#eeeeee',
+                                },
+                                '&.Mui-disabled': {
+                                  opacity: 0.5,
+                                },
+                              }}
+                            >
+                              <Box component="span" sx={{ fontSize: '1.25rem', fontWeight: 'bold', color: state.table.rowCount < 25 ? '#1976d2' : '#bdbdbd' }}>
+                                +
+                              </Box>
+                            </IconButton>
+                          </Stack>
+                          <Typography sx={{ 
+                            fontSize: '0.75rem', 
+                            color: '#757575', 
+                            mt: 0.75,
+                            fontStyle: 'italic',
+                          }}>
+                            Nhấn + hoặc − để thay đổi (tối thiểu 1, tối đa 25 dòng)
+                          </Typography>
+                        </Box>
+                      </Stack>
                     </AccordionDetails>
                   </Accordion>
+
+                  {/* Section 2: Thông tin khách hàng */}
+                  <Accordion  
+                    disableGutters
+                    elevation={0}
+                    sx={{
+                      bgcolor: '#fff',
+                      border: '1px solid #e0e0e0',
+                      borderRadius: '8px !important',
+                      mb: 1.5,
+                      '&:before': { display: 'none' },
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        borderColor: '#1976d2',
+                        boxShadow: '0 2px 8px rgba(25, 118, 210, 0.08)',
+                      },
+                    }}>
+                    <AccordionSummary
+                      expandIcon={<ChevronRightIcon sx={{ color: '#757575', fontSize: 20 }} />}
+                      sx={{
+                        minHeight: 56,
+                        px: 2,
+                        '& .MuiAccordionSummary-expandIconWrapper': {
+                          transition: 'transform 0.3s ease',
+                        },
+                        '& .MuiAccordionSummary-expandIconWrapper.Mui-expanded': {
+                          transform: 'rotate(90deg)',
+                        },
+                        '&:hover': {
+                          bgcolor: '#f9fafb',
+                        },
+                      }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                        <Typography sx={{ 
+                          fontSize: '0.9375rem', 
+                          fontWeight: 600, 
+                          color: '#2c3e50',
+                          letterSpacing: '-0.01em',
+                          flex: 1,
+                        }}>
+                          👤 Thông tin khách hàng
+                        </Typography>
+                      </Box>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                      <Stack spacing={1.5}>
+                        {/* Tùy chọn hiển thị */}
+                        <Box>
+                          <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'space-between',
+                            mb: 1.5,
+                          }}>
+                            <Box sx={{ display: 'flex', gap: 0.75 }}>
+                              <Button
+                                size="small"
+                                onClick={() => dispatch({ type: 'SET_ALL_CUSTOMER_FIELDS', payload: true })}
+                                sx={{
+                                  fontSize: '0.6875rem',
+                                  minWidth: 'auto',
+                                  px: 1,
+                                  py: 0.5,
+                                  textTransform: 'none',
+                                  color: '#1976d2',
+                                  '&:hover': { bgcolor: '#e3f2fd' },
+                                }}
+                              >
+                                Bật tất cả
+                              </Button>
+                              <Button
+                                size="small"
+                                onClick={() => dispatch({ type: 'SET_ALL_CUSTOMER_FIELDS', payload: false })}
+                                sx={{
+                                  fontSize: '0.6875rem',
+                                  minWidth: 'auto',
+                                  px: 1,
+                                  py: 0.5,
+                                  textTransform: 'none',
+                                  color: '#757575',
+                                  '&:hover': { bgcolor: '#f5f5f5' },
+                                }}
+                              >
+                                Tắt tất cả
+                              </Button>
+                            </Box>
+                          </Box>
+                          <Stack spacing={0.5}>
+                            {([
+                              { key: 'customerName', label: 'Tên khách hàng', icon: '👤' },
+                              { key: 'customerTaxCode', label: 'Mã số thuế', icon: '🔢' },
+                              { key: 'customerAddress', label: 'Địa chỉ', icon: '📍' },
+                              { key: 'customerPhone', label: 'Số điện thoại', icon: '📞' },
+                              { key: 'customerEmail', label: 'Email', icon: '📧' },
+                              { key: 'paymentMethod', label: 'Hình thức thanh toán', icon: '💳' },
+                            ] as const).map(({ key, label, icon }) => (
+                              <Paper
+                                key={key}
+                                elevation={0}
+                                sx={{
+                                  border: '1px solid',
+                                  borderColor: '#f5f5f5',
+                                  borderRadius: 1,
+                                  bgcolor: '#fafafa',
+                                  transition: 'all 0.15s ease',
+                                  '&:hover': {
+                                    borderColor: '#1976d2',
+                                    bgcolor: '#f9fafb',
+                                  },
+                                }}
+                              >
+                                <FormControlLabel
+                                  control={
+                                    <Checkbox
+                                      checked={state.settings.customerVisibility[key]}
+                                      onChange={() => dispatch({ type: 'TOGGLE_CUSTOMER_FIELD', payload: key })}
+                                      size="small"
+                                    />
+                                  }
+                                  label={
+                                    <Typography sx={{ 
+                                      fontSize: '0.8125rem', 
+                                      fontWeight: 400,
+                                    }}>
+                                      {icon} {label}
+                                    </Typography>
+                                  }
+                                  sx={{ width: '100%', m: 0, py: 0.75, px: 1.5 }}
+                                />
+                              </Paper>
+                            ))}
+                          </Stack>
+                        </Box>
+                      </Stack>
+                    </AccordionDetails>
+                  </Accordion>
+
+                  
                 </Box>
               </Stack>
 
@@ -1181,8 +1971,8 @@ const TemplateEditor: React.FC = () => {
                   variant="contained"
                   fullWidth
                   onClick={handleContinue}
-                  disabled={loading}
-                  startIcon={loading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : undefined}
+                  disabled={loading || isSaving}
+                  startIcon={(loading || isSaving) ? <CircularProgress size={16} color="inherit" /> : undefined}
                   sx={{
                     textTransform: 'none',
                     fontSize: '0.875rem',
@@ -1199,8 +1989,9 @@ const TemplateEditor: React.FC = () => {
                     '&:disabled': {
                       bgcolor: '#e0e0e0',
                     },
-                  }}>
-                  {loading ? 'Đang xử lý...' : 'Tiếp tục'}
+                  }}
+                >
+                  {isSaving ? 'Đang lưu...' : loading ? 'Đang xử lý...' : 'Tiếp tục'}
                 </Button>
               </Stack>
             </Paper>
@@ -1344,36 +2135,14 @@ const TemplateEditor: React.FC = () => {
                   config={config}
                   visibility={visibility}
                   blankRows={blankRows}
-                  backgroundFrame={backgroundFrame}
+                  backgroundFrame={state.background.custom || state.background.frame}
+                  bilingual={state.settings.bilingual}
+                  invoiceDate={state.invoiceDate}
+                  logoSize={state.logoSize}
+                  invoiceType={state.invoiceType}
+                  symbol={state.symbol}
+                  customerVisibility={state.settings.customerVisibility}
                 />
-              </Box>
-
-              {/* Page Break Indicator - Enhanced */}
-              <Box
-                sx={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1.5,
-                  mb: 2.5,
-                  mt: 1,
-                }}
-              >
-                <Divider sx={{ flex: 1, borderStyle: 'dashed', borderColor: '#9e9e9e' }} />
-                <Chip
-                  icon={<Box component="span" sx={{ fontSize: '1rem' }}>✂️</Box>}
-                  label="Vị trí ngắt trang A4 (297mm)"
-                  size="small"
-                  variant="outlined"
-                  sx={{ 
-                    color: 'text.secondary',
-                    fontStyle: 'italic',
-                    fontSize: '0.7rem',
-                    borderColor: '#9e9e9e',
-                    bgcolor: 'rgba(255,255,255,0.8)',
-                  }}
-                />
-                <Divider sx={{ flex: 1, borderStyle: 'dashed', borderColor: '#9e9e9e' }} />
               </Box>
 
               {/* Pagination Info - Enhanced */}
@@ -1434,7 +2203,87 @@ const TemplateEditor: React.FC = () => {
           </Box>
         </Stack>
       </Box>
-    </Box>
+
+      {/* AddFieldDialog - NEW */}
+      <AddFieldDialog
+        open={openAddDialog}
+        type={addDialogType}
+        onClose={() => setOpenAddDialog(false)}
+        onSubmit={addDialogType === 'field' ? handleAddField : handleAddColumn}
+      />
+
+      {/* Confirmation Dialog */}
+      <Dialog
+        open={showConfirmDelete.open}
+        onClose={() => setShowConfirmDelete({ open: false, id: '', type: 'field' })}
+        PaperProps={{ sx: { borderRadius: 2, minWidth: 400 } }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            Xác nhận xóa
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Typography>
+            Bạn có chắc chắn muốn xóa {showConfirmDelete.type === 'field' ? 'trường' : 'cột'} này không?
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            Hành động này không thể hoàn tác.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => setShowConfirmDelete({ open: false, id: '', type: 'field' })}
+            sx={{ textTransform: 'none' }}
+          >
+            Hủy
+          </Button>
+          <Button
+            onClick={confirmDelete}
+            variant="contained"
+            color="error"
+            sx={{ textTransform: 'none' }}
+          >
+            Xóa
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Success Snackbar */}
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={3000}
+        onClose={() => setSuccessMessage('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setSuccessMessage('')}
+          severity="success"
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {successMessage}
+        </Alert>
+      </Snackbar>
+
+      {/* Error Snackbar */}
+      <Snackbar
+        open={!!errors._general}
+        autoHideDuration={5000}
+        onClose={() => setErrors(prev => ({ ...prev, _general: '' }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setErrors(prev => ({ ...prev, _general: '' }))}
+          severity="error"
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {errors._general}
+        </Alert>
+      </Snackbar>
+      </Box>
+    </DragDropContext>
   )
 }
 

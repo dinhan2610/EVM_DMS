@@ -442,3 +442,61 @@
     display: none;
   }
 }
+
+// ============================================
+// 17. SCREEN VIEW OPTIMIZATION (NON-PRINT)
+// ============================================
+
+// Styles for screen view (not in print mode)
+@media screen {
+  .invoice-print-wrapper {
+    width: 210mm !important;
+    min-height: 297mm;
+    margin: 0;
+    background: white;
+    padding: 0;
+    box-sizing: border-box;
+    position: relative;
+    display: block;
+  }
+  
+  // Table layout should take full width and start from top
+  table.invoice-page-layout {
+    width: 100%;
+    table-layout: fixed;
+    margin: 0;
+    padding: 0;
+  }
+  
+  // Header should be at the top
+  thead.invoice-page-header {
+    display: table-header-group;
+    vertical-align: top;
+  }
+  
+  // Body should follow header
+  tbody.invoice-page-body {
+    display: table-row-group;
+    vertical-align: top;
+  }
+  
+  // Footer should be at the bottom
+  tfoot.invoice-page-footer {
+    display: table-footer-group;
+    vertical-align: bottom;
+  }
+  
+  // Company details should wrap text properly
+  .company-details {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: normal !important;
+  }
+  
+  // Ensure Typography components wrap text
+  .MuiTypography-root {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: normal !important;
+  }
+}

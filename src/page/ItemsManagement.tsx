@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   Box,
   Paper,
@@ -8,78 +8,64 @@ import {
   InputAdornment,
   IconButton,
   Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Tooltip,
+  Stack,
+  Grid,
+  Divider,
+  Alert,
+  CircularProgress,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import AddIcon from '@mui/icons-material/Add'
 import SearchIcon from '@mui/icons-material/Search'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import LockOpenOutlinedIcon from '@mui/icons-material/LockOpenOutlined'
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
+import { toast } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
 import AddNewItemModal, { ItemFormData } from '../components/AddNewItemModal'
 import ItemDetailModal from '../components/ItemDetailModal'
+import { useProducts } from '@/hooks/useProducts'
+import { useCategories } from '@/hooks/useCategories'
+import productService from '@/services/productService'
+import type { CreateProductRequest, UpdateProductRequest } from '@/services/productService'
 
-// Interface cho Item trong danh sách
+// Interface cho Item trong danh sách (giữ tương thích với UI cũ)
 export interface Item extends ItemFormData {
   id: number
+  categoryID?: number
   createdAt: string
   status: 'active' | 'inactive'
 }
 
 const ItemsManagement = () => {
+  const { products, loading, error } = useProducts()
+  const { categories } = useCategories()
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [items, setItems] = useState<Item[]>([
-    // Dữ liệu mẫu
-    {
-      id: 1,
-      code: 'SP001',
-      name: 'Laptop Dell Inspiron 15',
-      group: 'hang-hoa',
-      unit: 'chiec',
-      salesPrice: 15000000,
-      priceIncludesTax: false,
-      vatTaxRate: '10%',
-      discountRate: 5,
-      discountAmount: 750000,
-      vatReduction: 'none',
-      description: 'Laptop Dell Inspiron 15, Intel Core i5, RAM 8GB, SSD 256GB',
-      createdAt: '2025-01-15',
-      status: 'active',
-    },
-    {
-      id: 2,
-      code: 'DV001',
-      name: 'Dịch vụ bảo trì phần mềm',
-      group: 'dich-vu',
-      unit: 'thang',
-      salesPrice: 5000000,
-      priceIncludesTax: true,
-      vatTaxRate: '10%',
-      discountRate: 0,
-      discountAmount: 0,
-      vatReduction: 'none',
-      description: 'Dịch vụ bảo trì, nâng cấp phần mềm hàng tháng',
-      createdAt: '2025-02-01',
-      status: 'active',
-    },
-    {
-      id: 3,
-      code: 'SP002',
-      name: 'Chuột không dây Logitech',
-      group: 'hang-hoa',
-      unit: 'cai',
-      salesPrice: 350000,
-      priceIncludesTax: false,
-      vatTaxRate: '10%',
-      discountRate: 10,
-      discountAmount: 35000,
-      vatReduction: 'none',
-      description: 'Chuột không dây Logitech MX Master 3',
-      createdAt: '2025-03-10',
-      status: 'active',
-    },
-  ])
+  const [items, setItems] = useState<Item[]>([])
   const [searchText, setSearchText] = useState('')
   const [editingItem, setEditingItem] = useState<Item | null>(null)
   const [viewingItem, setViewingItem] = useState<Item | null>(null)
+  const [categoryFilter, setCategoryFilter] = useState<number | 'all'>('all')
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false)
+  const [selectedItemForToggle, setSelectedItemForToggle] = useState<Item | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  // Sync products từ API vào items state
+  useEffect(() => {
+    if (products.length > 0) {
+      setItems(products as Item[])
+    }
+  }, [products])
 
   // Hàm mở modal thêm mới
   const handleOpenModal = () => {
@@ -94,34 +80,221 @@ const ItemsManagement = () => {
   }
 
   // Hàm lưu item (thêm mới hoặc cập nhật)
-  const handleSaveItem = (data: ItemFormData) => {
-    if (editingItem) {
-      // Chế độ Edit: Cập nhật item hiện tại
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === editingItem.id
-            ? { ...item, ...data }
-            : item
+  const handleSaveItem = async (data: ItemFormData) => {
+    setSaving(true)
+    setActionError(null)
+
+    try {
+      // Parse vatTaxRate từ "10%" thành số 10
+      const vatRate = parseFloat(data.vatTaxRate.replace('%', ''))
+
+      if (editingItem) {
+        // Chế độ Edit: Gọi API PUT
+        const updateRequest: UpdateProductRequest = {
+          code: data.code,
+          name: data.name,
+          categoryID: data.categoryID || editingItem.categoryID || 1,
+          unit: data.unit,
+          basePrice: data.salesPrice,
+          vatRate: vatRate,
+          description: data.description,
+          isActive: editingItem.status === 'active',
+        }
+
+        await productService.updateProduct(editingItem.id, updateRequest)
+        
+        // Cập nhật optimistic UI: Update item ngay lập tức với data từ form
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === editingItem.id
+              ? {
+                  ...item,
+                  code: data.code,
+                  name: data.name,
+                  categoryID: data.categoryID || editingItem.categoryID || 1,
+                  unit: data.unit,
+                  salesPrice: data.salesPrice,
+                  vatTaxRate: data.vatTaxRate,
+                  description: data.description,
+                }
+              : item
+          )
         )
-      )
-      console.log('Đã cập nhật item:', editingItem.id)
-    } else {
-      // Chế độ Add: Thêm item mới
-      const newItem: Item = {
-        ...data,
-        id: items.length + 1,
-        createdAt: new Date().toISOString().split('T')[0],
-        status: 'active',
+      } else {
+        // Chế độ Add: Gọi API POST
+        const createRequest: CreateProductRequest = {
+          code: data.code,
+          name: data.name,
+          categoryID: data.categoryID || 1,
+          unit: data.unit,
+          basePrice: data.salesPrice,
+          vatRate: vatRate,
+          description: data.description,
+          isActive: true,
+        }
+
+        const response = await productService.createProduct(createRequest)
+        
+        // Thêm item mới vào đầu danh sách ngay lập tức
+        const newItem: Item = {
+          id: response.productID,
+          code: response.code,
+          name: response.name,
+          group: 'hang-hoa',
+          categoryID: response.categoryID,
+          unit: response.unit,
+          salesPrice: response.basePrice,
+          vatTaxRate: `${response.vatRate}%`,
+          discountRate: 0,
+          discountAmount: 0,
+          description: response.description,
+          status: response.isActive ? 'active' : 'inactive',
+          createdAt: response.createdDate,
+        }
+        setItems((prev) => [newItem, ...prev])
       }
-      setItems((prev) => [newItem, ...prev])
-      console.log('Đã thêm item mới:', newItem)
+
+      handleCloseModal()
+      
+      // Toast notification thành công với gradient xanh dương
+      if (editingItem) {
+        toast.success(
+          `Cập nhật sản phẩm "${data.name}" thành công!`,
+          {
+            position: 'top-right',
+            autoClose: 3000,
+            style: {
+              background: 'linear-gradient(135deg, #1c84ee 0%, #0d6efd 100%)',
+              color: '#fff',
+            },
+            progressStyle: {
+              background: 'rgba(255, 255, 255, 0.7)',
+            },
+          }
+        )
+      } else {
+        toast.success(
+          `Thêm mới sản phẩm "${data.name}" thành công!`,
+          {
+            position: 'top-right',
+            autoClose: 3000,
+            style: {
+              background: 'linear-gradient(135deg, #1c84ee 0%, #0d6efd 100%)',
+              color: '#fff',
+            },
+            progressStyle: {
+              background: 'rgba(255, 255, 255, 0.7)',
+            },
+          }
+        )
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Lỗi khi lưu sản phẩm'
+      setActionError(errorMessage)
+      
+      // Toast thông báo lỗi
+      toast.error(
+        `✗ ${errorMessage}`,
+        {
+          position: 'top-right',
+          autoClose: 4000,
+        }
+      )
+    } finally {
+      setSaving(false)
     }
   }
 
-  // Hàm xóa item
-  const handleDeleteItem = (id: number) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa sản phẩm này?')) {
-      setItems((prev) => prev.filter((item) => item.id !== id))
+  // Toggle Status Handlers
+  const handleOpenConfirmModal = (item: Item) => {
+    setSelectedItemForToggle(item)
+    setConfirmModalOpen(true)
+  }
+
+  const handleCloseConfirmModal = () => {
+    setSelectedItemForToggle(null)
+    setConfirmModalOpen(false)
+  }
+
+  const handleConfirmToggleStatus = async () => {
+    if (!selectedItemForToggle) return
+
+    setSaving(true)
+    setActionError(null)
+
+    try {
+      const newStatus = selectedItemForToggle.status === 'active' ? 'inactive' : 'active'
+      const isActive = newStatus === 'active'
+      const productName = selectedItemForToggle.name
+
+      // Sử dụng API PATCH chuyên dụng - tối ưu hơn nhiều so với PUT toàn bộ sản phẩm
+      await productService.toggleProductStatus(selectedItemForToggle.id, isActive)
+      
+      // Cập nhật optimistic UI: Update status ngay lập tức
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === selectedItemForToggle.id
+            ? { ...item, status: newStatus }
+            : item
+        )
+      )
+      
+      // Hiển thị toast notification với màu sắc đồng bộ
+      if (isActive) {
+        toast.success(
+          `Sản phẩm "${productName}" đã được kích hoạt thành công!`,
+          {
+            position: 'top-right',
+            autoClose: 3000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            style: {
+              background: 'linear-gradient(135deg, #1c84ee 0%, #0d6efd 100%)',
+              color: '#fff',
+            },
+            progressStyle: {
+              background: 'rgba(255, 255, 255, 0.7)',
+            },
+          }
+        )
+      } else {
+        toast.warning(
+          `Sản phẩm "${productName}" đã bị vô hiệu hóa!`,
+          {
+            position: 'top-right',
+            autoClose: 3000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            style: {
+              background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+              color: '#fff',
+            },
+            progressStyle: {
+              background: 'rgba(255, 255, 255, 0.7)',
+            },
+          }
+        )
+      }
+      
+      handleCloseConfirmModal()
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Lỗi khi cập nhật trạng thái'
+      setActionError(errorMessage)
+      
+      // Toast thông báo lỗi
+      toast.error(
+        `✗ ${errorMessage}`,
+        {
+          position: 'top-right',
+          autoClose: 4000,
+        }
+      )
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -144,16 +317,31 @@ const ItemsManagement = () => {
     setViewingItem(null)
   }
 
+  // Hàm lấy tên category từ categoryID
+  const getCategoryName = (categoryID?: number) => {
+    if (!categoryID) return 'Chưa phân loại'
+    const category = categories.find((cat) => cat.id === categoryID)
+    return category?.name || 'Chưa xác định'
+  }
+
   // Filter items theo search
   const filteredItems = useMemo(() => {
-    if (!searchText) return items
-    return items.filter(
-      (item) =>
-        item.code.toLowerCase().includes(searchText.toLowerCase()) ||
-        item.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        item.description.toLowerCase().includes(searchText.toLowerCase())
-    )
-  }, [items, searchText])
+    return items
+      .filter((item) => {
+        // Lọc theo Danh mục
+        if (categoryFilter === 'all') return true
+        return item.categoryID === categoryFilter
+      })
+      .filter((item) => {
+        // Lọc theo SearchText
+        if (!searchText) return true
+        return (
+          item.code.toLowerCase().includes(searchText.toLowerCase()) ||
+          item.name.toLowerCase().includes(searchText.toLowerCase()) ||
+          item.description.toLowerCase().includes(searchText.toLowerCase())
+        )
+      })
+  }, [items, searchText, categoryFilter])
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -253,18 +441,13 @@ const ItemsManagement = () => {
       ),
     },
     {
-      field: 'group',
-      headerName: 'Nhóm hàng hoá, dịch vụ',
-      width: 180,
+      field: 'categoryID',
+      headerName: 'Danh mục',
+      width: 200,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
-        const groupLabels: Record<string, string> = {
-          'hang-hoa': 'Hàng hóa',
-          'dich-vu': 'Dịch vụ',
-          'tai-san': 'Tài sản',
-          'nguyen-vat-lieu': 'Nguyên vật liệu',
-        }
+        const categoryName = getCategoryName(params.value)
         return (
           <Box
             sx={{
@@ -275,11 +458,11 @@ const ItemsManagement = () => {
               height: '100%',
             }}>
             <Chip
-              label={groupLabels[params.value] || params.value}
+              label={categoryName}
               size="small"
               sx={{
-                backgroundColor: params.value === 'hang-hoa' ? '#e3f2fd' : '#f3e5f5',
-                color: params.value === 'hang-hoa' ? '#1976d2' : '#7b1fa2',
+                backgroundColor: '#e3f2fd',
+                color: '#1976d2',
                 fontWeight: 500,
               }}
             />
@@ -377,38 +560,55 @@ const ItemsManagement = () => {
       headerAlign: 'center',
       sortable: false,
       renderCell: (params: GridRenderCellParams) => (
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
+        <Stack 
+          direction="row" 
+          spacing={0.5} 
+          sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
             justifyContent: 'center',
-            gap: 0.5,
             width: '100%',
-            height: '100%',
-          }}>
-          <IconButton
-            size="small"
-            color="primary"
-            onClick={() => handleEditItem(params.row.id)}
-            sx={{
-              '&:hover': {
-                backgroundColor: 'rgba(28, 132, 238, 0.08)',
-              },
-            }}>
-            <EditOutlinedIcon fontSize="small" />
-          </IconButton>
-          <IconButton
-            size="small"
-            color="error"
-            onClick={() => handleDeleteItem(params.row.id)}
-            sx={{
-              '&:hover': {
-                backgroundColor: 'rgba(239, 95, 95, 0.08)',
-              },
-            }}>
-            <DeleteOutlineIcon fontSize="small" />
-          </IconButton>
-        </Box>
+            height: '100%'
+          }}
+        >
+          {/* Edit Button */}
+          <Tooltip title="Chỉnh sửa">
+            <IconButton
+              size="small"
+              color="primary"
+              onClick={() => handleEditItem(params.row.id)}
+              sx={{
+                '&:hover': {
+                  backgroundColor: 'rgba(28, 132, 238, 0.08)',
+                },
+              }}
+            >
+              <EditOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          
+          {/* Toggle Status Button */}
+          <Tooltip title={params.row.status === 'active' ? 'Vô hiệu hóa' : 'Kích hoạt'}>
+            <IconButton
+              size="small"
+              color={params.row.status === 'active' ? 'error' : 'success'}
+              onClick={() => handleOpenConfirmModal(params.row as Item)}
+              sx={{
+                '&:hover': {
+                  backgroundColor: params.row.status === 'active' 
+                    ? 'rgba(239, 95, 95, 0.08)' 
+                    : 'rgba(34, 197, 94, 0.08)',
+                },
+              }}
+            >
+              {params.row.status === 'active' ? (
+                <LockOutlinedIcon fontSize="small" />
+              ) : (
+                <LockOpenOutlinedIcon fontSize="small" />
+              )}
+            </IconButton>
+          </Tooltip>
+        </Stack>
       ),
     },
   ]
@@ -431,6 +631,7 @@ const ItemsManagement = () => {
             color="primary"
             startIcon={<AddIcon />}
             onClick={handleOpenModal}
+            disabled={loading}
             sx={{
               textTransform: 'none',
               fontWeight: 500,
@@ -453,49 +654,101 @@ const ItemsManagement = () => {
             boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
             overflow: 'hidden',
           }}>
+          {/* Error Alert */}
+          {actionError && (
+            <Alert severity="error" onClose={() => setActionError(null)} sx={{ m: 2 }}>
+              {actionError}
+            </Alert>
+          )}
+
           {/* Search Section */}
           <Box sx={{ p: 3, borderBottom: '1px solid #e0e0e0' }}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Tìm kiếm theo mã, tên hoặc mô tả"
-              variant="outlined"
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              placeholder="Nhập từ khóa tìm kiếm..."
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{ color: '#999' }} />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{
-                maxWidth: 500,
-                '& .MuiOutlinedInput-root': {
-                  backgroundColor: '#fafafa',
-                  '&:hover': {
-                    backgroundColor: '#f5f5f5',
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
+              <TextField
+                fullWidth
+                size="small"
+                label="Tìm kiếm theo mã, tên hoặc mô tả"
+                variant="outlined"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="Nhập từ khóa tìm kiếm..."
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon sx={{ color: '#999' }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  maxWidth: 500,
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: '#fafafa',
+                    '&:hover': {
+                      backgroundColor: '#f5f5f5',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: '#fff',
+                    },
                   },
-                  '&.Mui-focused': {
-                    backgroundColor: '#fff',
-                  },
+                }}
+              />
+              
+              {/* Category Filter */}
+              <FormControl size="small" sx={{ minWidth: 220, width: { xs: '100%', md: 'auto' } }}>
+                <InputLabel>Lọc theo Danh mục</InputLabel>
+                <Select
+                  value={categoryFilter}
+                  label="Lọc theo Danh mục"
+                  onChange={(e) => setCategoryFilter(e.target.value as number | 'all')}
+                  sx={{
+                    backgroundColor: '#fafafa',
+                    '&:hover': {
+                      backgroundColor: '#f5f5f5',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: '#fff',
+                    },
+                  }}
+                >
+                  <MenuItem value="all">Tất cả Danh mục</MenuItem>
+                  {categories.map((category) => (
+                    <MenuItem key={category.id} value={category.id}>
+                      {category.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Stack>
+          </Box>
+
+          {/* Error Alert */}
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
+
+          {/* Loading State */}
+          {loading && items.length === 0 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+              <CircularProgress />
+            </Box>
+          )}
+
+          {/* Table Section */}
+          {!loading || items.length > 0 ? (
+            <DataGrid
+              rows={filteredItems}
+              columns={columns}
+              loading={loading}
+              initialState={{
+                pagination: {
+                  paginationModel: { page: 0, pageSize: 10 },
                 },
               }}
-            />
-          </Box>
-          {/* Table Section */}
-          <DataGrid
-            rows={filteredItems}
-            columns={columns}
-            initialState={{
-              pagination: {
-                paginationModel: { page: 0, pageSize: 10 },
-              },
-            }}
-            pageSizeOptions={[5, 10, 25, 50]}
-            disableRowSelectionOnClick
-            sx={{
+              pageSizeOptions={[5, 10, 25, 50]}
+              disableRowSelectionOnClick
+              sx={{
               border: 'none',
               '& .MuiDataGrid-cell': {
                 borderBottom: '1px solid #f0f0f0',
@@ -511,6 +764,7 @@ const ItemsManagement = () => {
             }}
             autoHeight
           />
+          ) : null}
         </Paper>
 
         {/* Modal thêm/sửa */}
@@ -523,6 +777,244 @@ const ItemsManagement = () => {
 
         {/* Modal xem chi tiết */}
         <ItemDetailModal item={viewingItem} open={!!viewingItem} onClose={handleCloseViewModal} />
+
+        {/* Toggle Status Confirmation Dialog */}
+        <Dialog
+          open={confirmModalOpen}
+          onClose={!saving ? handleCloseConfirmModal : undefined}
+          maxWidth="sm"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 3,
+              boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
+              overflow: 'hidden',
+            },
+          }}
+        >
+          <DialogTitle
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              fontWeight: 600,
+              pb: 2,
+              pt: 2.5,
+              px: 3,
+              borderBottom: '1px solid #e8ecef',
+              background: 'linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)',
+            }}
+          >
+            <Box
+              sx={{
+                width: 36,
+                height: 36,
+                borderRadius: 1.5,
+                background: selectedItemForToggle?.status === 'active'
+                  ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)'
+                  : 'linear-gradient(135deg, #1c84ee 0%, #0d6efd 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                boxShadow: selectedItemForToggle?.status === 'active' 
+                  ? '0 4px 12px rgba(251, 191, 36, 0.3)' 
+                  : '0 4px 12px rgba(28, 132, 238, 0.3)',
+              }}
+            >
+              {selectedItemForToggle?.status === 'active' ? (
+                <LockOutlinedIcon sx={{ fontSize: 20 }} />
+              ) : (
+                <LockOpenOutlinedIcon sx={{ fontSize: 20 }} />
+              )}
+            </Box>
+            <Typography variant="h6" component="span" sx={{ fontWeight: 600, color: '#1a1a1a', fontSize: '1.125rem' }}>
+              Xác nhận thay đổi trạng thái
+            </Typography>
+          </DialogTitle>
+
+          <Divider sx={{ borderColor: '#e8ecef' }} />
+
+          <DialogContent sx={{ pt: 3, pb: 2.5, px: 3, backgroundColor: '#fafbfc' }}>
+            <Typography variant="body1" sx={{ mb: 2.5, color: '#374151', lineHeight: 1.6 }}>
+              Bạn có chắc chắn muốn{' '}
+              <strong
+                style={{
+                  color: selectedItemForToggle?.status === 'active' ? '#f59e0b' : '#1c84ee',
+                  fontWeight: 700,
+                }}
+              >
+                {selectedItemForToggle?.status === 'active' ? 'vô hiệu hóa' : 'kích hoạt'}
+              </strong>{' '}
+              sản phẩm/dịch vụ sau?
+            </Typography>
+
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2.5,
+                bgcolor: '#fff',
+                border: '2px solid',
+                borderColor: '#e0e0e0',
+                borderRadius: 2,
+                mb: 2.5,
+              }}
+            >
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>
+                    Mã sản phẩm/dịch vụ
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 0.5, fontFamily: 'monospace', color: '#1c84ee', fontWeight: 600, fontSize: '0.9375rem' }}>
+                    {selectedItemForToggle?.code}
+                  </Typography>
+                </Grid>
+
+                <Grid size={{ xs: 12 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>
+                    Tên sản phẩm/dịch vụ
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 600, mt: 0.5, color: '#1a1a1a' }}>
+                    {selectedItemForToggle?.name}
+                  </Typography>
+                </Grid>
+
+                <Grid size={{ xs: 12 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>
+                    Nhóm
+                  </Typography>
+                  <Box sx={{ mt: 0.5 }}>
+                    <Chip
+                      label={
+                        selectedItemForToggle?.group === 'hang-hoa' 
+                          ? 'Hàng hóa' 
+                          : selectedItemForToggle?.group === 'dich-vu'
+                          ? 'Dịch vụ'
+                          : selectedItemForToggle?.group === 'tai-san'
+                          ? 'Tài sản'
+                          : 'Nguyên vật liệu'
+                      }
+                      size="small"
+                      sx={{
+                        backgroundColor: selectedItemForToggle?.group === 'hang-hoa' ? '#e3f2fd' : '#f3e5f5',
+                        color: selectedItemForToggle?.group === 'hang-hoa' ? '#1976d2' : '#7b1fa2',
+                        fontWeight: 600,
+                        borderRadius: 1.5,
+                      }}
+                    />
+                  </Box>
+                </Grid>
+              </Grid>
+            </Paper>
+
+            <Alert 
+              severity={selectedItemForToggle?.status === 'active' ? 'warning' : 'info'}
+              icon={
+                selectedItemForToggle?.status === 'active' ? 
+                <LockOutlinedIcon fontSize="inherit" /> : 
+                <LockOpenOutlinedIcon fontSize="inherit" />
+              }
+              sx={{ 
+                borderRadius: 2,
+                border: '1px solid',
+                borderColor: selectedItemForToggle?.status === 'active' ? '#fbbf24' : '#3b82f6',
+                bgcolor: selectedItemForToggle?.status === 'active' ? '#fffbeb' : '#eff6ff',
+                '& .MuiAlert-icon': {
+                  fontSize: '1.25rem',
+                },
+              }}
+            >
+              <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                {selectedItemForToggle?.status === 'active' ? (
+                  <>
+                    Sản phẩm/Dịch vụ sẽ <strong>không thể được chọn</strong> khi tạo hóa đơn mới sau khi bị vô hiệu hóa.
+                  </>
+                ) : (
+                  <>
+                    Sản phẩm/Dịch vụ sẽ có thể <strong>được chọn trở lại</strong> khi tạo hóa đơn sau khi được kích hoạt.
+                  </>
+                )}
+              </Typography>
+            </Alert>
+          </DialogContent>
+
+          <Divider sx={{ borderColor: '#e8ecef' }} />
+
+          <DialogActions sx={{ p: 3, gap: 1.5, bgcolor: '#fafbfc' }}>
+            <Button
+              onClick={handleCloseConfirmModal}
+              disabled={saving}
+              variant="outlined"
+              color="inherit"
+              sx={{
+                minWidth: 90,
+                height: 38,
+                borderRadius: 2,
+                textTransform: 'none',
+                fontSize: '0.9375rem',
+                fontWeight: 600,
+                color: '#6c757d',
+                borderColor: '#dee2e6',
+                borderWidth: '1.5px',
+                '&:hover': {
+                  borderColor: '#adb5bd',
+                  borderWidth: '1.5px',
+                  backgroundColor: '#e9ecef',
+                },
+                '&:disabled': {
+                  borderColor: '#e9ecef',
+                  color: '#adb5bd',
+                },
+              }}
+            >
+              Hủy
+            </Button>
+            <Box sx={{ flex: 1 }} />
+            <Button
+              onClick={handleConfirmToggleStatus}
+              variant="contained"
+              disabled={saving}
+              startIcon={
+                saving ? (
+                  <CircularProgress size={18} sx={{ color: 'white' }} />
+                ) : selectedItemForToggle?.status === 'active' ? (
+                  <LockOutlinedIcon sx={{ fontSize: 20 }} />
+                ) : (
+                  <LockOpenOutlinedIcon sx={{ fontSize: 20 }} />
+                )
+              }
+              sx={{
+                minWidth: 140,
+                height: 38,
+                borderRadius: 2,
+                textTransform: 'none',
+                fontSize: '0.9375rem',
+                fontWeight: 600,
+                background: selectedItemForToggle?.status === 'active'
+                  ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)'
+                  : 'linear-gradient(135deg, #1c84ee 0%, #0d6efd 100%)',
+                boxShadow: selectedItemForToggle?.status === 'active' 
+                  ? '0 4px 12px rgba(251, 191, 36, 0.3)' 
+                  : '0 4px 12px rgba(28, 132, 238, 0.3)',
+                '&:hover': {
+                  background: selectedItemForToggle?.status === 'active'
+                    ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                    : 'linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%)',
+                  boxShadow: selectedItemForToggle?.status === 'active' 
+                    ? '0 6px 16px rgba(251, 191, 36, 0.4)' 
+                    : '0 6px 16px rgba(28, 132, 238, 0.4)',
+                },
+                '&:disabled': {
+                  background: '#e9ecef',
+                  color: '#adb5bd',
+                  boxShadow: 'none',
+                },
+              }}
+            >
+              {saving ? 'Đang xử lý...' : (selectedItemForToggle?.status === 'active' ? 'Vô hiệu hóa' : 'Kích hoạt')}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Box>
   )

@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-
 import IconifyIcon from '@/components/wrappers/IconifyIcon'
 import { useLayoutContext } from '@/context/useLayoutContext'
 import useViewPort from '@/hooks/useViewPort'
@@ -8,32 +7,48 @@ const HoverMenuToggle = () => {
   const {
     menu: { size },
     changeMenu: { size: changeMenuSize },
+    toggleBackdrop,
   } = useLayoutContext()
   const { width } = useViewPort()
 
   useEffect(() => {
-    if (width <= 1140) {
-      if (size !== 'hidden') changeMenuSize('hidden')
-    }
-  }, [width])
-
-  const handleHoverMenu = () => {
-    // Handle all menu sizes
-    if (size === 'default' || size === 'condensed') {
-      // Thu nhỏ menu
-      changeMenuSize('sm-hover')
-    } else if (size === 'sm-hover-active') {
-      changeMenuSize('sm-hover')
-    } else {
-      // Mở rộng menu về default
+    if (width < 992 && size !== 'hidden') {
+      changeMenuSize('hidden')
+    } else if (width >= 992 && size === 'hidden') {
       changeMenuSize('default')
+    }
+  }, [width, size, changeMenuSize])
+
+  const isCollapsed = size === 'sm-hover' || size === 'sm-hover-active'
+
+  const handleToggle = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.currentTarget.blur()
+    
+    // Mobile: Toggle backdrop
+    if (width < 992) {
+      toggleBackdrop()
+      return
+    }
+    
+    // Desktop: Toggle collapse/expand
+    if (isCollapsed) {
+      changeMenuSize('default')
+    } else {
+      changeMenuSize('sm-hover')
     }
   }
 
   return (
-    <button onClick={handleHoverMenu} type="button" className="button-sm-hover" aria-label="Toggle Menu">
+    <button 
+      onClick={handleToggle} 
+      type="button" 
+      className="button-sm-hover" 
+      aria-label={isCollapsed ? 'Mở rộng menu' : 'Thu nhỏ menu'}
+      title={isCollapsed ? 'Mở rộng menu' : 'Thu nhỏ menu'}
+      onMouseDown={(e) => e.preventDefault()}
+    >
       <span className="button-sm-hover-icon">
-        <IconifyIcon icon="iconamoon:arrow-left-4-square-duotone" />
+        <IconifyIcon icon={isCollapsed ? 'iconamoon:arrow-right-4-square-duotone' : 'iconamoon:arrow-left-4-square-duotone'} />
       </span>
     </button>
   )

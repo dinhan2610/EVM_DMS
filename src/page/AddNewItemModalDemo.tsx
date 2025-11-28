@@ -109,9 +109,6 @@ const AddNewItemModalDemo = () => {
                     <Typography variant="body2" sx={{ color: '#666' }}>
                       Chiết khấu: {item.discountRate}% ({item.discountAmount.toLocaleString('vi-VN')} VNĐ)
                     </Typography>
-                    <Typography variant="body2" sx={{ color: '#666' }}>
-                      Sau thuế: {item.priceIncludesTax ? 'Có' : 'Không'}
-                    </Typography>
                   </Box>
                   {item.description && (
                     <Typography variant="body2" sx={{ color: '#666', mt: 1, fontStyle: 'italic' }}>
