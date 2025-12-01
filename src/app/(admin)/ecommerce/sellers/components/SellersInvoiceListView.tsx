@@ -172,7 +172,10 @@ const SellersListView = () => {
   ]
 
   // Filter invoices based on search query
-  const filteredInvoices = invoices.filter((invoice) => invoice.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredInvoices = invoices.filter(
+    (invoice) =>
+      invoice.lookupCode.toLowerCase().includes(searchQuery.toLowerCase()) || invoice.buyerName.toLowerCase().includes(searchQuery.toLowerCase()),
+  )
 
   // Sort invoices
   const sortedInvoices = [...filteredInvoices].sort((a, b) => {
@@ -227,7 +230,11 @@ const SellersListView = () => {
               <InputGroup.Text>
                 <IconifyIcon icon="bx:search" />
               </InputGroup.Text>
-              <Form.Control placeholder="Tìm kiếm theo số hóa đơn..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+              <Form.Control
+                placeholder="Tìm kiếm theo mã tra cứu hoặc tên khách hàng..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </InputGroup>
           </div>
         </Card.Header>
