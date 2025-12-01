@@ -181,6 +181,13 @@ const SellersListView = () => {
     const aValue = a[sortConfig.key]
     const bValue = b[sortConfig.key]
 
+    // Handle sorting for totalAmount (convert to number for proper comparison)
+    if (sortConfig.key === 'totalAmount') {
+      const aNumber = parseFloat(aValue.toString().replace(/[^0-9]/g, ''))
+      const bNumber = parseFloat(bValue.toString().replace(/[^0-9]/g, ''))
+      return sortConfig.direction === 'asc' ? aNumber - bNumber : bNumber - aNumber
+    }
+
     if (typeof aValue === 'string' && typeof bValue === 'string') {
       return sortConfig.direction === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue)
     }
