@@ -21,13 +21,15 @@ interface InvoiceData {
 
 const CustomersListView = () => {
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedInvoices, setSelectedInvoices] = useState<string[]>([])
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceData | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
   const [sortConfig, setSortConfig] = useState<{
     key: keyof InvoiceData | null
     direction: 'asc' | 'desc'
   }>({ key: null, direction: 'asc' })
+
+  const itemsPerPage = 10
 
   const invoices: InvoiceData[] = [
     {
@@ -172,251 +174,189 @@ const CustomersListView = () => {
     },
   ]
 
-  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.checked) {
-      setSelectedInvoices(invoices.map((inv) => inv.id))
-    } else {
-      setSelectedInvoices([])
-    }
-  }
+  // Filter invoices based on search query
+  const filteredInvoices = invoices.filter((invoice) => invoice.lookupCode.toLowerCase().includes(searchQuery.toLowerCase()))
 
-  const handleSelectInvoice = (id: string) => {
-    if (selectedInvoices.includes(id)) {
-      setSelectedInvoices(selectedInvoices.filter((invId) => invId !== id))
-    } else {
-      setSelectedInvoices([...selectedInvoices, id])
-    }
-  }
+  // Sort invoices
+  const sortedInvoices = [...filteredInvoices].sort((a, b) => {
+    if (!sortConfig.key) return 0
 
-  const handleViewInvoice = (id: string) => {
-    const invoice = invoices.find((inv) => inv.id === id)
-    if (invoice) {
-      setSelectedInvoice(invoice)
-      setShowDetailModal(true)
-    }
-  }
+    const aValue = a[sortConfig.key]
+    const bValue = b[sortConfig.key]
 
-  const handleDownloadInvoice = (id: string) => {
-    const invoice = invoices.find((inv) => inv.id === id)
-    if (invoice) {
-      // Download PDF from database
-      window.open(invoice.pdfUrl, '_blank')
+    // Handle sorting for totalAmount (convert to number for proper comparison)
+    if (sortConfig.key === 'totalAmount') {
+      const aNumber = parseFloat(aValue.toString().replace(/[^0-9]/g, ''))
+      const bNumber = parseFloat(bValue.toString().replace(/[^0-9]/g, ''))
+      return sortConfig.direction === 'asc' ? aNumber - bNumber : bNumber - aNumber
     }
-  }
 
-  const handleTogglePaymentStatus = (id: string) => {
-    // In real app, this would call an API to update the status
-    console.log('Toggle payment status for invoice:', id)
-    // You can add state update logic here to update the invoice status
-  }
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      return sortConfig.direction === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue)
+    }
+
+    if (typeof aValue === 'boolean' && typeof bValue === 'boolean') {
+      return sortConfig.direction === 'asc' ? (aValue ? 1 : -1) : bValue ? 1 : -1
+    }
+
+    return 0
+  })
 
   const handleSort = (key: keyof InvoiceData) => {
-    let direction: 'asc' | 'desc' = 'asc'
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc'
-    }
-    setSortConfig({ key, direction })
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
+    }))
   }
 
-  const getSortedInvoices = () => {
-    let sortedInvoices = [...invoices]
-
-    // Filter by search query
-    if (searchQuery.trim()) {
-      sortedInvoices = sortedInvoices.filter((invoice) => invoice.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()))
-    }
-
-    // Sort if sort config is set
-    if (sortConfig.key) {
-      sortedInvoices.sort((a, b) => {
-        const aValue = a[sortConfig.key!]
-        const bValue = b[sortConfig.key!]
-
-        // Handle date sorting
-        if (sortConfig.key === 'date') {
-          const dateA = new Date(aValue as string).getTime()
-          const dateB = new Date(bValue as string).getTime()
-          return sortConfig.direction === 'asc' ? dateA - dateB : dateB - dateA
-        }
-
-        // Handle boolean sorting (isPaid)
-        if (sortConfig.key === 'isPaid') {
-          const valA = aValue ? 1 : 0
-          const valB = bValue ? 1 : 0
-          return sortConfig.direction === 'asc' ? valA - valB : valB - valA
-        }
-
-        // Handle price sorting (totalAmount)
-        if (sortConfig.key === 'totalAmount') {
-          // Remove commas and 'VND' from string and convert to number
-          const numA = parseFloat((aValue as string).replace(/,/g, '').replace('VND', ''))
-          const numB = parseFloat((bValue as string).replace(/,/g, '').replace('VND', ''))
-          return sortConfig.direction === 'asc' ? numA - numB : numB - numA
-        }
-
-        // Handle string/number sorting
-        if (aValue < bValue) {
-          return sortConfig.direction === 'asc' ? -1 : 1
-        }
-        if (aValue > bValue) {
-          return sortConfig.direction === 'asc' ? 1 : -1
-        }
-        return 0
-      })
-    }
-
-    return sortedInvoices
+  const handleViewDetail = (invoice: InvoiceData) => {
+    setSelectedInvoice(invoice)
+    setShowDetailModal(true)
   }
 
-  const getSortIcon = (key: keyof InvoiceData) => {
-    if (sortConfig.key !== key) {
-      return <IconifyIcon icon="bx:sort" className="ms-1 text-muted" />
-    }
-    return sortConfig.direction === 'asc' ? <IconifyIcon icon="bx:sort-up" className="ms-1" /> : <IconifyIcon icon="bx:sort-down" className="ms-1" />
-  }
-
-  const handleExportExcel = () => {
-    console.log('Export to Excel')
-  }
-
-  const renderSearchTooltip = (props: OverlayInjectedProps) => (
-    <Tooltip id="search-tooltip" {...props}>
-      Tìm kiếm hóa đơn theo số hóa đơn
+  const renderTooltip = (message: string) => (props: OverlayInjectedProps) => (
+    <Tooltip id="button-tooltip" {...props}>
+      {message}
     </Tooltip>
   )
 
-  const renderExportTooltip = (props: OverlayInjectedProps) => (
-    <Tooltip id="export-tooltip" {...props}>
-      Nhấn vào đây để xuất khẩu danh sách hóa đơn
-    </Tooltip>
-  )
+  // Pagination logic
+  const totalPages = Math.ceil(sortedInvoices.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const paginatedInvoices = sortedInvoices.slice(startIndex, endIndex)
 
-  const renderActionsTooltip = (props: OverlayInjectedProps) => (
-    <Tooltip id="actions-tooltip" {...props}>
-      Có thể xem lại và tải từng hóa đơn từ danh sách
-    </Tooltip>
-  )
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+  }
 
   return (
     <>
-      <Card className="mb-3">
-        <Card.Body>
-          <div className="d-flex justify-content-between align-items-center flex-wrap gap-3">
-            <h4 className="mb-0">Hóa đơn của tôi</h4>
-            <div className="d-flex gap-2 align-items-center flex-wrap">
-              <OverlayTrigger placement="bottom" overlay={renderSearchTooltip}>
-                <InputGroup style={{ width: '300px' }}>
-                  <InputGroup.Text>
-                    <IconifyIcon icon="bx:search" />
-                  </InputGroup.Text>
-                  <Form.Control
-                    type="text"
-                    placeholder="Nhập số hóa đơn để tìm kiếm..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </InputGroup>
-              </OverlayTrigger>
-              <OverlayTrigger placement="bottom" overlay={renderExportTooltip}>
-                <Button variant="primary" onClick={handleExportExcel}>
-                  <IconifyIcon icon="bx:download" className="me-1" />
-                  Xuất Excel
-                </Button>
-              </OverlayTrigger>
-            </div>
+      <Card className="my-4">
+        <Card.Header>
+          <div className="d-flex align-items-center justify-content-between">
+            <h5 className="mb-0">Danh sách hóa đơn</h5>
+            <InputGroup className="w-auto">
+              <InputGroup.Text>
+                <IconifyIcon icon="bx:search" />
+              </InputGroup.Text>
+              <Form.Control placeholder="Tìm kiếm theo mã tra cứu..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+            </InputGroup>
+          </div>
+        </Card.Header>
+        <Card.Body className="p-0">
+          <div className="table-responsive">
+            <table className="table table-hover mb-0">
+              <thead className="table-light">
+                <tr>
+                  <th onClick={() => handleSort('invoiceNumber')} style={{ cursor: 'pointer' }}>
+                    <div className="d-flex align-items-center gap-2">
+                      Số hóa đơn
+                      <IconifyIcon
+                        icon={sortConfig.key === 'invoiceNumber' ? (sortConfig.direction === 'asc' ? 'bx:up-arrow' : 'bx:down-arrow') : 'bx:sort'}
+                      />
+                    </div>
+                  </th>
+                  <th>Mã tra cứu</th>
+                  <th onClick={() => handleSort('date')} style={{ cursor: 'pointer' }}>
+                    <div className="d-flex align-items-center gap-2">
+                      Ngày
+                      <IconifyIcon
+                        icon={sortConfig.key === 'date' ? (sortConfig.direction === 'asc' ? 'bx:up-arrow' : 'bx:down-arrow') : 'bx:sort'}
+                      />
+                    </div>
+                  </th>
+                  <th onClick={() => handleSort('totalAmount')} style={{ cursor: 'pointer' }}>
+                    <div className="d-flex align-items-center gap-2">
+                      Tổng tiền
+                      <IconifyIcon
+                        icon={sortConfig.key === 'totalAmount' ? (sortConfig.direction === 'asc' ? 'bx:up-arrow' : 'bx:down-arrow') : 'bx:sort'}
+                      />
+                    </div>
+                  </th>
+                  <th onClick={() => handleSort('isPaid')} style={{ cursor: 'pointer' }}>
+                    <div className="d-flex align-items-center gap-2">
+                      Trạng thái
+                      <IconifyIcon
+                        icon={sortConfig.key === 'isPaid' ? (sortConfig.direction === 'asc' ? 'bx:up-arrow' : 'bx:down-arrow') : 'bx:sort'}
+                      />
+                    </div>
+                  </th>
+                  <th style={{ width: '120px' }}>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedInvoices.map((invoice) => (
+                  <tr key={invoice.id}>
+                    <td>
+                      <strong>{invoice.invoiceNumber}</strong>
+                    </td>
+                    <td>{invoice.lookupCode}</td>
+                    <td>{invoice.date}</td>
+                    <td className="fw-semibold">{invoice.totalAmount}</td>
+                    <td>
+                      {invoice.isPaid ? (
+                        <span className="badge bg-success">Đã thanh toán</span>
+                      ) : (
+                        <span className="badge bg-warning">Chưa thanh toán</span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="d-flex gap-1">
+                        <OverlayTrigger placement="top" overlay={renderTooltip('Xem chi tiết')}>
+                          <Button variant="light" size="sm" className="btn-icon" onClick={() => handleViewDetail(invoice)}>
+                            <IconifyIcon icon="bx:show" />
+                          </Button>
+                        </OverlayTrigger>
+                        <OverlayTrigger placement="top" overlay={renderTooltip('Tải xuống')}>
+                          <Button variant="light" size="sm" className="btn-icon">
+                            <IconifyIcon icon="bx:download" />
+                          </Button>
+                        </OverlayTrigger>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Card.Body>
+        {totalPages > 1 && (
+          <Card.Footer>
+            <div className="d-flex justify-content-between align-items-center">
+              <div className="text-muted">
+                Hiển thị {startIndex + 1} - {Math.min(endIndex, sortedInvoices.length)} trong tổng số {sortedInvoices.length} hóa đơn
+              </div>
+              <nav>
+                <ul className="pagination pagination-sm mb-0">
+                  <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
+                    <button className="page-link" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1}>
+                      Trước
+                    </button>
+                  </li>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <li key={page} className={`page-item ${currentPage === page ? 'active' : ''}`}>
+                      <button className="page-link" onClick={() => handlePageChange(page)}>
+                        {page}
+                      </button>
+                    </li>
+                  ))}
+                  <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
+                    <button className="page-link" onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages}>
+                      Sau
+                    </button>
+                  </li>
+                </ul>
+              </nav>
+            </div>
+          </Card.Footer>
+        )}
       </Card>
 
-      <Card className="overflow-hidden">
-        <div className="table-responsive">
-          <table className="table table-hover text-nowrap mb-0">
-            <thead className="table-light">
-              <tr>
-                <th style={{ width: '40px' }}>
-                  <Form.Check type="checkbox" id="select-all" checked={selectedInvoices.length === invoices.length} onChange={handleSelectAll} />
-                </th>
-                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('invoiceNumber')}>
-                  Số hóa đơn {getSortIcon('invoiceNumber')}
-                </th>
-                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('date')}>
-                  Ngày hóa đơn {getSortIcon('date')}
-                </th>
-                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('lookupCode')}>
-                  Mã tra cứu {getSortIcon('lookupCode')}
-                </th>
-                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('totalAmount')}>
-                  Tổng tiền {getSortIcon('totalAmount')}
-                </th>
-                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('formNumber')}>
-                  Mẫu số {getSortIcon('formNumber')}
-                </th>
-                <th style={{ width: '150px', cursor: 'pointer' }} onClick={() => handleSort('isPaid')}>
-                  Trạng thái {getSortIcon('isPaid')}
-                </th>
-                <th style={{ width: '100px' }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {getSortedInvoices().map((invoice, index) => (
-                <tr key={invoice.id} className={index === 1 ? 'table-active' : ''}>
-                  <td>
-                    <Form.Check type="checkbox" checked={selectedInvoices.includes(invoice.id)} onChange={() => handleSelectInvoice(invoice.id)} />
-                  </td>
-                  <td>{invoice.invoiceNumber}</td>
-                  <td>{invoice.date}</td>
-                  <td>{invoice.lookupCode}</td>
-                  <td>{invoice.totalAmount}</td>
-                  <td>{invoice.formNumber}</td>
-                  <td>
-                    {invoice.isPaid ? (
-                      <Button variant="success" size="sm" onClick={() => handleTogglePaymentStatus(invoice.id)}>
-                        <IconifyIcon icon="bx:check-circle" className="me-1" />
-                        Đã thanh toán
-                      </Button>
-                    ) : (
-                      <Button variant="warning" size="sm" onClick={() => handleTogglePaymentStatus(invoice.id)}>
-                        <IconifyIcon icon="bx:time-five" className="me-1" />
-                        Chưa thanh toán
-                      </Button>
-                    )}
-                  </td>
-                  <td>
-                    <OverlayTrigger placement="left" overlay={renderActionsTooltip}>
-                      <div className="d-flex gap-2">
-                        <Button variant="soft-primary" size="sm" onClick={() => handleViewInvoice(invoice.id)} title="Xem">
-                          <IconifyIcon icon="bx:show" />
-                        </Button>
-                        <Button variant="soft-success" size="sm" onClick={() => handleDownloadInvoice(invoice.id)} title="Tải xuống">
-                          <IconifyIcon icon="bx:download" />
-                        </Button>
-                      </div>
-                    </OverlayTrigger>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      <InvoiceDetailModal
-        show={showDetailModal}
-        onHide={() => setShowDetailModal(false)}
-        invoice={
-          selectedInvoice
-            ? {
-                invoiceNumber: selectedInvoice.invoiceNumber,
-                totalAmount: selectedInvoice.totalAmount,
-                paymentDeadline: selectedInvoice.paymentDeadline,
-                pdfUrl: selectedInvoice.pdfUrl,
-                isPaid: selectedInvoice.isPaid,
-              }
-            : null
-        }
-      />
+      {selectedInvoice && <InvoiceDetailModal show={showDetailModal} onHide={() => setShowDetailModal(false)} invoice={selectedInvoice} />}
     </>
   )
 }
 
 export default CustomersListView
+

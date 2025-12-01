@@ -32,13 +32,12 @@ export const MENU_ITEMS: MenuItemType[] = [
       {
         key: 'ecommerce-customers',
         label: 'Khách hàng',
-        isTitle: false,
-        icon: 'solar:users-group-rounded-bold-duotone',
+        parentKey: 'ecommerce',
         children: [
           {
             key: 'ecommerce-customers-invoices',
             label: 'Hóa đơn của tôi',
-            url: '/ecommerce/customers', // Changed from /ecommerce/customers/invoices
+            url: '/ecommerce/customers',
             parentKey: 'ecommerce-customers',
           },
           {
