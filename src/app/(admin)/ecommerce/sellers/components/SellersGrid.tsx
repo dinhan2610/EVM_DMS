@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 import { Button, Card, CardBody, Dropdown, DropdownItem, DropdownMenu, DropdownToggle, Row } from 'react-bootstrap'
 
 const SellerCard = ({ seller }: { seller: SellerType }) => {
-  const { image, name, productsCount, storeName } = seller
+  const { image, name, products, storeName } = seller
   return (
     <Card>
       <CardBody>
@@ -40,7 +40,7 @@ const SellerCard = ({ seller }: { seller: SellerType }) => {
           <p className="mb-1">Store Name</p>
         </div>
         <div className="mt-1 mb-2 border-bottom">
-          <p className="float-end mb-1">{productsCount}</p>
+          <p className="float-end mb-1">{products?.length || 0}</p>
           <p className="mb-1">Products</p>
         </div>
         <Button variant="soft-primary" className="w-100">

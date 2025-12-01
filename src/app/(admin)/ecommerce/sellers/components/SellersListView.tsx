@@ -39,7 +39,7 @@ const SellersListView = ({ sellers }: { sellers: SellerType[] }) => {
                     {seller.review.stars}
                   </span>
                 </td>
-                <td>{seller.productsCount}</td>
+                <td>{seller.products?.length || 0}</td>
                 <td>
                   {currency}
                   {seller.walletBalance}
