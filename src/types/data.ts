@@ -70,9 +70,8 @@ export type SellerType = {
   walletBalance: number
   createdAt: Date
   revenue: number
+  products?: Array<{ id: IdType; name: string }>
 }
-
-
 
 export type InvoiceType = {
   id: IdType
@@ -115,8 +114,6 @@ export type UserType = {
 
 // Alias for chat/social contexts
 export type SocialUserType = UserType
-
-
 
 export type ProjectType = {
   id: IdType

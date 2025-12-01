@@ -32,12 +32,13 @@ export const MENU_ITEMS: MenuItemType[] = [
       {
         key: 'ecommerce-customers',
         label: 'Khách hàng',
-        parentKey: 'ecommerce',
+        isTitle: false,
+        icon: 'solar:users-group-rounded-bold-duotone',
         children: [
           {
             key: 'ecommerce-customers-invoices',
             label: 'Hóa đơn của tôi',
-            url: '/ecommerce/customers',
+            url: '/ecommerce/customers', // Changed from /ecommerce/customers/invoices
             parentKey: 'ecommerce-customers',
           },
           {
@@ -57,8 +58,27 @@ export const MENU_ITEMS: MenuItemType[] = [
       {
         key: 'ecommerce-sellers',
         label: 'Người bán',
-        url: '/ecommerce/sellers',
         parentKey: 'ecommerce',
+        children: [
+          {
+            key: 'ecommerce-sellers-invoices',
+            label: 'Hóa đơn của tôi',
+            url: '/ecommerce/sellers/invoices',
+            parentKey: 'ecommerce-sellers',
+          },
+          {
+            key: 'ecommerce-sellers-info',
+            label: 'Thông tin cá nhân',
+            url: '/ecommerce/sellers/profile',
+            parentKey: 'ecommerce-sellers',
+          },
+          {
+            key: 'ecommerce-sellers-password',
+            label: 'Đổi mật khẩu',
+            url: '/ecommerce/sellers/password',
+            parentKey: 'ecommerce-sellers',
+          },
+        ],
       },
     ],
   },

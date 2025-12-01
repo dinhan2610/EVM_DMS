@@ -6,6 +6,9 @@ import {
   EcommerceSellers,
   CustomerProfile,
   CustomerPassword,
+  SellerInvoices,
+  SellerProfile,
+  SellerPassword,
   Chat,
   Schedule,
   Help,
@@ -80,7 +83,7 @@ const appsRoutes: RoutesProps[] = [
     element: <CustomerProfile />,
   },
   {
-    name: 'Change Password',
+    name: 'Customer Change Password',
     path: '/ecommerce/customers/password',
     element: <CustomerPassword />,
   },
@@ -88,6 +91,21 @@ const appsRoutes: RoutesProps[] = [
     name: 'Sellers',
     path: '/ecommerce/sellers',
     element: <EcommerceSellers />,
+  },
+  {
+    name: 'Seller Invoices',
+    path: '/ecommerce/sellers/invoices',
+    element: <SellerInvoices />,
+  },
+  {
+    name: 'Seller Profile',
+    path: '/ecommerce/sellers/profile',
+    element: <SellerProfile />,
+  },
+  {
+    name: 'Seller Change Password',
+    path: '/ecommerce/sellers/password',
+    element: <SellerPassword />,
   },
   {
     name: 'Chat',
@@ -303,13 +321,6 @@ const otherRoutes: RoutesProps[] = [
   },
 ]
 
-const routes: RoutesProps[] = [
-  ...initialRoutes,
-  ...appsRoutes,
-  ...customRoutes,
-  ...chartsRoutes,
-  ...authRoutes,
-  ...otherRoutes,
-]
+const routes: RoutesProps[] = [...initialRoutes, ...appsRoutes, ...customRoutes, ...chartsRoutes, ...authRoutes, ...otherRoutes]
 
 export { routes }
