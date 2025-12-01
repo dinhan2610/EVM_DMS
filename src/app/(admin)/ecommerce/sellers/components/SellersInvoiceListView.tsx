@@ -23,10 +23,13 @@ const SellersListView = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<SellerInvoiceData | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
   const [sortConfig, setSortConfig] = useState<{
     key: keyof SellerInvoiceData | null
     direction: 'asc' | 'desc'
   }>({ key: null, direction: 'asc' })
+
+  const itemsPerPage = 10
 
   const invoices: SellerInvoiceData[] = [
     {
@@ -169,6 +172,20 @@ const SellersListView = () => {
       paymentDeadline: '25/06/2020',
       isPaid: false,
     },
+    {
+      id: '11',
+      invoiceNumber: '0000003',
+      date: '08/06/2020',
+      lookupCode: 'L9M0N1O2P',
+      buyerTaxCode: '0104880443-195',
+      buyerName: 'Công ty CP YZA Việt Nam',
+      totalAmount: '110,000,000VND',
+      formNumber: '01GTKT01001',
+      symbol: 'AB/2DE',
+      pdfUrl: '/sample-invoice.pdf',
+      paymentDeadline: '25/06/2020',
+      isPaid: false,
+    },
   ]
 
   // Filter invoices based on search query
@@ -219,6 +236,16 @@ const SellersListView = () => {
       {message}
     </Tooltip>
   )
+
+  // Pagination logic
+  const totalPages = Math.ceil(sortedInvoices.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const paginatedInvoices = sortedInvoices.slice(startIndex, endIndex)
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+  }
 
   return (
     <>
@@ -288,7 +315,7 @@ const SellersListView = () => {
                 </tr>
               </thead>
               <tbody>
-                {sortedInvoices.map((invoice) => (
+                {paginatedInvoices.map((invoice) => (
                   <tr key={invoice.id}>
                     <td>
                       <strong>{invoice.invoiceNumber}</strong>
@@ -324,6 +351,36 @@ const SellersListView = () => {
             </table>
           </div>
         </Card.Body>
+        {totalPages > 1 && (
+          <Card.Footer>
+            <div className="d-flex justify-content-between align-items-center">
+              <div className="text-muted">
+                Hiển thị {startIndex + 1} - {Math.min(endIndex, sortedInvoices.length)} trong tổng số {sortedInvoices.length} hóa đơn
+              </div>
+              <nav>
+                <ul className="pagination pagination-sm mb-0">
+                  <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
+                    <button className="page-link" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1}>
+                      Trước
+                    </button>
+                  </li>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <li key={page} className={`page-item ${currentPage === page ? 'active' : ''}`}>
+                      <button className="page-link" onClick={() => handlePageChange(page)}>
+                        {page}
+                      </button>
+                    </li>
+                  ))}
+                  <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
+                    <button className="page-link" onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages}>
+                      Sau
+                    </button>
+                  </li>
+                </ul>
+              </nav>
+            </div>
+          </Card.Footer>
+        )}
       </Card>
 
       {selectedInvoice && <InvoiceDetailModal show={showDetailModal} onHide={() => setShowDetailModal(false)} invoice={selectedInvoice} />}

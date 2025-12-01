@@ -359,4 +359,3 @@ const CustomersListView = () => {
 }
 
 export default CustomersListView
-
