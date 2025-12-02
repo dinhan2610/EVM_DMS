@@ -93,6 +93,9 @@ const TemplateEditor: React.FC = () => {
   const navigate = useNavigate()
   
   const templateId = urlTemplateId || searchParams.get('templateId')
+  
+  // ✅ Ref cho input file để reset sau khi xóa
+  const logoInputRef = React.useRef<HTMLInputElement>(null)
 
   // ============ KHỞI TẠO STATE MỚI VỚI REDUCER ============
   const initialState: TemplateState = {
@@ -151,19 +154,19 @@ const TemplateEditor: React.FC = () => {
       visibility: {
         showLogo: true,
         showCompanyName: true,
-        showCompanyTaxCode: false,
+        showCompanyTaxCode: true,
         showCompanyAddress: true,
         showCompanyPhone: true,
         showCompanyBankAccount: true,
         showSignature: true,
       },
       customerVisibility: {
-        customerName: false,
-        customerTaxCode: false,
-        customerAddress: false,
-        customerPhone: false,
-        customerEmail: false,
-        paymentMethod: false,
+        customerName: true,
+        customerTaxCode: true,
+        customerAddress: true,
+        customerPhone: true,
+        customerEmail: true,
+        paymentMethod: true,
       },
     },
   }
@@ -211,17 +214,17 @@ const TemplateEditor: React.FC = () => {
     templateCode: state.templateCode,
   }), [state])
 
-  // Sync visibility từ settings
+  // ✅ Luôn hiển thị đầy đủ tất cả thông tin (không cần toggle)
   const visibility = useMemo<TemplateVisibility>(() => ({
     showQrCode: state.settings.showQrCode,
-    showLogo: state.settings.visibility.showLogo && !!state.logo,
-    showCompanyName: state.settings.visibility.showCompanyName,
-    showCompanyTaxCode: state.settings.visibility.showCompanyTaxCode,
-    showCompanyAddress: state.settings.visibility.showCompanyAddress,
-    showCompanyPhone: state.settings.visibility.showCompanyPhone,
-    showCompanyBankAccount: state.settings.visibility.showCompanyBankAccount,
-    showSignature: state.settings.visibility.showSignature,
-  }), [state.settings, state.logo])
+    showLogo: !!state.logo, // Chỉ cần check có logo hay không
+    showCompanyName: true,
+    showCompanyTaxCode: true,
+    showCompanyAddress: true,
+    showCompanyPhone: true,
+    showCompanyBankAccount: true,
+    showSignature: true,
+  }), [state.settings.showQrCode, state.logo])
 
   // ============ VALIDATION FUNCTIONS ============
   const validateTemplateName = useCallback((value: string): string | null => {
@@ -384,6 +387,8 @@ const TemplateEditor: React.FC = () => {
       dispatch({ type: 'SET_LOGO', payload: fileUrl })
       showSuccess('Đã tải logo thành công')
     }
+    // ✅ Reset input value để có thể upload lại cùng file
+    e.target.value = ''
   }, [dispatch, showSuccess])
 
   
@@ -1153,7 +1158,13 @@ const TemplateEditor: React.FC = () => {
                       },
                     }}>
                     {config.companyLogo ? '✓ Đã tải lên logo' : 'Tải lên logo công ty'}
-                    <input type="file" hidden accept="image/*" onChange={handleLogoUpload} />
+                    <input 
+                      ref={logoInputRef}
+                      type="file" 
+                      hidden 
+                      accept="image/*" 
+                      onChange={handleLogoUpload} 
+                    />
                   </Button>
                   
                   {/* Error message cho Logo */}
@@ -1185,6 +1196,10 @@ const TemplateEditor: React.FC = () => {
                           size="small"
                           onClick={() => {
                             dispatch({ type: 'SET_LOGO', payload: null })
+                            // ✅ Reset input file để có thể upload lại
+                            if (logoInputRef.current) {
+                              logoInputRef.current.value = ''
+                            }
                             showSuccess('Đã xóa logo')
                           }}
                           sx={{
@@ -1597,243 +1612,8 @@ const TemplateEditor: React.FC = () => {
                         </Paper>
 
                         {/* Tùy chọn hiển thị */}
-                        <Box>
-                          <Box sx={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'space-between',
-                            mb: 1.5,
-                          }}>
-                            <Box sx={{ display: 'flex', gap: 0.5 }}>
-                              <Button
-                                size="small"
-                                onClick={() => {
-                                  Object.keys(state.settings.visibility).forEach(key => {
-                                    if (!state.settings.visibility[key as keyof typeof state.settings.visibility]) {
-                                      dispatch({ type: 'TOGGLE_VISIBILITY', payload: key as keyof typeof state.settings.visibility })
-                                    }
-                                  })
-                                }}
-                                sx={{
-                                  fontSize: '0.6875rem',
-                                  minWidth: 'auto',
-                                  px: 1,
-                                  py: 0.5,
-                                  textTransform: 'none',
-                                  color: '#1976d2',
-                                  '&:hover': { bgcolor: '#e3f2fd' },
-                                }}
-                              >
-                                Bật tất cả
-                              </Button>
-                              <Button
-                                size="small"
-                                onClick={() => {
-                                  Object.keys(state.settings.visibility).forEach(key => {
-                                    if (state.settings.visibility[key as keyof typeof state.settings.visibility]) {
-                                      dispatch({ type: 'TOGGLE_VISIBILITY', payload: key as keyof typeof state.settings.visibility })
-                                    }
-                                  })
-                                }}
-                                sx={{
-                                  fontSize: '0.6875rem',
-                                  minWidth: 'auto',
-                                  px: 1,
-                                  py: 0.5,
-                                  textTransform: 'none',
-                                  color: '#757575',
-                                  '&:hover': { bgcolor: '#f5f5f5' },
-                                }}
-                              >
-                                Tắt tất cả
-                              </Button>
-                            </Box>
-                          </Box>
-                          <Stack spacing={0.5}>
-                            {([
-                              { key: 'showLogo', label: 'Logo công ty', icon: '🏢' },
-                              { key: 'showCompanyName', label: 'Tên công ty', icon: '📄' },
-                              { key: 'showCompanyTaxCode', label: 'Mã số thuế', icon: '🔢' },
-                              { key: 'showCompanyAddress', label: 'Địa chỉ', icon: '📍' },
-                              { key: 'showCompanyPhone', label: 'Điện thoại', icon: '📞' },
-                              { key: 'showCompanyBankAccount', label: 'Tài khoản ngân hàng', icon: '🏦' },
-                              { key: 'showSignature', label: 'Chữ ký', icon: '✍️' },
-                            ] as const).map(({ key, label, icon }) => (
-                              <Paper
-                                key={key}
-                                elevation={0}
-                                sx={{
-                                  border: '1px solid',
-                                  borderColor: state.settings.visibility[key] ? '#e3f2fd' : '#f5f5f5',
-                                  borderRadius: 1,
-                                  bgcolor: state.settings.visibility[key] ? '#f3f8ff' : '#fafafa',
-                                  transition: 'all 0.15s ease',
-                                  '&:hover': {
-                                    borderColor: '#1976d2',
-                                    bgcolor: state.settings.visibility[key] ? '#e3f2fd' : '#f9fafb',
-                                  },
-                                }}
-                              >
-                                <FormControlLabel
-                                  control={
-                                    <Checkbox
-                                      checked={state.settings.visibility[key]}
-                                      onChange={() => dispatch({ type: 'TOGGLE_VISIBILITY', payload: key })}
-                                      size="small"
-                                    />
-                                  }
-                                  label={
-                                    <Typography sx={{ 
-                                      fontSize: '0.8125rem', 
-                                      fontWeight: state.settings.visibility[key] ? 500 : 400,
-                                    }}>
-                                      {icon} {label}
-                                    </Typography>
-                                  }
-                                  sx={{ width: '100%', m: 0, py: 0.75, px: 1.5 }}
-                                />
-                              </Paper>
-                            ))}
-                          </Stack>
-                        </Box>
 
                        
-                      </Stack>
-                    </AccordionDetails>
-                  </Accordion>
-
-                  {/* Section 2: Thông tin khách hàng */}
-                  <Accordion  
-                    disableGutters
-                    elevation={0}
-                    sx={{
-                      bgcolor: '#fff',
-                      border: '1px solid #e0e0e0',
-                      borderRadius: '8px !important',
-                      mb: 1.5,
-                      '&:before': { display: 'none' },
-                      transition: 'all 0.2s ease',
-                      '&:hover': {
-                        borderColor: '#1976d2',
-                        boxShadow: '0 2px 8px rgba(25, 118, 210, 0.08)',
-                      },
-                    }}>
-                    <AccordionSummary
-                      expandIcon={<ChevronRightIcon sx={{ color: '#757575', fontSize: 20 }} />}
-                      sx={{
-                        minHeight: 56,
-                        px: 2,
-                        '& .MuiAccordionSummary-expandIconWrapper': {
-                          transition: 'transform 0.3s ease',
-                        },
-                        '& .MuiAccordionSummary-expandIconWrapper.Mui-expanded': {
-                          transform: 'rotate(90deg)',
-                        },
-                        '&:hover': {
-                          bgcolor: '#f9fafb',
-                        },
-                      }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                        <Typography sx={{ 
-                          fontSize: '0.9375rem', 
-                          fontWeight: 600, 
-                          color: '#2c3e50',
-                          letterSpacing: '-0.01em',
-                          flex: 1,
-                        }}>
-                          👤 Thông tin khách hàng
-                        </Typography>
-                      </Box>
-                    </AccordionSummary>
-                    <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
-                      <Stack spacing={1.5}>
-                        {/* Tùy chọn hiển thị */}
-                        <Box>
-                          <Box sx={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'space-between',
-                            mb: 1.5,
-                          }}>
-                            <Box sx={{ display: 'flex', gap: 0.75 }}>
-                              <Button
-                                size="small"
-                                onClick={() => dispatch({ type: 'SET_ALL_CUSTOMER_FIELDS', payload: true })}
-                                sx={{
-                                  fontSize: '0.6875rem',
-                                  minWidth: 'auto',
-                                  px: 1,
-                                  py: 0.5,
-                                  textTransform: 'none',
-                                  color: '#1976d2',
-                                  '&:hover': { bgcolor: '#e3f2fd' },
-                                }}
-                              >
-                                Bật tất cả
-                              </Button>
-                              <Button
-                                size="small"
-                                onClick={() => dispatch({ type: 'SET_ALL_CUSTOMER_FIELDS', payload: false })}
-                                sx={{
-                                  fontSize: '0.6875rem',
-                                  minWidth: 'auto',
-                                  px: 1,
-                                  py: 0.5,
-                                  textTransform: 'none',
-                                  color: '#757575',
-                                  '&:hover': { bgcolor: '#f5f5f5' },
-                                }}
-                              >
-                                Tắt tất cả
-                              </Button>
-                            </Box>
-                          </Box>
-                          <Stack spacing={0.5}>
-                            {([
-                              { key: 'customerName', label: 'Tên khách hàng', icon: '👤' },
-                              { key: 'customerTaxCode', label: 'Mã số thuế', icon: '🔢' },
-                              { key: 'customerAddress', label: 'Địa chỉ', icon: '📍' },
-                              { key: 'customerPhone', label: 'Số điện thoại', icon: '📞' },
-                              { key: 'customerEmail', label: 'Email', icon: '📧' },
-                              { key: 'paymentMethod', label: 'Hình thức thanh toán', icon: '💳' },
-                            ] as const).map(({ key, label, icon }) => (
-                              <Paper
-                                key={key}
-                                elevation={0}
-                                sx={{
-                                  border: '1px solid',
-                                  borderColor: '#f5f5f5',
-                                  borderRadius: 1,
-                                  bgcolor: '#fafafa',
-                                  transition: 'all 0.15s ease',
-                                  '&:hover': {
-                                    borderColor: '#1976d2',
-                                    bgcolor: '#f9fafb',
-                                  },
-                                }}
-                              >
-                                <FormControlLabel
-                                  control={
-                                    <Checkbox
-                                      checked={state.settings.customerVisibility[key]}
-                                      onChange={() => dispatch({ type: 'TOGGLE_CUSTOMER_FIELD', payload: key })}
-                                      size="small"
-                                    />
-                                  }
-                                  label={
-                                    <Typography sx={{ 
-                                      fontSize: '0.8125rem', 
-                                      fontWeight: 400,
-                                    }}>
-                                      {icon} {label}
-                                    </Typography>
-                                  }
-                                  sx={{ width: '100%', m: 0, py: 0.75, px: 1.5 }}
-                                />
-                              </Paper>
-                            ))}
-                          </Stack>
-                        </Box>
                       </Stack>
                     </AccordionDetails>
                   </Accordion>
@@ -2039,7 +1819,14 @@ const TemplateEditor: React.FC = () => {
                   logoSize={state.logoSize}
                   invoiceType={state.invoiceType}
                   symbol={state.symbol}
-                  customerVisibility={state.settings.customerVisibility}
+                  customerVisibility={{
+                    customerName: true,
+                    customerTaxCode: true,
+                    customerAddress: true,
+                    customerPhone: true,
+                    customerEmail: true,
+                    paymentMethod: true,
+                  }}
                 />
               </Box>
 

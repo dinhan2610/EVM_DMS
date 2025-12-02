@@ -354,7 +354,7 @@ export const updateTemplate = async (
 }
 
 /**
- * Upload logo image (if needed)
+ * Upload logo image for template
  * @param file Logo file
  * @returns Uploaded logo URL
  */
@@ -363,17 +363,22 @@ export const uploadLogo = async (file: File): Promise<string> => {
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await axios.post<{ url: string }>(
-      `${API_CONFIG.BASE_URL}/api/Upload/logo`, // Adjust endpoint as needed
+    const response = await axios.post<string>(
+      `${API_CONFIG.BASE_URL}/api/File/upload-template-image`,
       formData,
       {
+        params: {
+          type: 'logo', // Query parameter
+        },
         headers: {
           Authorization: `Bearer ${localStorage.getItem(API_CONFIG.TOKEN_KEY)}`,
           'Content-Type': 'multipart/form-data',
         },
       }
     )
-    return response.data.url
+    
+    // API trả về trực tiếp URL string
+    return response.data
   } catch (error) {
     handleApiError(error, 'Upload Logo')
   }
