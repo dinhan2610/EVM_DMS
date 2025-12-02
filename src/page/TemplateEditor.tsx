@@ -57,6 +57,8 @@ import invoiceSymbolService, {
 } from '@/services/invoiceSymbolService'
 import templateService from '@/services/templateService'
 import API_CONFIG from '@/config/api.config'
+import { mapEditorStateToApiRequest } from '@/utils/templateApiMapper'
+import type { TemplateEditorState } from '@/utils/templateApiMapper'
 
 // Interface cũ - tương thích với InvoiceTemplatePreview
 interface TemplateConfig {
@@ -323,8 +325,9 @@ const TemplateEditor: React.FC = () => {
     const savedDraft = localStorage.getItem(AUTOSAVE_KEY)
     if (savedDraft && !templateId) {
       try {
-        const draft = JSON.parse(savedDraft)
+        // const draft = JSON.parse(savedDraft)
         // Có thể hỏi user có muốn restore không (future feature)
+        // TODO: Implement draft restoration feature
       } catch (e) {
         console.error('Failed to parse draft:', e)
       }
@@ -493,41 +496,46 @@ const TemplateEditor: React.FC = () => {
       console.log('📊 Current blankRows value:', blankRows)
       console.log('📊 state.table.rowCount:', state.table.rowCount)
       
-      const layoutData = {
-        // Core template info
-        templateName: state.templateName,
-        invoiceType: state.invoiceType, // ✅ NEW: withCode/withoutCode
-        invoiceDate: state.invoiceDate,
-        symbol: state.symbol, // ✅ NEW: Full symbol object (invoiceType, taxCode, year, invoiceForm, management)
-        
-        // Company info
-        company: state.company,
-        
-        // Visual settings
-        logo: state.logo,
-        logoSize: state.logoSize, // ✅ NEW: Logo size
-        background: state.background,
-        
-        // Table & Fields
-        table: state.table,
-        customFields: state.customFields,
-        customColumns: state.customColumns,
-        
-        // Display settings
-        settings: state.settings, // Contains visibility
-        
-        // Codes
+      // ✅ OPTIMIZED: Map editor state to API request schema
+      const editorState: TemplateEditorState = {
+        table: {
+          columns: state.table.columns.map(col => ({
+            id: col.id,
+            label: col.label,
+            hasCode: col.hasCode ?? false,
+            visible: col.visible,
+          })),
+          rowCount: state.table.rowCount,
+          sttTitle: state.table.sttTitle,
+          sttContent: state.table.sttContent,
+        },
+        company: {
+          name: state.company.name,
+          phone: state.company.phone,
+          fields: state.company.fields.map(field => ({
+            id: field.id,
+            label: field.label,
+            value: field.value ?? '',
+            visible: field.visible,
+          })),
+          address: state.company.address,
+          taxCode: state.company.taxCode,
+          bankAccount: state.company.bankAccount,
+        },
+        settings: state.settings,
         modelCode: state.modelCode,
+        background: state.background,
+        invoiceDate: state.invoiceDate,
         templateCode: state.templateCode,
-        
-        // Additional metadata
-        blankRows: blankRows, // ✅ NEW: Number of blank rows
-        visibility: visibility, // ✅ NEW: Explicit visibility settings
       }
-      const layoutDefinition = JSON.stringify(layoutData)
-      console.log('Layout Definition length:', layoutDefinition.length, 'chars')
-      console.log('Layout Data includes:', Object.keys(layoutData).join(', '))
-      console.log('✅ Saved blankRows in layoutDefinition:', layoutData.blankRows)
+      
+      const layoutDefinition = mapEditorStateToApiRequest(editorState)
+      console.log('✅ Layout Definition (API Schema):', {
+        displaySettings: layoutDefinition.displaySettings,
+        customerSettings: layoutDefinition.customerSettings,
+        tableSettings: layoutDefinition.tableSettings,
+        style: layoutDefinition.style,
+      })
       
       console.log('=== STEP 4: Finding Template Frame ID ===')
       // Find templateFrameID - more robust logic
@@ -572,8 +580,12 @@ const TemplateEditor: React.FC = () => {
         logoUrl,
       }
       console.log('Template Data:', {
-        ...templateData,
-        layoutDefinition: `${layoutDefinition.substring(0, 100)}... (${layoutDefinition.length} chars)`
+        templateName: templateData.templateName,
+        serialID: templateData.serialID,
+        templateTypeID: templateData.templateTypeID,
+        templateFrameID: templateData.templateFrameID,
+        logoUrl: templateData.logoUrl,
+        layoutDefinition: 'LayoutDefinitionRequest object (see above)',
       })
       
       const templateResponse = await templateService.createTemplate(templateData)
@@ -586,18 +598,19 @@ const TemplateEditor: React.FC = () => {
       setTimeout(() => {
         navigate('/admin/templates')
       }, 1500)
-    } catch (error: any) {
-      console.error('❌ Error creating template:', error)
+    } catch (error: unknown) {
+      const err = error as Error
+      console.error('❌ Error creating template:', err)
       
       // More detailed error message
       let errorMessage = 'Có lỗi xảy ra khi tạo mẫu hóa đơn.'
-      if (error.message) {
-        if (error.message.includes('Serial')) {
-          errorMessage = 'Lỗi khi tạo mã số hóa đơn: ' + error.message
-        } else if (error.message.includes('Template')) {
-          errorMessage = 'Lỗi khi tạo mẫu hóa đơn: ' + error.message
+      if (err.message) {
+        if (err.message.includes('Serial')) {
+          errorMessage = 'Lỗi khi tạo mã số hóa đơn: ' + err.message
+        } else if (err.message.includes('Template')) {
+          errorMessage = 'Lỗi khi tạo mẫu hóa đơn: ' + err.message
         } else {
-          errorMessage = error.message
+          errorMessage = err.message
         }
       }
       
@@ -902,7 +915,7 @@ const TemplateEditor: React.FC = () => {
                       <FormControl fullWidth size="small">
                         <Select
                           value={state.symbol.invoiceType}
-                          onChange={(e) => dispatch({ type: 'SET_SYMBOL_INVOICE_TYPE', payload: e.target.value as any })}
+                          onChange={(e) => dispatch({ type: 'SET_SYMBOL_INVOICE_TYPE', payload: e.target.value as '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' })}
                           disabled={symbolDataLoading}
                           sx={{
                             fontSize: '0.875rem',
@@ -1018,7 +1031,7 @@ const TemplateEditor: React.FC = () => {
                       <FormControl fullWidth size="small">
                         <Select
                           value={state.symbol.invoiceForm}
-                          onChange={(e) => dispatch({ type: 'SET_SYMBOL_INVOICE_FORM', payload: e.target.value as any })}
+                          onChange={(e) => dispatch({ type: 'SET_SYMBOL_INVOICE_FORM', payload: e.target.value as 'T' | 'D' | 'L' | 'M' | 'N' | 'B' | 'G' | 'H' | 'X' })}
                           disabled={symbolDataLoading}
                           sx={{
                         fontSize: '0.875rem', 
@@ -1339,7 +1352,7 @@ const TemplateEditor: React.FC = () => {
                             }}>
                                 {frame.id}
                             </Typography>
-                              {frame.recommended && (
+                              {'recommended' in frame && frame.recommended && (
                                 <Box sx={{
                                   position: 'absolute',
                                   top: 4,
@@ -1684,122 +1697,7 @@ const TemplateEditor: React.FC = () => {
                           </Stack>
                         </Box>
 
-                        {/* Số dòng trong bảng */}
-                        <Box>
-                          <Typography sx={{ 
-                            fontSize: '0.8125rem', 
-                            fontWeight: 600, 
-                            color: '#37474f',
-                            mb: 1,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 0.5,
-                          }}>
-                            📊 Số dòng trong bảng danh sách
-                          </Typography>
-                          <Stack 
-                            direction="row" 
-                            alignItems="center" 
-                            spacing={1.5}
-                            sx={{ 
-                              p: 1.5,
-                              bgcolor: '#fafafa',
-                              borderRadius: 1.5,
-                              border: '1px solid #e0e0e0',
-                            }}
-                          >
-                            <IconButton
-                              size="small"
-                              onClick={() => {
-                                if (state.table.rowCount > 1) {
-                                  dispatch({ type: 'SET_TABLE_ROW_COUNT', payload: state.table.rowCount - 1 });
-                                }
-                              }}
-                              disabled={state.table.rowCount <= 1}
-                              sx={{
-                                bgcolor: state.table.rowCount > 1 ? '#fff' : '#f5f5f5',
-                                border: '1px solid',
-                                borderColor: state.table.rowCount > 1 ? '#e0e0e0' : '#eeeeee',
-                                width: 36,
-                                height: 36,
-                                '&:hover': {
-                                  bgcolor: state.table.rowCount > 1 ? '#f5f5f5' : '#f5f5f5',
-                                  borderColor: state.table.rowCount > 1 ? '#1976d2' : '#eeeeee',
-                                },
-                                '&.Mui-disabled': {
-                                  opacity: 0.5,
-                                },
-                              }}
-                            >
-                              <Box component="span" sx={{ fontSize: '1.25rem', fontWeight: 'bold', color: state.table.rowCount > 1 ? '#1976d2' : '#bdbdbd' }}>
-                                −
-                              </Box>
-                            </IconButton>
-                            
-                            <Box sx={{ 
-                              flex: 1,
-                              textAlign: 'center',
-                              bgcolor: '#fff',
-                              py: 1,
-                              px: 2,
-                              borderRadius: 1,
-                              border: '2px solid #1976d2',
-                            }}>
-                              <Typography sx={{ 
-                                fontSize: '1.125rem', 
-                                fontWeight: 700,
-                                color: '#1976d2',
-                                lineHeight: 1,
-                              }}>
-                                {state.table.rowCount}
-                              </Typography>
-                              <Typography sx={{ 
-                                fontSize: '0.7rem', 
-                                color: '#616161',
-                                fontWeight: 500,
-                                mt: 0.3,
-                              }}>
-                                dòng
-                              </Typography>
-                            </Box>
-                            
-                            <IconButton
-                              size="small"
-                              onClick={() => {
-                                if (state.table.rowCount < 25) {
-                                  dispatch({ type: 'SET_TABLE_ROW_COUNT', payload: state.table.rowCount + 1 });
-                                }
-                              }}
-                              disabled={state.table.rowCount >= 25}
-                              sx={{
-                                bgcolor: state.table.rowCount < 25 ? '#fff' : '#f5f5f5',
-                                border: '1px solid',
-                                borderColor: state.table.rowCount < 25 ? '#e0e0e0' : '#eeeeee',
-                                width: 36,
-                                height: 36,
-                                '&:hover': {
-                                  bgcolor: state.table.rowCount < 25 ? '#f5f5f5' : '#f5f5f5',
-                                  borderColor: state.table.rowCount < 25 ? '#1976d2' : '#eeeeee',
-                                },
-                                '&.Mui-disabled': {
-                                  opacity: 0.5,
-                                },
-                              }}
-                            >
-                              <Box component="span" sx={{ fontSize: '1.25rem', fontWeight: 'bold', color: state.table.rowCount < 25 ? '#1976d2' : '#bdbdbd' }}>
-                                +
-                              </Box>
-                            </IconButton>
-                          </Stack>
-                          <Typography sx={{ 
-                            fontSize: '0.75rem', 
-                            color: '#757575', 
-                            mt: 0.75,
-                            fontStyle: 'italic',
-                          }}>
-                            Nhấn + hoặc − để thay đổi (tối thiểu 1, tối đa 25 dòng)
-                          </Typography>
-                        </Box>
+                       
                       </Stack>
                     </AccordionDetails>
                   </Accordion>

@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react'
+import invoiceService, { Template } from '@/services/invoiceService'
 import {
   Box,
   Paper,
@@ -498,12 +499,36 @@ const DiscountAmountEditCell = (params: GridRenderEditCellParams) => {
 
 
 const CreateVatInvoice: React.FC = () => {
+  // Template states
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
+  const [templatesLoading, setTemplatesLoading] = useState(false)
+  
   const [isPaid, setIsPaid] = useState(false)
   const [showTypeColumn, setShowTypeColumn] = useState(true)
   const [discountType, setDiscountType] = useState<string>('none') // 'none' | 'per-item' | 'total'
   const [vatRate, setVatRate] = useState<number>(10) // Thuế GTGT: 0, 5, 10
   const [sendEmailModalOpen, setSendEmailModalOpen] = useState(false)
   const calculateAfterTax = true // Tính theo giá sau thuế
+
+  // Load templates on mount
+  useEffect(() => {
+    const loadTemplates = async () => {
+      setTemplatesLoading(true)
+      try {
+        const data = await invoiceService.getActiveTemplates()
+        setTemplates(data)
+        if (data.length > 0) {
+          setSelectedTemplate(data[0]) // Auto-select first template
+        }
+      } catch (error) {
+        console.error('Error loading templates:', error)
+      } finally {
+        setTemplatesLoading(false)
+      }
+    }
+    loadTemplates()
+  }, [])
 
   // State quản lý danh sách hàng hóa
   const [items, setItems] = useState<InvoiceItem[]>([
@@ -902,9 +927,29 @@ const CreateVatInvoice: React.FC = () => {
                   <Typography variant="caption" sx={{ minWidth: 55, fontSize: '0.8125rem' }}>
                     Ký hiệu:
                   </Typography>
-                  <Select size="small" value="1K24TXN" fullWidth variant="outlined" sx={{ fontSize: '0.8125rem' }}>
-                    <MenuItem value="1K24TXN">1K24TXN</MenuItem>
-                    <MenuItem value="2K24TXN">2K24TXN</MenuItem>
+                  <Select 
+                    size="small" 
+                    value={selectedTemplate?.serial || ''} 
+                    onChange={(e) => {
+                      const template = templates.find(t => t.serial === e.target.value)
+                      setSelectedTemplate(template || null)
+                    }}
+                    fullWidth 
+                    variant="outlined" 
+                    sx={{ fontSize: '0.8125rem' }}
+                    disabled={templatesLoading || templates.length === 0}
+                  >
+                    {templatesLoading ? (
+                      <MenuItem value="">Đang tải...</MenuItem>
+                    ) : templates.length === 0 ? (
+                      <MenuItem value="">Không có mẫu</MenuItem>
+                    ) : (
+                      templates.map((template) => (
+                        <MenuItem key={template.templateID} value={template.serial}>
+                          {template.serial}
+                        </MenuItem>
+                      ))
+                    )}
                   </Select>
                   <IconButton size="small">
                     <ExpandMore fontSize="small" />
