@@ -14,11 +14,21 @@ import type {
   CreateTemplateApiRequest, 
   UpdateTemplateApiRequest, 
   TemplateApiResponse,
-  LayoutDefinitionRequest,
 } from '@/types/templateApi'
-import { parseLayoutDefinition, stringifyLayoutDefinition } from '@/utils/templateApiMapper'
 
 // ==================== TYPE DEFINITIONS ====================
+
+/**
+ * Internal Create Template Request (send as object)
+ */
+export interface CreateTemplateInternalRequest {
+  templateName: string
+  serialID: number
+  templateTypeID: number
+  layoutDefinition: unknown // ✅ Object (OLD or FULL schema)
+  templateFrameID: number
+  logoUrl: string | null
+}
 
 /**
  * Serial (Mã số hóa đơn) - Request
@@ -46,7 +56,7 @@ export interface SerialResponse {
 }
 
 // ✅ Use API types from templateApi.ts
-export type CreateTemplateRequest = CreateTemplateApiRequest
+export type CreateTemplateRequest = CreateTemplateInternalRequest // ✅ Accept object
 export type UpdateTemplateRequest = UpdateTemplateApiRequest
 export type TemplateResponse = TemplateApiResponse
 
@@ -69,7 +79,7 @@ const getAuthHeaders = () => {
 /**
  * Handle API errors consistently
  */
-const handleApiError = (error: any, context: string): never => {
+const handleApiError = (error: unknown, context: string): never => {
   console.error(`[${context}] Error:`, error)
 
   if (axios.isAxiosError(error)) {
@@ -97,7 +107,8 @@ const handleApiError = (error: any, context: string): never => {
     throw new Error(`${context} failed: ${message}`)
   }
 
-  throw new Error(`${context} failed: ${error.message || 'Unknown error'}`)
+  const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+  throw new Error(`${context} failed: ${errorMessage}`)
 }
 
 // ==================== SERIAL API FUNCTIONS ====================
@@ -127,7 +138,7 @@ export const createSerial = async (data: CreateSerialRequest): Promise<SerialRes
       console.error('[createSerial] Response Data:', error.response?.data)
       console.error('[createSerial] Response Headers:', error.response?.headers)
     }
-    handleApiError(error, 'Create Serial')
+    throw handleApiError(error, 'Create Serial')
   }
 }
 
@@ -143,7 +154,7 @@ export const getAllSerials = async (): Promise<SerialResponse[]> => {
     )
     return response.data
   } catch (error) {
-    handleApiError(error, 'Get Serials')
+    throw handleApiError(error, 'Get Serials')
   }
 }
 
@@ -172,13 +183,14 @@ export const createTemplate = async (data: CreateTemplateRequest): Promise<Templ
   try {
     console.log('[createTemplate] Request URL:', `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.TEMPLATE.CREATE}`)
     
-    // ✅ CRITICAL: Send layoutDefinition as OBJECT, not string
-    // The API expects an object structure, not a JSON string
-    const requestData: CreateTemplateRequest = {
+    // ✅ CRITICAL: Send layoutDefinition as OBJECT
+    // Axios will automatically JSON.stringify the entire request body
+    // DO NOT manually stringify layoutDefinition here!
+    const requestData: CreateTemplateApiRequest = {
       templateName: data.templateName,
       serialID: data.serialID,
       templateTypeID: data.templateTypeID,
-      layoutDefinition: data.layoutDefinition, // ✅ Already a LayoutDefinitionRequest object
+      layoutDefinition: data.layoutDefinition, // ✅ Send as OBJECT, Axios will handle
       templateFrameID: data.templateFrameID,
       logoUrl: data.logoUrl,
     }
@@ -189,12 +201,8 @@ export const createTemplate = async (data: CreateTemplateRequest): Promise<Templ
       templateTypeID: requestData.templateTypeID,
       templateFrameID: requestData.templateFrameID,
       logoUrl: requestData.logoUrl,
-      layoutDefinition: {
-        displaySettings: requestData.layoutDefinition.displaySettings,
-        customerSettings: requestData.layoutDefinition.customerSettings,
-        tableSettings: requestData.layoutDefinition.tableSettings,
-        style: requestData.layoutDefinition.style,
-      }
+      layoutDefinitionType: typeof requestData.layoutDefinition,
+      layoutDefinitionPreview: requestData.layoutDefinition,
     })
     
     const response = await axios.post<TemplateResponse>(
@@ -204,10 +212,12 @@ export const createTemplate = async (data: CreateTemplateRequest): Promise<Templ
     )
     
     console.log('[createTemplate] ✅ Success:', {
+      response: response.data,
       templateID: response.data.templateID,
       templateName: response.data.templateName,
       serialID: response.data.serialID,
       serial: response.data.serial,
+      layoutDefinition: response.data.layoutDefinition,
     })
     
     return response.data
@@ -217,9 +227,18 @@ export const createTemplate = async (data: CreateTemplateRequest): Promise<Templ
       console.error('[createTemplate] ❌ Response Status:', error.response?.status)
       console.error('[createTemplate] ❌ Response Data:', error.response?.data)
       console.error('[createTemplate] ❌ Validation Errors:', error.response?.data?.errors)
+      
+      // ✅ Log detailed validation error messages
+      if (error.response?.data?.errors) {
+        Object.entries(error.response.data.errors).forEach(([field, messages]) => {
+          console.error(`   Field: ${field}`)
+          console.error(`   Messages:`, messages)
+        })
+      }
+      
       console.error('[createTemplate] ❌ Response Headers:', error.response?.headers)
     }
-    handleApiError(error, 'Create Template')
+    throw handleApiError(error, 'Create Template')
   }
 }
 
@@ -258,7 +277,7 @@ export const getAllTemplates = async (): Promise<TemplateResponse[]> => {
     
     return response.data
   } catch (error) {
-    handleApiError(error, 'Get Templates')
+    throw handleApiError(error, 'Get Templates')
   }
 }
 
@@ -277,6 +296,8 @@ export const getAllTemplates = async (): Promise<TemplateResponse[]> => {
  */
 export const getTemplateById = async (templateId: number): Promise<TemplateResponse> => {
   try {
+    console.log('[getTemplateById] Requesting template:', templateId)
+    
     const response = await axios.get<TemplateResponse>(
       `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.TEMPLATE.GET_BY_ID(templateId)}`,
       { headers: getAuthHeaders() }
@@ -286,11 +307,22 @@ export const getTemplateById = async (templateId: number): Promise<TemplateRespo
       templateID: response.data.templateID,
       templateName: response.data.templateName,
       layoutDefinitionType: typeof response.data.layoutDefinition,
+      layoutDefinitionPreview: typeof response.data.layoutDefinition === 'string' 
+        ? response.data.layoutDefinition.substring(0, 200) 
+        : response.data.layoutDefinition,
     })
     
     return response.data
   } catch (error) {
-    handleApiError(error, 'Get Template By ID')
+    if (axios.isAxiosError(error)) {
+      console.error('[getTemplateById] ❌ Error:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        templateId,
+      })
+    }
+    throw handleApiError(error, 'Get Template By ID')
   }
 }
 
@@ -349,7 +381,7 @@ export const updateTemplate = async (
       console.error('[updateTemplate] ❌ Response Status:', error.response?.status)
       console.error('[updateTemplate] ❌ Response Data:', error.response?.data)
     }
-    handleApiError(error, 'Update Template')
+    throw handleApiError(error, 'Update Template')
   }
 }
 
@@ -363,8 +395,8 @@ export const uploadLogo = async (file: File): Promise<string> => {
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await axios.post<string>(
-      `${API_CONFIG.BASE_URL}/api/File/upload-template-image`,
+    const response = await axios.post<{ url: string }>(
+      `${API_CONFIG.BASE_URL}/File/upload-template-image`,
       formData,
       {
         params: {
@@ -377,10 +409,10 @@ export const uploadLogo = async (file: File): Promise<string> => {
       }
     )
     
-    // API trả về trực tiếp URL string
-    return response.data
+    // API trả về object { url: "..." }
+    return response.data.url
   } catch (error) {
-    handleApiError(error, 'Upload Logo')
+    throw handleApiError(error, 'Upload Logo')
   }
 }
 

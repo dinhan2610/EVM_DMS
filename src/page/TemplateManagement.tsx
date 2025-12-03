@@ -77,12 +77,13 @@ const TemplateManagement = () => {
       
       setTemplates(mappedTemplates)
       console.log('✅ Loaded templates:', mappedTemplates.length, 'templates')
-    } catch (err: any) {
-      console.error('❌ Error fetching templates:', err)
-      setError(err.message || 'Không thể tải danh sách mẫu hóa đơn')
+    } catch (err) {
+      const error = err as Error
+      console.error('❌ Error fetching templates:', error)
+      setError(error.message || 'Không thể tải danh sách mẫu hóa đơn')
       setSnackbar({
         open: true,
-        message: err.message || 'Không thể tải danh sách mẫu hóa đơn',
+        message: error.message || 'Không thể tải danh sách mẫu hóa đơn',
         severity: 'error',
       })
     } finally {
@@ -102,7 +103,7 @@ const TemplateManagement = () => {
       (template) =>
         template.templateName.toLowerCase().includes(searchText.toLowerCase()) ||
         template.templateCode.toLowerCase().includes(searchText.toLowerCase()) ||
-        template.modelCode.toLowerCase().includes(searchText.toLowerCase())
+        template.templateType.toLowerCase().includes(searchText.toLowerCase())
     )
   }, [templates, searchText])
 
@@ -111,10 +112,11 @@ const TemplateManagement = () => {
     try {
       const detail = await templateService.getTemplateById(template.id)
       setViewingTemplate(detail)
-    } catch (err: any) {
+    } catch (err) {
+      const error = err as Error
       setSnackbar({
         open: true,
-        message: err.message || 'Không thể tải chi tiết mẫu hóa đơn',
+        message: error.message || 'Không thể tải chi tiết mẫu hóa đơn',
         severity: 'error',
       })
     }
@@ -142,7 +144,7 @@ const TemplateManagement = () => {
     setSnackbar({
       open: true,
       message: 'Chức năng xóa mẫu đang được phát triển',
-      severity: 'info',
+      severity: 'success',
     })
     setOpenDeleteDialog(false)
     setSelectedTemplate(null)

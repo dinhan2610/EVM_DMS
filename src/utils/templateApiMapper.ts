@@ -75,19 +75,10 @@ export interface TemplateEditorState {
 // ==================== MAPPER FUNCTIONS ====================
 
 /**
- * Map from Template Editor State to API Request Schema
- * 
- * This function converts the internal editor state to the structure
- * expected by the API when creating a new template.
- * 
- * @param editorState - The current state from TemplateEditor
- * @returns LayoutDefinitionRequest object for API
- * 
- * @example
- * const apiRequest = mapEditorStateToApiRequest(templateState)
- * // Use in createTemplate API call
+ * ⚠️ TEMPORARY TEST: Map to OLD API schema (4 fields only)
+ * Use this to test if BE expects the old schema
  */
-export function mapEditorStateToApiRequest(editorState: TemplateEditorState): LayoutDefinitionRequest {
+export function mapEditorStateToOldApiRequest(editorState: TemplateEditorState): any {
   return {
     displaySettings: {
       showLogo: editorState.settings?.visibility?.showLogo ?? true,
@@ -112,9 +103,66 @@ export function mapEditorStateToApiRequest(editorState: TemplateEditorState): La
       minRows: editorState.table?.rowCount ?? 5,
     },
     style: {
-      colorTheme: 'default', // Can be extended later
+      colorTheme: 'default',
       fontFamily: editorState.settings?.numberFont ?? 'arial',
     },
+  }
+}
+
+/**
+ * Map from Template Editor State to API Request Schema
+ * 
+ * ✅ Returns FULL editor state for 100% data preservation
+ * 
+ * @param editorState - The current state from TemplateEditor
+ * @returns Full LayoutDefinition object matching LayoutDefinitionResponse schema
+ */
+export function mapEditorStateToApiRequest(editorState: TemplateEditorState): any {
+  // ✅ FULL SCHEMA - Preserves ALL data including company info
+  return {
+    table: editorState.table || {
+      columns: [],
+      rowCount: 5,
+      sttTitle: 'STT',
+      sttContent: '[STT]',
+    },
+    company: editorState.company || {
+      name: '',
+      phone: '',
+      fields: [],
+      address: '',
+      taxCode: '',
+      bankAccount: '',
+    },
+    settings: {
+      bilingual: editorState.settings?.bilingual ?? false,
+      numberFont: editorState.settings?.numberFont ?? 'arial',
+      showQrCode: editorState.settings?.showQrCode ?? true,
+      visibility: {
+        showLogo: editorState.settings?.visibility?.showLogo ?? true,
+        showSignature: editorState.settings?.visibility?.showSignature ?? true,
+        showCompanyName: editorState.settings?.visibility?.showCompanyName ?? true,
+        showCompanyPhone: editorState.settings?.visibility?.showCompanyPhone ?? true,
+        showCompanyAddress: editorState.settings?.visibility?.showCompanyAddress ?? true,
+        showCompanyTaxCode: editorState.settings?.visibility?.showCompanyTaxCode ?? false,
+        showCompanyBankAccount: editorState.settings?.visibility?.showCompanyBankAccount ?? true,
+      },
+      customerVisibility: {
+        customerName: editorState.settings?.customerVisibility?.customerName ?? false,
+        customerEmail: editorState.settings?.customerVisibility?.customerEmail ?? false,
+        customerPhone: editorState.settings?.customerVisibility?.customerPhone ?? false,
+        paymentMethod: editorState.settings?.customerVisibility?.paymentMethod ?? false,
+        customerAddress: editorState.settings?.customerVisibility?.customerAddress ?? false,
+        customerTaxCode: editorState.settings?.customerVisibility?.customerTaxCode ?? false,
+      },
+    },
+    modelCode: editorState.modelCode || '',
+    background: editorState.background || {
+      frame: '',
+      custom: null,
+    },
+    invoiceDate: editorState.invoiceDate || new Date().toISOString(),
+    templateCode: editorState.templateCode || '',
   }
 }
 

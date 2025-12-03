@@ -470,14 +470,14 @@ const TemplateEditor: React.FC = () => {
       console.log('Serial Response:', serialResponse)
       
       console.log('=== STEP 2: Processing Logo ===')
-      // Step 2: Upload logo if exists (convert base64 to file if needed)
+      // Step 2: Upload logo if exists (convert blob/base64 to file)
       let logoUrl: string | null = null
       if (state.logo) {
-        // If logo is base64, upload it
-        if (state.logo.startsWith('data:image')) {
+        // If logo is blob URL or base64, upload it
+        if (state.logo.startsWith('blob:') || state.logo.startsWith('data:image')) {
           try {
-            console.log('Converting base64 logo to file...')
-            // Convert base64 to File
+            console.log('Converting blob/base64 logo to file...')
+            // Convert blob/base64 to File
             const response = await fetch(state.logo)
             const blob = await response.blob()
             const file = new File([blob], 'logo.png', { type: 'image/png' })
@@ -485,12 +485,16 @@ const TemplateEditor: React.FC = () => {
             console.log('Logo uploaded:', logoUrl)
           } catch (uploadError) {
             console.warn('Logo upload failed, skipping logo:', uploadError)
-            // Skip logo instead of using base64 (backend might not accept base64)
+            // Skip logo instead of using blob/base64 (backend doesn't accept local URLs)
             logoUrl = null
           }
-        } else {
-          logoUrl = state.logo // Already a URL
+        } else if (state.logo.startsWith('http://') || state.logo.startsWith('https://')) {
+          // Already a valid URL from server
+          logoUrl = state.logo
           console.log('Using existing logo URL:', logoUrl)
+        } else {
+          console.warn('Invalid logo URL format:', state.logo)
+          logoUrl = null
         }
       } else {
         console.log('No logo provided')
@@ -535,12 +539,7 @@ const TemplateEditor: React.FC = () => {
       }
       
       const layoutDefinition = mapEditorStateToApiRequest(editorState)
-      console.log('✅ Layout Definition (API Schema):', {
-        displaySettings: layoutDefinition.displaySettings,
-        customerSettings: layoutDefinition.customerSettings,
-        tableSettings: layoutDefinition.tableSettings,
-        style: layoutDefinition.style,
-      })
+      console.log('✅ Layout Definition (FULL API Schema):', layoutDefinition)
       
       console.log('=== STEP 4: Finding Template Frame ID ===')
       // Find templateFrameID - more robust logic

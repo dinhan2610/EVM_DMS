@@ -46,12 +46,15 @@ export interface LayoutDefinitionRequest {
 
 /**
  * Create Template Request Body
+ * 
+ * ✅ AXIOS HANDLES SERIALIZATION
+ * Send layoutDefinition as object, Axios will stringify entire body
  */
 export interface CreateTemplateApiRequest {
   templateName: string
   serialID: number
   templateTypeID: number
-  layoutDefinition: LayoutDefinitionRequest // ✅ OBJECT, not string
+  layoutDefinition: any // ✅ Object (Axios will stringify)
   templateFrameID: number
   logoUrl: string | null
 }

@@ -31,7 +31,6 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
   backgroundFrame = TEMPLATE_DEFAULTS.BACKGROUND_FRAME,
   bilingual = false,
   invoiceDate,
-  logoSize = TEMPLATE_DEFAULTS.LOGO_SIZE,
   invoiceType = TEMPLATE_DEFAULTS.INVOICE_TYPE,
   symbol = DEFAULT_INVOICE_SYMBOL,
   customerVisibility = DEFAULT_CUSTOMER_VISIBILITY,
@@ -152,8 +151,8 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
               backgroundRepeat: 'no-repeat',
               margin: '0 auto',
               padding: '2cm 1.5cm',
-              width: '210mm',
-              minHeight: '287mm',
+              width: '234mm',
+              minHeight: '320mm',
               boxSizing: 'border-box',
               bgcolor: 'white',
               overflow: 'visible',
@@ -166,16 +165,17 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
               {/* Phần 1: Header - CHỈ HIỆN Ở TRANG ĐẦU TIÊN */}
               {page.isFirst && (
                 <>
-                  {/* Logo + Tiêu đề chính - Layout 3 cột */}
-                  <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1, position: 'relative', minHeight: '60px' }}>
-                    {/* Cột Trái: Logo */}
-                    <Box sx={{ flex: 1, display: 'flex', alignItems: 'flex-start' }}>
+                  {/* Logo + Tiêu đề - CÙNG 1 HÀNG */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, position: 'relative' }}>
+                    {/* Cột Trái: Logo - CHỈ HIỆN KHI CÓ LOGO */}
+                    <Box sx={{ flex: 1 }}>
                       {showLogo && config.companyLogo && (
                         <img
                           src={config.companyLogo}
                           alt="Logo"
                           style={{
-                            maxHeight: logoSize,
+                            maxWidth: '130px',
+                            height: 'auto',
                             objectFit: 'contain',
                             display: 'block',
                           }}
@@ -183,8 +183,14 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                       )}
                     </Box>
 
-                    {/* Cột Giữa: Tiêu đề - 1 DÒNG DUY NHẤT */}
-                    <Box sx={{ flex: 2, textAlign: 'center' }}>
+                    {/* Cột Giữa: Tiêu đề - LUÔN CĂN GIỮA TUYỆT ĐỐI */}
+                    <Box sx={{ 
+                      position: 'absolute',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      textAlign: 'center',
+                      zIndex: 1,
+                    }}>
                       <Typography
                         variant="h5"
                         fontWeight="bold"
@@ -193,7 +199,6 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                           fontSize: '1.4rem', 
                           lineHeight: 1.3,
                           letterSpacing: 0.2,
-                          whiteSpace: 'nowrap',
                           mb: 0.3,
                         }}
                       >
@@ -208,7 +213,6 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                             textTransform: 'uppercase',
                             lineHeight: 1.3,
                             letterSpacing: 0.2,
-                            whiteSpace: 'nowrap',
                           }}
                         >
                           (VAT INVOICE)
@@ -220,12 +224,12 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                     <Box sx={{ flex: 1 }} />
                   </Box>
 
-                  {/* Ký hiệu/Số và Mã CQT/Ngày - CÙNG HÀNG NGANG */}
+                  {/* Ký hiệu/Số và Mã CQT/Ngày - HÀNG RIÊNG */}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                     {/* Cột Trái: Trống */}
                     <Box sx={{ flex: 1 }} />
 
-                    {/* Cột Giữa: Mã CQT (chỉ hiện khi invoiceType = 'withCode') và Ngày */}
+                    {/* Cột Giữa: Mã CQT và Ngày */}
                     <Box sx={{ flex: 1, textAlign: 'center' }}>
                       {invoiceType === 'withCode' && (
                         <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.3, lineHeight: 1.4 }}>
