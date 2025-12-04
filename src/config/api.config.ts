@@ -38,6 +38,15 @@ export const API_CONFIG = {
       GET_BY_ID: (id: number) => `/InvoiceTemplate/${id}`,
       UPDATE: (id: number) => `/InvoiceTemplate/${id}`,
     },
+    INVOICE: {
+      CREATE: '/Invoice',
+      GET_ALL: '/Invoice',
+      GET_BY_ID: (id: number) => `/Invoice/${id}`,
+      UPDATE: (id: number) => `/Invoice/${id}`,
+      DELETE: (id: number) => `/Invoice/${id}`,
+      SIGN: (id: number) => `/Invoice/${id}/sign`,
+      SEND_EMAIL: (id: number) => `/Invoice/${id}/send-email`,
+    },
   },
   
   HTTP_STATUS: {

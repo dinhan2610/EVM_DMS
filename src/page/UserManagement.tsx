@@ -53,15 +53,20 @@ export interface User {
 }
 
 // Helper function to map API response to User interface
-const mapApiResponseToUser = (apiUser: UserApiResponse): User => ({
-  id: apiUser.userID,
-  fullName: apiUser.fullName,
-  email: apiUser.email,
-  phoneNumber: apiUser.phoneNumber,
-  role: apiUser.roleName,
-  status: apiUser.isActive ? 'Active' : 'Inactive',
-  joinDate: new Date(apiUser.createdAt).toISOString().split('T')[0],
-})
+const mapApiResponseToUser = (apiUser: UserApiResponse): User => {
+  // Generate a temporary ID if userID is missing (for newly created users)
+  const id = apiUser.userID || Date.now()
+  
+  return {
+    id,
+    fullName: apiUser.fullName || '',
+    email: apiUser.email || '',
+    phoneNumber: apiUser.phoneNumber || '',
+    role: apiUser.roleName || '',
+    status: apiUser.isActive ? 'Active' : 'Inactive',
+    joinDate: apiUser.createdAt ? new Date(apiUser.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+  }
+}
 
 // Initial Form State
 interface UserFormData {
@@ -179,13 +184,13 @@ const UserManagement = () => {
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
       const matchesSearch =
-        user.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchQuery.toLowerCase())
+        (user.fullName?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+        (user.email?.toLowerCase() || '').includes(searchQuery.toLowerCase())
       
       // Filter by role - sử dụng backend role names
       let matchesRole = roleFilter === 'all'
       if (!matchesRole) {
-        const userRoleLower = user.role.toLowerCase()
+        const userRoleLower = (user.role || '').toLowerCase()
         if (roleFilter === 'HOD') {
           matchesRole = userRoleLower === 'hod'
         } else if (roleFilter === 'Accountant') {
@@ -532,7 +537,12 @@ const UserManagement = () => {
         return value ? new Date(value) : null
       },
       renderCell: (params: GridRenderCellParams<User>) => {
-        return new Date(params.row.joinDate).toLocaleDateString('vi-VN')
+        try {
+          const date = new Date(params.row.joinDate)
+          return isNaN(date.getTime()) ? '-' : date.toLocaleDateString('vi-VN')
+        } catch {
+          return '-'
+        }
       },
     },
     {
@@ -1212,13 +1222,13 @@ const UserManagement = () => {
                       Ngày tham gia
                     </Typography>
                     <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {new Date(selectedUserDetail.createdAt).toLocaleString('vi-VN', {
+                      {selectedUserDetail.createdAt ? new Date(selectedUserDetail.createdAt).toLocaleString('vi-VN', {
                         year: 'numeric',
                         month: 'long',
                         day: 'numeric',
                         hour: '2-digit',
                         minute: '2-digit',
-                      })}
+                      }) : '-'}
                     </Typography>
                   </Paper>
                 </Grid>

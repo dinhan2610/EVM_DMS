@@ -3,17 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Box, 
   Container, 
-  Typography, 
   Button, 
   Stack, 
-  Breadcrumbs, 
-  Link, 
   Fade,
   Skeleton,
   Alert,
   Snackbar,
 } from '@mui/material';
-import HomeIcon from '@mui/icons-material/Home';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview';
 import PageTitle from '@/components/PageTitle';
@@ -74,29 +70,75 @@ export default function TemplatePreviewPage() {
   }, [templateId]);
 
   // **OPTIMIZED: Parse layoutDefinition ONCE and memoize**
+  // ✅ Handle both JSON string AND object (BE might return either)
   const parsedLayout = useMemo(() => {
     if (!template || !template.layoutDefinition) {
+      console.warn('⚠️ No template or layoutDefinition')
       return null;
     }
 
+    console.log('🔍 Raw layoutDefinition type:', typeof template.layoutDefinition)
+    console.log('🔍 Raw layoutDefinition:', template.layoutDefinition)
+
+    // If already an object, return as-is
+    if (typeof template.layoutDefinition === 'object') {
+      console.log('✅ layoutDefinition is object:', template.layoutDefinition)
+      return template.layoutDefinition;
+    }
+
+    // If string, parse it
     try {
-      return JSON.parse(template.layoutDefinition);
+      const parsed = JSON.parse(template.layoutDefinition);
+      console.log('✅ Parsed layoutDefinition:', parsed)
+      return parsed;
     } catch (err) {
       console.error('❌ Error parsing layoutDefinition:', err);
+      console.error('❌ Failed to parse:', template.layoutDefinition);
       return null;
     }
   }, [template]);
 
   // Extract all data from parsed layout
   const config = useMemo(() => {
-    if (!parsedLayout) return null;
+    if (!parsedLayout) {
+      console.warn('⚠️ No parsedLayout, using defaults')
+      return null;
+    }
+
+    // ✅ Handle BOTH naming conventions: camelCase (FE) and PascalCase (BE/C#)
+    const displaySettings = parsedLayout.displaySettings || parsedLayout.DisplaySettings
+    const customerSettings = parsedLayout.customerSettings || parsedLayout.CustomerSettings
+
+    console.log('🔍 parsedLayout structure:', {
+      hasCompany: !!parsedLayout.company,
+      hasTable: !!parsedLayout.table,
+      hasSettings: !!parsedLayout.settings,
+      hasDisplaySettings: !!displaySettings,
+      hasCustomerSettings: !!customerSettings,
+      keys: Object.keys(parsedLayout),
+    })
+
+    // ✅ Extract from FULL schema (company, table) OR use defaults (NOT templateName)
+    const companyName = parsedLayout.company?.name || 'Công ty ABC'  // ❌ Không dùng template?.templateName
+    const companyAddress = parsedLayout.company?.address || ''
+    const companyPhone = parsedLayout.company?.phone || ''
+    const companyTaxCode = parsedLayout.company?.taxCode || ''
+    
+    console.log('🔍 Extracted company data:', {
+      companyName,
+      companyAddress,
+      companyPhone,
+      companyTaxCode,
+      hasOldSchema: !!displaySettings,
+      hasFullSchema: !!parsedLayout.company,
+    })
 
     return {
-      companyName: parsedLayout.company?.name || 'Công ty ABC',
-      companyAddress: parsedLayout.company?.address || '',
-      companyPhone: parsedLayout.company?.phone || '',
+      companyName,
+      companyAddress,
+      companyPhone,
       companyEmail: parsedLayout.company?.fields?.find((f: { id: string; value: string }) => f.id === 'email')?.value || '',
-      companyTaxCode: parsedLayout.company?.taxCode || '',
+      companyTaxCode,
       companyWebsite: parsedLayout.company?.fields?.find((f: { id: string; value: string }) => f.id === 'website')?.value || '',
       companyLogo: template?.logoUrl || '/logo.png',
       invoiceNumber: 'HD-PREVIEW-001',
@@ -114,21 +156,48 @@ export default function TemplatePreviewPage() {
   }, [template, parsedLayout]);
 
   const visibility = useMemo(() => {
-    return parsedLayout?.settings?.visibility || {
+    if (!parsedLayout) return {
       showLogo: true,
       showSignature: true,
       showCompanyInfo: true,
     };
+
+    // ✅ Handle BOTH schemas and naming conventions
+    const settings = parsedLayout.settings || {}
+    const displaySettings = parsedLayout.displaySettings || parsedLayout.DisplaySettings || {}
+    
+    return {
+      showLogo: settings.visibility?.showLogo ?? displaySettings.showLogo ?? displaySettings.ShowLogo ?? true,
+      showSignature: settings.visibility?.showSignature ?? displaySettings.showSignature ?? displaySettings.ShowSignature ?? true,
+      showCompanyName: settings.visibility?.showCompanyName ?? displaySettings.showCompanyName ?? displaySettings.ShowCompanyName ?? true,
+      showCompanyPhone: settings.visibility?.showCompanyPhone ?? displaySettings.showPhone ?? displaySettings.ShowPhone ?? true,
+      showCompanyAddress: settings.visibility?.showCompanyAddress ?? displaySettings.showAddress ?? displaySettings.ShowAddress ?? true,
+      showCompanyTaxCode: settings.visibility?.showCompanyTaxCode ?? displaySettings.showTaxCode ?? displaySettings.ShowTaxCode ?? false,
+      showCompanyBankAccount: settings.visibility?.showCompanyBankAccount ?? displaySettings.showBankAccount ?? displaySettings.ShowBankAccount ?? true,
+    };
   }, [parsedLayout]);
 
   const customerVisibility = useMemo(() => {
-    return parsedLayout?.settings?.customerVisibility || {
+    if (!parsedLayout) return {
       customerName: false,
       customerTaxCode: false,
       customerAddress: false,
       customerPhone: false,
       customerEmail: false,
       paymentMethod: false,
+    };
+
+    // ✅ Handle BOTH schemas and naming conventions
+    const settings = parsedLayout.settings || {}
+    const customerSettings = parsedLayout.customerSettings || parsedLayout.CustomerSettings || {}
+    
+    return {
+      customerName: settings.customerVisibility?.customerName ?? customerSettings.showName ?? customerSettings.ShowName ?? false,
+      customerTaxCode: settings.customerVisibility?.customerTaxCode ?? customerSettings.showTaxCode ?? customerSettings.ShowTaxCode ?? false,
+      customerAddress: settings.customerVisibility?.customerAddress ?? customerSettings.showAddress ?? customerSettings.ShowAddress ?? false,
+      customerPhone: settings.customerVisibility?.customerPhone ?? customerSettings.showPhone ?? customerSettings.ShowPhone ?? false,
+      customerEmail: settings.customerVisibility?.customerEmail ?? customerSettings.showEmail ?? customerSettings.ShowEmail ?? false,
+      paymentMethod: settings.customerVisibility?.paymentMethod ?? customerSettings.showPaymentMethod ?? customerSettings.ShowPaymentMethod ?? false,
     };
   }, [parsedLayout]);
 
@@ -169,8 +238,29 @@ export default function TemplatePreviewPage() {
     };
   }, [template, parsedLayout]);
 
-  const blankRows = useMemo(() => parsedLayout?.blankRows || 8, [parsedLayout]);
-  const bilingual = useMemo(() => parsedLayout?.settings?.bilingual || false, [parsedLayout]);
+  const blankRows = useMemo(() => {
+    if (!parsedLayout) return 8;
+    
+    // ✅ Handle BOTH schemas and naming conventions
+    const tableSettings = parsedLayout.tableSettings || parsedLayout.TableSettings || {}
+    return parsedLayout.table?.rowCount ?? 
+           parsedLayout.blankRows ?? 
+           tableSettings.minRows ?? 
+           tableSettings.MinRows ?? 
+           8;
+  }, [parsedLayout]);
+  
+  const bilingual = useMemo(() => {
+    if (!parsedLayout) return false;
+    
+    // ✅ Handle BOTH schemas and naming conventions
+    const displaySettings = parsedLayout.displaySettings || parsedLayout.DisplaySettings || {}
+    return parsedLayout.settings?.bilingual ?? 
+           displaySettings.isBilingual ?? 
+           displaySettings.IsBilingual ?? 
+           false;
+  }, [parsedLayout]);
+
   const logoSize = useMemo(() => parsedLayout?.logoSize || 150, [parsedLayout]);
 
   if (isLoading) {
@@ -216,76 +306,14 @@ export default function TemplatePreviewPage() {
         {/* Page Header với Breadcrumbs */}
         <Fade in timeout={400}>
           <Box sx={{ mb: 3 }}>
-            <Breadcrumbs 
-              aria-label="breadcrumb" 
-              sx={{ 
-                mb: 2,
-                '& .MuiBreadcrumb-separator': { mx: 1 },
-              }}>
-              <Link
-                underline="hover"
-                sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  cursor: 'pointer',
-                  color: 'inherit',
-                  '&:hover': { color: 'primary.main' },
-                  transition: 'color 0.2s',
-                }}
-                onClick={() => navigate('/dashboard')}>
-                <HomeIcon sx={{ mr: 0.5, fontSize: 20 }} />
-                Trang chủ
-              </Link>
-              <Link
-                underline="hover"
-                sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                  color: 'inherit',
-                  '&:hover': { color: 'primary.main' },
-                  transition: 'color 0.2s',
-                }}
-                onClick={() => navigate('/admin/templates')}>
-                Quản lý mẫu
-              </Link>
-              <Typography 
-                sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center',
-                  color: 'text.primary',
-                  fontWeight: 600,
-                }}>
-                Xem trước & In
-              </Typography>
-            </Breadcrumbs>
+          
 
             <Stack
               direction={{ xs: 'column', sm: 'row' }}
               justifyContent="space-between"
               alignItems={{ xs: 'flex-start', sm: 'center' }}
               spacing={2}>
-              <Box>
-                <Typography
-                  variant="h4"
-                  sx={{
-                    fontWeight: 700,
-                    color: '#1976d2',
-                    mb: 0.5,
-                    fontSize: { xs: '1.5rem', md: '2rem' },
-                  }}>
-                  Xem Trước Mẫu Hóa Đơn
-                </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: '#666',
-                    fontSize: { xs: '0.875rem', md: '1rem' },
-                  }}>
-                  Kiểm tra và in hóa đơn với tính năng phân trang chuyên nghiệp
-                </Typography>
-              </Box>
-
+              
               <Button
                 variant="outlined"
                 startIcon={<ArrowBackIcon />}

@@ -57,6 +57,8 @@ import invoiceSymbolService, {
 } from '@/services/invoiceSymbolService'
 import templateService from '@/services/templateService'
 import API_CONFIG from '@/config/api.config'
+import { mapEditorStateToApiRequest } from '@/utils/templateApiMapper'
+import type { TemplateEditorState } from '@/utils/templateApiMapper'
 
 // Interface cũ - tương thích với InvoiceTemplatePreview
 interface TemplateConfig {
@@ -91,6 +93,9 @@ const TemplateEditor: React.FC = () => {
   const navigate = useNavigate()
   
   const templateId = urlTemplateId || searchParams.get('templateId')
+  
+  // ✅ Ref cho input file để reset sau khi xóa
+  const logoInputRef = React.useRef<HTMLInputElement>(null)
 
   // ============ KHỞI TẠO STATE MỚI VỚI REDUCER ============
   const initialState: TemplateState = {
@@ -149,19 +154,19 @@ const TemplateEditor: React.FC = () => {
       visibility: {
         showLogo: true,
         showCompanyName: true,
-        showCompanyTaxCode: false,
+        showCompanyTaxCode: true,
         showCompanyAddress: true,
         showCompanyPhone: true,
         showCompanyBankAccount: true,
         showSignature: true,
       },
       customerVisibility: {
-        customerName: false,
-        customerTaxCode: false,
-        customerAddress: false,
-        customerPhone: false,
-        customerEmail: false,
-        paymentMethod: false,
+        customerName: true,
+        customerTaxCode: true,
+        customerAddress: true,
+        customerPhone: true,
+        customerEmail: true,
+        paymentMethod: true,
       },
     },
   }
@@ -209,17 +214,17 @@ const TemplateEditor: React.FC = () => {
     templateCode: state.templateCode,
   }), [state])
 
-  // Sync visibility từ settings
+  // ✅ Luôn hiển thị đầy đủ tất cả thông tin (không cần toggle)
   const visibility = useMemo<TemplateVisibility>(() => ({
     showQrCode: state.settings.showQrCode,
-    showLogo: state.settings.visibility.showLogo && !!state.logo,
-    showCompanyName: state.settings.visibility.showCompanyName,
-    showCompanyTaxCode: state.settings.visibility.showCompanyTaxCode,
-    showCompanyAddress: state.settings.visibility.showCompanyAddress,
-    showCompanyPhone: state.settings.visibility.showCompanyPhone,
-    showCompanyBankAccount: state.settings.visibility.showCompanyBankAccount,
-    showSignature: state.settings.visibility.showSignature,
-  }), [state.settings, state.logo])
+    showLogo: !!state.logo, // Chỉ cần check có logo hay không
+    showCompanyName: true,
+    showCompanyTaxCode: true,
+    showCompanyAddress: true,
+    showCompanyPhone: true,
+    showCompanyBankAccount: true,
+    showSignature: true,
+  }), [state.settings.showQrCode, state.logo])
 
   // ============ VALIDATION FUNCTIONS ============
   const validateTemplateName = useCallback((value: string): string | null => {
@@ -323,8 +328,9 @@ const TemplateEditor: React.FC = () => {
     const savedDraft = localStorage.getItem(AUTOSAVE_KEY)
     if (savedDraft && !templateId) {
       try {
-        const draft = JSON.parse(savedDraft)
+        // const draft = JSON.parse(savedDraft)
         // Có thể hỏi user có muốn restore không (future feature)
+        // TODO: Implement draft restoration feature
       } catch (e) {
         console.error('Failed to parse draft:', e)
       }
@@ -381,6 +387,8 @@ const TemplateEditor: React.FC = () => {
       dispatch({ type: 'SET_LOGO', payload: fileUrl })
       showSuccess('Đã tải logo thành công')
     }
+    // ✅ Reset input value để có thể upload lại cùng file
+    e.target.value = ''
   }, [dispatch, showSuccess])
 
   
@@ -462,14 +470,14 @@ const TemplateEditor: React.FC = () => {
       console.log('Serial Response:', serialResponse)
       
       console.log('=== STEP 2: Processing Logo ===')
-      // Step 2: Upload logo if exists (convert base64 to file if needed)
+      // Step 2: Upload logo if exists (convert blob/base64 to file)
       let logoUrl: string | null = null
       if (state.logo) {
-        // If logo is base64, upload it
-        if (state.logo.startsWith('data:image')) {
+        // If logo is blob URL or base64, upload it
+        if (state.logo.startsWith('blob:') || state.logo.startsWith('data:image')) {
           try {
-            console.log('Converting base64 logo to file...')
-            // Convert base64 to File
+            console.log('Converting blob/base64 logo to file...')
+            // Convert blob/base64 to File
             const response = await fetch(state.logo)
             const blob = await response.blob()
             const file = new File([blob], 'logo.png', { type: 'image/png' })
@@ -477,12 +485,16 @@ const TemplateEditor: React.FC = () => {
             console.log('Logo uploaded:', logoUrl)
           } catch (uploadError) {
             console.warn('Logo upload failed, skipping logo:', uploadError)
-            // Skip logo instead of using base64 (backend might not accept base64)
+            // Skip logo instead of using blob/base64 (backend doesn't accept local URLs)
             logoUrl = null
           }
-        } else {
-          logoUrl = state.logo // Already a URL
+        } else if (state.logo.startsWith('http://') || state.logo.startsWith('https://')) {
+          // Already a valid URL from server
+          logoUrl = state.logo
           console.log('Using existing logo URL:', logoUrl)
+        } else {
+          console.warn('Invalid logo URL format:', state.logo)
+          logoUrl = null
         }
       } else {
         console.log('No logo provided')
@@ -493,41 +505,41 @@ const TemplateEditor: React.FC = () => {
       console.log('📊 Current blankRows value:', blankRows)
       console.log('📊 state.table.rowCount:', state.table.rowCount)
       
-      const layoutData = {
-        // Core template info
-        templateName: state.templateName,
-        invoiceType: state.invoiceType, // ✅ NEW: withCode/withoutCode
-        invoiceDate: state.invoiceDate,
-        symbol: state.symbol, // ✅ NEW: Full symbol object (invoiceType, taxCode, year, invoiceForm, management)
-        
-        // Company info
-        company: state.company,
-        
-        // Visual settings
-        logo: state.logo,
-        logoSize: state.logoSize, // ✅ NEW: Logo size
-        background: state.background,
-        
-        // Table & Fields
-        table: state.table,
-        customFields: state.customFields,
-        customColumns: state.customColumns,
-        
-        // Display settings
-        settings: state.settings, // Contains visibility
-        
-        // Codes
+      // ✅ OPTIMIZED: Map editor state to API request schema
+      const editorState: TemplateEditorState = {
+        table: {
+          columns: state.table.columns.map(col => ({
+            id: col.id,
+            label: col.label,
+            hasCode: col.hasCode ?? false,
+            visible: col.visible,
+          })),
+          rowCount: state.table.rowCount,
+          sttTitle: state.table.sttTitle,
+          sttContent: state.table.sttContent,
+        },
+        company: {
+          name: state.company.name,
+          phone: state.company.phone,
+          fields: state.company.fields.map(field => ({
+            id: field.id,
+            label: field.label,
+            value: field.value ?? '',
+            visible: field.visible,
+          })),
+          address: state.company.address,
+          taxCode: state.company.taxCode,
+          bankAccount: state.company.bankAccount,
+        },
+        settings: state.settings,
         modelCode: state.modelCode,
+        background: state.background,
+        invoiceDate: state.invoiceDate,
         templateCode: state.templateCode,
-        
-        // Additional metadata
-        blankRows: blankRows, // ✅ NEW: Number of blank rows
-        visibility: visibility, // ✅ NEW: Explicit visibility settings
       }
-      const layoutDefinition = JSON.stringify(layoutData)
-      console.log('Layout Definition length:', layoutDefinition.length, 'chars')
-      console.log('Layout Data includes:', Object.keys(layoutData).join(', '))
-      console.log('✅ Saved blankRows in layoutDefinition:', layoutData.blankRows)
+      
+      const layoutDefinition = mapEditorStateToApiRequest(editorState)
+      console.log('✅ Layout Definition (FULL API Schema):', layoutDefinition)
       
       console.log('=== STEP 4: Finding Template Frame ID ===')
       // Find templateFrameID - more robust logic
@@ -572,8 +584,12 @@ const TemplateEditor: React.FC = () => {
         logoUrl,
       }
       console.log('Template Data:', {
-        ...templateData,
-        layoutDefinition: `${layoutDefinition.substring(0, 100)}... (${layoutDefinition.length} chars)`
+        templateName: templateData.templateName,
+        serialID: templateData.serialID,
+        templateTypeID: templateData.templateTypeID,
+        templateFrameID: templateData.templateFrameID,
+        logoUrl: templateData.logoUrl,
+        layoutDefinition: 'LayoutDefinitionRequest object (see above)',
       })
       
       const templateResponse = await templateService.createTemplate(templateData)
@@ -586,18 +602,19 @@ const TemplateEditor: React.FC = () => {
       setTimeout(() => {
         navigate('/admin/templates')
       }, 1500)
-    } catch (error: any) {
-      console.error('❌ Error creating template:', error)
+    } catch (error: unknown) {
+      const err = error as Error
+      console.error('❌ Error creating template:', err)
       
       // More detailed error message
       let errorMessage = 'Có lỗi xảy ra khi tạo mẫu hóa đơn.'
-      if (error.message) {
-        if (error.message.includes('Serial')) {
-          errorMessage = 'Lỗi khi tạo mã số hóa đơn: ' + error.message
-        } else if (error.message.includes('Template')) {
-          errorMessage = 'Lỗi khi tạo mẫu hóa đơn: ' + error.message
+      if (err.message) {
+        if (err.message.includes('Serial')) {
+          errorMessage = 'Lỗi khi tạo mã số hóa đơn: ' + err.message
+        } else if (err.message.includes('Template')) {
+          errorMessage = 'Lỗi khi tạo mẫu hóa đơn: ' + err.message
         } else {
-          errorMessage = error.message
+          errorMessage = err.message
         }
       }
       
@@ -902,7 +919,7 @@ const TemplateEditor: React.FC = () => {
                       <FormControl fullWidth size="small">
                         <Select
                           value={state.symbol.invoiceType}
-                          onChange={(e) => dispatch({ type: 'SET_SYMBOL_INVOICE_TYPE', payload: e.target.value as any })}
+                          onChange={(e) => dispatch({ type: 'SET_SYMBOL_INVOICE_TYPE', payload: e.target.value as '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' })}
                           disabled={symbolDataLoading}
                           sx={{
                             fontSize: '0.875rem',
@@ -1018,7 +1035,7 @@ const TemplateEditor: React.FC = () => {
                       <FormControl fullWidth size="small">
                         <Select
                           value={state.symbol.invoiceForm}
-                          onChange={(e) => dispatch({ type: 'SET_SYMBOL_INVOICE_FORM', payload: e.target.value as any })}
+                          onChange={(e) => dispatch({ type: 'SET_SYMBOL_INVOICE_FORM', payload: e.target.value as 'T' | 'D' | 'L' | 'M' | 'N' | 'B' | 'G' | 'H' | 'X' })}
                           disabled={symbolDataLoading}
                           sx={{
                         fontSize: '0.875rem', 
@@ -1140,7 +1157,13 @@ const TemplateEditor: React.FC = () => {
                       },
                     }}>
                     {config.companyLogo ? '✓ Đã tải lên logo' : 'Tải lên logo công ty'}
-                    <input type="file" hidden accept="image/*" onChange={handleLogoUpload} />
+                    <input 
+                      ref={logoInputRef}
+                      type="file" 
+                      hidden 
+                      accept="image/*" 
+                      onChange={handleLogoUpload} 
+                    />
                   </Button>
                   
                   {/* Error message cho Logo */}
@@ -1172,6 +1195,10 @@ const TemplateEditor: React.FC = () => {
                           size="small"
                           onClick={() => {
                             dispatch({ type: 'SET_LOGO', payload: null })
+                            // ✅ Reset input file để có thể upload lại
+                            if (logoInputRef.current) {
+                              logoInputRef.current.value = ''
+                            }
                             showSuccess('Đã xóa logo')
                           }}
                           sx={{
@@ -1339,7 +1366,7 @@ const TemplateEditor: React.FC = () => {
                             }}>
                                 {frame.id}
                             </Typography>
-                              {frame.recommended && (
+                              {'recommended' in frame && frame.recommended && (
                                 <Box sx={{
                                   position: 'absolute',
                                   top: 4,
@@ -1584,358 +1611,8 @@ const TemplateEditor: React.FC = () => {
                         </Paper>
 
                         {/* Tùy chọn hiển thị */}
-                        <Box>
-                          <Box sx={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'space-between',
-                            mb: 1.5,
-                          }}>
-                            <Box sx={{ display: 'flex', gap: 0.5 }}>
-                              <Button
-                                size="small"
-                                onClick={() => {
-                                  Object.keys(state.settings.visibility).forEach(key => {
-                                    if (!state.settings.visibility[key as keyof typeof state.settings.visibility]) {
-                                      dispatch({ type: 'TOGGLE_VISIBILITY', payload: key as keyof typeof state.settings.visibility })
-                                    }
-                                  })
-                                }}
-                                sx={{
-                                  fontSize: '0.6875rem',
-                                  minWidth: 'auto',
-                                  px: 1,
-                                  py: 0.5,
-                                  textTransform: 'none',
-                                  color: '#1976d2',
-                                  '&:hover': { bgcolor: '#e3f2fd' },
-                                }}
-                              >
-                                Bật tất cả
-                              </Button>
-                              <Button
-                                size="small"
-                                onClick={() => {
-                                  Object.keys(state.settings.visibility).forEach(key => {
-                                    if (state.settings.visibility[key as keyof typeof state.settings.visibility]) {
-                                      dispatch({ type: 'TOGGLE_VISIBILITY', payload: key as keyof typeof state.settings.visibility })
-                                    }
-                                  })
-                                }}
-                                sx={{
-                                  fontSize: '0.6875rem',
-                                  minWidth: 'auto',
-                                  px: 1,
-                                  py: 0.5,
-                                  textTransform: 'none',
-                                  color: '#757575',
-                                  '&:hover': { bgcolor: '#f5f5f5' },
-                                }}
-                              >
-                                Tắt tất cả
-                              </Button>
-                            </Box>
-                          </Box>
-                          <Stack spacing={0.5}>
-                            {([
-                              { key: 'showLogo', label: 'Logo công ty', icon: '🏢' },
-                              { key: 'showCompanyName', label: 'Tên công ty', icon: '📄' },
-                              { key: 'showCompanyTaxCode', label: 'Mã số thuế', icon: '🔢' },
-                              { key: 'showCompanyAddress', label: 'Địa chỉ', icon: '📍' },
-                              { key: 'showCompanyPhone', label: 'Điện thoại', icon: '📞' },
-                              { key: 'showCompanyBankAccount', label: 'Tài khoản ngân hàng', icon: '🏦' },
-                              { key: 'showSignature', label: 'Chữ ký', icon: '✍️' },
-                            ] as const).map(({ key, label, icon }) => (
-                              <Paper
-                                key={key}
-                                elevation={0}
-                                sx={{
-                                  border: '1px solid',
-                                  borderColor: state.settings.visibility[key] ? '#e3f2fd' : '#f5f5f5',
-                                  borderRadius: 1,
-                                  bgcolor: state.settings.visibility[key] ? '#f3f8ff' : '#fafafa',
-                                  transition: 'all 0.15s ease',
-                                  '&:hover': {
-                                    borderColor: '#1976d2',
-                                    bgcolor: state.settings.visibility[key] ? '#e3f2fd' : '#f9fafb',
-                                  },
-                                }}
-                              >
-                                <FormControlLabel
-                                  control={
-                                    <Checkbox
-                                      checked={state.settings.visibility[key]}
-                                      onChange={() => dispatch({ type: 'TOGGLE_VISIBILITY', payload: key })}
-                                      size="small"
-                                    />
-                                  }
-                                  label={
-                                    <Typography sx={{ 
-                                      fontSize: '0.8125rem', 
-                                      fontWeight: state.settings.visibility[key] ? 500 : 400,
-                                    }}>
-                                      {icon} {label}
-                                    </Typography>
-                                  }
-                                  sx={{ width: '100%', m: 0, py: 0.75, px: 1.5 }}
-                                />
-                              </Paper>
-                            ))}
-                          </Stack>
-                        </Box>
 
-                        {/* Số dòng trong bảng */}
-                        <Box>
-                          <Typography sx={{ 
-                            fontSize: '0.8125rem', 
-                            fontWeight: 600, 
-                            color: '#37474f',
-                            mb: 1,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 0.5,
-                          }}>
-                            📊 Số dòng trong bảng danh sách
-                          </Typography>
-                          <Stack 
-                            direction="row" 
-                            alignItems="center" 
-                            spacing={1.5}
-                            sx={{ 
-                              p: 1.5,
-                              bgcolor: '#fafafa',
-                              borderRadius: 1.5,
-                              border: '1px solid #e0e0e0',
-                            }}
-                          >
-                            <IconButton
-                              size="small"
-                              onClick={() => {
-                                if (state.table.rowCount > 1) {
-                                  dispatch({ type: 'SET_TABLE_ROW_COUNT', payload: state.table.rowCount - 1 });
-                                }
-                              }}
-                              disabled={state.table.rowCount <= 1}
-                              sx={{
-                                bgcolor: state.table.rowCount > 1 ? '#fff' : '#f5f5f5',
-                                border: '1px solid',
-                                borderColor: state.table.rowCount > 1 ? '#e0e0e0' : '#eeeeee',
-                                width: 36,
-                                height: 36,
-                                '&:hover': {
-                                  bgcolor: state.table.rowCount > 1 ? '#f5f5f5' : '#f5f5f5',
-                                  borderColor: state.table.rowCount > 1 ? '#1976d2' : '#eeeeee',
-                                },
-                                '&.Mui-disabled': {
-                                  opacity: 0.5,
-                                },
-                              }}
-                            >
-                              <Box component="span" sx={{ fontSize: '1.25rem', fontWeight: 'bold', color: state.table.rowCount > 1 ? '#1976d2' : '#bdbdbd' }}>
-                                −
-                              </Box>
-                            </IconButton>
-                            
-                            <Box sx={{ 
-                              flex: 1,
-                              textAlign: 'center',
-                              bgcolor: '#fff',
-                              py: 1,
-                              px: 2,
-                              borderRadius: 1,
-                              border: '2px solid #1976d2',
-                            }}>
-                              <Typography sx={{ 
-                                fontSize: '1.125rem', 
-                                fontWeight: 700,
-                                color: '#1976d2',
-                                lineHeight: 1,
-                              }}>
-                                {state.table.rowCount}
-                              </Typography>
-                              <Typography sx={{ 
-                                fontSize: '0.7rem', 
-                                color: '#616161',
-                                fontWeight: 500,
-                                mt: 0.3,
-                              }}>
-                                dòng
-                              </Typography>
-                            </Box>
-                            
-                            <IconButton
-                              size="small"
-                              onClick={() => {
-                                if (state.table.rowCount < 25) {
-                                  dispatch({ type: 'SET_TABLE_ROW_COUNT', payload: state.table.rowCount + 1 });
-                                }
-                              }}
-                              disabled={state.table.rowCount >= 25}
-                              sx={{
-                                bgcolor: state.table.rowCount < 25 ? '#fff' : '#f5f5f5',
-                                border: '1px solid',
-                                borderColor: state.table.rowCount < 25 ? '#e0e0e0' : '#eeeeee',
-                                width: 36,
-                                height: 36,
-                                '&:hover': {
-                                  bgcolor: state.table.rowCount < 25 ? '#f5f5f5' : '#f5f5f5',
-                                  borderColor: state.table.rowCount < 25 ? '#1976d2' : '#eeeeee',
-                                },
-                                '&.Mui-disabled': {
-                                  opacity: 0.5,
-                                },
-                              }}
-                            >
-                              <Box component="span" sx={{ fontSize: '1.25rem', fontWeight: 'bold', color: state.table.rowCount < 25 ? '#1976d2' : '#bdbdbd' }}>
-                                +
-                              </Box>
-                            </IconButton>
-                          </Stack>
-                          <Typography sx={{ 
-                            fontSize: '0.75rem', 
-                            color: '#757575', 
-                            mt: 0.75,
-                            fontStyle: 'italic',
-                          }}>
-                            Nhấn + hoặc − để thay đổi (tối thiểu 1, tối đa 25 dòng)
-                          </Typography>
-                        </Box>
-                      </Stack>
-                    </AccordionDetails>
-                  </Accordion>
-
-                  {/* Section 2: Thông tin khách hàng */}
-                  <Accordion  
-                    disableGutters
-                    elevation={0}
-                    sx={{
-                      bgcolor: '#fff',
-                      border: '1px solid #e0e0e0',
-                      borderRadius: '8px !important',
-                      mb: 1.5,
-                      '&:before': { display: 'none' },
-                      transition: 'all 0.2s ease',
-                      '&:hover': {
-                        borderColor: '#1976d2',
-                        boxShadow: '0 2px 8px rgba(25, 118, 210, 0.08)',
-                      },
-                    }}>
-                    <AccordionSummary
-                      expandIcon={<ChevronRightIcon sx={{ color: '#757575', fontSize: 20 }} />}
-                      sx={{
-                        minHeight: 56,
-                        px: 2,
-                        '& .MuiAccordionSummary-expandIconWrapper': {
-                          transition: 'transform 0.3s ease',
-                        },
-                        '& .MuiAccordionSummary-expandIconWrapper.Mui-expanded': {
-                          transform: 'rotate(90deg)',
-                        },
-                        '&:hover': {
-                          bgcolor: '#f9fafb',
-                        },
-                      }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                        <Typography sx={{ 
-                          fontSize: '0.9375rem', 
-                          fontWeight: 600, 
-                          color: '#2c3e50',
-                          letterSpacing: '-0.01em',
-                          flex: 1,
-                        }}>
-                          👤 Thông tin khách hàng
-                        </Typography>
-                      </Box>
-                    </AccordionSummary>
-                    <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
-                      <Stack spacing={1.5}>
-                        {/* Tùy chọn hiển thị */}
-                        <Box>
-                          <Box sx={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'space-between',
-                            mb: 1.5,
-                          }}>
-                            <Box sx={{ display: 'flex', gap: 0.75 }}>
-                              <Button
-                                size="small"
-                                onClick={() => dispatch({ type: 'SET_ALL_CUSTOMER_FIELDS', payload: true })}
-                                sx={{
-                                  fontSize: '0.6875rem',
-                                  minWidth: 'auto',
-                                  px: 1,
-                                  py: 0.5,
-                                  textTransform: 'none',
-                                  color: '#1976d2',
-                                  '&:hover': { bgcolor: '#e3f2fd' },
-                                }}
-                              >
-                                Bật tất cả
-                              </Button>
-                              <Button
-                                size="small"
-                                onClick={() => dispatch({ type: 'SET_ALL_CUSTOMER_FIELDS', payload: false })}
-                                sx={{
-                                  fontSize: '0.6875rem',
-                                  minWidth: 'auto',
-                                  px: 1,
-                                  py: 0.5,
-                                  textTransform: 'none',
-                                  color: '#757575',
-                                  '&:hover': { bgcolor: '#f5f5f5' },
-                                }}
-                              >
-                                Tắt tất cả
-                              </Button>
-                            </Box>
-                          </Box>
-                          <Stack spacing={0.5}>
-                            {([
-                              { key: 'customerName', label: 'Tên khách hàng', icon: '👤' },
-                              { key: 'customerTaxCode', label: 'Mã số thuế', icon: '🔢' },
-                              { key: 'customerAddress', label: 'Địa chỉ', icon: '📍' },
-                              { key: 'customerPhone', label: 'Số điện thoại', icon: '📞' },
-                              { key: 'customerEmail', label: 'Email', icon: '📧' },
-                              { key: 'paymentMethod', label: 'Hình thức thanh toán', icon: '💳' },
-                            ] as const).map(({ key, label, icon }) => (
-                              <Paper
-                                key={key}
-                                elevation={0}
-                                sx={{
-                                  border: '1px solid',
-                                  borderColor: '#f5f5f5',
-                                  borderRadius: 1,
-                                  bgcolor: '#fafafa',
-                                  transition: 'all 0.15s ease',
-                                  '&:hover': {
-                                    borderColor: '#1976d2',
-                                    bgcolor: '#f9fafb',
-                                  },
-                                }}
-                              >
-                                <FormControlLabel
-                                  control={
-                                    <Checkbox
-                                      checked={state.settings.customerVisibility[key]}
-                                      onChange={() => dispatch({ type: 'TOGGLE_CUSTOMER_FIELD', payload: key })}
-                                      size="small"
-                                    />
-                                  }
-                                  label={
-                                    <Typography sx={{ 
-                                      fontSize: '0.8125rem', 
-                                      fontWeight: 400,
-                                    }}>
-                                      {icon} {label}
-                                    </Typography>
-                                  }
-                                  sx={{ width: '100%', m: 0, py: 0.75, px: 1.5 }}
-                                />
-                              </Paper>
-                            ))}
-                          </Stack>
-                        </Box>
+                       
                       </Stack>
                     </AccordionDetails>
                   </Accordion>
@@ -2141,7 +1818,14 @@ const TemplateEditor: React.FC = () => {
                   logoSize={state.logoSize}
                   invoiceType={state.invoiceType}
                   symbol={state.symbol}
-                  customerVisibility={state.settings.customerVisibility}
+                  customerVisibility={{
+                    customerName: true,
+                    customerTaxCode: true,
+                    customerAddress: true,
+                    customerPhone: true,
+                    customerEmail: true,
+                    paymentMethod: true,
+                  }}
                 />
               </Box>
 

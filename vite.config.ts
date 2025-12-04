@@ -16,6 +16,46 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/InvoiceTemplate': {
+        target: 'http://159.223.64.31',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/TemplateFrame': {
+        target: 'http://159.223.64.31',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/Auth': {
+        target: 'http://159.223.64.31',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/User': {
+        target: 'http://159.223.64.31',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/Prefix': {
+        target: 'http://159.223.64.31',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/Serial': {
+        target: 'http://159.223.64.31',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/SerialStatus': {
+        target: 'http://159.223.64.31',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/InvoiceType': {
+        target: 'http://159.223.64.31',
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
 })

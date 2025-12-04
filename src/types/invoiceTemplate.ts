@@ -32,6 +32,7 @@ export interface ProductItem {
  */
 export interface InvoiceItem {
   id: string | number;
+  productId?: number;       // ✅ ID sản phẩm từ DB (nếu chọn từ danh sách)
   description?: string;
   name?: string;
   code?: string;
@@ -121,6 +122,10 @@ export interface InvoiceTemplatePreviewProps {
   invoiceType?: 'withCode' | 'withoutCode';
   symbol?: InvoiceSymbol;
   customerVisibility?: CustomerVisibility;
+  customerInfo?: CustomerInfo; // NEW: Actual customer data for invoices
+  paymentMethod?: string; // NEW: Payment method from invoice
+  invoiceNumber?: number | string; // NEW: Actual invoice number
+  taxAuthorityCode?: string | null; // NEW: Tax authority code
 }
 
 // NOTE: InvoiceTemplatePrintProps has been removed.

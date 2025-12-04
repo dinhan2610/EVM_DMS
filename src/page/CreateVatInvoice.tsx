@@ -1,4 +1,10 @@
 import React, { useState, useCallback, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import invoiceService, { Template } from '@/services/invoiceService'
+import customerService from '@/services/customerService'
+import productService, { Product } from '@/services/productService'
+import companyService, { Company } from '@/services/companyService'
+import { mapToBackendInvoiceRequest } from '@/utils/invoiceAdapter'
 import {
   Box,
   Paper,
@@ -14,6 +20,9 @@ import {
   Divider,
   InputAdornment,
   SelectChangeEvent,
+  Snackbar,
+  Alert,
+  CircularProgress,
 } from '@mui/material'
 import {
   HelpOutline,
@@ -50,22 +59,22 @@ interface InvoiceItem {
 }
 
 // Component edit cell cho Tên hàng hóa/Dịch vụ
-const ProductNameEditCell = (params: GridRenderEditCellParams) => {
+const ProductNameEditCell = (params: GridRenderEditCellParams & { products?: Product[], onProductSelect?: (rowId: string | number, product: Product) => void }) => {
   const [inputValue, setInputValue] = useState(params.value || '')
-  
-  // Mock data sản phẩm
-  const products = [
-    'Dịch vụ tư vấn',
-    'Phần mềm quản lý',
-    'Thiết kế website',
-    'Bảo trì hệ thống',
-    'Đào tạo nhân viên',
-  ]
+  const availableProducts = params.products || []
 
   const handleChange = (event: SelectChangeEvent<string>) => {
     const newValue = event.target.value
     setInputValue(newValue)
     params.api.setEditCellValue({ id: params.id, field: params.field, value: newValue })
+    
+    // Tìm product được chọn và lưu productId
+    const selectedProduct = availableProducts.find(p => p.name === newValue)
+    if (selectedProduct && params.onProductSelect) {
+      params.onProductSelect(params.id, selectedProduct)
+      // Cập nhật unit tự động
+      params.api.setEditCellValue({ id: params.id, field: 'unit', value: selectedProduct.unit })
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -136,12 +145,12 @@ const ProductNameEditCell = (params: GridRenderEditCellParams) => {
         }}
       >
         <MenuItem value="" disabled sx={{ fontSize: '0.8125rem', color: '#999' }}>
-          -- Chọn sản phẩm --
+          {availableProducts.length === 0 ? '-- Đang tải sản phẩm... --' : '-- Chọn sản phẩm --'}
         </MenuItem>
-        {products.map((product, index) => (
+        {availableProducts.map((product) => (
           <MenuItem
-            key={index}
-            value={product}
+            key={product.id}
+            value={product.name}
             sx={{
               fontSize: '0.8125rem',
               py: 0.75,
@@ -160,7 +169,7 @@ const ProductNameEditCell = (params: GridRenderEditCellParams) => {
               },
             }}
           >
-            {product}
+            {product.name} ({product.code})
           </MenuItem>
         ))}
       </Select>
@@ -498,12 +507,79 @@ const DiscountAmountEditCell = (params: GridRenderEditCellParams) => {
 
 
 const CreateVatInvoice: React.FC = () => {
+  const navigate = useNavigate()
+
+  // Template states
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
+  const [templatesLoading, setTemplatesLoading] = useState(false)
+  
+  // Product states
+  const [products, setProducts] = useState<Product[]>([])
+  
+  // Company states
+  const [company, setCompany] = useState<Company | null>(null)
+  
   const [isPaid, setIsPaid] = useState(false)
   const [showTypeColumn, setShowTypeColumn] = useState(true)
   const [discountType, setDiscountType] = useState<string>('none') // 'none' | 'per-item' | 'total'
   const [vatRate, setVatRate] = useState<number>(10) // Thuế GTGT: 0, 5, 10
   const [sendEmailModalOpen, setSendEmailModalOpen] = useState(false)
-  const calculateAfterTax = true // Tính theo giá sau thuế
+  const calculateAfterTax = false // Giá nhập vào là giá CHƯA thuế, VAT tính thêm
+
+  // State cho loading và error
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean
+    message: string
+    severity: 'success' | 'error' | 'warning'
+  }>({ open: false, message: '', severity: 'success' })
+
+  // Load templates on mount
+  useEffect(() => {
+    const loadTemplates = async () => {
+      setTemplatesLoading(true)
+      try {
+        const data = await invoiceService.getActiveTemplates()
+        console.log('📋 Available templates:', data)
+        setTemplates(data)
+        if (data.length > 0) {
+          setSelectedTemplate(data[0]) // Auto-select first template
+          console.log('✅ Auto-selected template:', data[0])
+        } else {
+          console.warn('⚠️ No templates available!')
+        }
+      } catch (error) {
+        console.error('❌ Error loading templates:', error)
+      } finally {
+        setTemplatesLoading(false)
+      }
+    }
+    
+    const loadProducts = async () => {
+      try {
+        const data = await productService.getProducts()
+        console.log('📦 Available products:', data)
+        setProducts(data)
+      } catch (error) {
+        console.error('❌ Error loading products:', error)
+      }
+    }
+    
+    const loadCompany = async () => {
+      try {
+        const data = await companyService.getDefaultCompany()
+        console.log('🏢 Company info:', data)
+        setCompany(data)
+      } catch (error) {
+        console.error('❌ Error loading company:', error)
+      }
+    }
+    
+    loadTemplates()
+    loadProducts()
+    loadCompany()
+  }, [])
 
   // State quản lý danh sách hàng hóa
   const [items, setItems] = useState<InvoiceItem[]>([
@@ -521,6 +597,103 @@ const CreateVatInvoice: React.FC = () => {
       totalAfterTax: 0,
     },
   ])
+
+  // State cho thông tin người mua
+  const [buyerCustomerID, setBuyerCustomerID] = useState<number>(0) // ✅ ID customer từ DB
+  const [buyerTaxCode, setBuyerTaxCode] = useState('')
+  const [buyerCompanyName, setBuyerCompanyName] = useState('')
+  const [buyerAddress, setBuyerAddress] = useState('')
+  const [buyerName, setBuyerName] = useState('')
+  const [buyerEmail, setBuyerEmail] = useState('')
+  const [buyerPhone, setBuyerPhone] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('Tiền mặt') // Hình thức thanh toán
+  
+  // State cho customer lookup
+  const [isSearchingCustomer, setIsSearchingCustomer] = useState(false)
+  const [customerNotFound, setCustomerNotFound] = useState(false)
+  
+  // Function: Tự động tìm và điền thông tin khách hàng theo MST
+  const handleTaxCodeLookup = async (taxCode: string) => {
+    if (!taxCode || taxCode.trim().length < 10) {
+      setCustomerNotFound(false)
+      return
+    }
+    
+    try {
+      setIsSearchingCustomer(true)
+      setCustomerNotFound(false)
+      
+      const customers = await customerService.getAllCustomers()
+      const foundCustomer = customers.find(c => c.taxCode === taxCode.trim())
+      
+      if (foundCustomer) {
+        // Tự động điền thông tin
+        setBuyerCustomerID(foundCustomer.customerID) // ✅ Lưu customer ID
+        setBuyerCompanyName(foundCustomer.customerName)
+        setBuyerAddress(foundCustomer.address)
+        setBuyerEmail(foundCustomer.contactEmail)
+        setBuyerPhone(foundCustomer.contactPhone)
+        // buyerName is independent - user can enter manually
+        
+        console.log('✅ Found customer:', foundCustomer.customerName)
+        setSnackbar({
+          open: true,
+          message: `Đã tìm thấy khách hàng: ${foundCustomer.customerName}`,
+          severity: 'success',
+        })
+      } else {
+        // Không tìm thấy - xóa các field
+        setBuyerCustomerID(0) // ✅ Reset customer ID
+        setBuyerCompanyName('')
+        setBuyerAddress('')
+        setBuyerEmail('')
+        setBuyerPhone('')
+        // buyerName stays as user entered
+        setCustomerNotFound(true)
+        
+        console.log('⚠️ Customer not found for tax code:', taxCode)
+        setSnackbar({
+          open: true,
+          message: 'Không tìm thấy khách hàng với MST này. Vui lòng nhập thủ công.',
+          severity: 'warning',
+        })
+      }
+    } catch (error) {
+      console.error('❌ Error looking up customer:', error)
+      setSnackbar({
+        open: true,
+        message: 'Lỗi khi tra cứu thông tin khách hàng',
+        severity: 'error',
+      })
+    } finally {
+      setIsSearchingCustomer(false)
+    }
+  }
+  
+  // Handle product selection - lưu productId vào item
+  const handleProductSelect = useCallback((rowId: string | number, product: Product) => {
+    setItems(prevItems => 
+      prevItems.map(item => 
+        item.id === rowId 
+          ? { ...item, productId: product.id, name: product.name, unit: product.unit }
+          : item
+      )
+    )
+    console.log(`✅ Selected product for row ${rowId}:`, product.name, `(ID: ${product.id})`)
+  }, [])
+  
+  // Handle tax code change with debounce
+  const handleTaxCodeChange = (value: string) => {
+    setBuyerTaxCode(value)
+    setCustomerNotFound(false)
+  }
+  
+  // Handle tax code blur (trigger lookup)
+  const handleTaxCodeBlur = () => {
+    if (buyerTaxCode && buyerTaxCode.trim().length >= 10) {
+      handleTaxCodeLookup(buyerTaxCode)
+    }
+  }
 
   const handleOpenSendEmailModal = () => {
     setSendEmailModalOpen(true)
@@ -563,8 +736,9 @@ const CreateVatInvoice: React.FC = () => {
 
   // Tính toán tổng tiền
   const calculateTotals = (currentItems: InvoiceItem[]) => {
-    // Tính tổng tiền hàng (chưa thuế, chưa chiết khấu)
-    const subtotalBeforeTax = currentItems.reduce((sum, item) => {
+    // priceAfterTax là giá CHƯA thuế (vì calculateAfterTax = false)
+    // Tính tổng tiền hàng (CHƯA bao gồm thuế, chưa trừ chiết khấu)
+    const subtotalBeforeDiscount = currentItems.reduce((sum, item) => {
       const itemTotal = item.quantity * item.priceAfterTax
       return sum + itemTotal
     }, 0)
@@ -572,21 +746,21 @@ const CreateVatInvoice: React.FC = () => {
     // Tính tổng tiền chiết khấu
     const totalDiscount = currentItems.reduce((sum, item) => sum + (item.discountAmount || 0), 0)
 
-    // Tổng tiền sau chiết khấu (chưa thuế)
-    const subtotalAfterDiscount = subtotalBeforeTax - totalDiscount
+    // Tổng tiền sau chiết khấu (VẪN chưa bao gồm thuế)
+    const subtotalAfterDiscount = subtotalBeforeDiscount - totalDiscount
 
-    // Thuế GTGT theo tỷ lệ được chọn
+    // Tính thuế GTGT = subtotalAfterDiscount × (vatRate/100)
     const tax = Math.round(subtotalAfterDiscount * (vatRate / 100))
-
-    // Tổng tiền thanh toán
-    const total = Math.round(subtotalAfterDiscount + tax)
+    
+    // Tổng tiền thanh toán = subtotalAfterDiscount + thuế
+    const total = subtotalAfterDiscount + tax
 
     return {
-      subtotal: Math.round(subtotalBeforeTax),
-      discount: Math.round(totalDiscount),
-      subtotalAfterDiscount: Math.round(subtotalAfterDiscount),
-      tax,
-      total,
+      subtotal: Math.round(subtotalAfterDiscount),     // Tổng tiền hàng CHƯA thuế (sau CK)
+      discount: Math.round(totalDiscount),             // Chiết khấu
+      subtotalAfterDiscount: Math.round(subtotalAfterDiscount), // Sau chiết khấu, chưa thuế
+      tax: Math.round(tax),                            // Tiền thuế VAT
+      total: Math.round(total),                        // Tổng thanh toán (= subtotal + tax)
     }
   }
 
@@ -643,6 +817,107 @@ const CreateVatInvoice: React.FC = () => {
   )
 
   const totals = calculateTotals(items)
+
+  // Hàm lấy user ID từ token (cần implement)
+  // Hàm submit hóa đơn
+  const handleSubmit = async () => {
+    try {
+      // Validate
+      if (!selectedTemplate) {
+        setSnackbar({
+          open: true,
+          message: 'Vui lòng chọn mẫu hóa đơn',
+          severity: 'warning'
+        })
+        return
+      }
+
+      // Validate templateID exists
+      if (!selectedTemplate.templateID || selectedTemplate.templateID <= 0) {
+        setSnackbar({
+          open: true,
+          message: `Template không hợp lệ (ID: ${selectedTemplate.templateID}). Vui lòng chọn template khác.`,
+          severity: 'error'
+        })
+        console.error('❌ Invalid template:', selectedTemplate)
+        return
+      }
+
+      if (!buyerCompanyName || !buyerAddress) {
+        setSnackbar({
+          open: true,
+          message: 'Vui lòng điền tên đơn vị và địa chỉ người mua',
+          severity: 'warning'
+        })
+        return
+      }
+
+      if (items.length === 0) {
+        setSnackbar({
+          open: true,
+          message: 'Vui lòng thêm ít nhất một sản phẩm',
+          severity: 'warning'
+        })
+        return
+      }
+
+      setIsSubmitting(true)
+
+      // Map frontend state sang backend request
+      const backendRequest = mapToBackendInvoiceRequest(
+        selectedTemplate.templateID,
+        {
+          customerID: buyerCustomerID, // ✅ Truyền customer ID
+          taxCode: buyerTaxCode,
+          companyName: buyerCompanyName,
+          address: buyerAddress,
+          buyerName: buyerName,
+          email: buyerEmail,
+          phone: buyerPhone,
+        },
+        items,
+        vatRate,
+        totals,
+        paymentMethod, // Hình thức thanh toán từ dropdown
+        5 // minRows
+      )
+
+      console.log('📤 Sending invoice request:', backendRequest)
+
+      // Gọi API
+      const response = await invoiceService.createInvoice(backendRequest)
+
+      console.log('✅ Invoice created:', response)
+
+      setSnackbar({
+        open: true,
+        message: 'Tạo hóa đơn thành công!',
+        severity: 'success'
+      })
+
+      // Navigate to invoice list after 1 second
+      setTimeout(() => {
+        navigate('/invoices')
+      }, 1000)
+
+    } catch (error: unknown) {
+      console.error('❌ Error creating invoice:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Lỗi khi tạo hóa đơn'
+      const apiError = error as { response?: { data?: { message?: string } } }
+      setSnackbar({
+        open: true,
+        message: apiError.response?.data?.message || errorMessage,
+        severity: 'error'
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Đóng snackbar
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false })
+  }
 
   const handleSendDraftEmail = (emailData: {
     recipientName: string
@@ -721,7 +996,7 @@ const CreateVatInvoice: React.FC = () => {
           <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>{params.value || ''}</Typography>
         </Box>
       ),
-      renderEditCell: (params) => <ProductNameEditCell {...params} />,
+      renderEditCell: (params) => <ProductNameEditCell {...params} products={products} onProductSelect={handleProductSelect} />,
     },
     {
       field: 'unit',
@@ -902,9 +1177,29 @@ const CreateVatInvoice: React.FC = () => {
                   <Typography variant="caption" sx={{ minWidth: 55, fontSize: '0.8125rem' }}>
                     Ký hiệu:
                   </Typography>
-                  <Select size="small" value="1K24TXN" fullWidth variant="outlined" sx={{ fontSize: '0.8125rem' }}>
-                    <MenuItem value="1K24TXN">1K24TXN</MenuItem>
-                    <MenuItem value="2K24TXN">2K24TXN</MenuItem>
+                  <Select 
+                    size="small" 
+                    value={selectedTemplate?.serial || ''} 
+                    onChange={(e) => {
+                      const template = templates.find(t => t.serial === e.target.value)
+                      setSelectedTemplate(template || null)
+                    }}
+                    fullWidth 
+                    variant="outlined" 
+                    sx={{ fontSize: '0.8125rem' }}
+                    disabled={templatesLoading || templates.length === 0}
+                  >
+                    {templatesLoading ? (
+                      <MenuItem value="">Đang tải...</MenuItem>
+                    ) : templates.length === 0 ? (
+                      <MenuItem value="">Không có mẫu</MenuItem>
+                    ) : (
+                      templates.map((template) => (
+                        <MenuItem key={template.templateID} value={template.serial}>
+                          {template.serial}
+                        </MenuItem>
+                      ))
+                    )}
                   </Select>
                   <IconButton size="small">
                     <ExpandMore fontSize="small" />
@@ -947,7 +1242,7 @@ const CreateVatInvoice: React.FC = () => {
                 HÓA ĐƠN GIÁ TRỊ GIA TĂNG
               </Typography>
               <Typography variant="caption" align="center" sx={{ mb: 1.5, color: '#666', display: 'block' }}>
-                Ngày 5 tháng 11 năm 2024
+                Ngày {new Date().getDate()} tháng {new Date().getMonth() + 1} năm {new Date().getFullYear()}
               </Typography>
 
               {/* Thông tin đơn vị bán hàng */}
@@ -956,7 +1251,14 @@ const CreateVatInvoice: React.FC = () => {
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
                     Đơn vị bán hàng:
                   </Typography>
-                  <TextField size="small" fullWidth disabled value="Global Solutions Ltd" variant="standard" sx={{ fontSize: '0.8125rem' }} />
+                  <TextField 
+                    size="small" 
+                    fullWidth 
+                    disabled 
+                    value={company?.companyName || 'Đang tải...'} 
+                    variant="standard" 
+                    sx={{ fontSize: '0.8125rem' }} 
+                  />
                 </Stack>
 
                 <Stack direction="row" spacing={1.5} alignItems="center">
@@ -964,30 +1266,9 @@ const CreateVatInvoice: React.FC = () => {
                     Mã số thuế:
                   </Typography>
                   <Stack direction="row" spacing={0.5} alignItems="center">
-                    {['0', '0', '0', '0', '0', '0', '0', '0', '0', '0'].map((digit, index) => (
+                    {(company?.taxCode || '0000000000').split('').map((digit, index) => (
                       <TextField
                         key={index}
-                        size="small"
-                        disabled
-                        value={digit}
-                        variant="outlined"
-                        sx={{
-                          width: 32,
-                          '& .MuiInputBase-input': {
-                            textAlign: 'center',
-                            padding: '6px 0',
-                            fontSize: '0.875rem',
-                            fontWeight: 500,
-                          },
-                        }}
-                      />
-                    ))}
-                    <Typography variant="caption" sx={{ mx: 0.5, fontSize: '0.875rem', fontWeight: 500 }}>
-                      -
-                    </Typography>
-                    {['0', '0', '0'].map((digit, index) => (
-                      <TextField
-                        key={`suffix-${index}`}
                         size="small"
                         disabled
                         value={digit}
@@ -1014,7 +1295,35 @@ const CreateVatInvoice: React.FC = () => {
                     size="small"
                     fullWidth
                     disabled
-                    value="95 Nguyễn Trãi, Thanh Xuân, Hà Nội"
+                    value={company?.address || 'Đang tải...'}
+                    variant="standard"
+                    sx={{ fontSize: '0.8125rem' }}
+                  />
+                </Stack>
+
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
+                    Điện thoại:
+                  </Typography>
+                  <TextField
+                    size="small"
+                    fullWidth
+                    disabled
+                    value={company?.contactPhone || 'Đang tải...'}
+                    variant="standard"
+                    sx={{ fontSize: '0.8125rem' }}
+                  />
+                </Stack>
+
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
+                    Số tài khoản:
+                  </Typography>
+                  <TextField
+                    size="small"
+                    fullWidth
+                    disabled
+                    value={company ? `${company.accountNumber} - ${company.bankName}` : 'Đang tải...'}
                     variant="standard"
                     sx={{ fontSize: '0.8125rem' }}
                   />
@@ -1033,9 +1342,18 @@ const CreateVatInvoice: React.FC = () => {
                     size="small"
                     placeholder="0101243150-136"
                     variant="standard"
+                    value={buyerTaxCode}
+                    onChange={(e) => handleTaxCodeChange(e.target.value)}
+                    onBlur={handleTaxCodeBlur}
                     sx={{ width: 160, fontSize: '0.8125rem' }}
+                    error={customerNotFound}
+                    helperText={customerNotFound ? 'Không tìm thấy' : ''}
                     InputProps={{
-                      endAdornment: (
+                      endAdornment: isSearchingCustomer ? (
+                        <InputAdornment position="end">
+                          <CircularProgress size={16} />
+                        </InputAdornment>
+                      ) : (
                         <InputAdornment position="end">
                           <IconButton size="small" edge="end">
                             <ExpandMore fontSize="small" />
@@ -1044,47 +1362,18 @@ const CreateVatInvoice: React.FC = () => {
                       ),
                     }}
                   />
-                  <Button size="small" startIcon={<Public sx={{ fontSize: 16 }} />} sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25 }}>
-                    Lấy thông tin
+                  <Button 
+                    size="small" 
+                    startIcon={<Public sx={{ fontSize: 16 }} />} 
+                    sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25 }}
+                    onClick={() => handleTaxCodeLookup(buyerTaxCode)}
+                    disabled={!buyerTaxCode || isSearchingCustomer}
+                  >
+                    {isSearchingCustomer ? 'Đang tìm...' : 'Lấy thông tin'}
                   </Button>
                   <Button size="small" startIcon={<VerifiedUser sx={{ fontSize: 16 }} />} sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25, whiteSpace: 'nowrap' }}>
                     KT tình trạng hoạt động
                   </Button>
-                </Stack>
-
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                  <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 110 }}>
-                    <Typography variant="caption" sx={{ fontSize: '0.8125rem' }}>
-                      Mã đơn vị:
-                    </Typography>
-                    <Info
-                      sx={{
-                        fontSize: 16,
-                        color: '#1976d2',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        '&:hover': {
-                          color: '#1565c0',
-                          transform: 'scale(1.1)',
-                        },
-                      }}
-                    />
-                  </Stack>
-                  <TextField
-                    size="small"
-                    fullWidth
-                    variant="standard"
-                    sx={{ fontSize: '0.8125rem' }}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton size="small" edge="end">
-                            <ExpandMore fontSize="small" />
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
                 </Stack>
 
                 <Stack direction="row" spacing={1.5} alignItems="center">
@@ -1096,6 +1385,8 @@ const CreateVatInvoice: React.FC = () => {
                     fullWidth
                     placeholder="CÔNG TY CỔ PHẦN MISA"
                     variant="standard"
+                    value={buyerCompanyName}
+                    onChange={(e) => setBuyerCompanyName(e.target.value)}
                     sx={{ fontSize: '0.8125rem' }}
                     InputProps={{
                       endAdornment: (
@@ -1118,6 +1409,8 @@ const CreateVatInvoice: React.FC = () => {
                     fullWidth
                     placeholder="Tầng 9, tòa nhà Technosoft..."
                     variant="standard"
+                    value={buyerAddress}
+                    onChange={(e) => setBuyerAddress(e.target.value)}
                     sx={{ fontSize: '0.8125rem' }}
                   />
                 </Stack>
@@ -1126,24 +1419,25 @@ const CreateVatInvoice: React.FC = () => {
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
                     Người mua hàng:
                   </Typography>
-                  <TextField size="small" placeholder="Kế toán A" variant="standard" sx={{ width: 160, fontSize: '0.8125rem' }} />
+                  <TextField size="small" placeholder="Kế toán A" variant="standard" value={buyerName} onChange={(e) => setBuyerName(e.target.value)} sx={{ width: 160, fontSize: '0.8125rem' }} />
                   <Typography variant="caption" sx={{ minWidth: 50, fontSize: '0.8125rem' }}>
                     Email:
                   </Typography>
-                  <TextField size="small" placeholder="hoadon@gmail.com" variant="standard" sx={{ flex: 1, fontSize: '0.8125rem' }} />
+                  <TextField size="small" placeholder="hoadon@gmail.com" variant="standard" value={buyerEmail} onChange={(e) => setBuyerEmail(e.target.value)} sx={{ flex: 1, fontSize: '0.8125rem' }} />
                 </Stack>
 
                 <Stack direction="row" spacing={1.5} alignItems="center">
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
                     Số điện thoại:
                   </Typography>
-                  <TextField size="small" variant="standard" sx={{ width: 160, fontSize: '0.8125rem' }} />
+                  <TextField size="small" variant="standard" value={buyerPhone} onChange={(e) => setBuyerPhone(e.target.value)} sx={{ width: 160, fontSize: '0.8125rem' }} />
                   <Typography variant="caption" sx={{ minWidth: 80, fontSize: '0.8125rem' }}>
                     Hình thức TT:
                   </Typography>
                   <Select
                     size="small"
-                    value="TM/CK"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
                     variant="standard"
                     MenuProps={{
                       PaperProps: {
@@ -1191,25 +1485,7 @@ const CreateVatInvoice: React.FC = () => {
                       },
                     }}>
                     <MenuItem
-                      value="TM/CK"
-                      sx={{
-                        fontSize: '0.8125rem',
-                        borderRadius: 1,
-                        transition: 'all 0.2s ease',
-                        '&:hover': {
-                          backgroundColor: '#e3f2fd',
-                        },
-                        '&.Mui-selected': {
-                          backgroundColor: '#bbdefb',
-                          '&:hover': {
-                            backgroundColor: '#90caf9',
-                          },
-                        },
-                      }}>
-                      TM/CK
-                    </MenuItem>
-                    <MenuItem
-                      value="TM"
+                      value="Tiền mặt"
                       sx={{
                         fontSize: '0.8125rem',
                         borderRadius: 1,
@@ -1227,7 +1503,7 @@ const CreateVatInvoice: React.FC = () => {
                       Tiền mặt
                     </MenuItem>
                     <MenuItem
-                      value="CK"
+                      value="Chuyển khoản"
                       sx={{
                         fontSize: '0.8125rem',
                         borderRadius: 1,
@@ -1245,7 +1521,7 @@ const CreateVatInvoice: React.FC = () => {
                       Chuyển khoản
                     </MenuItem>
                     <MenuItem
-                      value="CN"
+                      value="Đổi trừ công nợ"
                       sx={{
                         fontSize: '0.8125rem',
                         borderRadius: 1,
@@ -1263,7 +1539,7 @@ const CreateVatInvoice: React.FC = () => {
                       Đổi trừ công nợ
                     </MenuItem>
                     <MenuItem
-                      value="KT"
+                      value="Khác"
                       sx={{
                         fontSize: '0.8125rem',
                         borderRadius: 1,
@@ -1278,20 +1554,9 @@ const CreateVatInvoice: React.FC = () => {
                           },
                         },
                       }}>
-                      Không thu tiền
+                      Khác
                     </MenuItem>
                   </Select>
-                </Stack>
-
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                  <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    TK ngân hàng:
-                  </Typography>
-                  <TextField size="small" variant="standard" sx={{ flex: 1, fontSize: '0.8125rem' }} />
-                  <Typography variant="caption" sx={{ minWidth: 100, fontSize: '0.8125rem' }}>
-                    Tên ngân hàng:
-                  </Typography>
-                  <TextField size="small" variant="standard" sx={{ flex: 1, fontSize: '0.8125rem' }} />
                 </Stack>
               </Stack>
             </Box>
@@ -1677,9 +1942,11 @@ const CreateVatInvoice: React.FC = () => {
               <Button
                 size="small"
                 variant="contained"
-                startIcon={<Save fontSize="small" />}
+                startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Save fontSize="small" />}
+                onClick={handleSubmit}
+                disabled={isSubmitting}
                 sx={{ textTransform: 'none', backgroundColor: '#1976d2', fontSize: '0.8125rem', py: 0.5 }}>
-                Lưu
+                {isSubmitting ? 'Đang lưu...' : 'Lưu'}
               </Button>
               <Button
                 size="small"
@@ -1704,6 +1971,18 @@ const CreateVatInvoice: React.FC = () => {
             totalAmount: totals.total.toLocaleString('vi-VN'),
           }}
         />
+
+        {/* Snackbar for notifications */}
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={4000}
+          onClose={handleCloseSnackbar}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
       </Box>
     </Box>
   )

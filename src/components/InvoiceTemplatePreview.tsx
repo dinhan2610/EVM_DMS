@@ -13,6 +13,7 @@ import {
   TableHead,
   TableRow,
 } from '@mui/material';
+import { numberToWords } from '@/utils/numberToWords';
 import type {
   InvoiceTemplatePreviewProps,
 } from '@/types/invoiceTemplate';
@@ -31,10 +32,13 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
   backgroundFrame = TEMPLATE_DEFAULTS.BACKGROUND_FRAME,
   bilingual = false,
   invoiceDate,
-  logoSize = TEMPLATE_DEFAULTS.LOGO_SIZE,
   invoiceType = TEMPLATE_DEFAULTS.INVOICE_TYPE,
   symbol = DEFAULT_INVOICE_SYMBOL,
   customerVisibility = DEFAULT_CUSTOMER_VISIBILITY,
+  customerInfo, // NEW: Actual customer data
+  paymentMethod, // NEW: Payment method
+  invoiceNumber, // NEW: Actual invoice number
+  taxAuthorityCode, // NEW: Tax authority code
 }) => {
   const {
     showQrCode = true,
@@ -140,7 +144,7 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
   );
 
   return (
-    <Box>
+    <>
       {pages.map((page, pageIndex) => (
         <React.Fragment key={`page-${pageIndex}`}>
           <Paper
@@ -152,8 +156,8 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
               backgroundRepeat: 'no-repeat',
               margin: '0 auto',
               padding: '2cm 1.5cm',
-              width: '210mm',
-              minHeight: '287mm',
+              width: '234mm',
+              minHeight: '320mm',
               boxSizing: 'border-box',
               bgcolor: 'white',
               overflow: 'visible',
@@ -166,16 +170,17 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
               {/* Phần 1: Header - CHỈ HIỆN Ở TRANG ĐẦU TIÊN */}
               {page.isFirst && (
                 <>
-                  {/* Logo + Tiêu đề chính - Layout 3 cột */}
-                  <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1, position: 'relative', minHeight: '60px' }}>
-                    {/* Cột Trái: Logo */}
-                    <Box sx={{ flex: 1, display: 'flex', alignItems: 'flex-start' }}>
+                  {/* Logo + Tiêu đề - CÙNG 1 HÀNG */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, position: 'relative' }}>
+                    {/* Cột Trái: Logo - CHỈ HIỆN KHI CÓ LOGO */}
+                    <Box sx={{ flex: 1 }}>
                       {showLogo && config.companyLogo && (
                         <img
                           src={config.companyLogo}
                           alt="Logo"
                           style={{
-                            maxHeight: logoSize,
+                            maxWidth: '130px',
+                            height: 'auto',
                             objectFit: 'contain',
                             display: 'block',
                           }}
@@ -183,8 +188,14 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                       )}
                     </Box>
 
-                    {/* Cột Giữa: Tiêu đề - 1 DÒNG DUY NHẤT */}
-                    <Box sx={{ flex: 2, textAlign: 'center' }}>
+                    {/* Cột Giữa: Tiêu đề - LUÔN CĂN GIỮA TUYỆT ĐỐI */}
+                    <Box sx={{ 
+                      position: 'absolute',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      textAlign: 'center',
+                      zIndex: 1,
+                    }}>
                       <Typography
                         variant="h5"
                         fontWeight="bold"
@@ -193,7 +204,6 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                           fontSize: '1.4rem', 
                           lineHeight: 1.3,
                           letterSpacing: 0.2,
-                          whiteSpace: 'nowrap',
                           mb: 0.3,
                         }}
                       >
@@ -208,7 +218,6 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                             textTransform: 'uppercase',
                             lineHeight: 1.3,
                             letterSpacing: 0.2,
-                            whiteSpace: 'nowrap',
                           }}
                         >
                           (VAT INVOICE)
@@ -220,16 +229,16 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                     <Box sx={{ flex: 1 }} />
                   </Box>
 
-                  {/* Ký hiệu/Số và Mã CQT/Ngày - CÙNG HÀNG NGANG */}
+                  {/* Ký hiệu/Số và Mã CQT/Ngày - HÀNG RIÊNG */}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                     {/* Cột Trái: Trống */}
                     <Box sx={{ flex: 1 }} />
 
-                    {/* Cột Giữa: Mã CQT (chỉ hiện khi invoiceType = 'withCode') và Ngày */}
+                    {/* Cột Giữa: Mã CQT và Ngày */}
                     <Box sx={{ flex: 1, textAlign: 'center' }}>
                       {invoiceType === 'withCode' && (
                         <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.3, lineHeight: 1.4 }}>
-                          {renderBilingual('Mã CQT', 'Tax Code')}: <strong></strong>
+                          {renderBilingual('Mã CQT', 'Tax Code')}: <strong>{taxAuthorityCode || ''}</strong>
                         </Typography>
                       )}
                       <Typography variant="body2" fontStyle="italic" sx={{ fontSize: '0.75rem', lineHeight: 1.4 }}>
@@ -243,7 +252,11 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                         {renderBilingual('Ký hiệu', 'Symbol')}: <strong>{symbol.invoiceType}{symbol.taxCode}{symbol.year}{symbol.invoiceForm}{symbol.management}</strong>
                       </Typography>
                       <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.4 }}>
-                        {renderBilingual('Số', 'No.')}: <Box component="span" sx={{ color: 'red', fontWeight: 500 }}>[{renderBilingual('Chưa cấp số', 'Not Issued')}]</Box>
+                        {renderBilingual('Số', 'No.')}: {
+                          invoiceNumber ? 
+                            <strong>{String(invoiceNumber).padStart(7, '0')}</strong> : 
+                            <Box component="span" sx={{ color: 'red', fontWeight: 500 }}>[{renderBilingual('Chưa cấp số', 'Not Issued')}]</Box>
+                        }
                       </Typography>
                     </Box>
                   </Box>
@@ -316,37 +329,37 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                     <Stack spacing={0.25} sx={{ mb: 1 }}>
                       {customerVisibility.customerName && (
                         <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
-                          {renderBilingual('Họ tên người mua hàng', 'Buyer Name')}: <strong>......................................................</strong>
+                          {renderBilingual('Họ tên người mua hàng', 'Buyer Name')}: <strong>{customerInfo?.name || '......................................................'}</strong>
                         </Typography>
                       )}
                       {customerVisibility.customerName && (
                         <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
-                          {renderBilingual('Tên đơn vị', 'Company Name')}: <strong>......................................................</strong>
+                          {renderBilingual('Tên đơn vị', 'Company Name')}: <strong>{customerInfo?.name || '......................................................'}</strong>
                         </Typography>
                       )}
                       {customerVisibility.customerTaxCode && (
                         <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
-                          {renderBilingual('Mã số thuế', 'Tax ID')}: <strong>......................................................</strong>
+                          {renderBilingual('Mã số thuế', 'Tax ID')}: <strong>{customerInfo?.taxCode || '......................................................'}</strong>
                         </Typography>
                       )}
                       {customerVisibility.customerAddress && (
                         <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
-                          {renderBilingual('Địa chỉ', 'Address')}: <strong>......................................................</strong>
+                          {renderBilingual('Địa chỉ', 'Address')}: <strong>{customerInfo?.address || '......................................................'}</strong>
                         </Typography>
                       )}
                       {customerVisibility.customerPhone && (
                         <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
-                          {renderBilingual('Số điện thoại', 'Phone')}: <strong>......................................................</strong>
+                          {renderBilingual('Số điện thoại', 'Phone')}: <strong>{customerInfo?.phone || '......................................................'}</strong>
                         </Typography>
                       )}
                       {customerVisibility.customerEmail && (
                         <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
-                          {renderBilingual('Email', 'Email')}: <strong>......................................................</strong>
+                          {renderBilingual('Email', 'Email')}: <strong>{customerInfo?.email || '......................................................'}</strong>
                         </Typography>
                       )}
                       {showPaymentInfo && customerVisibility.paymentMethod && (
                         <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
-                          {renderBilingual('Hình thức thanh toán', 'Payment Method')}: <strong>......................................................</strong>
+                          {renderBilingual('Hình thức thanh toán', 'Payment Method')}: <strong>{paymentMethod || '......................................................'}</strong>
                         </Typography>
                       )}
                     </Stack>
@@ -467,7 +480,7 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                   </Box>
 
                   <Typography variant="body2" sx={{ mb: 1.5, fontStyle: 'italic', fontSize: '0.8rem', lineHeight: 1.6 }}>
-                    {renderBilingual('Số tiền viết bằng chữ', 'Amount in words')}: <strong>{hasProducts ? '(Tính toán tự động)' : ''}</strong>
+                    {renderBilingual('Số tiền viết bằng chữ', 'Amount in words')}: <strong>{hasProducts ? numberToWords(totals.total) : ''}</strong>
                   </Typography>
 
                   {/* Chữ ký */}
@@ -500,7 +513,7 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
           {pageIndex < pages.length - 1 && <PageBreak pageNumber={pageIndex + 2} />}
         </React.Fragment>
       ))}
-    </Box>
+    </>
   );
 };
 
