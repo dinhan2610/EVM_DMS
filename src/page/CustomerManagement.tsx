@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   Box,
   Typography,
@@ -30,14 +30,14 @@ import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined'
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined'
 import PhoneOutlinedIcon from '@mui/icons-material/PhoneOutlined'
 import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined'
-import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined'
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined'
 import LockOpenOutlinedIcon from '@mui/icons-material/LockOpenOutlined'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
+import customerService from '@/services/customerService'
 
-// Interface
+// Interface (Frontend) - Map từ Backend
 export interface Customer {
   id: string
   customerName: string
@@ -45,78 +45,8 @@ export interface Customer {
   email: string
   phone: string
   address: string
-  bankAccount?: string
-  bankName?: string
   status: 'Active' | 'Inactive'
 }
-
-// Mock Data
-const mockCustomers: Customer[] = [
-  {
-    id: '1',
-    customerName: 'Công ty TNHH ABC Technology',
-    taxCode: '0123456789',
-    email: 'contact@abctech.com',
-    phone: '0901234567',
-    address: '123 Đường Nguyễn Huệ, Quận 1, TP.HCM',
-    bankAccount: '1234567890',
-    bankName: 'Vietcombank',
-    status: 'Active',
-  },
-  {
-    id: '2',
-    customerName: 'Công ty Cổ phần XYZ Solutions',
-    taxCode: '0987654321',
-    email: 'info@xyzsolutions.vn',
-    phone: '0912345678',
-    address: '456 Đường Lê Lợi, Quận 3, TP.HCM',
-    bankAccount: '9876543210',
-    bankName: 'VietinBank',
-    status: 'Active',
-  },
-  {
-    id: '3',
-    customerName: 'Doanh nghiệp Tư nhân DEF Trading',
-    taxCode: '0112233445',
-    email: 'sales@deftrading.com',
-    phone: '0923456789',
-    address: '789 Đường Trần Hưng Đạo, Quận 5, TP.HCM',
-    bankAccount: '1122334455',
-    bankName: 'Techcombank',
-    status: 'Active',
-  },
-  {
-    id: '4',
-    customerName: 'Công ty TNHH GHI Construction',
-    taxCode: '0556677889',
-    email: 'contact@ghiconstruction.vn',
-    phone: '0934567890',
-    address: '321 Đường Võ Văn Tần, Quận 3, TP.HCM',
-    bankAccount: '5566778899',
-    bankName: 'ACB',
-    status: 'Inactive',
-  },
-  {
-    id: '5',
-    customerName: 'Công ty Cổ phần JKL Logistics',
-    taxCode: '0998877665',
-    email: 'info@jkllogistics.com',
-    phone: '0945678901',
-    address: '654 Đường Nguyễn Thị Minh Khai, Quận 1, TP.HCM',
-    bankAccount: '9988776655',
-    bankName: 'Sacombank',
-    status: 'Active',
-  },
-  {
-    id: '6',
-    customerName: 'Công ty TNHH MNO Retail',
-    taxCode: '0223344556',
-    email: 'cs@mnoretail.vn',
-    phone: '0956789012',
-    address: '987 Đường Điện Biên Phủ, Quận Bình Thạnh, TP.HCM',
-    status: 'Active',
-  },
-]
 
 // Initial Form State
 const initialFormState: Omit<Customer, 'id'> = {
@@ -125,8 +55,6 @@ const initialFormState: Omit<Customer, 'id'> = {
   email: '',
   phone: '',
   address: '',
-  bankAccount: '',
-  bankName: '',
   status: 'Active',
 }
 
@@ -136,10 +64,12 @@ const CustomerManagement = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
   // State
-  const [customers, setCustomers] = useState<Customer[]>(mockCustomers)
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [isLoading, setIsLoading] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [formData, setFormData] = useState<Omit<Customer, 'id'>>(initialFormState)
+  const [isSaving, setIsSaving] = useState(false)
 
   // Toggle Status States
   const [confirmToggleModalOpen, setConfirmToggleModalOpen] = useState(false)
@@ -148,6 +78,42 @@ const CustomerManagement = () => {
   // Tax Code Validation States
   const [taxCodeError, setTaxCodeError] = useState<string>('')
   const [isCheckingTaxCode, setIsCheckingTaxCode] = useState<boolean>(false)
+
+  // useEffect: Fetch customers on mount
+  useEffect(() => {
+    fetchCustomers()
+  }, [])
+
+  // Fetch customers from API
+  const fetchCustomers = async () => {
+    try {
+      setIsLoading(true)
+      const data = await customerService.getAllCustomers()
+      
+      // Map backend Customer to frontend Customer
+      const mappedCustomers: Customer[] = data.map((c) => ({
+        id: c.customerID.toString(),
+        customerName: c.customerName,
+        taxCode: c.taxCode,
+        email: c.contactEmail,
+        phone: c.contactPhone,
+        address: c.address,
+        status: c.isActive ? 'Active' : 'Inactive',
+      }))
+      
+      setCustomers(mappedCustomers)
+      console.log('✅ Loaded', mappedCustomers.length, 'customers')
+    } catch (error) {
+      console.error('❌ Error fetching customers:', error)
+      setSnackbar({
+        open: true,
+        message: 'Không thể tải danh sách khách hàng. Vui lòng thử lại.',
+        severity: 'error',
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   // Filter State
   const [searchText, setSearchText] = useState('')
@@ -204,7 +170,7 @@ const CustomerManagement = () => {
     setIsCheckingTaxCode(false)
   }
 
-  const handleSaveCustomer = () => {
+  const handleSaveCustomer = async () => {
     // Validation
     if (!formData.customerName.trim()) {
       setSnackbar({
@@ -237,35 +203,57 @@ const CustomerManagement = () => {
       }
     }
 
-    if (editingCustomer) {
-      // Update existing customer
-      setCustomers((prev) =>
-        prev.map((customer) =>
-          customer.id === editingCustomer.id
-            ? { ...customer, ...formData }
-            : customer
-        )
-      )
-      setSnackbar({
-        open: true,
-        message: `Cập nhật khách hàng "${formData.customerName}" thành công!`,
-        severity: 'success',
-      })
-    } else {
-      // Add new customer
-      const newCustomer: Customer = {
-        id: (customers.length + 1).toString(),
-        ...formData,
-      }
-      setCustomers((prev) => [...prev, newCustomer])
-      setSnackbar({
-        open: true,
-        message: `Thêm khách hàng "${formData.customerName}" thành công!`,
-        severity: 'success',
-      })
-    }
+    try {
+      setIsSaving(true)
 
-    handleCloseModal()
+      if (editingCustomer) {
+        // Update existing customer
+        await customerService.updateCustomer(parseInt(editingCustomer.id), {
+          customerName: formData.customerName,
+          taxCode: formData.taxCode,
+          address: formData.address,
+          contactEmail: formData.email,
+          contactPerson: formData.customerName, // Sử dụng customerName làm contactPerson
+          contactPhone: formData.phone,
+        })
+        
+        setSnackbar({
+          open: true,
+          message: `Cập nhật khách hàng "${formData.customerName}" thành công!`,
+          severity: 'success',
+        })
+      } else {
+        // Add new customer
+        await customerService.createCustomer({
+          customerName: formData.customerName,
+          taxCode: formData.taxCode,
+          address: formData.address,
+          contactEmail: formData.email,
+          contactPerson: formData.customerName, // Sử dụng customerName làm contactPerson
+          contactPhone: formData.phone,
+          isActive: formData.status === 'Active',
+        })
+        
+        setSnackbar({
+          open: true,
+          message: `Thêm khách hàng "${formData.customerName}" thành công!`,
+          severity: 'success',
+        })
+      }
+
+      // Refresh customer list
+      await fetchCustomers()
+      handleCloseModal()
+    } catch (error: any) {
+      console.error('❌ Error saving customer:', error)
+      setSnackbar({
+        open: true,
+        message: error.message || 'Có lỗi xảy ra khi lưu khách hàng!',
+        severity: 'error',
+      })
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleFormChange = (field: keyof typeof formData, value: string | boolean) => {
@@ -287,26 +275,38 @@ const CustomerManagement = () => {
     setConfirmToggleModalOpen(false)
   }
 
-  const handleConfirmToggleStatus = () => {
+  const handleConfirmToggleStatus = async () => {
     if (!selectedCustomerForToggle) return
     
-    const newStatus = selectedCustomerForToggle.status === 'Active' ? 'Inactive' : 'Active'
-    
-    setCustomers((prev) =>
-      prev.map((customer) =>
-        customer.id === selectedCustomerForToggle.id
-          ? { ...customer, status: newStatus }
-          : customer
-      )
-    )
-    
-    setSnackbar({
-      open: true,
-      message: `Đã ${newStatus === 'Active' ? 'kích hoạt' : 'vô hiệu hóa'} khách hàng "${selectedCustomerForToggle.customerName}"`,
-      severity: 'info',
-    })
-    
-    handleCloseToggleModal()
+    try {
+      const customerId = parseInt(selectedCustomerForToggle.id)
+      const newStatus = selectedCustomerForToggle.status === 'Active' ? 'Inactive' : 'Active'
+      
+      // Call API to toggle status
+      if (newStatus === 'Active') {
+        await customerService.setCustomerActive(customerId)
+      } else {
+        await customerService.setCustomerInactive(customerId)
+      }
+      
+      setSnackbar({
+        open: true,
+        message: `Đã ${newStatus === 'Active' ? 'kích hoạt' : 'vô hiệu hóa'} khách hàng "${selectedCustomerForToggle.customerName}"`,
+        severity: 'info',
+      })
+      
+      // Refresh customer list
+      await fetchCustomers()
+      handleCloseToggleModal()
+    } catch (error: any) {
+      console.error('❌ Error toggling status:', error)
+      setSnackbar({
+        open: true,
+        message: error.message || 'Có lỗi xảy ra khi thay đổi trạng thái!',
+        severity: 'error',
+      })
+      handleCloseToggleModal()
+    }
   }
 
   // Tax Code Validation Handler
@@ -526,6 +526,7 @@ const CustomerManagement = () => {
         <DataGrid
           rows={filteredCustomers}
           columns={columns}
+          loading={isLoading}
           initialState={{
             pagination: {
               paginationModel: { pageSize: 10 },
@@ -734,52 +735,6 @@ const CustomerManagement = () => {
                 }}
               />
             </Grid>
-
-            {/* Bank Account */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                label="Số tài khoản Ngân hàng"
-                value={formData.bankAccount}
-                onChange={(e) => handleFormChange('bankAccount', e.target.value)}
-                placeholder="1234567890"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <AccountBalanceOutlinedIcon sx={{ fontSize: 20, color: 'action.active' }} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 2,
-                  },
-                }}
-              />
-            </Grid>
-
-            {/* Bank Name */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                label="Tên Ngân hàng"
-                value={formData.bankName}
-                onChange={(e) => handleFormChange('bankName', e.target.value)}
-                placeholder="VD: Vietcombank"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <AccountBalanceOutlinedIcon sx={{ fontSize: 20, color: 'action.active' }} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 2,
-                  },
-                }}
-              />
-            </Grid>
           </Grid>
         </DialogContent>
 
@@ -789,6 +744,7 @@ const CustomerManagement = () => {
           <Button
             onClick={handleCloseModal}
             color="inherit"
+            disabled={isSaving}
             sx={{
               textTransform: 'none',
               borderRadius: 2,
@@ -800,7 +756,8 @@ const CustomerManagement = () => {
           <Button
             onClick={handleSaveCustomer}
             variant="contained"
-            disabled={isCheckingTaxCode || !!taxCodeError || !formData.customerName.trim() || !formData.taxCode.trim()}
+            disabled={isSaving || isCheckingTaxCode || !!taxCodeError}
+            startIcon={isSaving ? <CircularProgress size={20} /> : null}
             sx={{
               textTransform: 'none',
               borderRadius: 2,
@@ -811,7 +768,7 @@ const CustomerManagement = () => {
               },
             }}
           >
-            {editingCustomer ? 'Cập nhật' : 'Thêm mới'}
+            {isSaving ? 'Đang lưu...' : (editingCustomer ? 'Cập nhật' : 'Thêm mới')}
           </Button>
         </DialogActions>
       </Dialog>

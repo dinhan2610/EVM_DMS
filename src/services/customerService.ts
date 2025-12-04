@@ -1,0 +1,214 @@
+// src/services/customerService.ts
+
+import axios from 'axios';
+
+// ============================
+// INTERFACES
+// ============================
+
+export interface Customer {
+  customerID: number;
+  customerName: string;
+  taxCode: string;
+  address: string;
+  contactEmail: string;
+  contactPerson: string;
+  contactPhone: string;
+  isActive: boolean;
+}
+
+export interface CreateCustomerRequest {
+  customerName: string;
+  taxCode: string;
+  address: string;
+  contactEmail: string;
+  contactPerson: string;
+  contactPhone: string;
+  isActive: boolean;
+}
+
+export interface UpdateCustomerRequest {
+  customerName: string;
+  taxCode: string;
+  address: string;
+  contactEmail: string;
+  contactPerson: string;
+  contactPhone: string;
+}
+
+// ============================
+// HELPER FUNCTIONS
+// ============================
+
+/**
+ * Get authorization headers with JWT token
+ */
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { Authorization: `Bearer ${token}` }),
+  };
+};
+
+/**
+ * Handle API errors consistently
+ */
+const handleApiError = (error: unknown, context: string): never => {
+  console.error(`[${context}] Error:`, error);
+  
+  if (axios.isAxiosError(error)) {
+    const message = error.response?.data?.detail || error.response?.data?.message || error.message;
+    throw new Error(message);
+  }
+  
+  throw error;
+};
+
+// ============================
+// API FUNCTIONS
+// ============================
+
+/**
+ * Get all customers
+ * GET /api/Customer
+ * Response: Paginated { items: Customer[], pageIndex, totalPages, totalCount, ... }
+ */
+export const getAllCustomers = async (): Promise<Customer[]> => {
+  try {
+    console.log('[getAllCustomers] Fetching customers...');
+    
+    const response = await axios.get<{
+      items: Customer[];
+      pageIndex: number;
+      totalPages: number;
+      totalCount: number;
+      hasPreviousPage: boolean;
+      hasNextPage: boolean;
+    }>(
+      '/api/Customer',
+      { headers: getAuthHeaders() }
+    );
+    
+    // Backend trả về paginated response với items array
+    const customers = response.data.items || [];
+    
+    console.log('[getAllCustomers] Success:', customers.length, 'customers');
+    return customers;
+  } catch (error) {
+    return handleApiError(error, 'getAllCustomers');
+  }
+};
+
+/**
+ * Create new customer
+ * POST /api/Customer
+ */
+export const createCustomer = async (
+  data: CreateCustomerRequest
+): Promise<Customer> => {
+  try {
+    console.log('[createCustomer] Creating customer:', data.customerName);
+    console.log('[createCustomer] Request JSON:', JSON.stringify(data, null, 2));
+    
+    const response = await axios.post<Customer>(
+      '/api/Customer',
+      data,
+      { headers: getAuthHeaders() }
+    );
+    
+    console.log('[createCustomer] Success:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('[createCustomer] Error details:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('[createCustomer] Response status:', error.response?.status);
+      console.error('[createCustomer] Response data:', error.response?.data);
+    }
+    return handleApiError(error, 'createCustomer');
+  }
+};
+
+/**
+ * Update existing customer
+ * PUT /api/Customer/{id}
+ */
+export const updateCustomer = async (
+  id: number,
+  data: UpdateCustomerRequest
+): Promise<Customer> => {
+  try {
+    console.log('[updateCustomer] Updating customer:', id);
+    console.log('[updateCustomer] Request JSON:', JSON.stringify(data, null, 2));
+    
+    const response = await axios.put<Customer>(
+      `/api/Customer/${id}`,
+      data,
+      { headers: getAuthHeaders() }
+    );
+    
+    console.log('[updateCustomer] Success:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('[updateCustomer] Error details:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('[updateCustomer] Response status:', error.response?.status);
+      console.error('[updateCustomer] Response data:', error.response?.data);
+    }
+    return handleApiError(error, 'updateCustomer');
+  }
+};
+
+/**
+ * Set customer status to active
+ * PUT /api/Customer/{id}/active
+ */
+export const setCustomerActive = async (id: number): Promise<void> => {
+  try {
+    console.log('[setCustomerActive] Activating customer:', id);
+    
+    await axios.put(
+      `/api/Customer/${id}/active`,
+      null,
+      { headers: getAuthHeaders() }
+    );
+    
+    console.log('[setCustomerActive] Success');
+  } catch (error) {
+    return handleApiError(error, 'setCustomerActive');
+  }
+};
+
+/**
+ * Set customer status to inactive
+ * PUT /api/Customer/{id}/inactive
+ */
+export const setCustomerInactive = async (id: number): Promise<void> => {
+  try {
+    console.log('[setCustomerInactive] Deactivating customer:', id);
+    
+    await axios.put(
+      `/api/Customer/${id}/inactive`,
+      null,
+      { headers: getAuthHeaders() }
+    );
+    
+    console.log('[setCustomerInactive] Success');
+  } catch (error) {
+    return handleApiError(error, 'setCustomerInactive');
+  }
+};
+
+// ============================
+// EXPORT DEFAULT SERVICE
+// ============================
+
+const customerService = {
+  getAllCustomers,
+  createCustomer,
+  updateCustomer,
+  setCustomerActive,
+  setCustomerInactive,
+};
+
+export default customerService;

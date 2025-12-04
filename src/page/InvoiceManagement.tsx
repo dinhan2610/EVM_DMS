@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   Box,
   Typography,
@@ -17,149 +17,71 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import { Link, useNavigate } from 'react-router-dom'
 import InvoiceFilter, { InvoiceFilterState } from '@/components/InvoiceFilter'
+import invoiceService, { InvoiceListItem } from '@/services/invoiceService'
+import templateService from '@/services/templateService'
+import customerService from '@/services/customerService'
+import Spinner from '@/components/Spinner'
+import {
+  INVOICE_INTERNAL_STATUS_LABELS,
+  getInternalStatusColor,
+  TAX_AUTHORITY_STATUS,
+  getTaxStatusLabel,
+  getTaxStatusColor,
+} from '@/constants/invoiceStatus'
 
-// Định nghĩa kiểu dữ liệu
+// Định nghĩa kiểu dữ liệu hiển thị trên UI
 export interface Invoice {
   id: string
   invoiceNumber: string
-  symbol: string // Ký hiệu hoá đơn
-  customerName: string
-  taxCode: string // Mã số thuế
+  symbol: string // Ký hiệu hoá đơn (template serial)
+  customerName: string // Tên khách hàng
+  taxCode: string // Mã số thuế khách hàng
   taxAuthority: string // Mã của CQT
   issueDate: string
-  status: 'Nháp' | 'Đã ký' | 'Đã phát hành' | 'Đã gửi' | 'Bị từ chối' | 'Đã thanh toán' | 'Đã hủy'
-  taxStatus: 'Chờ đồng bộ' | 'Đã đồng bộ' | 'Lỗi'
+  internalStatusId: number // ID trạng thái nội bộ (0-5)
+  internalStatus: string // Label trạng thái nội bộ
+  taxStatusId: number // ID trạng thái thuế (0-3)
+  taxStatus: string // Label trạng thái thuế
   amount: number
 }
 
-// Mock Data
-const mockInvoices: Invoice[] = [
-  {
-    id: '1',
-    invoiceNumber: 'INV-2024-001',
-    symbol: 'C24TAA',
-    customerName: 'Công ty TNHH ABC Technology',
-    taxCode: '0123456789',
-    taxAuthority: 'TCT/24E/001',
-    issueDate: '2024-10-01',
-    status: 'Đã thanh toán',
-    taxStatus: 'Đã đồng bộ',
-    amount: 15000000,
-  },
-  {
-    id: '2',
-    invoiceNumber: 'INV-2024-002',
-    symbol: 'C24TAB',
-    customerName: 'Công ty Cổ phần XYZ Solutions',
-    taxCode: '0987654321',
-    taxAuthority: 'TCT/24E/002',
-    issueDate: '2024-10-05',
-    status: 'Đã gửi',
-    taxStatus: 'Đã đồng bộ',
-    amount: 25000000,
-  },
-  {
-    id: '3',
-    invoiceNumber: 'INV-2024-003',
-    symbol: 'C24TAC',
-    customerName: 'Doanh nghiệp Tư nhân DEF',
-    taxCode: '0111222333',
-    taxAuthority: 'TCT/24E/003',
-    issueDate: '2024-10-10',
-    status: 'Đã phát hành',
-    taxStatus: 'Chờ đồng bộ',
-    amount: 8500000,
-  },
-  {
-    id: '4',
-    invoiceNumber: 'INV-2024-004',
-    symbol: 'C24TAD',
-    customerName: 'Công ty TNHH GHI Logistics',
-    taxCode: '0444555666',
-    taxAuthority: 'TCT/24E/004',
-    issueDate: '2024-10-12',
-    status: 'Đã ký',
-    taxStatus: 'Đã đồng bộ',
-    amount: 12000000,
-  },
-  {
-    id: '5',
-    invoiceNumber: 'INV-2024-005',
-    symbol: 'C24TAE',
-    customerName: 'Tập đoàn JKL Group',
-    taxCode: '0777888999',
-    taxAuthority: 'TCT/24E/005',
-    issueDate: '2024-10-15',
-    status: 'Nháp',
-    taxStatus: 'Chờ đồng bộ',
-    amount: 30000000,
-  },
-  {
-    id: '6',
-    invoiceNumber: 'INV-2024-006',
-    symbol: 'C24TAF',
-    customerName: 'Công ty CP MNO Trading',
-    taxCode: '0222333444',
-    taxAuthority: 'TCT/24E/006',
-    issueDate: '2024-10-18',
-    status: 'Bị từ chối',
-    taxStatus: 'Lỗi',
-    amount: 5000000,
-  },
-  {
-    id: '7',
-    invoiceNumber: 'INV-2024-007',
-    symbol: 'C24TAG',
-    customerName: 'Doanh nghiệp PQR Services',
-    taxCode: '0555666777',
-    taxAuthority: 'TCT/24E/007',
-    issueDate: '2024-10-20',
-    status: 'Đã thanh toán',
-    taxStatus: 'Đã đồng bộ',
-    amount: 18000000,
-  },
-  {
-    id: '8',
-    invoiceNumber: 'INV-2024-008',
-    symbol: 'C24TAH',
-    customerName: 'Công ty TNHH STU Consulting',
-    taxCode: '0888999000',
-    taxAuthority: 'TCT/24E/008',
-    issueDate: '2024-10-22',
-    status: 'Đã hủy',
-    taxStatus: 'Lỗi',
-    amount: 0,
-  },
-]
-
-// Helper function cho màu status
-const getStatusColor = (
-  status: Invoice['status']
-): 'default' | 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success' => {
-  const statusColors = {
-    'Nháp': 'default' as const,
-    'Đã ký': 'info' as const,
-    'Đã phát hành': 'primary' as const,
-    'Đã gửi': 'secondary' as const,
-    'Bị từ chối': 'error' as const,
-    'Đã thanh toán': 'success' as const,
-    'Đã hủy': 'warning' as const,
+// Mapper từ backend response sang UI format
+const mapInvoiceToUI = (
+  item: InvoiceListItem,
+  templateMap: Map<number, string>,
+  customerMap: Map<number, { name: string; taxCode: string }>
+): Invoice => {
+  const template = templateMap.get(item.templateID)
+  const customer = customerMap.get(item.customerID)
+  
+  // Xác định trạng thái thuế dựa trên taxAuthorityCode
+  const taxStatusId = item.taxAuthorityCode 
+    ? TAX_AUTHORITY_STATUS.ACCEPTED 
+    : TAX_AUTHORITY_STATUS.NOT_SENT
+  
+  return {
+    id: item.invoiceID.toString(),
+    invoiceNumber: `0000${item.invoiceID}`, // Dùng invoiceID thay vì invoiceNumber để tránh trùng
+    symbol: template || '',
+    customerName: customer?.name || '',
+    taxCode: customer?.taxCode || '',
+    taxAuthority: item.taxAuthorityCode || '',
+    issueDate: item.createdAt,
+    internalStatusId: item.invoiceStatusID,
+    internalStatus: INVOICE_INTERNAL_STATUS_LABELS[item.invoiceStatusID] || 'Không xác định',
+    taxStatusId: taxStatusId,
+    taxStatus: getTaxStatusLabel(taxStatusId),
+    amount: item.totalAmount,
   }
-  return statusColors[status]
-}
-
-// Helper function cho màu tax status
-const getTaxStatusColor = (taxStatus: Invoice['taxStatus']): 'default' | 'success' | 'warning' | 'error' => {
-  const taxColors = {
-    'Đã đồng bộ': 'success' as const,
-    'Chờ đồng bộ': 'warning' as const,
-    'Lỗi': 'error' as const,
-  }
-  return taxColors[taxStatus]
 }
 
 const InvoiceManagement = () => {
   const navigate = useNavigate()
+  
+  // State quản lý data
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   
   // State quản lý bộ lọc - sử dụng InvoiceFilterState
   const [filters, setFilters] = useState<InvoiceFilterState>({
@@ -174,6 +96,42 @@ const InvoiceManagement = () => {
     amountFrom: '',
     amountTo: '',
   })
+
+  // Load invoices từ API
+  useEffect(() => {
+    const loadInvoices = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        // Load all data in parallel
+        const [invoicesData, templatesData, customersData] = await Promise.all([
+          invoiceService.getAllInvoices(),
+          templateService.getAllTemplates(),
+          customerService.getAllCustomers(),
+        ])
+        
+        // Create maps for quick lookup
+        const templateMap = new Map(
+          templatesData.map(t => [t.templateID, t.serial])
+        )
+        const customerMap = new Map(
+          customersData.map(c => [c.customerID, { name: c.customerName, taxCode: c.taxCode }])
+        )
+        
+        // Map invoices with real data
+        const mappedData = invoicesData.map(item => mapInvoiceToUI(item, templateMap, customerMap))
+        setInvoices(mappedData)
+      } catch (err) {
+        console.error('Failed to load invoices:', err)
+        setError(err instanceof Error ? err.message : 'Không thể tải danh sách hóa đơn')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadInvoices()
+  }, [])
 
   // Handler khi filter thay đổi
   const handleFilterChange = (newFilters: InvoiceFilterState) => {
@@ -204,6 +162,8 @@ const InvoiceManagement = () => {
       flex: 1,
       minWidth: 130,
       sortable: true,
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
         <Link
           to={`/invoices/${params.row.id}`}
@@ -227,15 +187,10 @@ const InvoiceManagement = () => {
       sortable: true,
       align: 'center',
       headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) => (
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '100%',
-            height: '100%',
-          }}>
+      renderCell: (params: GridRenderCellParams) => {
+        const value = params.value as string
+        if (!value) return <Typography variant="body2" sx={{ color: '#bdbdbd' }}>-</Typography>
+        return (
           <Typography
             variant="body2"
             sx={{
@@ -243,10 +198,10 @@ const InvoiceManagement = () => {
               letterSpacing: '0.02em',
               color: '#1976d2',
             }}>
-            {params.value as string}
+            {value}
           </Typography>
-        </Box>
-      ),
+        )
+      },
     },
     {
       field: 'customerName',
@@ -254,6 +209,8 @@ const InvoiceManagement = () => {
       flex: 1.5,
       minWidth: 180,
       sortable: true,
+      align: 'center',
+      headerAlign: 'center',
     },
     {
       field: 'taxCode',
@@ -263,15 +220,10 @@ const InvoiceManagement = () => {
       sortable: true,
       align: 'center',
       headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) => (
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '100%',
-            height: '100%',
-          }}>
+      renderCell: (params: GridRenderCellParams) => {
+        const value = params.value as string
+        if (!value) return <Typography variant="body2" sx={{ color: '#bdbdbd' }}>-</Typography>
+        return (
           <Typography
             variant="body2"
             sx={{
@@ -279,10 +231,10 @@ const InvoiceManagement = () => {
               letterSpacing: '0.02em',
               color: '#2c3e50',
             }}>
-            {params.value as string}
+            {value}
           </Typography>
-        </Box>
-      ),
+        )
+      },
     },
     {
       field: 'taxAuthority',
@@ -292,15 +244,10 @@ const InvoiceManagement = () => {
       sortable: true,
       align: 'center',
       headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) => (
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '100%',
-            height: '100%',
-          }}>
+      renderCell: (params: GridRenderCellParams) => {
+        const value = params.value as string
+        if (!value) return <Typography variant="body2" sx={{ color: '#bdbdbd' }}>-</Typography>
+        return (
           <Typography
             variant="body2"
             sx={{
@@ -312,10 +259,10 @@ const InvoiceManagement = () => {
               py: 0.5,
               borderRadius: 1,
             }}>
-            {params.value as string}
+            {value}
           </Typography>
-        </Box>
-      ),
+        )
+      },
     },
     {
       field: 'issueDate',
@@ -324,28 +271,50 @@ const InvoiceManagement = () => {
       minWidth: 130,
       sortable: true,
       type: 'date',
+      align: 'center',
+      headerAlign: 'center',
       valueGetter: (value: string) => new Date(value),
       renderCell: (params: GridRenderCellParams) => dayjs(params.value as Date).format('DD/MM/YYYY'),
     },
     {
-      field: 'status',
+      field: 'internalStatus',
       headerName: 'Trạng thái',
       flex: 1,
-      minWidth: 130,
+      minWidth: 140,
       sortable: true,
-      renderCell: (params: GridRenderCellParams) => (
-        <Chip label={params.value as string} color={getStatusColor(params.value as Invoice['status'])} size="small" />
-      ),
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams) => {
+        const statusId = params.row.internalStatusId
+        return (
+          <Chip 
+            label={params.value as string} 
+            color={getInternalStatusColor(statusId)} 
+            size="small" 
+            sx={{ fontWeight: 600 }}
+          />
+        )
+      },
     },
     {
       field: 'taxStatus',
-      headerName: 'Tình trạng thuế',
+      headerName: 'Trạng thái CQT',
       flex: 1,
-      minWidth: 130,
+      minWidth: 140,
       sortable: true,
-      renderCell: (params: GridRenderCellParams) => (
-        <Chip label={params.value as string} color={getTaxStatusColor(params.value as Invoice['taxStatus'])} size="small" />
-      ),
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams) => {
+        const taxStatusId = params.row.taxStatusId
+        return (
+          <Chip 
+            label={params.value as string} 
+            color={getTaxStatusColor(taxStatusId)} 
+            size="small"
+            sx={{ fontWeight: 600 }}
+          />
+        )
+      },
     },
     {
       field: 'amount',
@@ -400,7 +369,7 @@ const InvoiceManagement = () => {
 
   // Logic lọc dữ liệu - tích hợp với InvoiceFilter
   const filteredInvoices = useMemo(() => {
-    return mockInvoices.filter((invoice) => {
+    return invoices.filter((invoice) => {
       // Lọc theo text search (số HĐ, ký hiệu, tên khách hàng, mã số thuế)
       const matchesSearch =
         !filters.searchText ||
@@ -414,7 +383,7 @@ const InvoiceManagement = () => {
       const matchesDateTo = !filters.dateTo || dayjs(invoice.issueDate).isBefore(filters.dateTo, 'day') || dayjs(invoice.issueDate).isSame(filters.dateTo, 'day')
 
       // Lọc theo trạng thái hóa đơn (multiselect)
-      const matchesInvoiceStatus = filters.invoiceStatus.length === 0 || filters.invoiceStatus.includes(invoice.status)
+      const matchesInvoiceStatus = filters.invoiceStatus.length === 0 || filters.invoiceStatus.includes(invoice.internalStatus)
 
       // Lọc theo trạng thái CQT
       const matchesTaxStatus = !filters.taxStatus || invoice.taxStatus === filters.taxStatus
@@ -437,7 +406,7 @@ const InvoiceManagement = () => {
         matchesAmountTo
       )
     })
-  }, [filters])
+  }, [invoices, filters])
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -473,18 +442,35 @@ const InvoiceManagement = () => {
           {/* Bộ lọc nâng cao */}
           <InvoiceFilter onFilterChange={handleFilterChange} onReset={handleResetFilter} />
 
+          {/* Loading State */}
+          {loading && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+              <Spinner />
+            </Box>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <Paper sx={{ p: 3, mt: 2, backgroundColor: '#fff3e0', border: '1px solid #ffb74d' }}>
+              <Typography color="error" variant="body1">
+                {error}
+              </Typography>
+            </Paper>
+          )}
+
           {/* Data Table */}
-          <Paper
-            elevation={0}
-            sx={{
-              border: '1px solid #e0e0e0',
-              borderRadius: 2,
-              backgroundColor: '#fff',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-              overflow: 'hidden',
-            }}>
-            {/* Table Section */}
-            <DataGrid
+          {!loading && !error && (
+            <Paper
+              elevation={0}
+              sx={{
+                border: '1px solid #e0e0e0',
+                borderRadius: 2,
+                backgroundColor: '#fff',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                overflow: 'hidden',
+              }}>
+              {/* Table Section */}
+              <DataGrid
               rows={filteredInvoices}
               columns={columns}
               checkboxSelection
@@ -555,7 +541,8 @@ const InvoiceManagement = () => {
               }}
               autoHeight
             />
-          </Paper>
+            </Paper>
+          )}
         </Box>
       </Box>
     </LocalizationProvider>

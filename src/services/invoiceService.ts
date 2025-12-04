@@ -4,6 +4,7 @@
 
 import axios from 'axios';
 import API_CONFIG from '@/config/api.config';
+import type { BackendInvoiceRequest, BackendInvoiceResponse } from '@/utils/invoiceAdapter';
 
 // ==================== TYPES ====================
 
@@ -14,6 +15,61 @@ export interface Template {
   templateTypeName: string;
   frameUrl: string;
   isActive: boolean;
+}
+
+// Backend invoice response từ GET /api/Invoice
+export interface InvoiceListItem {
+  invoiceID: number;
+  templateID: number;
+  invoiceNumber: number;
+  invoiceStatusID: number;
+  companyId: number;
+  customerID: number;
+  issuerID: number;
+  signDate: string;
+  paymentDueDate: string | null;
+  subtotalAmount: number;
+  vatRate: number;
+  vatAmount: number;
+  totalAmount: number;
+  paymentMethod: string;
+  totalAmountInWords: string;
+  digitalSignature: string | null;
+  taxAuthorityCode: string | null;
+  qrCodeData: string | null;
+  notes: string | null;
+  filePath: string | null;
+  xmlPath: string | null;
+  createdAt: string;
+  invoiceItems: InvoiceItemResponse[];
+}
+
+export interface InvoiceItemResponse {
+  productId: number;
+  productName: string | null;
+  unit: string | null;
+  quantity: number;
+  amount: number;
+  vatAmount: number;
+}
+
+// Invoice status mapping
+export const INVOICE_STATUS: Record<number, string> = {
+  1: 'Đã tạo',
+  2: 'Đã ký',
+  3: 'Đã gửi',
+  4: 'Đã hủy',
+};
+
+// Legacy interface - giữ cho tương thích
+export interface Invoice {
+  invoiceID: number;
+  invoiceNumber: string;
+  templateID: number;
+  customerName: string;
+  totalAmount: number;
+  status: string;
+  createdAt: string;
 }
 
 // ==================== HELPER FUNCTIONS ====================
@@ -54,7 +110,7 @@ const handleApiError = (error: unknown, context: string): never => {
 export const getAllTemplates = async (): Promise<Template[]> => {
   try {
     const response = await axios.get(
-      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.TEMPLATE.GET_ALL}`,
+      `/api/InvoiceTemplate`,
       { headers: getAuthHeaders() }
     );
     return response.data;
@@ -72,11 +128,77 @@ export const getActiveTemplates = async (): Promise<Template[]> => {
   }
 };
 
+// ==================== INVOICE APIs ====================
+
+/**
+ * Tạo hóa đơn mới
+ * @param data - Invoice data (đã map qua adapter)
+ * @returns Created invoice response
+ */
+export const createInvoice = async (data: BackendInvoiceRequest): Promise<BackendInvoiceResponse> => {
+  try {
+    console.log('[createInvoice] Request:', data);
+    console.log('[createInvoice] Request JSON:', JSON.stringify(data, null, 2));
+    
+    const response = await axios.post<BackendInvoiceResponse>(
+      `/api/Invoice`,
+      data,
+      { headers: getAuthHeaders() }
+    );
+    
+    console.log('[createInvoice] Success:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('[createInvoice] Error details:', error);
+    if (axios.isAxiosError(error) && error.response) {
+      console.error('[createInvoice] Response status:', error.response.status);
+      console.error('[createInvoice] Response data:', error.response.data);
+    }
+    return handleApiError(error, 'Create invoice failed');
+  }
+};
+
+/**
+ * Lấy danh sách tất cả hóa đơn
+ */
+export const getAllInvoices = async (): Promise<InvoiceListItem[]> => {
+  try {
+    const response = await axios.get<InvoiceListItem[]>(
+      `/api/Invoice`,
+      { headers: getAuthHeaders() }
+    );
+    return response.data;
+  } catch (error) {
+    return handleApiError(error, 'Get invoices failed');
+  }
+};
+
+/**
+ * Lấy chi tiết hóa đơn theo ID
+ */
+export const getInvoiceById = async (invoiceId: number): Promise<InvoiceListItem> => {
+  try {
+    const response = await axios.get<InvoiceListItem>(
+      `/api/Invoice/${invoiceId}`,
+      { headers: getAuthHeaders() }
+    );
+    return response.data;
+  } catch (error) {
+    return handleApiError(error, 'Get invoice failed');
+  }
+};
+
 // ==================== EXPORTS ====================
 
 const invoiceService = {
+  // Templates
   getAllTemplates,
   getActiveTemplates,
+  
+  // Invoices
+  createInvoice,
+  getAllInvoices,
+  getInvoiceById,
 };
 
 export default invoiceService;
