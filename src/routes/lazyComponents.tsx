@@ -41,6 +41,7 @@ export const ReportsPage = lazy(() => import('@/page/ReportsPage'))
 export const CustomerManagement = lazy(() => import('@/page/CustomerManagement'))
 
 // Pages Routes
+export const InvoiceLookup = lazy(() => import('@/app/(other)/invoice-lookup/page'))
 export const Welcome = lazy(() => import('@/app/(admin)/pages/welcome/page'))
 export const FAQs = lazy(() => import('@/app/(admin)/pages/faqs/page'))
 export const ContactUs = lazy(() => import('@/app/(admin)/pages/contact-us/page'))

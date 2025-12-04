@@ -9,6 +9,7 @@ import {
   SellerInvoices,
   SellerProfile,
   SellerPassword,
+  InvoiceLookup,
   Chat,
   Schedule,
   Help,
@@ -274,6 +275,11 @@ const customRoutes: RoutesProps[] = [
     name: 'Pricing',
     path: '/pages/pricing',
     element: <Pricing />,
+  },
+  {
+    name: 'Invoice Lookup',
+    path: '/invoice-lookup',
+    element: <InvoiceLookup />,
   },
 ]
 

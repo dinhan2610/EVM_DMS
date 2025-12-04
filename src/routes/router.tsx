@@ -10,24 +10,33 @@ const AppRouter = (props: RouteProps) => {
   const { isAuthenticated } = useAuthContext()
 
   // Filter routes by path prefix
-  const authRoutes = routes.filter(route => route.path?.toString().startsWith('/auth'))
-  const templateEditorRoutes = routes.filter(route => 
-    route.path?.toString().includes('/admin/templates/new') || 
-    route.path?.toString().includes('/admin/templates/edit') ||
-    route.path?.toString().includes('/admin/templates/select')
+  const authRoutes = routes.filter((route) => route.path?.toString().startsWith('/auth'))
+  const publicRoutes = routes.filter((route) => route.path?.toString().startsWith('/invoice-lookup'))
+  const templateEditorRoutes = routes.filter(
+    (route) =>
+      route.path?.toString().includes('/admin/templates/new') ||
+      route.path?.toString().includes('/admin/templates/edit') ||
+      route.path?.toString().includes('/admin/templates/select'),
   )
-  const appRoutes = routes.filter(route => 
-    !route.path?.toString().startsWith('/auth') && 
-    route.path !== '*' &&
-    !route.path?.toString().includes('/admin/templates/new') &&
-    !route.path?.toString().includes('/admin/templates/edit') &&
-    !route.path?.toString().includes('/admin/templates/select')
+  const appRoutes = routes.filter(
+    (route) =>
+      !route.path?.toString().startsWith('/auth') &&
+      !route.path?.toString().startsWith('/invoice-lookup') &&
+      route.path !== '*' &&
+      !route.path?.toString().includes('/admin/templates/new') &&
+      !route.path?.toString().includes('/admin/templates/edit') &&
+      !route.path?.toString().includes('/admin/templates/select'),
   )
 
   return (
     <Routes>
       {(authRoutes || []).map((route, idx) => (
         <Route key={idx + route.name} path={route.path} element={<AuthLayout {...props}>{route.element}</AuthLayout>} />
+      ))}
+
+      {/* Public routes - No authentication required */}
+      {(publicRoutes || []).map((route, idx) => (
+        <Route key={idx + route.name} path={route.path} element={route.element} />
       ))}
 
       {/* Template Editor routes - Simple Layout (No Menu) */}
