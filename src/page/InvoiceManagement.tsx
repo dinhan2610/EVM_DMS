@@ -172,6 +172,10 @@ const InvoiceManagement = () => {
             color: '#1976d2',
             fontWeight: 600,
             transition: 'color 0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%',
           }}
           onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = '#1565c0')}
           onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = '#1976d2')}>
@@ -189,7 +193,7 @@ const InvoiceManagement = () => {
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const value = params.value as string
-        if (!value) return <Typography variant="body2" sx={{ color: '#bdbdbd' }}>-</Typography>
+        if (!value) return <Typography variant="body2" sx={{ color: '#bdbdbd', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>-</Typography>
         return (
           <Typography
             variant="body2"
@@ -197,6 +201,10 @@ const InvoiceManagement = () => {
               fontWeight: 600,
               letterSpacing: '0.02em',
               color: '#1976d2',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%',
             }}>
             {value}
           </Typography>
@@ -222,7 +230,7 @@ const InvoiceManagement = () => {
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const value = params.value as string
-        if (!value) return <Typography variant="body2" sx={{ color: '#bdbdbd' }}>-</Typography>
+        if (!value) return <Typography variant="body2" sx={{ color: '#bdbdbd', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>-</Typography>
         return (
           <Typography
             variant="body2"
@@ -230,6 +238,10 @@ const InvoiceManagement = () => {
               fontWeight: 500,
               letterSpacing: '0.02em',
               color: '#2c3e50',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%',
             }}>
             {value}
           </Typography>
@@ -322,8 +334,8 @@ const InvoiceManagement = () => {
       flex: 1,
       minWidth: 120,
       sortable: true,
-      align: 'right',
-      headerAlign: 'right',
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) =>
         new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(params.value as number),
     },

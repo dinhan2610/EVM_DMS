@@ -5,6 +5,7 @@ import customerService from '@/services/customerService'
 import productService, { Product } from '@/services/productService'
 import companyService, { Company } from '@/services/companyService'
 import { mapToBackendInvoiceRequest } from '@/utils/invoiceAdapter'
+import { numberToWords } from '@/utils/numberToWords'
 import {
   Box,
   Paper,
@@ -1896,6 +1897,13 @@ const CreateVatInvoice: React.FC = () => {
                     {totals.total.toLocaleString('vi-VN')}
                   </Typography>
                 </Stack>
+
+                {/* Số tiền viết bằng chữ */}
+                <Stack direction="row" sx={{ mt: 1 }}>
+                  <Typography variant="caption" sx={{ fontSize: '0.75rem', fontStyle: 'italic', color: '#666' }}>
+                    Số tiền viết bằng chữ: <strong>{totals.total > 0 ? numberToWords(totals.total) : ''}</strong>
+                  </Typography>
+                </Stack>
               </Stack>
             </Box>
           </Stack>
@@ -1953,7 +1961,7 @@ const CreateVatInvoice: React.FC = () => {
                 variant="contained"
                 startIcon={<Publish fontSize="small" />}
                 sx={{ textTransform: 'none', backgroundColor: '#2196f3', minWidth: 140, fontSize: '0.8125rem', py: 0.5 }}>
-                Lưu và Phát hành
+                Lưu và Gửi duyệt
               </Button>
             </Stack>
           </Stack>

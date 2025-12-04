@@ -284,12 +284,11 @@ const UserManagement = () => {
           roleName: formData.role,
         }
         
-        // ✅ Call API và nhận response
-        const newUserResponse = await userService.createUser(createData)
+        // ✅ Call API to create user
+        await userService.createUser(createData)
         
-        // ✅ OPTIMISTIC UPDATE: Thêm user mới vào list ngay (không cần fetch lại)
-        const newUser: User = mapApiResponseToUser(newUserResponse)
-        setUsers((prev) => [...prev, newUser])
+        // ✅ Reload fresh data from server
+        await fetchUsers()
         
         setSnackbar({
           open: true,
