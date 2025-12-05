@@ -10,6 +10,7 @@ import {
   Todo,
   Contacts,
   InvoiceManagement,
+  InvoiceApproval,
   InvoiceDetail,
   CreateInvoice,
   CreateVatInvoice,
@@ -133,8 +134,18 @@ const appsRoutes: RoutesProps[] = [
     element: <InvoiceManagement />,
   },
   {
+    name: 'Invoice Approval',
+    path: '/approval/invoices',
+    element: <InvoiceApproval />,
+  },
+  {
     name: 'Invoice Detail',
     path: '/invoices/:id',
+    element: <InvoiceDetail />,
+  },
+  {
+    name: 'Approval Invoice Detail',
+    path: '/approval/invoices/:id',
     element: <InvoiceDetail />,
   },
   {
