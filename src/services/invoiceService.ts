@@ -140,11 +140,41 @@ export const createInvoice = async (data: BackendInvoiceRequest): Promise<Backen
     console.log('[createInvoice] Request:', data);
     console.log('[createInvoice] Request JSON:', JSON.stringify(data, null, 2));
     
-    const response = await axios.post<BackendInvoiceResponse>(
-      `/api/Invoice`,
-      data,
-      { headers: getAuthHeaders() }
-    );
+    // ⭐ DEBUGGING: Thử với signedBy = null thay vì 0
+    const debugData = {
+      ...data,
+      signedBy: data.signedBy === 0 ? null : data.signedBy,
+      // Thử bỏ companyID nếu backend tự lấy từ token
+      // companyID: undefined,
+    };
+    
+    console.log('[createInvoice] Sending modified request:', debugData);
+    
+    // ⭐ Thử gửi trực tiếp trước
+    let response;
+    try {
+      response = await axios.post<BackendInvoiceResponse>(
+        `/api/Invoice`,
+        debugData,
+        { headers: getAuthHeaders() }
+      );
+    } catch (firstError) {
+      // Nếu lỗi yêu cầu "command" field, thử wrap lại
+      if (axios.isAxiosError(firstError) && 
+          firstError.response?.status === 400 && 
+          JSON.stringify(firstError.response?.data).includes('command')) {
+        console.log('[createInvoice] Retrying with command wrapper...');
+        
+        // ⭐ Thử wrap trong object "command"
+        response = await axios.post<BackendInvoiceResponse>(
+          `/api/Invoice`,
+          { command: debugData },
+          { headers: getAuthHeaders() }
+        );
+      } else {
+        throw firstError;
+      }
+    }
     
     console.log('[createInvoice] Success:', response.data);
     return response.data;
@@ -153,6 +183,7 @@ export const createInvoice = async (data: BackendInvoiceRequest): Promise<Backen
     if (axios.isAxiosError(error) && error.response) {
       console.error('[createInvoice] Response status:', error.response.status);
       console.error('[createInvoice] Response data:', error.response.data);
+      console.error('[createInvoice] Full error response:', JSON.stringify(error.response.data, null, 2));
     }
     return handleApiError(error, 'Create invoice failed');
   }
@@ -163,12 +194,38 @@ export const createInvoice = async (data: BackendInvoiceRequest): Promise<Backen
  */
 export const getAllInvoices = async (): Promise<InvoiceListItem[]> => {
   try {
+    console.log('[getAllInvoices] Fetching invoices...');
+    
     const response = await axios.get<InvoiceListItem[]>(
       `/api/Invoice`,
       { headers: getAuthHeaders() }
     );
-    return response.data;
+    
+    console.log('[getAllInvoices] Raw response:', response.data);
+    console.log('[getAllInvoices] Response type:', typeof response.data);
+    console.log('[getAllInvoices] Is array?', Array.isArray(response.data));
+    
+    // ⚠️ Backend có thể wrap trong object { data: [...] } hoặc { invoices: [...] }
+    let invoicesArray = response.data;
+    
+    if (!Array.isArray(invoicesArray)) {
+      console.warn('[getAllInvoices] Response is not array, trying to extract...');
+      
+      // Thử unwrap các format phổ biến
+      if (response.data && typeof response.data === 'object') {
+        invoicesArray = (response.data as any).data || 
+                       (response.data as any).invoices || 
+                       (response.data as any).items || 
+                       [];
+      } else {
+        invoicesArray = [];
+      }
+    }
+    
+    console.log(`[getAllInvoices] ✅ Success: ${invoicesArray.length} invoices`);
+    return invoicesArray;
   } catch (error) {
+    console.error('[getAllInvoices] Error:', error);
     return handleApiError(error, 'Get invoices failed');
   }
 };
@@ -188,6 +245,29 @@ export const getInvoiceById = async (invoiceId: number): Promise<InvoiceListItem
   }
 };
 
+/**
+ * Cập nhật trạng thái hóa đơn
+ * @param invoiceId - ID hóa đơn
+ * @param statusId - Status mới (1=Nháp, 6=Chờ duyệt, 2=Chờ ký, 3=Đã phát hành)
+ */
+export const updateInvoiceStatus = async (invoiceId: number, statusId: number): Promise<void> => {
+  try {
+    console.log(`[updateInvoiceStatus] Updating invoice ${invoiceId} to status ${statusId}`);
+    
+    // ✅ Backend API: PUT /api/Invoice/{id}?statusId={statusId}
+    await axios.put(
+      `/api/Invoice/${invoiceId}?statusId=${statusId}`,
+      null, // Không cần body, dùng query param
+      { headers: getAuthHeaders() }
+    );
+    
+    console.log('[updateInvoiceStatus] Success');
+  } catch (error) {
+    console.error('[updateInvoiceStatus] Error:', error);
+    return handleApiError(error, 'Update invoice status failed');
+  }
+};
+
 // ==================== EXPORTS ====================
 
 const invoiceService = {
@@ -199,6 +279,7 @@ const invoiceService = {
   createInvoice,
   getAllInvoices,
   getInvoiceById,
+  updateInvoiceStatus,
 };
 
 export default invoiceService;

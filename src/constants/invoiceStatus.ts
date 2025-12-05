@@ -7,14 +7,16 @@
 /**
  * Internal Workflow Status (Quy trình nội bộ)
  * Mô tả trạng thái xử lý hóa đơn trong hệ thống
+ * ⚠️ ĐỒNG BỘ VỚI BACKEND API
  */
 export const INVOICE_INTERNAL_STATUS = {
-  DRAFT: 0,             // Nháp - Mới tạo, chưa hoàn thiện
-  PENDING_APPROVAL: 1,  // Chờ duyệt - Kế toán trưởng cần duyệt
-  PENDING_SIGN: 2,      // Chờ ký - Đã duyệt, chờ ký số bằng Token
-  SIGNED: 3,            // Đã phát hành - Đã ký số thành công
-  CANCELLED: 4,         // Đã hủy - Hóa đơn bị hủy
+  DRAFT: 1,             // Nháp - Mới tạo, chưa gửi duyệt
+  ISSUED: 2,            // Đã phát hành - Hóa đơn đã được phát hành
+  CANCELLED: 3,         // Đã hủy - Hóa đơn bị hủy
+  ADJUSTED: 4,          // Đã điều chỉnh - Hóa đơn điều chỉnh
   REPLACED: 5,          // Bị thay thế - Có hóa đơn thay thế mới
+  PENDING_APPROVAL: 6,  // Chờ duyệt - Kế toán trưởng cần duyệt
+  PENDING_SIGN: 7,      // Chờ ký - Đã duyệt, chờ ký số
 } as const;
 
 export type InvoiceInternalStatus = typeof INVOICE_INTERNAL_STATUS[keyof typeof INVOICE_INTERNAL_STATUS];
@@ -24,11 +26,12 @@ export type InvoiceInternalStatus = typeof INVOICE_INTERNAL_STATUS[keyof typeof 
  */
 export const INVOICE_INTERNAL_STATUS_LABELS: Record<number, string> = {
   [INVOICE_INTERNAL_STATUS.DRAFT]: 'Nháp',
+  [INVOICE_INTERNAL_STATUS.ISSUED]: 'Đã phát hành',
+  [INVOICE_INTERNAL_STATUS.CANCELLED]: 'Bị từ chối',
+  [INVOICE_INTERNAL_STATUS.ADJUSTED]: 'Đã điều chỉnh',
+  [INVOICE_INTERNAL_STATUS.REPLACED]: 'Bị thay thế',
   [INVOICE_INTERNAL_STATUS.PENDING_APPROVAL]: 'Chờ duyệt',
   [INVOICE_INTERNAL_STATUS.PENDING_SIGN]: 'Chờ ký',
-  [INVOICE_INTERNAL_STATUS.SIGNED]: 'Đã phát hành',
-  [INVOICE_INTERNAL_STATUS.CANCELLED]: 'Đã hủy',
-  [INVOICE_INTERNAL_STATUS.REPLACED]: 'Bị thay thế',
 };
 
 /**
@@ -36,11 +39,12 @@ export const INVOICE_INTERNAL_STATUS_LABELS: Record<number, string> = {
  */
 export const INVOICE_INTERNAL_STATUS_COLORS: Record<number, 'default' | 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success'> = {
   [INVOICE_INTERNAL_STATUS.DRAFT]: 'default',           // Xám - Nháp
-  [INVOICE_INTERNAL_STATUS.PENDING_APPROVAL]: 'warning', // Vàng - Chờ duyệt
-  [INVOICE_INTERNAL_STATUS.PENDING_SIGN]: 'info',       // Xanh dương nhạt - Chờ ký
-  [INVOICE_INTERNAL_STATUS.SIGNED]: 'success',          // Xanh lá - Đã phát hành
+  [INVOICE_INTERNAL_STATUS.ISSUED]: 'success',          // Xanh lá - Đã phát hành
   [INVOICE_INTERNAL_STATUS.CANCELLED]: 'error',         // Đỏ - Đã hủy
+  [INVOICE_INTERNAL_STATUS.ADJUSTED]: 'info',           // Xanh dương - Đã điều chỉnh
   [INVOICE_INTERNAL_STATUS.REPLACED]: 'secondary',      // Tím - Bị thay thế
+  [INVOICE_INTERNAL_STATUS.PENDING_APPROVAL]: 'warning', // Vàng - Chờ duyệt
+  [INVOICE_INTERNAL_STATUS.PENDING_SIGN]: 'primary',    // Xanh primary - Chờ ký
 };
 
 // ==================== BỘ 2: TRẠNG THÁI TÍCH HỢP CQT ====================

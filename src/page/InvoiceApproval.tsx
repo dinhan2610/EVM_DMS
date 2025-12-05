@@ -22,6 +22,7 @@ import dayjs from 'dayjs'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import CancelIcon from '@mui/icons-material/Cancel'
+import DrawIcon from '@mui/icons-material/Draw'
 import { Link } from 'react-router-dom'
 import InvoiceFilter, { InvoiceFilterState } from '@/components/InvoiceFilter'
 import invoiceService, { InvoiceListItem } from '@/services/invoiceService'
@@ -34,6 +35,7 @@ import {
   getInternalStatusColor,
   TAX_AUTHORITY_STATUS,
   getTaxStatusLabel,
+  getTaxStatusColor,
 } from '@/constants/invoiceStatus'
 
 // Định nghĩa kiểu dữ liệu hiển thị trên UI
@@ -141,7 +143,12 @@ const InvoiceApproval = () => {
         customersData.map(c => [c.customerID, { name: c.customerName, taxCode: c.taxCode }])
       )
       
-      const mappedData = invoicesData.map(item => mapInvoiceToUI(item, templateMap, customerMap))
+      // ⭐ KẾ TOÁN TRƯỞNG XEM TẤT CẢ HÓA ĐƠN TRỪ NHÁP (status !== 1)
+      const managementInvoices = invoicesData.filter(
+        item => item.invoiceStatusID !== INVOICE_INTERNAL_STATUS.DRAFT
+      )
+      
+      const mappedData = managementInvoices.map(item => mapInvoiceToUI(item, templateMap, customerMap))
       setInvoices(mappedData)
     } catch (err) {
       console.error('Failed to load invoices:', err)
@@ -203,23 +210,11 @@ const InvoiceApproval = () => {
 
     setActionLoading(true)
     try {
-      // TODO: Call API để update status
-      // Giả sử API có endpoint: updateInvoiceStatus(invoiceId, status, reason?)
+      // ⭐ Gọi API để update status
       
       if (approvalDialog.action === 'approve') {
-        // Update status từ PENDING_APPROVAL (1) -> PENDING_SIGN (2)
-        // await invoiceService.updateInvoiceStatus(approvalDialog.invoiceId, INVOICE_INTERNAL_STATUS.PENDING_SIGN)
-        
-        // Optimistic update UI
-        setInvoices(prev => prev.map(inv => 
-          inv.id === approvalDialog.invoiceId 
-            ? { 
-                ...inv, 
-                internalStatusId: INVOICE_INTERNAL_STATUS.PENDING_SIGN,
-                internalStatus: INVOICE_INTERNAL_STATUS_LABELS[INVOICE_INTERNAL_STATUS.PENDING_SIGN]
-              }
-            : inv
-        ))
+        // ✅ Update status từ PENDING_APPROVAL (6) -> PENDING_SIGN (7)
+        await invoiceService.updateInvoiceStatus(parseInt(approvalDialog.invoiceId), INVOICE_INTERNAL_STATUS.PENDING_SIGN)
         
         setSnackbar({
           open: true,
@@ -227,19 +222,9 @@ const InvoiceApproval = () => {
           severity: 'success',
         })
       } else {
-        // Update status từ PENDING_APPROVAL (1) -> DRAFT (0) với lý do
-        // await invoiceService.updateInvoiceStatus(approvalDialog.invoiceId, INVOICE_INTERNAL_STATUS.DRAFT, rejectionReason)
-        
-        // Optimistic update UI
-        setInvoices(prev => prev.map(inv => 
-          inv.id === approvalDialog.invoiceId 
-            ? { 
-                ...inv, 
-                internalStatusId: INVOICE_INTERNAL_STATUS.DRAFT,
-                internalStatus: INVOICE_INTERNAL_STATUS_LABELS[INVOICE_INTERNAL_STATUS.DRAFT]
-              }
-            : inv
-        ))
+        // ✅ Update status từ PENDING_APPROVAL (6) -> CANCELLED (3) - Bị từ chối
+        await invoiceService.updateInvoiceStatus(parseInt(approvalDialog.invoiceId), INVOICE_INTERNAL_STATUS.CANCELLED)
+        // TODO: Gửi rejectionReason lên backend nếu API hỗ trợ
         
         setSnackbar({
           open: true,
@@ -250,7 +235,7 @@ const InvoiceApproval = () => {
 
       handleCloseApprovalDialog()
       
-      // Reload data to ensure consistency
+      // Reload data để refresh danh sách
       await loadInvoices()
       
     } catch (err) {
@@ -391,6 +376,26 @@ const InvoiceApproval = () => {
       },
     },
     {
+      field: 'taxStatus',
+      headerName: 'Trạng thái CQT',
+      flex: 1,
+      minWidth: 140,
+      sortable: true,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams) => {
+        const taxStatusId = params.row.taxStatusId
+        return (
+          <Chip 
+            label={params.value as string} 
+            color={getTaxStatusColor(taxStatusId)} 
+            size="small"
+            sx={{ fontWeight: 600 }}
+          />
+        )
+      },
+    },
+    {
       field: 'amount',
       headerName: 'Tổng tiền',
       flex: 1,
@@ -410,6 +415,7 @@ const InvoiceApproval = () => {
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const isPendingApproval = params.row.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_APPROVAL
+        const isPendingSign = params.row.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN
         
         return (
           <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
@@ -458,6 +464,23 @@ const InvoiceApproval = () => {
                   </IconButton>
                 </Tooltip>
               </>
+            )}
+            
+            {/* Hiển thị nút Ký số khi status = PENDING_SIGN */}
+            {isPendingSign && (
+              <Tooltip title="Ký số" arrow>
+                <IconButton
+                  size="small"
+                  color="secondary"
+                  onClick={() => console.log('Ký số hóa đơn:', params.row.id)}
+                  sx={{
+                    '&:hover': {
+                      backgroundColor: 'rgba(156, 39, 176, 0.08)',
+                    },
+                  }}>
+                  <DrawIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
             )}
           </Box>
         )

@@ -16,17 +16,18 @@ export interface BackendInvoiceRequest {
   templateID: number;
   customerID: number;           // Có thể để 0 nếu khách lẻ
   taxCode: string;              // MST khách hàng
+  invoiceStatusID: number;      // ⭐ NEW: 1=Nháp, 6=Chờ duyệt
   companyID: number;            // Có thể để 0
   customerName: string;         // Tên khách hàng
   address: string;              // Địa chỉ
+  notes: string;                // ⭐ NEW: Ghi chú
   paymentMethod: string;        // ✅ Hình thức thanh toán (VD: "Tiền mặt", "Chuyển khoản")
   items: BackendInvoiceItem[];
   amount: number;               // Tổng tiền hàng (CHƯA VAT)
   taxAmount: number;            // Tổng tiền VAT
   totalAmount: number;          // Tổng cộng thanh toán
-  // signedBy: backend tự lấy từ auth token
+  signedBy: number;             // ⭐ NEW: UserID người ký (0 nếu chưa ký)
   minRows: number;              // Số dòng trống tối thiểu
-  // salesID: đã bị backend xóa
   contactEmail: string;         // Email liên hệ
   contactPerson: string;        // Người liên hệ
   contactPhone: string;         // SĐT liên hệ
@@ -186,7 +187,10 @@ export function mapToBackendInvoiceRequest(
   vatRate: number,
   totals: FrontendTotals,
   paymentMethod: string = "Tiền mặt",  // ✅ Hình thức thanh toán
-  minRows: number = 5
+  minRows: number = 5,
+  invoiceStatusID: number = 1,          // ⭐ NEW: 1=Nháp, 6=Chờ duyệt
+  notes: string = '',                   // ⭐ NEW: Ghi chú
+  signedBy: number = 0                  // ⭐ NEW: UserID người ký (0=chưa ký)
 ): BackendInvoiceRequest {
   
   // Validate totals trước khi gửi
@@ -234,15 +238,17 @@ export function mapToBackendInvoiceRequest(
     templateID,
     customerID: buyerInfo.customerID || 0,  // ✅ Dùng customer ID từ DB, hoặc 0 nếu khách lẻ
     taxCode: buyerInfo.taxCode || 'N/A',
+    invoiceStatusID,                  // ⭐ NEW: 1=Nháp, 6=Chờ duyệt
     companyID: 1,                     // ✅ Backend yêu cầu companyID = 1 (hardcoded)
     customerName: buyerInfo.companyName || 'Khách hàng',
     address: buyerInfo.address || 'Chưa cập nhật',
+    notes,                            // ⭐ NEW: Ghi chú
     paymentMethod: paymentMethod,     // ✅ Hình thức thanh toán
     items: backendItems,
     amount: totalAmountBeforeVat,     // Tổng tiền chưa VAT
     taxAmount: totalVatAmount,        // Tổng tiền VAT
     totalAmount: totals.total,        // ✅ Tổng thanh toán cuối cùng (đã bao gồm VAT)
-    // signedBy: backend tự lấy từ auth token
+    signedBy,                         // ⭐ NEW: UserID người ký (0=chưa ký)
     minRows: minRows,
     contactEmail: buyerInfo.email || 'noreply@company.com',
     contactPerson: buyerInfo.buyerName || 'Khách hàng',

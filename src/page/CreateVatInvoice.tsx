@@ -821,7 +821,8 @@ const CreateVatInvoice: React.FC = () => {
 
   // Hàm lấy user ID từ token (cần implement)
   // Hàm submit hóa đơn
-  const handleSubmit = async () => {
+  // ⭐ Handler chung để xử lý submit
+  const handleSubmitInvoice = async (invoiceStatusID: number, statusLabel: string) => {
     try {
       // Validate
       if (!selectedTemplate) {
@@ -880,10 +881,13 @@ const CreateVatInvoice: React.FC = () => {
         vatRate,
         totals,
         paymentMethod, // Hình thức thanh toán từ dropdown
-        5 // minRows
+        5,              // minRows
+        invoiceStatusID, // ⭐ Status: 1=Nháp, 6=Chờ duyệt
+        '',             // notes
+        0               // signedBy (0=chưa ký)
       )
 
-      console.log('📤 Sending invoice request:', backendRequest)
+      console.log(`📤 Sending invoice request (${statusLabel}):`, backendRequest)
 
       // Gọi API
       const response = await invoiceService.createInvoice(backendRequest)
@@ -892,7 +896,7 @@ const CreateVatInvoice: React.FC = () => {
 
       setSnackbar({
         open: true,
-        message: 'Tạo hóa đơn thành công!',
+        message: `${statusLabel} thành công!`,
         severity: 'success'
       })
 
@@ -913,6 +917,16 @@ const CreateVatInvoice: React.FC = () => {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // ⭐ Lưu nháp (invoiceStatusID = 1)
+  const handleSaveDraft = async () => {
+    await handleSubmitInvoice(1, 'Lưu hóa đơn nháp')
+  }
+
+  // ⭐ Gửi duyệt (invoiceStatusID = 6)
+  const handleSubmitForApproval = async () => {
+    await handleSubmitInvoice(6, 'Gửi hóa đơn chờ duyệt')
   }
 
   // Đóng snackbar
@@ -1951,17 +1965,19 @@ const CreateVatInvoice: React.FC = () => {
                 size="small"
                 variant="contained"
                 startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Save fontSize="small" />}
-                onClick={handleSubmit}
+                onClick={handleSaveDraft}
                 disabled={isSubmitting}
                 sx={{ textTransform: 'none', backgroundColor: '#1976d2', fontSize: '0.8125rem', py: 0.5 }}>
-                {isSubmitting ? 'Đang lưu...' : 'Lưu'}
+                {isSubmitting ? 'Đang lưu...' : 'Lưu nháp'}
               </Button>
               <Button
                 size="small"
                 variant="contained"
                 startIcon={<Publish fontSize="small" />}
-                sx={{ textTransform: 'none', backgroundColor: '#2196f3', minWidth: 140, fontSize: '0.8125rem', py: 0.5 }}>
-                Lưu và Gửi duyệt
+                onClick={handleSubmitForApproval}
+                disabled={isSubmitting}
+                sx={{ textTransform: 'none', backgroundColor: '#2e7d32', minWidth: 140, fontSize: '0.8125rem', py: 0.5 }}>
+                Gửi cho KT Trưởng
               </Button>
             </Stack>
           </Stack>

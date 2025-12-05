@@ -15,7 +15,10 @@ import dayjs from 'dayjs'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import AddIcon from '@mui/icons-material/Add'
+import SendIcon from '@mui/icons-material/Send'
+import DrawIcon from '@mui/icons-material/Draw'
 import { Link, useNavigate } from 'react-router-dom'
+import { Snackbar, Alert } from '@mui/material'
 import InvoiceFilter, { InvoiceFilterState } from '@/components/InvoiceFilter'
 import invoiceService, { InvoiceListItem } from '@/services/invoiceService'
 import templateService from '@/services/templateService'
@@ -82,6 +85,8 @@ const InvoiceManagement = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [submittingId, setSubmittingId] = useState<string | null>(null)
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
   
   // State quản lý bộ lọc - sử dụng InvoiceFilterState
   const [filters, setFilters] = useState<InvoiceFilterState>({
@@ -98,38 +103,38 @@ const InvoiceManagement = () => {
   })
 
   // Load invoices từ API
-  useEffect(() => {
-    const loadInvoices = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        
-        // Load all data in parallel
-        const [invoicesData, templatesData, customersData] = await Promise.all([
-          invoiceService.getAllInvoices(),
-          templateService.getAllTemplates(),
-          customerService.getAllCustomers(),
-        ])
-        
-        // Create maps for quick lookup
-        const templateMap = new Map(
-          templatesData.map(t => [t.templateID, t.serial])
-        )
-        const customerMap = new Map(
-          customersData.map(c => [c.customerID, { name: c.customerName, taxCode: c.taxCode }])
-        )
-        
-        // Map invoices with real data
-        const mappedData = invoicesData.map(item => mapInvoiceToUI(item, templateMap, customerMap))
-        setInvoices(mappedData)
-      } catch (err) {
-        console.error('Failed to load invoices:', err)
-        setError(err instanceof Error ? err.message : 'Không thể tải danh sách hóa đơn')
-      } finally {
-        setLoading(false)
-      }
+  const loadInvoices = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      // Load all data in parallel
+      const [invoicesData, templatesData, customersData] = await Promise.all([
+        invoiceService.getAllInvoices(),
+        templateService.getAllTemplates(),
+        customerService.getAllCustomers(),
+      ])
+      
+      // Create maps for quick lookup
+      const templateMap = new Map(
+        templatesData.map(t => [t.templateID, t.serial])
+      )
+      const customerMap = new Map(
+        customersData.map(c => [c.customerID, { name: c.customerName, taxCode: c.taxCode }])
+      )
+      
+      // Map invoices with real data
+      const mappedData = invoicesData.map(item => mapInvoiceToUI(item, templateMap, customerMap))
+      setInvoices(mappedData)
+    } catch (err) {
+      console.error('Failed to load invoices:', err)
+      setError(err instanceof Error ? err.message : 'Không thể tải danh sách hóa đơn')
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     loadInvoices()
   }, [])
 
@@ -152,6 +157,40 @@ const InvoiceManagement = () => {
       amountFrom: '',
       amountTo: '',
     })
+  }
+
+  // Gửi hóa đơn cho Kế toán trưởng (update status 1 -> 6)
+  const handleSendForApproval = async (invoiceId: string) => {
+    try {
+      setSubmittingId(invoiceId)
+      
+      // Gọi API update status
+      await invoiceService.updateInvoiceStatus(parseInt(invoiceId), 6)
+      
+      // Update UI optimistically
+      setInvoices(prev => prev.map(inv => 
+        inv.id === invoiceId 
+          ? { ...inv, internalStatusId: 6, internalStatus: INVOICE_INTERNAL_STATUS_LABELS[6] }
+          : inv
+      ))
+      
+      setSnackbar({
+        open: true,
+        message: 'Đã gửi hóa đơn cho Kế toán trưởng',
+        severity: 'success'
+      })
+      
+      // Reload data
+      await loadInvoices()
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : 'Không thể gửi hóa đơn',
+        severity: 'error'
+      })
+    } finally {
+      setSubmittingId(null)
+    }
   }
 
   // Định nghĩa columns
@@ -346,36 +385,75 @@ const InvoiceManagement = () => {
       sortable: false,
       align: 'center',
       headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) => (
-        <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
-          <Tooltip title="Xem chi tiết" arrow>
-            <IconButton
-              component={Link}
-              to={`/invoices/${params.row.id}`}
-              size="small"
-              color="info"
-              sx={{
-                '&:hover': {
-                  backgroundColor: 'rgba(33, 150, 243, 0.08)',
-                },
-              }}>
-              <VisibilityOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Chỉnh sửa" arrow>
-            <IconButton
-              size="small"
-              color="primary"
-              sx={{
-                '&:hover': {
-                  backgroundColor: 'rgba(28, 132, 238, 0.08)',
-                },
-              }}>
-              <EditOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      ),
+      renderCell: (params: GridRenderCellParams) => {
+        const isDraft = params.row.internalStatusId === 1 // Status Nháp
+        const isPendingSign = params.row.internalStatusId === 7 // Status Chờ ký
+        const isSending = submittingId === params.row.id
+        
+        return (
+          <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+            <Tooltip title="Xem chi tiết" arrow>
+              <IconButton
+                component={Link}
+                to={`/invoices/${params.row.id}`}
+                size="small"
+                color="info"
+                sx={{
+                  '&:hover': {
+                    backgroundColor: 'rgba(33, 150, 243, 0.08)',
+                  },
+                }}>
+                <VisibilityOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            {isDraft && (
+              <Tooltip title="Chỉnh sửa" arrow>
+                <IconButton
+                  size="small"
+                  color="primary"
+                  sx={{
+                    '&:hover': {
+                      backgroundColor: 'rgba(28, 132, 238, 0.08)',
+                    },
+                  }}>
+                  <EditOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+            {isDraft && (
+              <Tooltip title="Gửi cho KT Trưởng" arrow>
+                <IconButton
+                  size="small"
+                  color="success"
+                  disabled={isSending}
+                  onClick={() => handleSendForApproval(params.row.id)}
+                  sx={{
+                    '&:hover': {
+                      backgroundColor: 'rgba(46, 125, 50, 0.08)',
+                    },
+                  }}>
+                  <SendIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+            {isPendingSign && (
+              <Tooltip title="Ký số" arrow>
+                <IconButton
+                  size="small"
+                  color="secondary"
+                  onClick={() => console.log('Ký số hóa đơn:', params.row.id)}
+                  sx={{
+                    '&:hover': {
+                      backgroundColor: 'rgba(156, 39, 176, 0.08)',
+                    },
+                  }}>
+                  <DrawIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
+        )
+      },
     },
   ]
 
@@ -553,11 +631,23 @@ const InvoiceManagement = () => {
               }}
               autoHeight
             />
-            </Paper>
-          )}
-        </Box>
+          </Paper>
+        )}
+        
+        {/* Snackbar for notifications */}
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={4000}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} sx={{ width: '100%' }}>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
       </Box>
-    </LocalizationProvider>
+    </Box>
+  </LocalizationProvider>
   )
 }
 
