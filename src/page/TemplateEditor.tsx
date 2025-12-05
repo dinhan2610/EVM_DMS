@@ -540,6 +540,11 @@ const TemplateEditor: React.FC = () => {
       
       const layoutDefinition = mapEditorStateToApiRequest(editorState)
       console.log('✅ Layout Definition (FULL API Schema):', layoutDefinition)
+      console.log('🔍 DEBUG bilingual:', {
+        'state.settings.bilingual': state.settings.bilingual,
+        'editorState.settings?.bilingual': editorState.settings?.bilingual,
+        'layoutDefinition.settings.bilingual': layoutDefinition.settings.bilingual,
+      })
       
       console.log('=== STEP 4: Finding Template Frame ID ===')
       // Find templateFrameID - more robust logic
