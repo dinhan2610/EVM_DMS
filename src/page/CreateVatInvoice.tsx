@@ -1854,22 +1854,32 @@ const CreateVatInvoice: React.FC = () => {
             </Button>
           </Stack>
 
-          {/* Ô nhập ghi chú hóa đơn */}
+          {/* Ô nhập ghi chú hóa đơn - Tối ưu UI */}
           {showInvoiceNotes && (
-            <Box sx={{ mb: 1.5 }}>
+            <Box sx={{ mb: 1.5, pl: 6 }}>
               <TextField
                 fullWidth
                 multiline
                 rows={2}
                 value={invoiceNotes}
                 onChange={(e) => setInvoiceNotes(e.target.value)}
-                placeholder="Nhập ghi chú cho hóa đơn..."
-                variant="outlined"
+                placeholder="(Ghi chú: Nhập nội dung ghi chú cho hóa đơn...)"
+                variant="standard"
                 size="small"
                 sx={{
-                  '& .MuiOutlinedInput-root': {
-                    fontSize: '0.8125rem',
-                    bgcolor: '#fafafa'
+                  '& .MuiInputBase-root': {
+                    fontSize: '0.75rem',
+                    fontStyle: 'italic',
+                    color: 'text.secondary',
+                    '&:before': { borderBottom: '1px dashed #e0e0e0' },
+                    '&:hover:before': { borderBottom: '1px dashed #999' },
+                  },
+                  '& .MuiInputBase-input': {
+                    padding: '4px 0',
+                  },
+                  '& .MuiInputBase-input::placeholder': {
+                    fontStyle: 'italic',
+                    opacity: 0.6,
                   }
                 }}
               />

@@ -431,10 +431,21 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                     {pageIndex === pages.length - 1 && (
                       <TableRow>
                         <TableCell sx={{ padding: '4px 8px', border: '1px solid #000', borderTop: 'none', bgcolor: 'transparent' }} />
-                        <TableCell sx={{ fontStyle: notes ? 'normal' : 'italic', pt: 0, pl: 1.5, fontSize: '0.75rem', padding: '0 8px 4px 16px', color: notes ? 'text.primary' : 'text.secondary', border: '1px solid #000', borderTop: 'none', bgcolor: 'transparent' }}>
-                          {notes || renderBilingual('Nhập ghi chú nếu có', 'Notes if any')}
+                        <TableCell 
+                          colSpan={5}
+                          sx={{ 
+                            fontStyle: 'italic',
+                            pt: 0, 
+                            pl: 3,
+                            fontSize: '0.75rem', 
+                            padding: '0 8px 4px 24px',
+                            color: notes ? 'text.secondary' : '#aaa',
+                            border: '1px solid #000', 
+                            borderTop: 'none', 
+                            bgcolor: 'transparent' 
+                          }}>
+                          {notes ? `(Ghi chú: ${notes})` : renderBilingual('Nhập ghi chú nếu có', 'Notes if any')}
                         </TableCell>
-                        <TableCell colSpan={4} sx={{ padding: '4px 8px', border: '1px solid #000', borderTop: 'none', bgcolor: 'transparent' }} />
                       </TableRow>
                     )}
                   </TableBody>
