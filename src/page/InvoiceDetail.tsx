@@ -327,6 +327,7 @@ const InvoiceDetail: React.FC = () => {
           <InvoiceTemplatePreview
             config={templateConfig}
             products={products}
+            blankRows={5}
             visibility={DEFAULT_TEMPLATE_VISIBILITY}
             bilingual={false}
             invoiceDate={invoice.createdAt}
