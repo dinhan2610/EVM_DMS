@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Box,
   Typography,
@@ -27,15 +27,16 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined'
+import companyService from '@/services/companyService'
 
 // Interfaces
 interface CompanyInfo {
+  companyID?: number
   companyName: string
   taxCode: string
   address: string
-  phone: string
-  email: string
-  bankAccount: string
+  contactPhone: string
+  accountNumber: string
   bankName: string
 }
 
@@ -56,13 +57,12 @@ interface EmailConfig {
 
 // Initial States
 const initialCompanyInfo: CompanyInfo = {
-  companyName: 'Công ty TNHH Công nghệ ABC',
-  taxCode: '0123456789',
-  address: '123 Đường Nguyễn Văn Linh, Quận 7, TP.HCM',
-  phone: '0901234567',
-  email: 'contact@abc-tech.com',
-  bankAccount: '1234567890',
-  bankName: 'Vietcombank - Chi nhánh TP.HCM',
+  companyName: '',
+  taxCode: '',
+  address: '',
+  contactPhone: '',
+  accountNumber: '',
+  bankName: '',
 }
 
 const initialApiConfig: ApiConfig = {
@@ -86,6 +86,8 @@ const SystemConfiguration = () => {
 
   // State: Forms
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(initialCompanyInfo)
+  const [originalCompanyInfo, setOriginalCompanyInfo] = useState<CompanyInfo>(initialCompanyInfo)
+  const [isEditingCompany, setIsEditingCompany] = useState(false)
   const [apiConfig, setApiConfig] = useState<ApiConfig>(initialApiConfig)
   const [emailConfig, setEmailConfig] = useState<EmailConfig>(initialEmailConfig)
 
@@ -105,12 +107,51 @@ const SystemConfiguration = () => {
     severity: 'success',
   })
 
+  // Load company info from API
+  useEffect(() => {
+    const loadCompanyInfo = async () => {
+      try {
+        const company = await companyService.getDefaultCompany()
+        console.log('🏢 Company info loaded:', company)
+        const companyData = {
+          companyID: company.companyID,
+          companyName: company.companyName,
+          taxCode: company.taxCode,
+          address: company.address,
+          contactPhone: company.contactPhone,
+          accountNumber: company.accountNumber,
+          bankName: company.bankName,
+        }
+        setCompanyInfo(companyData)
+        setOriginalCompanyInfo(companyData)
+      } catch (error) {
+        console.error('❌ Error loading company info:', error)
+        setSnackbar({
+          open: true,
+          message: 'Không thể tải thông tin doanh nghiệp',
+          severity: 'error',
+        })
+      }
+    }
+    
+    loadCompanyInfo()
+  }, [])
+
   // Handlers: Company Info
   const handleCompanyInfoChange = (field: keyof CompanyInfo, value: string) => {
     setCompanyInfo((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleSaveCompanyInfo = () => {
+  const handleEditCompany = () => {
+    setIsEditingCompany(true)
+  }
+
+  const handleCancelEdit = () => {
+    setCompanyInfo(originalCompanyInfo)
+    setIsEditingCompany(false)
+  }
+
+  const handleSaveCompanyInfo = async () => {
     // Validation
     if (!companyInfo.companyName.trim() || !companyInfo.taxCode.trim()) {
       setSnackbar({
@@ -121,12 +162,28 @@ const SystemConfiguration = () => {
       return
     }
 
-    // Save logic here
-    setSnackbar({
-      open: true,
-      message: 'Đã lưu thông tin doanh nghiệp thành công!',
-      severity: 'success',
-    })
+    try {
+      const { companyID, ...updateData } = companyInfo
+      const updated = await companyService.updateCompany(companyID || 1, updateData)
+      
+      console.log('✅ Company updated:', updated)
+      
+      setOriginalCompanyInfo(companyInfo)
+      setIsEditingCompany(false)
+      
+      setSnackbar({
+        open: true,
+        message: 'Đã lưu thông tin doanh nghiệp thành công!',
+        severity: 'success',
+      })
+    } catch (error) {
+      console.error('❌ Error updating company:', error)
+      setSnackbar({
+        open: true,
+        message: 'Không thể cập nhật thông tin doanh nghiệp',
+        severity: 'error',
+      })
+    }
   }
 
   // Handlers: API Config
@@ -280,34 +337,97 @@ const SystemConfiguration = () => {
             boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
           }}
         >
-          <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <BusinessOutlinedIcon color="primary" />
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Thông tin Doanh nghiệp
-            </Typography>
+          <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <BusinessOutlinedIcon color="primary" />
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                Thông tin Doanh nghiệp
+              </Typography>
+            </Box>
+            
+            {/* Edit/Save/Cancel Buttons */}
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              {!isEditingCompany ? (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<i className="ri-edit-line" />}
+                  onClick={handleEditCompany}
+                  sx={{ textTransform: 'none', borderRadius: 2 }}
+                >
+                  Chỉnh sửa
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={handleCancelEdit}
+                    sx={{ textTransform: 'none', borderRadius: 2 }}
+                  >
+                    Hủy
+                  </Button>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<SaveOutlinedIcon />}
+                    onClick={handleSaveCompanyInfo}
+                    sx={{ textTransform: 'none', borderRadius: 2 }}
+                  >
+                    Lưu
+                  </Button>
+                </>
+              )}
+            </Box>
           </Box>
 
-          <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
-            Thông tin này sẽ hiển thị trên hoá đơn điện tử và các tài liệu chính thức.
+          <Alert severity={isEditingCompany ? 'warning' : 'info'} sx={{ mb: 3, borderRadius: 2 }}>
+            {isEditingCompany ? (
+              <>
+                <strong>Đang chỉnh sửa.</strong> Thông tin này sẽ được cập nhật vào cơ sở dữ liệu và hiển thị trên tất cả hóa đơn mới.
+              </>
+            ) : (
+              <>
+                <strong>Thông tin doanh nghiệp.</strong> Các thông tin này được đồng bộ từ cơ sở dữ liệu và sẽ hiển thị trên hóa đơn điện tử. Click "Chỉnh sửa" để cập nhật.
+              </>
+            )}
           </Alert>
 
-          <Grid container spacing={2.5}>
-            <Grid size={{ xs: 12, md: 6 }}>
+          <Grid container spacing={3}>
+            {/* Dòng 1: Tên công ty */}
+            <Grid size={{ xs: 12 }}>
               <TextField
                 fullWidth
                 size="small"
                 label="Tên công ty"
                 required
                 value={companyInfo.companyName}
-                onChange={(e) => handleCompanyInfoChange('companyName', e.target.value)}
+                onChange={isEditingCompany ? (e) => handleCompanyInfoChange('companyName', e.target.value) : undefined}
+                slotProps={{
+                  input: {
+                    readOnly: !isEditingCompany,
+                    startAdornment: (
+                      <Box component="span" sx={{ mr: 1, color: 'primary.main' }}>
+                        🏢
+                      </Box>
+                    ),
+                  },
+                }}
                 placeholder="VD: Công ty TNHH ABC Technology"
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: 2,
+                    bgcolor: isEditingCompany ? 'white' : '#f5f5f5',
+                    '& input': {
+                      color: isEditingCompany ? 'text.primary' : 'text.secondary',
+                      fontWeight: 500,
+                    },
                   },
                 }}
               />
             </Grid>
+
+            {/* Dòng 2: Mã số thuế - Số điện thoại */}
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
@@ -315,28 +435,25 @@ const SystemConfiguration = () => {
                 label="Mã số thuế"
                 required
                 value={companyInfo.taxCode}
-                onChange={(e) => handleCompanyInfoChange('taxCode', e.target.value)}
+                onChange={isEditingCompany ? (e) => handleCompanyInfoChange('taxCode', e.target.value) : undefined}
+                slotProps={{
+                  input: {
+                    readOnly: !isEditingCompany,
+                    startAdornment: (
+                      <Box component="span" sx={{ mr: 1, color: 'primary.main' }}>
+                        🏷️
+                      </Box>
+                    ),
+                  },
+                }}
                 placeholder="VD: 0123456789"
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: 2,
-                  },
-                }}
-              />
-            </Grid>
-            <Grid size={{ xs: 12 }}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Địa chỉ"
-                value={companyInfo.address}
-                onChange={(e) => handleCompanyInfoChange('address', e.target.value)}
-                placeholder="VD: 123 Đường ABC, Quận 1, TP.HCM"
-                multiline
-                rows={2}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 2,
+                    bgcolor: isEditingCompany ? 'white' : '#f5f5f5',
+                    '& input': {
+                      color: isEditingCompany ? 'text.primary' : 'text.secondary',
+                    },
                   },
                 }}
               />
@@ -345,44 +462,58 @@ const SystemConfiguration = () => {
               <TextField
                 fullWidth
                 size="small"
-                label="Điện thoại"
-                value={companyInfo.phone}
-                onChange={(e) => handleCompanyInfoChange('phone', e.target.value)}
+                label="Số điện thoại"
+                value={companyInfo.contactPhone}
+                onChange={isEditingCompany ? (e) => handleCompanyInfoChange('contactPhone', e.target.value) : undefined}
+                slotProps={{
+                  input: {
+                    readOnly: !isEditingCompany,
+                    startAdornment: (
+                      <Box component="span" sx={{ mr: 1, color: 'primary.main' }}>
+                        📞
+                      </Box>
+                    ),
+                  },
+                }}
                 placeholder="VD: 0901234567"
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: 2,
+                    bgcolor: isEditingCompany ? 'white' : '#f5f5f5',
+                    '& input': {
+                      color: isEditingCompany ? 'text.primary' : 'text.secondary',
+                    },
                   },
                 }}
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Email liên hệ"
-                type="email"
-                value={companyInfo.email}
-                onChange={(e) => handleCompanyInfoChange('email', e.target.value)}
-                placeholder="VD: contact@company.com"
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 2,
-                  },
-                }}
-              />
-            </Grid>
+
+            {/* Dòng 3: Số tài khoản - Ngân hàng */}
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 size="small"
                 label="Số tài khoản"
-                value={companyInfo.bankAccount}
-                onChange={(e) => handleCompanyInfoChange('bankAccount', e.target.value)}
+                value={companyInfo.accountNumber}
+                onChange={isEditingCompany ? (e) => handleCompanyInfoChange('accountNumber', e.target.value) : undefined}
+                slotProps={{
+                  input: {
+                    readOnly: !isEditingCompany,
+                    startAdornment: (
+                      <Box component="span" sx={{ mr: 1, color: 'primary.main' }}>
+                        💳
+                      </Box>
+                    ),
+                  },
+                }}
                 placeholder="VD: 1234567890"
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: 2,
+                    bgcolor: isEditingCompany ? 'white' : '#f5f5f5',
+                    '& input': {
+                      color: isEditingCompany ? 'text.primary' : 'text.secondary',
+                    },
                   },
                 }}
               />
@@ -393,38 +524,63 @@ const SystemConfiguration = () => {
                 size="small"
                 label="Ngân hàng"
                 value={companyInfo.bankName}
-                onChange={(e) => handleCompanyInfoChange('bankName', e.target.value)}
+                onChange={isEditingCompany ? (e) => handleCompanyInfoChange('bankName', e.target.value) : undefined}
+                slotProps={{
+                  input: {
+                    readOnly: !isEditingCompany,
+                    startAdornment: (
+                      <Box component="span" sx={{ mr: 1, color: 'primary.main' }}>
+                        🏦
+                      </Box>
+                    ),
+                  },
+                }}
                 placeholder="VD: Vietcombank - Chi nhánh TP.HCM"
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: 2,
+                    bgcolor: isEditingCompany ? 'white' : '#f5f5f5',
+                    '& input': {
+                      color: isEditingCompany ? 'text.primary' : 'text.secondary',
+                    },
+                  },
+                }}
+              />
+            </Grid>
+
+            {/* Dòng 4: Địa chỉ */}
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Địa chỉ"
+                value={companyInfo.address}
+                onChange={isEditingCompany ? (e) => handleCompanyInfoChange('address', e.target.value) : undefined}
+                slotProps={{
+                  input: {
+                    readOnly: !isEditingCompany,
+                    startAdornment: (
+                      <Box component="span" sx={{ mr: 1, color: 'primary.main', alignSelf: 'flex-start', mt: 0.5 }}>
+                        📍
+                      </Box>
+                    ),
+                  },
+                }}
+                placeholder="VD: 123 Đường ABC, Quận 1, TP.HCM"
+                multiline
+                rows={2}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    bgcolor: isEditingCompany ? 'white' : '#f5f5f5',
+                    '& textarea': {
+                      color: isEditingCompany ? 'text.primary' : 'text.secondary',
+                    },
                   },
                 }}
               />
             </Grid>
           </Grid>
-
-          <Divider sx={{ my: 3 }} />
-
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<SaveOutlinedIcon />}
-              onClick={handleSaveCompanyInfo}
-              sx={{
-                textTransform: 'none',
-                borderRadius: 2,
-                px: 3,
-                boxShadow: 2,
-                '&:hover': {
-                  boxShadow: 4,
-                },
-              }}
-            >
-              Lưu thông tin
-            </Button>
-          </Box>
         </Paper>
       )}
 
