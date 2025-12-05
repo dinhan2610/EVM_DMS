@@ -14,15 +14,27 @@ import {
   TextField,
   Alert,
   Snackbar,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Divider,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import dayjs from 'dayjs'
+import MoreVertIcon from '@mui/icons-material/MoreVert'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import CancelIcon from '@mui/icons-material/Cancel'
 import DrawIcon from '@mui/icons-material/Draw'
+import EmailIcon from '@mui/icons-material/Email'
+import PrintIcon from '@mui/icons-material/Print'
+import DownloadIcon from '@mui/icons-material/Download'
+import FindReplaceIcon from '@mui/icons-material/FindReplace'
+import RestoreIcon from '@mui/icons-material/Restore'
 import { Link } from 'react-router-dom'
 import InvoiceFilter, { InvoiceFilterState } from '@/components/InvoiceFilter'
 import invoiceService, { InvoiceListItem } from '@/services/invoiceService'
@@ -81,6 +93,297 @@ const mapInvoiceToUI = (
     taxStatus: getTaxStatusLabel(taxStatusId),
     amount: item.totalAmount,
   }
+}
+
+// Component menu thao tác cho mỗi hóa đơn
+interface InvoiceApprovalActionsMenuProps {
+  invoice: Invoice
+  onApprove: (id: string, invoiceNumber: string) => void
+  onReject: (id: string, invoiceNumber: string) => void
+}
+
+const InvoiceApprovalActionsMenu = ({ invoice, onApprove, onReject }: InvoiceApprovalActionsMenuProps) => {
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+  const open = Boolean(anchorEl)
+
+  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget)
+  }
+
+  const handleClose = () => {
+    setAnchorEl(null)
+  }
+
+  // Xác định trạng thái hóa đơn
+  const isPendingApproval = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_APPROVAL // 6 - Chờ duyệt
+  const isPendingSign = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN // 7 - Đã duyệt, chờ ký
+  const isIssued = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.ISSUED // 2 - Đã phát hành (đã ký + gửi)
+  
+  // Logic điều khiển menu
+  const canCancel = isPendingApproval || isPendingSign // Có thể hủy khi Chờ duyệt HOẶC Chờ ký
+
+  const menuItems = [
+    {
+      label: 'Xem chi tiết',
+      icon: <VisibilityOutlinedIcon fontSize="small" />,
+      enabled: true,
+      action: () => {
+        // Link sẽ được xử lý riêng
+        handleClose()
+      },
+      color: 'primary.main',
+      isLink: true,
+      linkTo: `/approval/invoices/${invoice.id}`,
+    },
+    {
+      label: 'Chỉnh sửa',
+      icon: <EditOutlinedIcon fontSize="small" />,
+      enabled: isPendingApproval,
+      action: () => {
+        console.log('Chỉnh sửa:', invoice.id)
+        handleClose()
+      },
+      color: 'primary.main',
+    },
+    {
+      label: 'Duyệt',
+      icon: <CheckCircleIcon fontSize="small" />,
+      enabled: isPendingApproval,
+      action: () => {
+        onApprove(invoice.id, invoice.invoiceNumber)
+        handleClose()
+      },
+      color: 'success.main',
+    },
+    {
+      label: 'Ký số',
+      icon: <DrawIcon fontSize="small" />,
+      enabled: isPendingSign,
+      action: () => {
+        console.log('Ký số:', invoice.id)
+        handleClose()
+      },
+      color: 'secondary.main',
+    },
+    { divider: true },
+    {
+      label: 'Gửi email',
+      icon: <EmailIcon fontSize="small" />,
+      enabled: true, // Luôn dùng được
+      action: () => {
+        console.log('Gửi email:', invoice.id)
+        handleClose()
+      },
+      color: 'info.main',
+    },
+    {
+      label: 'In hóa đơn',
+      icon: <PrintIcon fontSize="small" />,
+      enabled: true, // Luôn dùng được
+      action: () => {
+        console.log('In hóa đơn:', invoice.id)
+        handleClose()
+      },
+      color: 'text.primary',
+    },
+    {
+      label: 'Tải xuống',
+      icon: <DownloadIcon fontSize="small" />,
+      enabled: true, // Luôn dùng được
+      action: () => {
+        console.log('Tải xuống:', invoice.id)
+        handleClose()
+      },
+      color: 'text.primary',
+    },
+    { divider: true },
+    {
+      label: 'Tạo HĐ điều chỉnh',
+      icon: <FindReplaceIcon fontSize="small" />,
+      enabled: isIssued,
+      action: () => {
+        console.log('Tạo HĐ điều chỉnh:', invoice.id)
+        handleClose()
+      },
+      color: 'warning.main',
+    },
+    {
+      label: 'Tạo HĐ thay thế',
+      icon: <RestoreIcon fontSize="small" />,
+      enabled: isIssued,
+      action: () => {
+        console.log('Tạo HĐ thay thế:', invoice.id)
+        handleClose()
+      },
+      color: 'warning.main',
+    },
+    {
+      label: 'Hủy',
+      icon: <CancelIcon fontSize="small" />,
+      enabled: canCancel, // Chờ duyệt hoặc Chờ ký (chưa phát hành)
+      action: () => {
+        onReject(invoice.id, invoice.invoiceNumber) // Dùng lại logic reject/cancel
+        handleClose()
+      },
+      color: 'error.main',
+    },
+  ]
+
+  return (
+    <>
+      <Tooltip title="Thao tác" arrow placement="left">
+        <IconButton
+          size="small"
+          onClick={handleClick}
+          sx={{
+            color: 'text.secondary',
+            transition: 'all 0.2s ease-in-out',
+            '&:hover': {
+              backgroundColor: 'action.hover',
+              color: 'primary.main',
+              transform: 'scale(1.1)',
+            },
+          }}
+        >
+          <MoreVertIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Menu
+        anchorEl={anchorEl}
+        open={open}
+        onClose={handleClose}
+        onClick={handleClose}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+        TransitionProps={{
+          timeout: 250,
+        }}
+        slotProps={{
+          paper: {
+            elevation: 8,
+            sx: {
+              minWidth: 220,
+              borderRadius: 2.5,
+              mt: 0.5,
+              overflow: 'visible',
+              filter: 'drop-shadow(0px 4px 12px rgba(0,0,0,0.15))',
+              border: '1px solid',
+              borderColor: 'divider',
+              '&::before': {
+                content: '""',
+                display: 'block',
+                position: 'absolute',
+                top: 0,
+                right: 14,
+                width: 10,
+                height: 10,
+                bgcolor: 'background.paper',
+                transform: 'translateY(-50%) rotate(45deg)',
+                zIndex: 0,
+                borderLeft: '1px solid',
+                borderTop: '1px solid',
+                borderColor: 'divider',
+              },
+            },
+          },
+        }}
+      >
+        {menuItems.map((item, index) => {
+          if ('divider' in item) {
+            return <Divider key={`divider-${index}`} sx={{ my: 1 }} />
+          }
+
+          // Nếu là link item
+          if ('isLink' in item && item.isLink) {
+            return (
+              <MenuItem
+                key={item.label}
+                component={Link}
+                to={item.linkTo || '#'}
+                disabled={!item.enabled}
+                sx={{
+                  py: 1.25,
+                  px: 2.5,
+                  gap: 1.5,
+                  textDecoration: 'none',
+                  color: 'inherit',
+                  transition: 'all 0.2s ease',
+                  '&:hover': item.enabled ? {
+                    backgroundColor: 'action.hover',
+                    transform: 'translateX(4px)',
+                  } : {},
+                  '&.Mui-disabled': {
+                    opacity: 0.4,
+                  },
+                  cursor: item.enabled ? 'pointer' : 'not-allowed',
+                }}
+              >
+                <ListItemIcon
+                  sx={{
+                    color: item.enabled ? item.color : 'text.disabled',
+                    minWidth: 28,
+                    transition: 'color 0.2s ease',
+                  }}
+                >
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primary={item.label}
+                  primaryTypographyProps={{
+                    fontSize: '0.875rem',
+                    fontWeight: item.enabled ? 500 : 400,
+                    letterSpacing: '0.01em',
+                    color: item.enabled ? 'text.primary' : 'text.disabled',
+                  }}
+                />
+              </MenuItem>
+            )
+          }
+
+          return (
+            <MenuItem
+              key={item.label}
+              onClick={item.enabled ? item.action : undefined}
+              disabled={!item.enabled}
+              sx={{
+                py: 1.25,
+                px: 2.5,
+                gap: 1.5,
+                transition: 'all 0.2s ease',
+                '&:hover': item.enabled ? {
+                  backgroundColor: 'action.hover',
+                  transform: 'translateX(4px)',
+                } : {},
+                '&.Mui-disabled': {
+                  opacity: 0.4,
+                },
+                cursor: item.enabled ? 'pointer' : 'not-allowed',
+              }}
+            >
+              <ListItemIcon
+                sx={{
+                  color: item.enabled ? item.color : 'text.disabled',
+                  minWidth: 28,
+                  transition: 'color 0.2s ease',
+                }}
+              >
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText
+                primary={item.label}
+                primaryTypographyProps={{
+                  fontSize: '0.875rem',
+                  fontWeight: item.enabled ? 500 : 400,
+                  letterSpacing: '0.01em',
+                  color: item.enabled ? 'text.primary' : 'text.disabled',
+                }}
+              />
+            </MenuItem>
+          )
+        })}
+      </Menu>
+    </>
+  )
 }
 
 const InvoiceApproval = () => {
@@ -409,80 +712,17 @@ const InvoiceApproval = () => {
     {
       field: 'actions',
       headerName: 'Thao tác',
-      width: 180,
+      width: 80,
       sortable: false,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
-        const isPendingApproval = params.row.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_APPROVAL
-        const isPendingSign = params.row.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN
-        
         return (
-          <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
-            <Tooltip title="Xem chi tiết" arrow>
-              <IconButton
-                component={Link}
-                to={`/approval/invoices/${params.row.id}`}
-                size="small"
-                color="info"
-                sx={{
-                  '&:hover': {
-                    backgroundColor: 'rgba(33, 150, 243, 0.08)',
-                  },
-                }}>
-                <VisibilityOutlinedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            
-            {/* Chỉ hiển thị nút duyệt/từ chối khi status = PENDING_APPROVAL */}
-            {isPendingApproval && (
-              <>
-                <Tooltip title="Duyệt" arrow>
-                  <IconButton
-                    size="small"
-                    color="success"
-                    onClick={() => handleOpenApprovalDialog(params.row.id, params.row.invoiceNumber, 'approve')}
-                    sx={{
-                      '&:hover': {
-                        backgroundColor: 'rgba(76, 175, 80, 0.08)',
-                      },
-                    }}>
-                    <CheckCircleIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Từ chối" arrow>
-                  <IconButton
-                    size="small"
-                    color="error"
-                    onClick={() => handleOpenApprovalDialog(params.row.id, params.row.invoiceNumber, 'reject')}
-                    sx={{
-                      '&:hover': {
-                        backgroundColor: 'rgba(244, 67, 54, 0.08)',
-                      },
-                    }}>
-                    <CancelIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </>
-            )}
-            
-            {/* Hiển thị nút Ký số khi status = PENDING_SIGN */}
-            {isPendingSign && (
-              <Tooltip title="Ký số" arrow>
-                <IconButton
-                  size="small"
-                  color="secondary"
-                  onClick={() => console.log('Ký số hóa đơn:', params.row.id)}
-                  sx={{
-                    '&:hover': {
-                      backgroundColor: 'rgba(156, 39, 176, 0.08)',
-                    },
-                  }}>
-                  <DrawIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            )}
-          </Box>
+          <InvoiceApprovalActionsMenu
+            invoice={params.row as Invoice}
+            onApprove={(id, invoiceNumber) => handleOpenApprovalDialog(id, invoiceNumber, 'approve')}
+            onReject={(id, invoiceNumber) => handleOpenApprovalDialog(id, invoiceNumber, 'reject')}
+          />
         )
       },
     },

@@ -7,16 +7,28 @@ import {
   Button,
   IconButton,
   Tooltip,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Divider,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import dayjs from 'dayjs'
+import MoreVertIcon from '@mui/icons-material/MoreVert'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import SendIcon from '@mui/icons-material/Send'
 import DrawIcon from '@mui/icons-material/Draw'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import DownloadIcon from '@mui/icons-material/Download'
+import EmailIcon from '@mui/icons-material/Email'
+import PrintIcon from '@mui/icons-material/Print'
+import RestoreIcon from '@mui/icons-material/Restore'
+import FindReplaceIcon from '@mui/icons-material/FindReplace'
 import { Link, useNavigate } from 'react-router-dom'
 import { Snackbar, Alert } from '@mui/material'
 import InvoiceFilter, { InvoiceFilterState } from '@/components/InvoiceFilter'
@@ -25,6 +37,7 @@ import templateService from '@/services/templateService'
 import customerService from '@/services/customerService'
 import Spinner from '@/components/Spinner'
 import {
+  INVOICE_INTERNAL_STATUS,
   INVOICE_INTERNAL_STATUS_LABELS,
   getInternalStatusColor,
   TAX_AUTHORITY_STATUS,
@@ -76,6 +89,246 @@ const mapInvoiceToUI = (
     taxStatus: getTaxStatusLabel(taxStatusId),
     amount: item.totalAmount,
   }
+}
+
+// Component menu thao tác cho mỗi hóa đơn
+interface InvoiceActionsMenuProps {
+  invoice: Invoice
+  onSendForApproval: (id: string) => void
+  isSending: boolean
+}
+
+const InvoiceActionsMenu = ({ invoice, onSendForApproval, isSending }: InvoiceActionsMenuProps) => {
+  const navigate = useNavigate()
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+  const open = Boolean(anchorEl)
+
+  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget)
+  }
+
+  const handleClose = () => {
+    setAnchorEl(null)
+  }
+
+  // Xác định trạng thái hóa đơn (chỉ giữ lại status đang dùng)
+  const isDraft = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.DRAFT
+  const isPendingSign = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN
+  const isIssued = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.ISSUED // Đã phát hành = Đã ký + gửi
+
+  const menuItems = [
+    {
+      label: 'Xem chi tiết',
+      icon: <VisibilityOutlinedIcon fontSize="small" />,
+      enabled: true,
+      action: () => {
+        navigate(`/invoices/${invoice.id}`)
+        handleClose()
+      },
+      color: 'primary.main',
+    },
+    {
+      label: 'Chỉnh sửa',
+      icon: <EditOutlinedIcon fontSize="small" />,
+      enabled: isDraft,
+      action: () => {
+        console.log('Chỉnh sửa:', invoice.id)
+        handleClose()
+      },
+      color: 'primary.main',
+    },
+    {
+      label: 'Gửi duyệt',
+      icon: <SendIcon fontSize="small" />,
+      enabled: isDraft && !isSending,
+      action: () => {
+        onSendForApproval(invoice.id)
+        handleClose()
+      },
+      color: 'success.main',
+    },
+    {
+      label: 'Ký số',
+      icon: <DrawIcon fontSize="small" />,
+      enabled: isPendingSign,
+      action: () => {
+        console.log('Ký số:', invoice.id)
+        handleClose()
+      },
+      color: 'secondary.main',
+    },
+    { divider: true },
+    {
+      label: 'Gửi email',
+      icon: <EmailIcon fontSize="small" />,
+      enabled: true, // Luôn dùng được
+      action: () => {
+        console.log('Gửi email:', invoice.id)
+        handleClose()
+      },
+      color: 'info.main',
+    },
+    {
+      label: 'In hóa đơn',
+      icon: <PrintIcon fontSize="small" />,
+      enabled: true, // Luôn dùng được
+      action: () => {
+        console.log('In hóa đơn:', invoice.id)
+        handleClose()
+      },
+      color: 'text.primary',
+    },
+    {
+      label: 'Tải xuống',
+      icon: <DownloadIcon fontSize="small" />,
+      enabled: true, // Luôn dùng được
+      action: () => {
+        console.log('Tải xuống:', invoice.id)
+        handleClose()
+      },
+      color: 'text.primary',
+    },
+    { divider: true },
+    {
+      label: 'Tạo HĐ điều chỉnh',
+      icon: <FindReplaceIcon fontSize="small" />,
+      enabled: isIssued,
+      action: () => {
+        console.log('Tạo HĐ điều chỉnh:', invoice.id)
+        handleClose()
+      },
+      color: 'warning.main',
+    },
+    {
+      label: 'Tạo HĐ thay thế',
+      icon: <RestoreIcon fontSize="small" />,
+      enabled: isIssued,
+      action: () => {
+        console.log('Tạo HĐ thay thế:', invoice.id)
+        handleClose()
+      },
+      color: 'warning.main',
+    },
+    {
+      label: 'Xóa',
+      icon: <DeleteOutlineIcon fontSize="small" />,
+      enabled: isDraft,
+      action: () => {
+        console.log('Xóa:', invoice.id)
+        handleClose()
+      },
+      color: 'error.main',
+    },
+  ]
+
+  return (
+    <>
+      <Tooltip title="Thao tác" arrow placement="left">
+        <IconButton
+          size="small"
+          onClick={handleClick}
+          sx={{
+            color: 'text.secondary',
+            transition: 'all 0.2s ease-in-out',
+            '&:hover': {
+              backgroundColor: 'action.hover',
+              color: 'primary.main',
+              transform: 'scale(1.1)',
+            },
+          }}
+        >
+          <MoreVertIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Menu
+        anchorEl={anchorEl}
+        open={open}
+        onClose={handleClose}
+        onClick={handleClose}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+        TransitionProps={{
+          timeout: 250,
+        }}
+        slotProps={{
+          paper: {
+            elevation: 8,
+            sx: {
+              minWidth: 220,
+              borderRadius: 2.5,
+              mt: 0.5,
+              overflow: 'visible',
+              filter: 'drop-shadow(0px 4px 12px rgba(0,0,0,0.15))',
+              border: '1px solid',
+              borderColor: 'divider',
+              '&::before': {
+                content: '""',
+                display: 'block',
+                position: 'absolute',
+                top: 0,
+                right: 14,
+                width: 10,
+                height: 10,
+                bgcolor: 'background.paper',
+                transform: 'translateY(-50%) rotate(45deg)',
+                zIndex: 0,
+                borderLeft: '1px solid',
+                borderTop: '1px solid',
+                borderColor: 'divider',
+              },
+            },
+          },
+        }}
+      >
+        {menuItems.map((item, index) => {
+          if ('divider' in item) {
+            return <Divider key={`divider-${index}`} sx={{ my: 1 }} />
+          }
+
+          return (
+            <MenuItem
+              key={item.label}
+              onClick={item.enabled ? item.action : undefined}
+              disabled={!item.enabled}
+              sx={{
+                py: 1.25,
+                px: 2.5,
+                gap: 1.5,
+                transition: 'all 0.2s ease',
+                '&:hover': item.enabled ? {
+                  backgroundColor: 'action.hover',
+                  transform: 'translateX(4px)',
+                } : {},
+                '&.Mui-disabled': {
+                  opacity: 0.4,
+                },
+                cursor: item.enabled ? 'pointer' : 'not-allowed',
+              }}
+            >
+              <ListItemIcon
+                sx={{
+                  color: item.enabled ? item.color : 'text.disabled',
+                  minWidth: 28,
+                  transition: 'color 0.2s ease',
+                }}
+              >
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText
+                primary={item.label}
+                primaryTypographyProps={{
+                  fontSize: '0.875rem',
+                  fontWeight: item.enabled ? 500 : 400,
+                  letterSpacing: '0.01em',
+                  color: item.enabled ? 'text.primary' : 'text.disabled',
+                }}
+              />
+            </MenuItem>
+          )
+        })}
+      </Menu>
+    </>
+  )
 }
 
 const InvoiceManagement = () => {
@@ -381,77 +634,19 @@ const InvoiceManagement = () => {
     {
       field: 'actions',
       headerName: 'Thao tác',
-      width: 120,
+      width: 80,
       sortable: false,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
-        const isDraft = params.row.internalStatusId === 1 // Status Nháp
-        const isPendingSign = params.row.internalStatusId === 7 // Status Chờ ký
         const isSending = submittingId === params.row.id
         
         return (
-          <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
-            <Tooltip title="Xem chi tiết" arrow>
-              <IconButton
-                component={Link}
-                to={`/invoices/${params.row.id}`}
-                size="small"
-                color="info"
-                sx={{
-                  '&:hover': {
-                    backgroundColor: 'rgba(33, 150, 243, 0.08)',
-                  },
-                }}>
-                <VisibilityOutlinedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            {isDraft && (
-              <Tooltip title="Chỉnh sửa" arrow>
-                <IconButton
-                  size="small"
-                  color="primary"
-                  sx={{
-                    '&:hover': {
-                      backgroundColor: 'rgba(28, 132, 238, 0.08)',
-                    },
-                  }}>
-                  <EditOutlinedIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            )}
-            {isDraft && (
-              <Tooltip title="Gửi cho KT Trưởng" arrow>
-                <IconButton
-                  size="small"
-                  color="success"
-                  disabled={isSending}
-                  onClick={() => handleSendForApproval(params.row.id)}
-                  sx={{
-                    '&:hover': {
-                      backgroundColor: 'rgba(46, 125, 50, 0.08)',
-                    },
-                  }}>
-                  <SendIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            )}
-            {isPendingSign && (
-              <Tooltip title="Ký số" arrow>
-                <IconButton
-                  size="small"
-                  color="secondary"
-                  onClick={() => console.log('Ký số hóa đơn:', params.row.id)}
-                  sx={{
-                    '&:hover': {
-                      backgroundColor: 'rgba(156, 39, 176, 0.08)',
-                    },
-                  }}>
-                  <DrawIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            )}
-          </Box>
+          <InvoiceActionsMenu
+            invoice={params.row as Invoice}
+            onSendForApproval={handleSendForApproval}
+            isSending={isSending}
+          />
         )
       },
     },

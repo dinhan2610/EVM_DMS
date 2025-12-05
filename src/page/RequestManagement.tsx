@@ -13,14 +13,27 @@ import {
   TextField,
   Tooltip,
   Chip,
-  Stack,
   InputAdornment,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Divider,
 } from '@mui/material'
 import { useNavigate } from 'react-router-dom'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
+import MoreVertIcon from '@mui/icons-material/MoreVert'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import HighlightOffIcon from '@mui/icons-material/HighlightOff'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+import DrawIcon from '@mui/icons-material/Draw'
+import EmailIcon from '@mui/icons-material/Email'
+import PrintIcon from '@mui/icons-material/Print'
+import DownloadIcon from '@mui/icons-material/Download'
+import FindReplaceIcon from '@mui/icons-material/FindReplace'
+import RestoreIcon from '@mui/icons-material/Restore'
+import CancelIcon from '@mui/icons-material/Cancel'
 import SearchIcon from '@mui/icons-material/Search'
 import RequestDetailModal from '../components/RequestDetailModal.tsx'
 
@@ -140,6 +153,254 @@ const getStatusLabel = (status: string) => {
     default:
       return status
   }
+}
+
+// Component menu thao tác cho mỗi yêu cầu
+interface RequestActionsMenuProps {
+  request: InvoiceRequest
+  onViewDetails: (request: InvoiceRequest) => void
+  onAccept: (request: InvoiceRequest) => void
+  onReject: (request: InvoiceRequest) => void
+}
+
+const RequestActionsMenu = ({ request, onViewDetails, onAccept, onReject }: RequestActionsMenuProps) => {
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+  const open = Boolean(anchorEl)
+
+  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget)
+  }
+
+  const handleClose = () => {
+    setAnchorEl(null)
+  }
+
+  const isPending = request.status === 'Pending'
+  const isApproved = request.status === 'Approved'
+
+  const menuItems = [
+    {
+      label: 'Xem chi tiết',
+      icon: <VisibilityOutlinedIcon fontSize="small" />,
+      enabled: true,
+      action: () => {
+        onViewDetails(request)
+        handleClose()
+      },
+      color: 'primary.main',
+    },
+    {
+      label: 'Chỉnh sửa',
+      icon: <EditOutlinedIcon fontSize="small" />,
+      enabled: isPending,
+      action: () => {
+        console.log('Chỉnh sửa yêu cầu:', request.id)
+        handleClose()
+      },
+      color: 'primary.main',
+    },
+    {
+      label: 'Chấp nhận',
+      icon: <CheckCircleOutlineIcon fontSize="small" />,
+      enabled: isPending,
+      action: () => {
+        onAccept(request)
+        handleClose()
+      },
+      color: 'success.main',
+    },
+    {
+      label: 'Từ chối',
+      icon: <HighlightOffIcon fontSize="small" />,
+      enabled: isPending,
+      action: () => {
+        onReject(request)
+        handleClose()
+      },
+      color: 'error.main',
+    },
+    {
+      label: 'Ký số',
+      icon: <DrawIcon fontSize="small" />,
+      enabled: isApproved,
+      action: () => {
+        console.log('Ký số:', request.id)
+        handleClose()
+      },
+      color: 'secondary.main',
+    },
+    { divider: true },
+    {
+      label: 'Gửi email',
+      icon: <EmailIcon fontSize="small" />,
+      enabled: true, // Luôn dùng được
+      action: () => {
+        console.log('Gửi email:', request.id)
+        handleClose()
+      },
+      color: 'info.main',
+    },
+    {
+      label: 'In hóa đơn',
+      icon: <PrintIcon fontSize="small" />,
+      enabled: true, // Luôn dùng được
+      action: () => {
+        console.log('In hóa đơn:', request.id)
+        handleClose()
+      },
+      color: 'text.primary',
+    },
+    {
+      label: 'Tải xuống',
+      icon: <DownloadIcon fontSize="small" />,
+      enabled: true, // Luôn dùng được
+      action: () => {
+        console.log('Tải xuống:', request.id)
+        handleClose()
+      },
+      color: 'text.primary',
+    },
+    { divider: true },
+    {
+      label: 'Tạo HĐ điều chỉnh',
+      icon: <FindReplaceIcon fontSize="small" />,
+      enabled: isApproved,
+      action: () => {
+        console.log('Tạo HĐ điều chỉnh:', request.id)
+        handleClose()
+      },
+      color: 'warning.main',
+    },
+    {
+      label: 'Tạo HĐ thay thế',
+      icon: <RestoreIcon fontSize="small" />,
+      enabled: isApproved,
+      action: () => {
+        console.log('Tạo HĐ thay thế:', request.id)
+        handleClose()
+      },
+      color: 'warning.main',
+    },
+    {
+      label: 'Hủy',
+      icon: <CancelIcon fontSize="small" />,
+      enabled: isApproved,
+      action: () => {
+        console.log('Hủy yêu cầu:', request.id)
+        handleClose()
+      },
+      color: 'error.main',
+    },
+  ]
+
+  return (
+    <>
+      <Tooltip title="Thao tác" arrow placement="left">
+        <IconButton
+          size="small"
+          onClick={handleClick}
+          sx={{
+            color: 'text.secondary',
+            transition: 'all 0.2s ease-in-out',
+            '&:hover': {
+              backgroundColor: 'action.hover',
+              color: 'primary.main',
+              transform: 'scale(1.1)',
+            },
+          }}
+        >
+          <MoreVertIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Menu
+        anchorEl={anchorEl}
+        open={open}
+        onClose={handleClose}
+        onClick={handleClose}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+        TransitionProps={{
+          timeout: 250,
+        }}
+        slotProps={{
+          paper: {
+            elevation: 8,
+            sx: {
+              minWidth: 220,
+              borderRadius: 2.5,
+              mt: 0.5,
+              overflow: 'visible',
+              filter: 'drop-shadow(0px 4px 12px rgba(0,0,0,0.15))',
+              border: '1px solid',
+              borderColor: 'divider',
+              '&::before': {
+                content: '""',
+                display: 'block',
+                position: 'absolute',
+                top: 0,
+                right: 14,
+                width: 10,
+                height: 10,
+                bgcolor: 'background.paper',
+                transform: 'translateY(-50%) rotate(45deg)',
+                zIndex: 0,
+                borderLeft: '1px solid',
+                borderTop: '1px solid',
+                borderColor: 'divider',
+              },
+            },
+          },
+        }}
+      >
+        {menuItems.map((item, index) => {
+          if ('divider' in item) {
+            return <Divider key={`divider-${index}`} sx={{ my: 1 }} />
+          }
+
+          return (
+            <MenuItem
+              key={item.label}
+              onClick={item.enabled ? item.action : undefined}
+              disabled={!item.enabled}
+              sx={{
+                py: 1.25,
+                px: 2.5,
+                gap: 1.5,
+                transition: 'all 0.2s ease',
+                '&:hover': item.enabled ? {
+                  backgroundColor: 'action.hover',
+                  transform: 'translateX(4px)',
+                } : {},
+                '&.Mui-disabled': {
+                  opacity: 0.4,
+                },
+                cursor: item.enabled ? 'pointer' : 'not-allowed',
+              }}
+            >
+              <ListItemIcon
+                sx={{
+                  color: item.enabled ? item.color : 'text.disabled',
+                  minWidth: 28,
+                  transition: 'color 0.2s ease',
+                }}
+              >
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText
+                primary={item.label}
+                primaryTypographyProps={{
+                  fontSize: '0.875rem',
+                  fontWeight: item.enabled ? 500 : 400,
+                  letterSpacing: '0.01em',
+                  color: item.enabled ? 'text.primary' : 'text.disabled',
+                }}
+              />
+            </MenuItem>
+          )
+        })}
+      </Menu>
+    </>
+  )
 }
 
 const RequestManagement = () => {
@@ -292,69 +553,17 @@ const RequestManagement = () => {
       field: 'actions',
       headerName: 'Hành động',
       type: 'actions',
-      flex: 1,
-      minWidth: 150,
+      width: 80,
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
-        if (params.row.status === 'Pending') {
-          return (
-            <Stack direction="row" spacing={0.5}>
-              <Tooltip title="Xem chi tiết" arrow>
-                <IconButton
-                  size="small"
-                  color="info"
-                  onClick={() => handleViewDetails(params.row)}
-                  sx={{
-                    '&:hover': {
-                      backgroundColor: 'rgba(33, 150, 243, 0.08)',
-                    },
-                  }}>
-                  <VisibilityOutlinedIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Chấp nhận" arrow>
-                <IconButton
-                  size="small"
-                  color="success"
-                  onClick={() => handleAccept(params.row)}
-                  sx={{
-                    '&:hover': {
-                      backgroundColor: 'rgba(76, 175, 80, 0.08)',
-                    },
-                  }}>
-                  <CheckCircleOutlineIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Từ chối" arrow>
-                <IconButton
-                  size="small"
-                  color="error"
-                  onClick={() => handleOpenRejectModal(params.row)}
-                  sx={{
-                    '&:hover': {
-                      backgroundColor: 'rgba(244, 67, 54, 0.08)',
-                    },
-                  }}>
-                  <HighlightOffIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </Stack>
-          )
-        }
-        // Đã xử lý: chỉ hiển thị nút xem chi tiết
         return (
-          <Tooltip title="Xem chi tiết" arrow>
-            <IconButton
-              size="small"
-              color="info"
-              onClick={() => handleViewDetails(params.row)}
-              sx={{
-                '&:hover': {
-                  backgroundColor: 'rgba(33, 150, 243, 0.08)',
-                },
-              }}>
-              <VisibilityOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          <RequestActionsMenu
+            request={params.row as InvoiceRequest}
+            onViewDetails={handleViewDetails}
+            onAccept={handleAccept}
+            onReject={handleOpenRejectModal}
+          />
         )
       },
     },
