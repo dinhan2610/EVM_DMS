@@ -145,6 +145,8 @@ const InvoiceDetail: React.FC = () => {
         
         // Load invoice data
         const invoiceData = await invoiceService.getInvoiceById(Number(id))
+        console.log('🔍 Invoice data loaded:', invoiceData)
+        console.log('📝 Invoice notes:', invoiceData.notes)
         setInvoice(invoiceData)
         
         // Load template data
@@ -343,6 +345,7 @@ const InvoiceDetail: React.FC = () => {
             invoiceNumber={invoice.invoiceNumber}
             taxAuthorityCode={invoice.taxAuthorityCode}
             backgroundFrame={template?.frameUrl || ''}
+            notes={invoice.notes}
           />
         </Box>
       </Box>

@@ -126,6 +126,7 @@ export interface InvoiceTemplatePreviewProps {
   paymentMethod?: string; // NEW: Payment method from invoice
   invoiceNumber?: number | string; // NEW: Actual invoice number
   taxAuthorityCode?: string | null; // NEW: Tax authority code
+  notes?: string | null; // NEW: Invoice notes
 }
 
 // NOTE: InvoiceTemplatePrintProps has been removed.

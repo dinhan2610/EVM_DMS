@@ -526,6 +526,8 @@ const CreateVatInvoice: React.FC = () => {
   const [discountType, setDiscountType] = useState<string>('none') // 'none' | 'per-item' | 'total'
   const [vatRate, setVatRate] = useState<number>(10) // Thuế GTGT: 0, 5, 10
   const [sendEmailModalOpen, setSendEmailModalOpen] = useState(false)
+  const [invoiceNotes, setInvoiceNotes] = useState<string>('') // Ghi chú chung cho hóa đơn
+  const [showInvoiceNotes, setShowInvoiceNotes] = useState(false) // Hiện/ẩn ô ghi chú
   const calculateAfterTax = false // Giá nhập vào là giá CHƯA thuế, VAT tính thêm
 
   // State cho loading và error
@@ -883,7 +885,7 @@ const CreateVatInvoice: React.FC = () => {
         paymentMethod, // Hình thức thanh toán từ dropdown
         5,              // minRows
         invoiceStatusID, // ⭐ Status: 1=Nháp, 6=Chờ duyệt
-        '',             // notes
+        invoiceNotes,   // Ghi chú hóa đơn
         0               // signedBy (0=chưa ký)
       )
 
@@ -1837,17 +1839,42 @@ const CreateVatInvoice: React.FC = () => {
             </Button>
             <Button
               size="small"
-              variant="outlined"
+              variant="text"
+              onClick={() => setShowInvoiceNotes(!showInvoiceNotes)}
+              startIcon={showInvoiceNotes ? <i className="ri-subtract-line" /> : <i className="ri-add-line" />}
               sx={{
                 textTransform: 'none',
                 color: '#1976d2',
-                borderColor: '#ccc',
                 fontSize: '0.8125rem',
-                py: 0.5,
+                py: 0.25,
+                px: 1,
+                '&:hover': { bgcolor: 'rgba(25, 118, 210, 0.04)' }
               }}>
-              Thêm ghi chú
+              {showInvoiceNotes ? 'Ẩn ghi chú' : 'Thêm ghi chú'}
             </Button>
           </Stack>
+
+          {/* Ô nhập ghi chú hóa đơn */}
+          {showInvoiceNotes && (
+            <Box sx={{ mb: 1.5 }}>
+              <TextField
+                fullWidth
+                multiline
+                rows={2}
+                value={invoiceNotes}
+                onChange={(e) => setInvoiceNotes(e.target.value)}
+                placeholder="Nhập ghi chú cho hóa đơn..."
+                variant="outlined"
+                size="small"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    fontSize: '0.8125rem',
+                    bgcolor: '#fafafa'
+                  }
+                }}
+              />
+            </Box>
+          )}
 
           <Divider sx={{ my: 1.5 }} />
 
