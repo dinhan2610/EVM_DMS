@@ -199,10 +199,11 @@ export const DEFAULT_INVOICE_SYMBOL: InvoiceSymbol = {
 
 /**
  * Pagination constants for multi-page invoices
+ * Optimized for better space utilization
  */
 export const INVOICE_PAGINATION = {
-  ROWS_PER_FIRST_PAGE: 10,  // First page: full header + 10 rows
-  ROWS_PER_NEXT_PAGE: 22,    // Subsequent pages: table only + 22 rows
+  ROWS_PER_FIRST_PAGE: 18,  // First page: full header + 18 rows (tối ưu không gian)
+  ROWS_PER_NEXT_PAGE: 20,    // Subsequent pages: table only + 20 rows (cân đối)
 } as const;
 
 /**
