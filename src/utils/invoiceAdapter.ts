@@ -251,7 +251,7 @@ export function mapToBackendInvoiceRequest(
     signedBy,                         // ⭐ NEW: UserID người ký (0=chưa ký)
     minRows: minRows,
     contactEmail: buyerInfo.email || 'noreply@company.com',
-    contactPerson: buyerInfo.buyerName || 'Khách hàng',
+    contactPerson: buyerInfo.buyerName || '',  // ✅ Để trống nếu không nhập
     contactPhone: buyerInfo.phone || '0000000000'
   };
 }

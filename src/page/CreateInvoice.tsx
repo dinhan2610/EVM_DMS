@@ -56,6 +56,7 @@ const initialCustomerInfo: CustomerInfo = {
   email: '',
   taxCode: '',
   address: '',
+  buyerName: '',  // ✅ Thêm buyerName
 }
 
 const initialInvoiceDetails: LocalInvoiceDetails = {

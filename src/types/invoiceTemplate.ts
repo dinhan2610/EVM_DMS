@@ -138,11 +138,12 @@ export interface InvoiceTemplatePreviewProps {
  * Customer information structure
  */
 export interface CustomerInfo {
-  name: string;
+  name: string;           // Tên công ty/đơn vị
   email: string;
   taxCode: string;
   address: string;
   phone?: string;
+  buyerName?: string;     // ✅ Họ tên người mua hàng (có thể để trống)
 }
 
 /**

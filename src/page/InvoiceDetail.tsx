@@ -105,13 +105,14 @@ const mapTemplateToConfig = (template: TemplateResponse, company: Company | null
 /**
  * Map customer to CustomerInfo (for InvoiceTemplatePreview)
  */
-const mapCustomerToCustomerInfo = (customer: Customer): CustomerInfo => {
+const mapCustomerToCustomerInfo = (customer: Customer, invoice?: InvoiceListItem): CustomerInfo => {
   return {
     name: customer.customerName,
     email: customer.contactEmail,
     taxCode: customer.taxCode,
     address: customer.address,
     phone: customer.contactPhone,
+    buyerName: invoice?.contactPerson || '',  // ✅ Lấy từ invoice.contactPerson
   }
 }
 
@@ -133,7 +134,7 @@ const InvoiceDetail: React.FC = () => {
   const taxStatus: TaxStatus = invoice?.taxAuthorityCode ? 'Đã đồng bộ' : 'Chờ đồng bộ'
   const products = invoice ? mapInvoiceToProducts(invoice) : []
   const templateConfig = template ? mapTemplateToConfig(template, company) : null
-  const customerInfo = customer ? mapCustomerToCustomerInfo(customer) : null
+  const customerInfo = customer && invoice ? mapCustomerToCustomerInfo(customer, invoice) : null  // ✅ Truyền thêm invoice
 
   useEffect(() => {
     const fetchInvoiceDetail = async () => {

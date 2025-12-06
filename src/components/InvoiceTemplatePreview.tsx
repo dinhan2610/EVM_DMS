@@ -329,37 +329,37 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                 <Stack spacing={0.4} sx={{ mb: 1 }}>
                   {customerVisibility.customerName && (
                     <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
-                      {renderBilingual('Họ tên người mua hàng', 'Buyer Name')}: <strong>{customerInfo?.name || '......................................................'}</strong>
+                      {renderBilingual('Họ tên người mua hàng', 'Buyer Name')}: <strong>{customerInfo?.buyerName || ''}</strong>
                     </Typography>
                   )}
                   {customerVisibility.customerName && (
                     <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
-                      {renderBilingual('Tên đơn vị', 'Company Name')}: <strong>{customerInfo?.name || '......................................................'}</strong>
+                      {renderBilingual('Tên đơn vị', 'Company Name')}: <strong>{customerInfo?.name || ''}</strong>
                     </Typography>
                   )}
                   {customerVisibility.customerTaxCode && (
                     <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
-                      {renderBilingual('Mã số thuế', 'Tax ID')}: <strong>{customerInfo?.taxCode || '......................................................'}</strong>
+                      {renderBilingual('Mã số thuế', 'Tax ID')}: <strong>{customerInfo?.taxCode || ''}</strong>
                     </Typography>
                   )}
                   {customerVisibility.customerAddress && (
                     <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
-                      {renderBilingual('Địa chỉ', 'Address')}: <strong>{customerInfo?.address || '......................................................'}</strong>
+                      {renderBilingual('Địa chỉ', 'Address')}: <strong>{customerInfo?.address || ''}</strong>
                     </Typography>
                   )}
                   {customerVisibility.customerPhone && (
                     <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
-                      {renderBilingual('Số điện thoại', 'Phone')}: <strong>{customerInfo?.phone || '......................................................'}</strong>
+                      {renderBilingual('Số điện thoại', 'Phone')}: <strong>{customerInfo?.phone || ''}</strong>
                     </Typography>
                   )}
                   {customerVisibility.customerEmail && (
                     <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
-                      {renderBilingual('Email', 'Email')}: <strong>{customerInfo?.email || '......................................................'}</strong>
+                      {renderBilingual('Email', 'Email')}: <strong>{customerInfo?.email || ''}</strong>
                     </Typography>
                   )}
                   {showPaymentInfo && customerVisibility.paymentMethod && (
                     <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
-                      {renderBilingual('Hình thức thanh toán', 'Payment Method')}: <strong>{paymentMethod || '......................................................'}</strong>
+                      {renderBilingual('Hình thức thanh toán', 'Payment Method')}: <strong>{paymentMethod || ''}</strong>
                     </Typography>
                   )}
                 </Stack>
