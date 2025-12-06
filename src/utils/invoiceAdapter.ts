@@ -66,6 +66,7 @@ export interface FrontendInvoiceItem {
   priceAfterTax: number;        // Đơn giá (ĐÃ bao gồm VAT)
   discountPercent: number;      // Tỷ lệ chiết khấu (%)
   discountAmount: number;       // Tiền chiết khấu
+  vatRate?: number;             // ✅ Thuế suất GTGT của sản phẩm (0, 5, 8, 10)
   totalAfterTax: number;        // Thành tiền (ĐÃ bao gồm VAT, ĐÃ trừ CK)
 }
 
@@ -119,8 +120,7 @@ export function calculateAmountBeforeVat(
  */
 export function validateTotals(
   items: FrontendInvoiceItem[],
-  totals: FrontendTotals,
-  vatRate: number
+  totals: FrontendTotals
 ): { isValid: boolean; errors: string[] } {
   const errors: string[] = [];
   
@@ -143,8 +143,13 @@ export function validateTotals(
     errors.push(`SubtotalAfterDiscount mismatch: expected ${calculatedSubtotalAfterDiscount}, got ${totals.subtotalAfterDiscount}`);
   }
   
-  // 4. Validate tax (calculated from subtotal BEFORE VAT)
-  const calculatedTax = Math.round(calculatedSubtotalAfterDiscount * (vatRate / 100));
+  // 4. ✅ Validate tax (tính từng item với vatRate riêng)
+  const calculatedTax = items.reduce((sum, item) => {
+    const itemSubtotal = item.totalAfterTax; // Thành tiền sau CK, chưa VAT
+    const itemVatRate = item.vatRate || 0;
+    const itemTax = Math.round(itemSubtotal * (itemVatRate / 100));
+    return sum + itemTax;
+  }, 0);
   
   if (Math.abs(calculatedTax - totals.tax) > 1) {
     errors.push(`Tax mismatch: expected ${calculatedTax}, got ${totals.tax}`);
@@ -169,22 +174,23 @@ export function validateTotals(
  * Chuyển đổi frontend state sang backend request
  * 
  * ✅ CẬP NHẬT: API đã bổ sung productName, unit, paymentMethod
+ * ✅ Mỗi sản phẩm có thuế suất VAT riêng (item.vatRate)
  * 
  * @param templateID - ID template được chọn
  * @param buyerInfo - Thông tin người mua
- * @param items - Danh sách sản phẩm/dịch vụ
- * @param vatRate - Thuế suất VAT (0, 5, 10)
+ * @param items - Danh sách sản phẩm/dịch vụ (mỗi item có vatRate riêng)
  * @param totals - Tổng tiền đã tính
- * @param userId - ID người tạo hóa đơn (từ token)
  * @param paymentMethod - Hình thức thanh toán ("Tiền mặt", "Chuyển khoản", "Thẻ", v.v.)
  * @param minRows - Số dòng trống tối thiểu (mặc định 5)
+ * @param invoiceStatusID - Trạng thái hóa đơn (1=Nháp, 6=Chờ duyệt)
+ * @param notes - Ghi chú
+ * @param signedBy - UserID người ký (0=chưa ký)
  * @returns Backend request object
  */
 export function mapToBackendInvoiceRequest(
   templateID: number,
   buyerInfo: FrontendBuyerInfo,
   items: FrontendInvoiceItem[],
-  vatRate: number,
   totals: FrontendTotals,
   paymentMethod: string = "Tiền mặt",  // ✅ Hình thức thanh toán
   minRows: number = 5,
@@ -194,7 +200,7 @@ export function mapToBackendInvoiceRequest(
 ): BackendInvoiceRequest {
   
   // Validate totals trước khi gửi
-  const validation = validateTotals(items, totals, vatRate);
+  const validation = validateTotals(items, totals);
   if (!validation.isValid) {
     console.warn('⚠️ Totals validation failed:', validation.errors);
     // Có thể throw error hoặc cảnh báo
@@ -207,8 +213,9 @@ export function mapToBackendInvoiceRequest(
   const backendItems: BackendInvoiceItem[] = items.map(item => {
     // item.totalAfterTax đã là số tiền CHƯA VAT (sau chiết khấu)
     const amount = Math.round(item.totalAfterTax);
-    // Tính VAT = amount × (vatRate/100)
-    const vatAmount = Math.round(amount * (vatRate / 100));
+    // ✅ Tính VAT = amount × (vatRate của sản phẩm / 100)
+    const itemVatRate = item.vatRate || 0;  // Lấy VAT rate từ item, default 0
+    const vatAmount = Math.round(amount * (itemVatRate / 100));
     
     return {
       productId: item.productId || 0,  // ✅ Dùng productId từ item, hoặc 0 nếu nhập tự do
@@ -216,7 +223,7 @@ export function mapToBackendInvoiceRequest(
       unit: item.unit,                 // ✅ Đơn vị tính
       quantity: item.quantity,
       amount: amount,                  // Tiền chưa VAT (đã trừ chiết khấu)
-      vatAmount: vatAmount             // Tiền VAT tính từ amount
+      vatAmount: vatAmount             // Tiền VAT tính từ amount × vatRate của sản phẩm
     };
   });
   
@@ -231,7 +238,6 @@ export function mapToBackendInvoiceRequest(
     backendAmount: totalAmountBeforeVat,
     backendTaxAmount: totalVatAmount,
     itemsCount: items.length,
-    vatRate: vatRate
   });
   
   return {
