@@ -168,235 +168,229 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
             }}
           >
             <Box position="relative" sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-              {/* Phần 1: Header - CHỈ HIỆN Ở TRANG ĐẦU TIÊN */}
-              {page.isFirst && (
-                <>
-                  {/* Logo + Tiêu đề - CÙNG 1 HÀNG */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4, mt: 2, marginTop: '2rem', position: 'relative' }}>
-                    {/* Cột Trái: Logo - CHỈ HIỆN KHI CÓ LOGO */}
-                    <Box sx={{ flex: 1 }}>
-                      {showLogo && config.companyLogo && (
-                        <img
-                          src={config.companyLogo}
-                          alt="Logo"
-                          style={{
-                            maxWidth: '130px',
-                            height: 'auto',
-                            objectFit: 'contain',
-                            display: 'block',
-                          }}
-                        />
-                      )}
-                    </Box>
+              {/* Phần 1: Header - LUÔN HIỆN Ở TẤT CẢ TRANG */}
+              {/* Logo + Tiêu đề - CÙNG 1 HÀNG */}
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4, mt: 2, marginTop: '2rem', position: 'relative' }}>
+                {/* Cột Trái: Logo - CHỈ HIỆN KHI CÓ LOGO */}
+                <Box sx={{ flex: 1 }}>
+                  {showLogo && config.companyLogo && (
+                    <img
+                      src={config.companyLogo}
+                      alt="Logo"
+                      style={{
+                        maxWidth: '130px',
+                        height: 'auto',
+                        objectFit: 'contain',
+                        display: 'block',
+                      }}
+                    />
+                  )}
+                </Box>
 
-                    {/* Cột Giữa: Tiêu đề - LUÔN CĂN GIỮA TUYỆT ĐỐI */}
-                    <Box sx={{ 
-                      position: 'absolute',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      textAlign: 'center',
-                      zIndex: 1,
-                    }}>
-                      <Typography
-                        variant="h5"
-                        fontWeight="bold"
-                        sx={{ 
-                          textTransform: 'uppercase', 
-                          fontSize: '1.4rem', 
-                          lineHeight: 1.5,
-                          letterSpacing: 0.2,
-                          mb: 0.5,
+                {/* Cột Giữa: Tiêu đề - LUÔN CĂN GIỮA TUYỆT ĐỐI */}
+                <Box sx={{ 
+                  position: 'absolute',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  textAlign: 'center',
+                  zIndex: 1,
+                }}>
+                  <Typography
+                    variant="h5"
+                    fontWeight="bold"
+                    sx={{ 
+                      textTransform: 'uppercase', 
+                      fontSize: '1.4rem', 
+                      lineHeight: 1.5,
+                      letterSpacing: 0.2,
+                      mb: 0.5,
+                    }}
+                  >
+                    HÓA ĐƠN GIÁ TRỊ GIA TĂNG
+                  </Typography>
+                  {bilingual && (
+                    <Typography
+                      variant="h6"
+                      fontWeight="bold"
+                      sx={{ 
+                        fontSize: '1.1rem',
+                        textTransform: 'uppercase',
+                        lineHeight: 1.5,
+                        letterSpacing: 0.2,
+                        mb: 1,
+                      }}
+                    >
+                      (VAT INVOICE)
+                    </Typography>
+                  )}
+                </Box>
+
+                {/* Cột Phải: Trống (để cân đối) */}
+                <Box sx={{ flex: 1 }} />
+              </Box>
+
+              {/* Ký hiệu/Số và Mã CQT/Ngày - HÀNG RIÊNG */}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
+                {/* Cột Trái: Trống */}
+                <Box sx={{ flex: 1 }} />
+
+                {/* Cột Giữa: Mã CQT và Ngày */}
+                <Box sx={{ flex: 1, textAlign: 'center' }}>
+                  {invoiceType === 'withCode' && (
+                    <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.5, lineHeight: 1.8 }}>
+                      {renderBilingual('Mã CQT', 'Tax Code')}: <strong>{taxAuthorityCode || ''}</strong>
+                    </Typography>
+                  )}
+                  <Typography variant="body2" fontStyle="italic" sx={{ fontSize: '0.75rem', lineHeight: 1.8 }}>
+                    {formatDate(invoiceDate)}
+                  </Typography>
+                </Box>
+
+                {/* Cột Phải: Ký hiệu và Số */}
+                <Box sx={{ flex: 1, textAlign: 'right' }}>
+                  <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.5, lineHeight: 1.8 }}>
+                    {renderBilingual('Ký hiệu', 'Symbol')}: <strong>{symbol.invoiceType}{symbol.taxCode}{symbol.year}{symbol.invoiceForm}{symbol.management}</strong>
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8 }}>
+                    {renderBilingual('Số', 'No.')}: {
+                      invoiceNumber ? 
+                        <strong>{String(invoiceNumber).padStart(7, '0')}</strong> : 
+                        <Box component="span" sx={{ color: 'red', fontWeight: 500 }}>[{renderBilingual('Chưa cấp số', 'Not Issued')}]</Box>
+                    }
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Divider sx={{ my: 1 }} />
+
+              {/* Phần 2: Thông tin Công ty & QR (2 cột với Box) */}
+              <Box sx={{ display: 'flex', gap: 3, mb: 1.2 }}>
+                {/* Cột Trái: Thông tin Công ty */}
+                <Box sx={{ flex: 7 }}>
+                  {/* Đơn vị bán - Chung dòng */}
+                  {showCompanyName && (
+                    <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.4, lineHeight: 1.8, overflow: 'visible' }}>
+                      {renderBilingual('Đơn vị bán', 'Seller')}: <strong>{config.companyName || 'Công ty Cổ phần Giải pháp Tổng thể Kỷ Nguyên Số'}</strong>
+                    </Typography>
+                  )}
+                      
+                  {showCompanyTaxCode && (
+                    <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.4, lineHeight: 1.8, overflow: 'visible' }}>
+                      {renderBilingual('Mã số thuế', 'Tax ID')}: <strong>{config.companyTaxCode || '0316882091'}</strong>
+                    </Typography>
+                  )}
+                  
+                  {showCompanyAddress && (
+                    <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.4, lineHeight: 1.8, overflow: 'visible' }}>
+                      {renderBilingual('Địa chỉ', 'Address')}: <strong>{config.companyAddress || 'Tòa nhà ABC, 123 Đường XYZ, Phường Tân Định, Quận 1, Thành phố Hồ Chí Minh, Việt Nam.'}</strong>
+                    </Typography>
+                  )}
+                  
+                  {showCompanyPhone && (
+                    <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.4, lineHeight: 1.8, overflow: 'visible' }}>
+                      {renderBilingual('Điện thoại', 'Phone')}: <strong>{config.companyPhone || '(028) 38 995 822'}</strong>
+                    </Typography>
+                  )}
+                  
+                  {showCompanyBankAccount && (
+                    <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
+                      {renderBilingual('Số tài khoản', 'Account No.')}: <strong>245889119</strong> - <strong>Ngân hàng TMCP Á Châu - Chi Nhánh Sài Gòn</strong>
+                    </Typography>
+                  )}
+                </Box>
+                
+                {/* Cột Phải: QR Code */}
+                {showQrCode && (
+                  <Box sx={{ flex: 5, textAlign: 'right' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <Box
+                        sx={{
+                          width: 65,
+                          height: 65,
+                          border: '1px dashed #999',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: '#f9f9f9',
+                          borderRadius: 0.5,
                         }}
                       >
-                        HÓA ĐƠN GIÁ TRỊ GIA TĂNG
-                      </Typography>
-                      {bilingual && (
-                        <Typography
-                          variant="h6"
-                          fontWeight="bold"
-                          sx={{ 
-                            fontSize: '1.1rem',
-                            textTransform: 'uppercase',
-                            lineHeight: 1.5,
-                            letterSpacing: 0.2,
-                            mb: 1,
-                          }}
-                        >
-                          (VAT INVOICE)
-                        </Typography>
-                      )}
-                    </Box>
-
-                    {/* Cột Phải: Trống (để cân đối) */}
-                    <Box sx={{ flex: 1 }} />
-                  </Box>
-
-                  {/* Ký hiệu/Số và Mã CQT/Ngày - HÀNG RIÊNG */}
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
-                    {/* Cột Trái: Trống */}
-                    <Box sx={{ flex: 1 }} />
-
-                    {/* Cột Giữa: Mã CQT và Ngày */}
-                    <Box sx={{ flex: 1, textAlign: 'center' }}>
-                      {invoiceType === 'withCode' && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.5, lineHeight: 1.8 }}>
-                          {renderBilingual('Mã CQT', 'Tax Code')}: <strong>{taxAuthorityCode || ''}</strong>
-                        </Typography>
-                      )}
-                      <Typography variant="body2" fontStyle="italic" sx={{ fontSize: '0.75rem', lineHeight: 1.8 }}>
-                        {formatDate(invoiceDate)}
-                      </Typography>
-                    </Box>
-
-                    {/* Cột Phải: Ký hiệu và Số */}
-                    <Box sx={{ flex: 1, textAlign: 'right' }}>
-                      <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.5, lineHeight: 1.8 }}>
-                        {renderBilingual('Ký hiệu', 'Symbol')}: <strong>{symbol.invoiceType}{symbol.taxCode}{symbol.year}{symbol.invoiceForm}{symbol.management}</strong>
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8 }}>
-                        {renderBilingual('Số', 'No.')}: {
-                          invoiceNumber ? 
-                            <strong>{String(invoiceNumber).padStart(7, '0')}</strong> : 
-                            <Box component="span" sx={{ color: 'red', fontWeight: 500 }}>[{renderBilingual('Chưa cấp số', 'Not Issued')}]</Box>
-                        }
-                      </Typography>
-                    </Box>
-                  </Box>
-
-                  <Divider sx={{ my: 1 }} />
-
-                  {/* Phần 2: Thông tin Công ty & QR (2 cột với Box) */}
-                  <Box sx={{ display: 'flex', gap: 3, mb: 1.2 }}>
-                    {/* Cột Trái: Thông tin Công ty */}
-                    <Box sx={{ flex: 7 }}>
-                      {/* Đơn vị bán - Chung dòng */}
-                      {showCompanyName && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.4, lineHeight: 1.8, overflow: 'visible' }}>
-                          {renderBilingual('Đơn vị bán', 'Seller')}: <strong>{config.companyName || 'Công ty Cổ phần Giải pháp Tổng thể Kỷ Nguyên Số'}</strong>
-                        </Typography>
-                      )}
-                      
-                      {showCompanyTaxCode && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.4, lineHeight: 1.8, overflow: 'visible' }}>
-                          {renderBilingual('Mã số thuế', 'Tax ID')}: <strong>{config.companyTaxCode || '0316882091'}</strong>
-                        </Typography>
-                      )}
-                      
-                      {showCompanyAddress && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.4, lineHeight: 1.8, overflow: 'visible' }}>
-                          {renderBilingual('Địa chỉ', 'Address')}: <strong>{config.companyAddress || 'Tòa nhà ABC, 123 Đường XYZ, Phường Tân Định, Quận 1, Thành phố Hồ Chí Minh, Việt Nam.'}</strong>
-                        </Typography>
-                      )}
-                      
-                      {showCompanyPhone && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.4, lineHeight: 1.8, overflow: 'visible' }}>
-                          {renderBilingual('Điện thoại', 'Phone')}: <strong>{config.companyPhone || '(028) 38 995 822'}</strong>
-                        </Typography>
-                      )}
-                      
-                      {showCompanyBankAccount && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
-                          {renderBilingual('Số tài khoản', 'Account No.')}: <strong>245889119</strong> - <strong>Ngân hàng TMCP Á Châu - Chi Nhánh Sài Gòn</strong>
-                        </Typography>
-                      )}
-                    </Box>
-                    
-                    {/* Cột Phải: QR Code */}
-                    {showQrCode && (
-                      <Box sx={{ flex: 5, textAlign: 'right' }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                          <Box
-                            sx={{
-                              width: 65,
-                              height: 65,
-                              border: '1px dashed #999',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              bgcolor: '#f9f9f9',
-                              borderRadius: 0.5,
-                            }}
-                          >
-                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>QR</Typography>
-                          </Box>
-                        </Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>QR</Typography>
                       </Box>
-                    )}
+                    </Box>
                   </Box>
+                )}
+              </Box>
 
-                  <Divider sx={{ my: 1 }} />
+              <Divider sx={{ my: 1 }} />
 
-                  {/* Phần 3: Thông tin Người mua - CHỈ Ở TRANG 1 */}
-                  {showCustomerInfo && (
-                    <Stack spacing={0.4} sx={{ mb: 1 }}>
-                      {customerVisibility.customerName && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
-                          {renderBilingual('Họ tên người mua hàng', 'Buyer Name')}: <strong>{customerInfo?.name || '......................................................'}</strong>
-                        </Typography>
-                      )}
-                      {customerVisibility.customerName && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
-                          {renderBilingual('Tên đơn vị', 'Company Name')}: <strong>{customerInfo?.name || '......................................................'}</strong>
-                        </Typography>
-                      )}
-                      {customerVisibility.customerTaxCode && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
-                          {renderBilingual('Mã số thuế', 'Tax ID')}: <strong>{customerInfo?.taxCode || '......................................................'}</strong>
-                        </Typography>
-                      )}
-                      {customerVisibility.customerAddress && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
-                          {renderBilingual('Địa chỉ', 'Address')}: <strong>{customerInfo?.address || '......................................................'}</strong>
-                        </Typography>
-                      )}
-                      {customerVisibility.customerPhone && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
-                          {renderBilingual('Số điện thoại', 'Phone')}: <strong>{customerInfo?.phone || '......................................................'}</strong>
-                        </Typography>
-                      )}
-                      {customerVisibility.customerEmail && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
-                          {renderBilingual('Email', 'Email')}: <strong>{customerInfo?.email || '......................................................'}</strong>
-                        </Typography>
-                      )}
-                      {showPaymentInfo && customerVisibility.paymentMethod && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
-                          {renderBilingual('Hình thức thanh toán', 'Payment Method')}: <strong>{paymentMethod || '......................................................'}</strong>
-                        </Typography>
-                      )}
-                    </Stack>
+              {/* Phần 3: Thông tin Người mua - LUÔN HIỆN Ở TẤT CẢ TRANG */}
+              {showCustomerInfo && (
+                <Stack spacing={0.4} sx={{ mb: 1 }}>
+                  {customerVisibility.customerName && (
+                    <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
+                      {renderBilingual('Họ tên người mua hàng', 'Buyer Name')}: <strong>{customerInfo?.name || '......................................................'}</strong>
+                    </Typography>
                   )}
-                </>
+                  {customerVisibility.customerName && (
+                    <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
+                      {renderBilingual('Tên đơn vị', 'Company Name')}: <strong>{customerInfo?.name || '......................................................'}</strong>
+                    </Typography>
+                  )}
+                  {customerVisibility.customerTaxCode && (
+                    <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
+                      {renderBilingual('Mã số thuế', 'Tax ID')}: <strong>{customerInfo?.taxCode || '......................................................'}</strong>
+                    </Typography>
+                  )}
+                  {customerVisibility.customerAddress && (
+                    <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
+                      {renderBilingual('Địa chỉ', 'Address')}: <strong>{customerInfo?.address || '......................................................'}</strong>
+                    </Typography>
+                  )}
+                  {customerVisibility.customerPhone && (
+                    <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
+                      {renderBilingual('Số điện thoại', 'Phone')}: <strong>{customerInfo?.phone || '......................................................'}</strong>
+                    </Typography>
+                  )}
+                  {customerVisibility.customerEmail && (
+                    <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
+                      {renderBilingual('Email', 'Email')}: <strong>{customerInfo?.email || '......................................................'}</strong>
+                    </Typography>
+                  )}
+                  {showPaymentInfo && customerVisibility.paymentMethod && (
+                    <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
+                      {renderBilingual('Hình thức thanh toán', 'Payment Method')}: <strong>{paymentMethod || '......................................................'}</strong>
+                    </Typography>
+                  )}
+                </Stack>
               )}
 
               {/* Phần 4: Bảng Hàng hóa - HIỆN Ở TẤT CẢ TRANG */}
               <TableContainer sx={{ my: 1, bgcolor: 'transparent' }}>
                 <Table size="small" sx={{ border: '1px solid #000', bgcolor: 'transparent' }}>
-                  {/* Table Header - CHỈ HIỆN Ở TRANG 1 */}
-                  {page.isFirst && (
-                    <TableHead>
-                      <TableRow>
-                        <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
-                          {renderTableHeader('STT', 'No.')}
-                        </TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
-                          {renderTableHeader('Tên hàng hóa, dịch vụ', 'Description', 'center')}
-                        </TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
-                          {renderTableHeader('ĐVT', 'Unit')}
-                        </TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
-                          {renderTableHeader('Số lượng', 'Quantity')}
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
-                          {renderTableHeader('Đơn giá', 'Unit Price', 'center')}
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
-                          {renderTableHeader('Thành tiền', 'Amount', 'center')}
-                        </TableCell>
-                      </TableRow>
-                    </TableHead>
-                  )}
+                  {/* Table Header - LUÔN HIỆN Ở TẤT CẢ TRANG */}
+                  <TableHead>
+                    <TableRow>
+                      <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                        {renderTableHeader('STT', 'No.')}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                        {renderTableHeader('Tên hàng hóa, dịch vụ', 'Description', 'center')}
+                      </TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                        {renderTableHeader('ĐVT', 'Unit')}
+                      </TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                        {renderTableHeader('Số lượng', 'Quantity')}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                        {renderTableHeader('Đơn giá', 'Unit Price', 'center')}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                        {renderTableHeader('Thành tiền', 'Amount', 'center')}
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
                   <TableBody>
                     {/* Render products or blank rows */}
                     {[...Array(page.end - page.start)].map((_, index) => {
