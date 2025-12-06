@@ -380,22 +380,25 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                   {/* Table Header - LUÔN HIỆN Ở TẤT CẢ TRANG */}
                   <TableHead>
                     <TableRow>
-                      <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                      <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent', width: '40px' }}>
                         {renderTableHeader('STT', 'No.')}
                       </TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                      <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent', minWidth: '180px' }}>
                         {renderTableHeader('Tên hàng hóa, dịch vụ', 'Description', 'center')}
                       </TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                      <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent', width: '50px' }}>
                         {renderTableHeader('ĐVT', 'Unit')}
                       </TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                      <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent', width: '60px' }}>
                         {renderTableHeader('Số lượng', 'Quantity')}
                       </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent', width: '85px' }}>
                         {renderTableHeader('Đơn giá', 'Unit Price', 'center')}
                       </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                      <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent', width: '55px' }}>
+                        {renderTableHeader('Thuế suất', 'VAT %', 'center')}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px', border: '1px solid #000', bgcolor: 'transparent', width: '90px' }}>
                         {renderTableHeader('Thành tiền', 'Amount', 'center')}
                       </TableCell>
                     </TableRow>
@@ -423,6 +426,9 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                           <TableCell align="right" sx={{ fontSize: '0.8rem', padding: '6px 8px', border: '1px solid #000', bgcolor: 'transparent' }}>
                             {product ? product.unitPrice.toLocaleString('vi-VN') : '\u00A0'}
                           </TableCell>
+                          <TableCell align="center" sx={{ fontSize: '0.8rem', padding: '6px 8px', border: '1px solid #000', bgcolor: 'transparent' }}>
+                            {product?.vatRate !== undefined ? `${product.vatRate}%` : '\u00A0'}
+                          </TableCell>
                           <TableCell align="right" sx={{ fontSize: '0.8rem', padding: '6px 8px', border: '1px solid #000', bgcolor: 'transparent' }}>
                             {product ? (product.quantity * product.unitPrice).toLocaleString('vi-VN') : '\u00A0'}
                           </TableCell>
@@ -435,7 +441,7 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                       <TableRow>
                         <TableCell sx={{ padding: '4px 8px', border: '1px solid #000', borderTop: 'none', bgcolor: 'transparent' }} />
                         <TableCell 
-                          colSpan={5}
+                          colSpan={6}
                           sx={{ 
                             fontStyle: 'italic',
                             pt: 0, 
