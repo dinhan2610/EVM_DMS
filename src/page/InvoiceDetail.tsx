@@ -75,16 +75,24 @@ const getTaxStatusIcon = (taxStatus: TaxStatus) => {
 
 /**
  * Map backend invoice data to ProductItem[] for InvoiceTemplatePreview
+ * ✅ Include full data: vatAmount from backend
  */
 const mapInvoiceToProducts = (invoice: InvoiceListItem): ProductItem[] => {
-  return invoice.invoiceItems.map((item, index) => ({
-    stt: index + 1,
-    name: item.productName || `Product ${item.productId}`,
-    unit: item.unit || 'Cái',
-    quantity: item.quantity,
-    unitPrice: item.amount / item.quantity, // Calculate unit price from total
-    total: item.amount,
-  }))
+  return invoice.invoiceItems.map((item, index) => {
+    const unitPrice = item.amount / item.quantity
+    const vatRate = item.amount > 0 ? Math.round((item.vatAmount / item.amount) * 100) : 0
+    
+    return {
+      stt: index + 1,
+      name: item.productName || `Product ${item.productId}`,
+      unit: item.unit || 'Cái',
+      quantity: item.quantity,
+      unitPrice: unitPrice,
+      total: item.amount,
+      vatRate: vatRate, // ✅ Tính từ vatAmount
+      vatAmount: item.vatAmount, // ✅ Từ backend
+    }
+  })
 }
 
 /**
@@ -135,6 +143,15 @@ const InvoiceDetail: React.FC = () => {
   const products = invoice ? mapInvoiceToProducts(invoice) : []
   const templateConfig = template ? mapTemplateToConfig(template, company) : null
   const customerInfo = customer && invoice ? mapCustomerToCustomerInfo(customer, invoice) : null  // ✅ Truyền thêm invoice
+  
+  // ✅ Calculate totals from invoice data (matching CreateVatInvoice logic)
+  const invoiceTotals = invoice ? {
+    subtotal: invoice.subtotalAmount,
+    discount: 0, // Backend không trả discount riêng
+    subtotalAfterDiscount: invoice.subtotalAmount,
+    tax: invoice.vatAmount,
+    total: invoice.totalAmount,
+  } : undefined
 
   useEffect(() => {
     const fetchInvoiceDetail = async () => {
@@ -328,6 +345,7 @@ const InvoiceDetail: React.FC = () => {
           <InvoiceTemplatePreview
             config={templateConfig}
             products={products}
+            totals={invoiceTotals} // ✅ Truyền totals đã tính từ invoice data
             blankRows={5}
             visibility={DEFAULT_TEMPLATE_VISIBILITY}
             bilingual={false}

@@ -28,6 +28,7 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
   config,
   visibility = {},
   products = [], // NEW: Support actual product data
+  totals: externalTotals, // NEW: Pre-calculated totals from parent
   blankRows = TEMPLATE_DEFAULTS.BLANK_ROWS,
   backgroundFrame = TEMPLATE_DEFAULTS.BACKGROUND_FRAME,
   bilingual = false,
@@ -85,15 +86,23 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
   
   const pages = calculatePages();
   
-  // Calculate totals if we have products
+  // ✅ Calculate totals: Use external totals if provided, otherwise calculate from products
   const calculateTotals = () => {
-    if (!hasProducts) return { subtotal: 0, vat: 0, total: 0 };
+    // If external totals provided (from CreateVatInvoice), use them directly
+    if (externalTotals) {
+      return externalTotals;
+    }
+
+    // Otherwise, calculate from products (for backward compatibility)
+    if (!hasProducts) return { subtotal: 0, discount: 0, subtotalAfterDiscount: 0, tax: 0, total: 0 };
     
     const subtotal = products.reduce((sum, p) => sum + (p.quantity * p.unitPrice), 0);
-    const vat = subtotal * 0.1; // 10% VAT
-    const total = subtotal + vat;
+    const discount = products.reduce((sum, p) => sum + (p.discountAmount || 0), 0);
+    const subtotalAfterDiscount = subtotal - discount;
+    const tax = products.reduce((sum, p) => sum + (p.vatAmount || 0), 0);
+    const total = subtotalAfterDiscount + tax;
     
-    return { subtotal, vat, total };
+    return { subtotal, discount, subtotalAfterDiscount, tax, total };
   };
   
   const totals = calculateTotals();
@@ -449,20 +458,33 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
               {/* Phần 5: Tổng tiền và Chữ ký - CHỈ HIỆN Ở TRANG CUỐI */}
               {pageIndex === pages.length - 1 && (
                 <>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, alignItems: 'flex-start' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', pt: 2 }}>
-                      <Typography variant="body2" sx={{ fontSize: '0.8rem', lineHeight: 1.6 }}>
-                        {renderBilingual('Thuế suất GTGT', 'VAT Rate')}: <strong>{hasProducts ? '10%' : ''}</strong>
-                      </Typography>
-                    </Box>
-                    <Box sx={{ width: '45%' }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1, alignItems: 'flex-start' }}>
+                    <Box sx={{ width: '50%' }}>
                       <Stack spacing={0.4}>
                         <Stack direction="row" justifyContent="space-between">
                           <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
-                            {renderBilingual('Tiền hàng', 'Subtotal')}:
+                            {renderBilingual('Tổng tiền hàng', 'Subtotal')}:
                           </Typography>
                           <Typography variant="body2" fontWeight="bold" sx={{ fontSize: '0.8rem' }}>
                             {hasProducts ? totals.subtotal.toLocaleString('vi-VN') : ''}
+                          </Typography>
+                        </Stack>
+                        {totals.discount > 0 && (
+                          <Stack direction="row" justifyContent="space-between">
+                            <Typography variant="body2" sx={{ fontSize: '0.8rem', color: 'error.main' }}>
+                              {renderBilingual('Chiết khấu', 'Discount')}:
+                            </Typography>
+                            <Typography variant="body2" fontWeight="bold" sx={{ fontSize: '0.8rem', color: 'error.main' }}>
+                              -{hasProducts ? totals.discount.toLocaleString('vi-VN') : ''}
+                            </Typography>
+                          </Stack>
+                        )}
+                        <Stack direction="row" justifyContent="space-between">
+                          <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
+                            {renderBilingual('Tiền sau chiết khấu', 'After Discount')}:
+                          </Typography>
+                          <Typography variant="body2" fontWeight="bold" sx={{ fontSize: '0.8rem' }}>
+                            {hasProducts ? totals.subtotalAfterDiscount.toLocaleString('vi-VN') : ''}
                           </Typography>
                         </Stack>
                         <Stack direction="row" justifyContent="space-between">
@@ -470,15 +492,15 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                             {renderBilingual('Tiền thuế GTGT', 'VAT Amount')}:
                           </Typography>
                           <Typography variant="body2" fontWeight="bold" sx={{ fontSize: '0.8rem' }}>
-                            {hasProducts ? totals.vat.toLocaleString('vi-VN') : ''}
+                            {hasProducts ? totals.tax.toLocaleString('vi-VN') : ''}
                           </Typography>
                         </Stack>
                         <Divider sx={{ my: 0.4 }} />
                         <Stack direction="row" justifyContent="space-between">
-                          <Typography variant="body1" fontWeight="bold" sx={{ fontSize: '0.85rem' }}>
+                          <Typography variant="body1" fontWeight="bold" sx={{ fontSize: '0.9rem' }}>
                             {renderBilingual('Tổng tiền thanh toán', 'Total Amount')}:
                           </Typography>
-                          <Typography variant="body1" fontWeight="bold" sx={{ fontSize: '0.85rem', color: 'primary.main' }}>
+                          <Typography variant="body1" fontWeight="bold" sx={{ fontSize: '0.9rem', color: 'primary.main' }}>
                             {hasProducts ? totals.total.toLocaleString('vi-VN') : ''}
                           </Typography>
                         </Stack>

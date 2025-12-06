@@ -6,6 +6,9 @@ import productService, { Product } from '@/services/productService'
 import companyService, { Company } from '@/services/companyService'
 import { mapToBackendInvoiceRequest } from '@/utils/invoiceAdapter'
 import { numberToWords } from '@/utils/numberToWords'
+import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
+import type { ProductItem, CustomerInfo, TemplateConfigProps} from '@/types/invoiceTemplate'
+import { DEFAULT_TEMPLATE_VISIBILITY, DEFAULT_INVOICE_SYMBOL } from '@/types/invoiceTemplate'
 import {
   Box,
   Paper,
@@ -39,6 +42,7 @@ import {
   Close,
   Save,
   Publish,
+  Print,
   KeyboardArrowUp,
   KeyboardArrowDown,
   DeleteOutline,
@@ -748,6 +752,7 @@ const CreateVatInvoice: React.FC = () => {
   const [showTypeColumn, setShowTypeColumn] = useState(true)
   const [discountType, setDiscountType] = useState<string>('none') // 'none' | 'per-item' | 'total'
   const [sendEmailModalOpen, setSendEmailModalOpen] = useState(false)
+  const [previewModalOpen, setPreviewModalOpen] = useState(false) // ✅ Preview modal
   const [invoiceNotes, setInvoiceNotes] = useState<string>('') // Ghi chú chung cho hóa đơn
   const [showInvoiceNotes, setShowInvoiceNotes] = useState(false) // Hiện/ẩn ô ghi chú
   const calculateAfterTax = false // Giá nhập vào là giá CHƯA thuế, VAT tính thêm
@@ -1201,6 +1206,69 @@ const CreateVatInvoice: React.FC = () => {
   )
 
   const totals = calculateTotals(items)
+
+  // ==================== PREVIEW MODAL - DATA MAPPING ====================
+  
+  /**
+   * Map InvoiceItem[] → ProductItem[] cho InvoiceTemplatePreview
+   * ✅ Truyền ĐẦY ĐỦ thông tin: VAT rate, discount, VAT amount
+   */
+  const mapItemsToProducts = (): ProductItem[] => {
+    return items
+      .filter(item => item.name && item.name.trim() !== '') // Chỉ lấy dòng có tên sản phẩm
+      .map((item, index) => {
+        // Tính VAT amount cho item này
+        const itemSubtotal = item.totalAfterTax // Thành tiền sau CK, chưa VAT
+        const itemVatRate = item.vatRate || 0
+        const itemVatAmount = Math.round(itemSubtotal * (itemVatRate / 100))
+
+        return {
+          stt: index + 1,
+          name: item.name,
+          unit: item.unit,
+          quantity: item.quantity,
+          unitPrice: item.priceAfterTax, // Đơn giá chưa VAT
+          discountAmount: item.discountAmount, // Tiền chiết khấu
+          total: itemSubtotal, // Thành tiền sau CK, chưa VAT
+          vatRate: itemVatRate, // Thuế suất GTGT
+          vatAmount: itemVatAmount, // Tiền thuế GTGT
+        }
+      })
+  }
+
+  /**
+   * Map buyer info → CustomerInfo cho InvoiceTemplatePreview
+   * ✅ LUÔN return object để preview hiển thị đầy đủ template
+   */
+  const mapBuyerToCustomerInfo = (): CustomerInfo => {
+    return {
+      name: buyerCompanyName || '', // Để trống nếu chưa nhập
+      email: buyerEmail || '',
+      taxCode: buyerTaxCode || '',
+      address: buyerAddress || '',
+      phone: buyerPhone || '',
+      buyerName: buyerName || '', // Họ tên người mua
+    }
+  }
+
+  /**
+   * Map template + company → TemplateConfigProps
+   */
+  const mapTemplateToConfig = (): TemplateConfigProps | null => {
+    if (!selectedTemplate || !company) return null
+
+    return {
+      companyLogo: null, // ⚠️ TODO: Backend chưa có field logo cho company
+      companyName: company.companyName,
+      companyTaxCode: company.taxCode,
+      companyAddress: company.address,
+      companyPhone: company.contactPhone,
+      modelCode: selectedTemplate.serial,
+      templateCode: selectedTemplate.templateName,
+    }
+  }
+
+  // ==================== HANDLERS ====================
 
   // Hàm lấy user ID từ token (cần implement)
   // Hàm submit hóa đơn
@@ -2315,6 +2383,7 @@ const CreateVatInvoice: React.FC = () => {
                 size="small"
                 variant="outlined"
                 startIcon={<Visibility fontSize="small" />}
+                onClick={() => setPreviewModalOpen(true)}
                 sx={{ textTransform: 'none', color: '#666', borderColor: '#ccc', fontSize: '0.8125rem', py: 0.5 }}>
                 Xem trước
               </Button>
@@ -2375,6 +2444,107 @@ const CreateVatInvoice: React.FC = () => {
             {snackbar.message}
           </Alert>
         </Snackbar>
+
+        {/* ==================== PREVIEW MODAL ==================== */}
+        <Dialog
+          open={previewModalOpen}
+          onClose={() => setPreviewModalOpen(false)}
+          maxWidth="lg"
+          fullWidth
+          PaperProps={{
+            sx: {
+              maxWidth: '900px',
+              maxHeight: '90vh',
+            }
+          }}
+        >
+          <DialogTitle sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            borderBottom: '1px solid #e0e0e0',
+            pb: 2
+          }}>
+            <Typography variant="h6" fontWeight="bold">
+              Xem trước hóa đơn
+            </Typography>
+            <IconButton 
+              onClick={() => setPreviewModalOpen(false)}
+              size="small"
+              sx={{ color: '#666' }}
+            >
+              <Close />
+            </IconButton>
+          </DialogTitle>
+
+          <DialogContent sx={{ p: 3, bgcolor: '#f5f5f5' }}>
+            {selectedTemplate && company ? (
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'center',
+                '& > div': { // Target InvoiceTemplatePreview wrapper
+                  maxWidth: '21cm',
+                  width: '100%',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                }
+              }}>
+                <InvoiceTemplatePreview
+                  config={mapTemplateToConfig()!}
+                  products={mapItemsToProducts()}
+                  totals={totals} // ✅ Truyền totals đã tính sẵn từ form
+                  blankRows={5}
+                  visibility={DEFAULT_TEMPLATE_VISIBILITY}
+                  bilingual={false}
+                  invoiceDate={new Date().toISOString()}
+                  invoiceType="withCode"
+                  symbol={DEFAULT_INVOICE_SYMBOL}
+                  customerVisibility={{
+                    customerName: true,      // ✅ LUÔN HIỆN để xem template đầy đủ
+                    customerTaxCode: true,
+                    customerAddress: true,
+                    customerPhone: true,
+                    customerEmail: true,
+                    paymentMethod: true,
+                  }}
+                  customerInfo={mapBuyerToCustomerInfo()}
+                  paymentMethod={paymentMethod}
+                  invoiceNumber={undefined} // ⚠️ KHÔNG CÓ MÃ HÓA ĐƠN - chưa tạo
+                  taxAuthorityCode={null} // ⚠️ KHÔNG CÓ MÃ CQT - chưa đồng bộ
+                  backgroundFrame={selectedTemplate.frameUrl || ''}
+                  notes={invoiceNotes || null}
+                />
+              </Box>
+            ) : (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography color="text.secondary">
+                  Vui lòng chọn mẫu hóa đơn để xem trước
+                </Typography>
+              </Box>
+            )}
+          </DialogContent>
+
+          <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #e0e0e0' }}>
+            <Button
+              variant="outlined"
+              onClick={() => setPreviewModalOpen(false)}
+              sx={{ textTransform: 'none' }}
+            >
+              Đóng
+            </Button>
+            <Button
+              variant="contained"
+              onClick={() => {
+                setPreviewModalOpen(false)
+                // TODO: Có thể thêm chức năng in trực tiếp từ preview
+                window.print()
+              }}
+              startIcon={<Print />}
+              sx={{ textTransform: 'none', backgroundColor: '#1976d2' }}
+            >
+              In hóa đơn
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* ✅ Dialog xác nhận sản phẩm trùng */}
         <Dialog
