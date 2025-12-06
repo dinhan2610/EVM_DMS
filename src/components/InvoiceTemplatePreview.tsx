@@ -265,8 +265,8 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
 
               {/* Phần 2: Thông tin Công ty & QR (2 cột với Box) */}
               <Box sx={{ display: 'flex', gap: 3, mb: 1.2 }}>
-                {/* Cột Trái: Thông tin Công ty */}
-                <Box sx={{ flex: 7 }}>
+                {/* Cột Trái: Thông tin Công ty - 3/4 trang */}
+                <Box sx={{ flex: 9 }}>
                   {/* Đơn vị bán - Chung dòng */}
                   {showCompanyName && (
                     <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.4, lineHeight: 1.8, overflow: 'visible' }}>
@@ -299,9 +299,9 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                   )}
                 </Box>
                 
-                {/* Cột Phải: QR Code */}
+                {/* Cột Phải: QR Code - 1/4 trang */}
                 {showQrCode && (
-                  <Box sx={{ flex: 5, textAlign: 'right' }}>
+                  <Box sx={{ flex: 3, textAlign: 'right' }}>
                     <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                       <Box
                         sx={{
