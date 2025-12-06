@@ -362,7 +362,7 @@ const InvoiceDetail: React.FC = () => {
             }}
             customerInfo={customerInfo || undefined}
             paymentMethod={invoice.paymentMethod}
-            invoiceNumber={invoice.invoiceNumber}
+            invoiceNumber={invoice.invoiceStatusID === INVOICE_INTERNAL_STATUS.DRAFT ? undefined : invoice.invoiceNumber}
             taxAuthorityCode={invoice.taxAuthorityCode}
             backgroundFrame={template?.frameUrl || ''}
             notes={invoice.notes}

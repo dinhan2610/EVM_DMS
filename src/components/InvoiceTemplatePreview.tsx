@@ -177,7 +177,7 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
             }}
           >
             {/* ✅ Watermark "BẢN NHÁP" nếu chưa có invoice number */}
-            {!invoiceNumber && (
+            {(!invoiceNumber || String(invoiceNumber).trim() === '') && (
               <Box
                 sx={{
                   position: 'absolute',
@@ -284,7 +284,7 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                   </Typography>
                   <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8 }}>
                     {renderBilingual('Số', 'No.')}: {
-                      invoiceNumber ? 
+                      (invoiceNumber && String(invoiceNumber).trim() !== '') ? 
                         <strong>{String(invoiceNumber).padStart(7, '0')}</strong> : 
                         <Box component="span" sx={{ 
                           color: '#ff6b6b', 
