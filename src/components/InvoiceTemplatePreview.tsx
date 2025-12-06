@@ -176,7 +176,29 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
               position: 'relative',
             }}
           >
-            <Box position="relative" sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            {/* ✅ Watermark "BẢN NHÁP" nếu chưa có invoice number */}
+            {!invoiceNumber && (
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%) rotate(-45deg)',
+                  fontSize: '120px',
+                  fontWeight: 900,
+                  color: 'rgba(255, 107, 107, 0.15)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '20px',
+                  pointerEvents: 'none',
+                  zIndex: 0,
+                  userSelect: 'none',
+                }}
+              >
+                BẢN NHÁP
+              </Box>
+            )}
+
+            <Box position="relative" sx={{ flex: 1, display: 'flex', flexDirection: 'column', zIndex: 1 }}>
               {/* Phần 1: Header - LUÔN HIỆN Ở TẤT CẢ TRANG */}
               {/* Logo + Tiêu đề - CÙNG 1 HÀNG */}
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4, mt: 2, marginTop: '2rem', position: 'relative' }}>
@@ -264,7 +286,17 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                     {renderBilingual('Số', 'No.')}: {
                       invoiceNumber ? 
                         <strong>{String(invoiceNumber).padStart(7, '0')}</strong> : 
-                        <Box component="span" sx={{ color: 'red', fontWeight: 500 }}>[{renderBilingual('Chưa cấp số', 'Not Issued')}]</Box>
+                        <Box component="span" sx={{ 
+                          color: '#ff6b6b', 
+                          fontWeight: 600,
+                          fontStyle: 'italic',
+                          backgroundColor: '#fff3cd',
+                          padding: '2px 6px',
+                          borderRadius: '3px',
+                          border: '1px solid #ffc107'
+                        }}>
+                          {renderBilingual('BẢN NHÁP', 'DRAFT')}
+                        </Box>
                     }
                   </Typography>
                 </Box>
