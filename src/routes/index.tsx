@@ -18,6 +18,7 @@ import {
   CreateReplacementInvoice,
   RequestManagement,
   ItemsManagement,
+  StatementManagement,
   TemplateManagement,
   TemplateSelection,
   TemplateEditor,
@@ -132,6 +133,11 @@ const appsRoutes: RoutesProps[] = [
     name: 'Invoices List',
     path: '/invoices',
     element: <InvoiceManagement />,
+  },
+  {
+    name: 'Statement Management',
+    path: '/statements',
+    element: <StatementManagement />,
   },
   {
     name: 'Invoice Approval',
