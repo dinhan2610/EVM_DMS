@@ -154,6 +154,12 @@ export const MENU_ITEMS: MenuItemType[] = [
         parentKey: 'apps-invoices',
       },
       {
+        key: 'debt',
+        label: 'Công nợ',
+        url: '/debt',
+        parentKey: 'apps-invoices',
+      },
+      {
         key: 'invoices-approval',
         label: 'Duyệt hoá đơn',
         url: '/approval/invoices',
