@@ -99,6 +99,12 @@ export const MENU_ITEMS: MenuItemType[] = [
         parentKey: 'apps-admin',
       },
       {
+        key: 'admin-email-templates',
+        label: 'Mẫu Email',
+        url: '/admin/email-templates',
+        parentKey: 'apps-admin',
+      },
+      {
         key: 'admin-users',
         label: 'Người dùng',
         url: '/admin/usermanager',

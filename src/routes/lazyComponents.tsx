@@ -29,6 +29,7 @@ export const TemplateManagement = lazy(() => import('@/page/TemplateManagement')
 export const TemplateSelection = lazy(() => import('@/page/TemplateSelection'))
 export const TemplateEditor = lazy(() => import('@/page/TemplateEditor'))
 export const TemplatePreview = lazy(() => import('@/page/TemplatePreviewPage'))
+export const EmailTemplateManagement = lazy(() => import('@/page/EmailTemplateManagement'))
 
 // User Management Routes
 export const UserManagement = lazy(() => import('@/page/UserManagement'))

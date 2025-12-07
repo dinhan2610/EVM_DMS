@@ -25,6 +25,7 @@ import {
   TemplateSelection,
   TemplateEditor,
   TemplatePreview,
+  EmailTemplateManagement,
   UserManagement,
   RolesPermissions,
   SystemConfiguration,
@@ -110,6 +111,11 @@ const appsRoutes: RoutesProps[] = [
     name: 'Template Management',
     path: '/admin/templates',
     element: <TemplateManagement />,
+  },
+  {
+    name: 'Email Template Management',
+    path: '/admin/email-templates',
+    element: <EmailTemplateManagement />,
   },
   {
     name: 'Select Template',
