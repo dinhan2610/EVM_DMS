@@ -1,7 +1,7 @@
 import { Navigate, type RouteProps } from 'react-router-dom'
 
 import {
-  Dashboard,
+  HODDashboard,
   EcommerceCustomers,
   EcommerceSellers,
   Chat,
@@ -65,9 +65,9 @@ const initialRoutes: RoutesProps[] = [
     element: <Navigate to="/dashboard" />,
   },
   {
-    name: 'Dashboard',
     path: '/dashboard',
-    element: <Dashboard />,
+    name: 'Dashboard',
+    element: <HODDashboard />,
   },
 ]
 
