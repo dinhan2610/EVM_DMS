@@ -19,6 +19,7 @@ import {
   RequestManagement,
   ItemsManagement,
   StatementManagement,
+  CreateStatement,
   TemplateManagement,
   TemplateSelection,
   TemplateEditor,
@@ -138,6 +139,16 @@ const appsRoutes: RoutesProps[] = [
     name: 'Statement Management',
     path: '/statements',
     element: <StatementManagement />,
+  },
+  {
+    name: 'Create Statement',
+    path: '/statements/new',
+    element: <CreateStatement />,
+  },
+  {
+    name: 'Edit Statement',
+    path: '/statements/edit/:id',
+    element: <CreateStatement />,
   },
   {
     name: 'Invoice Approval',

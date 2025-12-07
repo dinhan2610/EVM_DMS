@@ -9,6 +9,12 @@ export default defineConfig({
       "@": resolve(__dirname, "src"),
     },
   },
+  optimizeDeps: {
+    include: ['xlsx'],
+    esbuildOptions: {
+      target: 'esnext',
+    },
+  },
   server: {
     proxy: {
       '/api': {

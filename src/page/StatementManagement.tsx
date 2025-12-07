@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Typography,
@@ -359,6 +360,9 @@ const StatementActionsMenu = ({ statement, onDelete }: StatementActionsMenuProps
 // ==================== MAIN COMPONENT ====================
 
 const StatementManagement = () => {
+  // Hooks
+  const navigate = useNavigate()
+
   // State
   const [statements, setStatements] = useState<Statement[]>(mockStatements)
   const [selectedTab, setSelectedTab] = useState<'all' | 'draft' | 'invoiced'>('all')
@@ -619,7 +623,7 @@ const StatementManagement = () => {
           variant="contained"
           color="primary"
           startIcon={<AddIcon />}
-          onClick={() => console.log('Tạo bảng kê mới')}
+          onClick={() => navigate('/statements/new')}
           sx={{
             textTransform: 'none',
             fontWeight: 500,
