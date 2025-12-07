@@ -4,6 +4,7 @@ import {
   HODDashboard,
   AdminDashboard,
   StaffDashboard,
+  SaleDashboard,
   EcommerceCustomers,
   EcommerceSellers,
   Chat,
@@ -80,6 +81,11 @@ const initialRoutes: RoutesProps[] = [
     path: '/staff-dashboard',
     name: 'Staff Dashboard',
     element: <StaffDashboard />,
+  },
+  {
+    path: '/sale-dashboard',
+    name: 'Sale Dashboard',
+    element: <SaleDashboard />,
   },
 ]
 
