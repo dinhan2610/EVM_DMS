@@ -2,6 +2,7 @@ import { Navigate, type RouteProps } from 'react-router-dom'
 
 import {
   HODDashboard,
+  AdminDashboard,
   EcommerceCustomers,
   EcommerceSellers,
   Chat,
@@ -68,6 +69,11 @@ const initialRoutes: RoutesProps[] = [
     path: '/dashboard',
     name: 'Dashboard',
     element: <HODDashboard />,
+  },
+  {
+    path: '/admin-dashboard',
+    name: 'Admin Dashboard',
+    element: <AdminDashboard />,
   },
 ]
 

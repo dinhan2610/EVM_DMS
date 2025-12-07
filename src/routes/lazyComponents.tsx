@@ -2,6 +2,7 @@ import { lazy } from 'react'
 
 // Dashboard
 export const HODDashboard = lazy(() => import('@/page/HODDashboard'))
+export const AdminDashboard = lazy(() => import('@/page/AdminDashboard'))
 
 // Apps Routes
 export const EcommerceCustomers = lazy(() => import('@/app/(admin)/ecommerce/customers/page'))
