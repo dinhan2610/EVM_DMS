@@ -5,6 +5,7 @@ import {
   AdminDashboard,
   StaffDashboard,
   SaleDashboard,
+  CustomerDashboard,
   EcommerceCustomers,
   EcommerceSellers,
   Chat,
@@ -86,6 +87,11 @@ const initialRoutes: RoutesProps[] = [
     path: '/sale-dashboard',
     name: 'Sale Dashboard',
     element: <SaleDashboard />,
+  },
+  {
+    path: '/customer-dashboard',
+    name: 'Customer Dashboard',
+    element: <CustomerDashboard />,
   },
 ]
 

@@ -48,6 +48,11 @@ export const UserProfile = lazy(() => import('@/page/UserProfile'))
 export const AllNotifications = lazy(() => import('@/page/AllNotifications'))
 export const Pricing = lazy(() => import('@/app/(admin)/pages/pricing/page'))
 
+// Dashboard Routes
+export const StaffDashboard = lazy(() => import('@/page/StaffDashboard'))
+export const SaleDashboard = lazy(() => import('@/page/SaleDashboard'))
+export const CustomerDashboard = lazy(() => import('@/page/CustomerDashboard'))
+
 // Charts Routes (Chỉ giữ 4 loại: Area, Bar, Line, Pie)
 export const Area = lazy(() => import('@/app/(admin)/charts/area/page'))
 export const Bar = lazy(() => import('@/app/(admin)/charts/bar/page'))

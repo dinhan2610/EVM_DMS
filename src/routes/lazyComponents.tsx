@@ -5,6 +5,7 @@ export const HODDashboard = lazy(() => import('@/page/HODDashboard'))
 export const AdminDashboard = lazy(() => import('@/page/AdminDashboard'))
 export const StaffDashboard = lazy(() => import('@/page/StaffDashboard'))
 export const SaleDashboard = lazy(() => import('@/page/SaleDashboard'))
+export const CustomerDashboard = lazy(() => import('@/page/CustomerDashboard'))
 
 // Apps Routes
 export const EcommerceCustomers = lazy(() => import('@/app/(admin)/ecommerce/customers/page'))
