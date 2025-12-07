@@ -1,15 +1,7 @@
 import React from 'react';
 import { Box, Card, CardContent, Typography } from '@mui/material';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
+import ReactApexChart from 'react-apexcharts';
+import type { ApexOptions } from 'apexcharts';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import type { TrafficData } from '../../types/admin.types';
@@ -18,150 +10,255 @@ interface TrafficChartProps {
   data: TrafficData[];
 }
 
-// Custom Tooltip Component
-interface CustomTooltipPayload {
-  name: string;
-  value: number;
-  color: string;
-  dataKey: string;
-}
-
-interface CustomTooltipProps {
-  active?: boolean;
-  payload?: CustomTooltipPayload[];
-  label?: string;
-}
-
-const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label }) => {
-  if (!active || !payload || payload.length === 0) return null;
-
-  return (
-    <Box
-      sx={{
-        bgcolor: 'rgba(255, 255, 255, 0.98)',
-        p: 2,
-        border: '1px solid #e0e0e0',
-        borderRadius: 2,
-        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-      }}
-    >
-      <Typography variant="subtitle2" fontWeight={600} mb={1}>
-        {label}
-      </Typography>
-      {payload.map((entry) => (
-        <Box key={entry.dataKey} display="flex" alignItems="center" gap={1} mb={0.5}>
-          <Box
-            sx={{
-              width: 12,
-              height: 12,
-              borderRadius: '50%',
-              bgcolor: entry.color,
-            }}
-          />
-          <Typography variant="body2" color="text.secondary">
-            {entry.name}:
-          </Typography>
-          <Typography variant="body2" fontWeight={600}>
-            {entry.value.toLocaleString('vi-VN')}
-          </Typography>
-        </Box>
-      ))}
-    </Box>
-  );
-};
-
 const TrafficChart: React.FC<TrafficChartProps> = ({ data }) => {
-  // Format number for Y-axis (e.g., 3500 -> "3.5k")
-  const formatYAxis = (value: number): string => {
-    if (value >= 1000) {
-      return `${(value / 1000).toFixed(1)}k`;
+  // Prepare data for ApexCharts
+  const categories = data.map((d) => {
+    try {
+      return format(new Date(d.date), 'dd/MM', { locale: vi });
+    } catch {
+      return d.date;
     }
-    return value.toString();
+  });
+
+  const requestsData = data.map((d) => d.requests);
+  const errorsData = data.map((d) => d.errors);
+
+  // Calculate summary stats
+  const totalRequests = data.reduce((sum, d) => sum + d.requests, 0);
+  const totalErrors = data.reduce((sum, d) => sum + d.errors, 0);
+  const successRate = ((1 - totalErrors / totalRequests) * 100).toFixed(2);
+
+  // ApexCharts Spline Area Configuration
+  const chartOptions: ApexOptions = {
+    chart: {
+      type: 'area',
+      height: 320,
+      toolbar: {
+        show: false,
+      },
+      zoom: {
+        enabled: false,
+      },
+      animations: {
+        enabled: true,
+        easing: 'easeinout',
+        speed: 800,
+      },
+    },
+    dataLabels: {
+      enabled: false,
+    },
+    stroke: {
+      width: 3,
+      curve: 'smooth', // Smooth spline curves
+    },
+    colors: ['#1976d2', '#ef5350'], // Blue for requests, Red for errors
+    fill: {
+      type: 'gradient',
+      gradient: {
+        shadeIntensity: 1,
+        opacityFrom: 0.6,
+        opacityTo: 0.1,
+        stops: [0, 90, 100],
+      },
+    },
+    legend: {
+      show: true,
+      position: 'top',
+      horizontalAlign: 'right',
+      offsetY: 0,
+      fontSize: '13px',
+      fontFamily: 'inherit',
+      markers: {
+        width: 10,
+        height: 10,
+        radius: 12,
+      },
+      itemMargin: {
+        horizontal: 12,
+        vertical: 0,
+      },
+    },
+    xaxis: {
+      categories,
+      axisBorder: {
+        show: false,
+      },
+      axisTicks: {
+        show: false,
+      },
+      labels: {
+        style: {
+          fontSize: '12px',
+          fontFamily: 'inherit',
+          colors: '#64748b',
+        },
+      },
+    },
+    yaxis: {
+      labels: {
+        style: {
+          fontSize: '12px',
+          fontFamily: 'inherit',
+          colors: '#64748b',
+        },
+        formatter: (value: number) => {
+          if (value >= 1000) {
+            return `${(value / 1000).toFixed(1)}k`;
+          }
+          return value.toString();
+        },
+      },
+    },
+    grid: {
+      borderColor: '#e5e7eb',
+      strokeDashArray: 3,
+      padding: {
+        top: 0,
+        right: 0,
+        bottom: 10,
+        left: 10,
+      },
+      row: {
+        colors: ['transparent', 'transparent'],
+        opacity: 0.5,
+      },
+    },
+    tooltip: {
+      enabled: true,
+      shared: true,
+      intersect: false,
+      theme: 'light',
+      style: {
+        fontSize: '13px',
+        fontFamily: 'inherit',
+      },
+      x: {
+        show: true,
+        formatter: (value: number) => {
+          return categories[value - 1] || '';
+        },
+      },
+      y: {
+        formatter: (value: number) => {
+          return value.toLocaleString('vi-VN');
+        },
+      },
+      marker: {
+        show: true,
+      },
+    },
+    responsive: [
+      {
+        breakpoint: 600,
+        options: {
+          chart: {
+            height: 280,
+          },
+          legend: {
+            position: 'bottom',
+            offsetY: 0,
+          },
+        },
+      },
+    ],
   };
 
-  return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Typography variant="h6" fontWeight={600} gutterBottom>
-          Lưu lượng truy cập hệ thống (7 ngày qua)
-        </Typography>
-        <Typography variant="body2" color="text.secondary" mb={3}>
-          Theo dõi số lượng yêu cầu và lỗi để phát hiện sớm các vấn đề bảo mật
-        </Typography>
+  const series = [
+    {
+      name: 'Yêu cầu',
+      data: requestsData,
+    },
+    {
+      name: 'Lỗi',
+      data: errorsData,
+    },
+  ];
 
-        <ResponsiveContainer width="100%" height={320}>
-          <LineChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis
-              dataKey="date"
-              tick={{ fontSize: 12 }}
-              tickFormatter={(value) => {
-                try {
-                  return format(new Date(value), 'dd/MM', { locale: vi });
-                } catch {
-                  return value;
-                }
-              }}
-            />
-            <YAxis
-              tick={{ fontSize: 12 }}
-              tickFormatter={formatYAxis}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend
-              wrapperStyle={{ paddingTop: '20px' }}
-              iconType="line"
-              formatter={(value) => {
-                if (value === 'requests') return 'Yêu cầu';
-                if (value === 'errors') return 'Lỗi';
-                return value;
-              }}
-            />
-            <Line
-              type="monotone"
-              dataKey="requests"
-              stroke="#1976d2"
-              strokeWidth={2}
-              dot={{ fill: '#1976d2', r: 4 }}
-              activeDot={{ r: 6 }}
-              name="requests"
-            />
-            <Line
-              type="monotone"
-              dataKey="errors"
-              stroke="#d32f2f"
-              strokeWidth={2}
-              strokeDasharray="5 5"
-              dot={{ fill: '#d32f2f', r: 4 }}
-              activeDot={{ r: 6 }}
-              name="errors"
-            />
-          </LineChart>
-        </ResponsiveContainer>
+  return (
+    <Card sx={{ height: '100%', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+      <CardContent>
+        {/* Header */}
+        <Box mb={2}>
+          <Typography variant="h6" fontWeight={600} gutterBottom>
+            Lưu lượng truy cập hệ thống (7 ngày qua)
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Theo dõi số lượng yêu cầu và lỗi để phát hiện sớm các vấn đề bảo mật
+          </Typography>
+        </Box>
+
+        {/* Spline Area Chart */}
+        <Box sx={{ mt: 2 }}>
+          <ReactApexChart
+            options={chartOptions}
+            series={series}
+            type="area"
+            height={320}
+          />
+        </Box>
 
         {/* Summary Stats */}
-        <Box display="flex" gap={3} mt={3} justifyContent="center">
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' },
+            gap: 3,
+            mt: 3,
+            pt: 3,
+            borderTop: '1px solid #e5e7eb',
+          }}
+        >
           <Box textAlign="center">
-            <Typography variant="h5" fontWeight="bold" color="#1976d2">
-              {data.reduce((sum, d) => sum + d.requests, 0).toLocaleString('vi-VN')}
+            <Typography
+              variant="h5"
+              fontWeight="bold"
+              sx={{
+                color: '#1976d2',
+                background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              {totalRequests.toLocaleString('vi-VN')}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary" fontWeight={500}>
               Tổng yêu cầu
             </Typography>
           </Box>
+
           <Box textAlign="center">
-            <Typography variant="h5" fontWeight="bold" color="#d32f2f">
-              {data.reduce((sum, d) => sum + d.errors, 0).toLocaleString('vi-VN')}
+            <Typography
+              variant="h5"
+              fontWeight="bold"
+              sx={{
+                color: '#ef5350',
+                background: 'linear-gradient(135deg, #ef5350 0%, #e53935 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              {totalErrors.toLocaleString('vi-VN')}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary" fontWeight={500}>
               Tổng lỗi
             </Typography>
           </Box>
+
           <Box textAlign="center">
-            <Typography variant="h5" fontWeight="bold" color="#2e7d32">
-              {((1 - data.reduce((sum, d) => sum + d.errors, 0) / data.reduce((sum, d) => sum + d.requests, 0)) * 100).toFixed(2)}%
+            <Typography
+              variant="h5"
+              fontWeight="bold"
+              sx={{
+                color: '#2e7d32',
+                background: 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              {successRate}%
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary" fontWeight={500}>
               Tỷ lệ thành công
             </Typography>
           </Box>

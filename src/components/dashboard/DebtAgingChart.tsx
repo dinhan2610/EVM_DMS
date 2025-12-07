@@ -22,7 +22,7 @@ const DebtAgingChart: React.FC<DebtAgingChartProps> = ({ data }) => {
   const chartOptions: ApexOptions = {
     chart: {
       type: 'donut',
-      height: 340,
+      height: 320,
       animations: {
         enabled: true,
         easing: 'easeinout',
@@ -36,21 +36,11 @@ const DebtAgingChart: React.FC<DebtAgingChartProps> = ({ data }) => {
     labels: data.map((d) => d.category),
     colors: data.map((d) => d.color),
     
-    // Donut configuration
+    // Simple Donut Configuration (Following Template)
     plotOptions: {
       pie: {
-        startAngle: 0,
-        endAngle: 360,
-        expandOnClick: true,
-        offsetX: 0,
-        offsetY: 0,
-        customScale: 1,
-        dataLabels: {
-          offset: 0,
-          minAngleToShowLabel: 10,
-        },
         donut: {
-          size: '70%',
+          size: '65%',
           background: 'transparent',
           labels: {
             show: true,
@@ -64,7 +54,7 @@ const DebtAgingChart: React.FC<DebtAgingChartProps> = ({ data }) => {
             },
             value: {
               show: true,
-              fontSize: '24px',
+              fontSize: '28px',
               fontFamily: 'inherit',
               fontWeight: 700,
               color: '#1e293b',
@@ -79,7 +69,7 @@ const DebtAgingChart: React.FC<DebtAgingChartProps> = ({ data }) => {
               label: 'Tổng nợ',
               fontSize: '13px',
               fontFamily: 'inherit',
-              fontWeight: 500,
+              fontWeight: 600,
               color: '#64748b',
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               formatter: function (w: any) {
@@ -92,54 +82,47 @@ const DebtAgingChart: React.FC<DebtAgingChartProps> = ({ data }) => {
       },
     },
 
-    // Data Labels
+    // Data Labels (Simple percentage only)
     dataLabels: {
       enabled: true,
       formatter: function (val: number) {
         return val.toFixed(1) + '%';
       },
       style: {
-        fontSize: '13px',
+        fontSize: '12px',
         fontFamily: 'inherit',
         fontWeight: 600,
         colors: ['#fff'],
       },
       dropShadow: {
-        enabled: true,
-        top: 1,
-        left: 1,
-        blur: 1,
-        color: '#000',
-        opacity: 0.3,
+        enabled: false,
       },
     },
 
-    // Legend
+    // Legend (Simple template style)
     legend: {
       show: true,
       position: 'bottom',
       horizontalAlign: 'center',
-      fontSize: '13px',
+      fontSize: '14px',
       fontFamily: 'inherit',
       fontWeight: 500,
+      offsetY: 7,
       markers: {
-        width: 12,
-        height: 12,
+        width: 10,
+        height: 10,
         radius: 12,
       },
       itemMargin: {
-        horizontal: 10,
-        vertical: 8,
-      },
-      formatter: function (seriesName: string, opts: { seriesIndex: number; w: { config: { series: number[] } } }) {
-        const count = data[opts.seriesIndex].count;
-        return `${seriesName} (${count} KH)`;
+        horizontal: 12,
+        vertical: 6,
       },
     },
 
-    // Tooltip
+    // Tooltip (Enhanced with customer count)
     tooltip: {
       enabled: true,
+      theme: 'light',
       style: {
         fontSize: '13px',
         fontFamily: 'inherit',
@@ -147,28 +130,27 @@ const DebtAgingChart: React.FC<DebtAgingChartProps> = ({ data }) => {
       y: {
         formatter: function (val: number, opts: { seriesIndex: number }) {
           const count = data[opts.seriesIndex].count;
-          return `${formatCurrency(val)} - ${count} khách hàng`;
+          return `${formatCurrency(val)} • ${count} khách hàng`;
         },
       },
     },
 
-    // States
+    // States (Smooth hover effects)
     states: {
       hover: {
         filter: {
           type: 'lighten',
-          value: 0.1,
+          value: 0.08,
         },
       },
       active: {
         filter: {
-          type: 'darken',
-          value: 0.1,
+          type: 'none',
         },
       },
     },
 
-    // Responsive
+    // Responsive (Template breakpoint)
     responsive: [
       {
         breakpoint: 600,
@@ -177,12 +159,22 @@ const DebtAgingChart: React.FC<DebtAgingChartProps> = ({ data }) => {
             height: 280,
           },
           legend: {
-            position: 'bottom',
+            show: true,
             fontSize: '12px',
           },
-          dataLabels: {
-            style: {
-              fontSize: '11px',
+          plotOptions: {
+            pie: {
+              donut: {
+                labels: {
+                  show: true,
+                  value: {
+                    fontSize: '20px',
+                  },
+                  total: {
+                    fontSize: '12px',
+                  },
+                },
+              },
             },
           },
         },
@@ -196,66 +188,121 @@ const DebtAgingChart: React.FC<DebtAgingChartProps> = ({ data }) => {
   const riskPercentage = (criticalDebt / totalDebt) * 100;
 
   return (
-    <Card elevation={0} sx={{ height: '100%', border: '1px solid #f1f5f9' }}>
+    <Card 
+      elevation={0} 
+      sx={{ 
+        height: '100%', 
+        border: '1px solid #f1f5f9',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+      }}
+    >
       <CardContent sx={{ p: 3 }}>
         {/* Header */}
-        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3}>
           <Box>
             <Typography variant="h6" fontWeight={700} sx={{ color: '#1e293b', mb: 0.5 }}>
               Phân tích Tuổi nợ
             </Typography>
             <Typography variant="body2" sx={{ color: '#64748b', fontSize: '13px' }}>
-              Đánh giá rủi ro nợ xấu
+              Đánh giá rủi ro theo độ tuổi công nợ
             </Typography>
           </Box>
           <Chip
             label={riskPercentage >= 20 ? 'Rủi ro cao' : riskPercentage >= 10 ? 'Cảnh báo' : 'An toàn'}
             color={riskPercentage >= 20 ? 'error' : riskPercentage >= 10 ? 'warning' : 'success'}
+            size="small"
             sx={{
               fontWeight: 700,
               fontSize: '12px',
+              height: 26,
             }}
           />
         </Box>
 
-        {/* Chart */}
-        <Box sx={{ mt: 2 }}>
+        {/* Simple Donut Chart */}
+        <Box sx={{ mt: 1 }}>
           <ReactApexChart
             options={chartOptions}
             series={chartOptions.series as number[]}
             type="donut"
-            height={340}
+            height={320}
           />
         </Box>
 
-        {/* Summary Stats */}
+        {/* Summary Stats Grid */}
         <Box
           sx={{
             mt: 3,
-            pt: 2,
-            borderTop: '1px solid #f1f5f9',
+            pt: 3,
+            borderTop: '2px solid #f1f5f9',
           }}
         >
-          <Box display="flex" flexWrap="wrap" gap={3} justifyContent="space-around">
+          <Box 
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
+              gap: 2,
+            }}
+          >
             {data.map((item) => (
-              <Box key={item.category} textAlign="center">
+              <Box 
+                key={item.category} 
+                sx={{
+                  textAlign: 'center',
+                  p: 1.5,
+                  borderRadius: 2,
+                  bgcolor: '#fafafa',
+                  border: '1px solid #f1f5f9',
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    bgcolor: '#f8fafc',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 4px 8px rgba(0,0,0,0.06)',
+                  },
+                }}
+              >
                 <Box
                   sx={{
-                    width: 10,
-                    height: 10,
+                    width: 12,
+                    height: 12,
                     borderRadius: '50%',
                     bgcolor: item.color,
                     mx: 'auto',
-                    mb: 0.5,
+                    mb: 1,
+                    boxShadow: `0 0 0 3px ${item.color}20`,
                   }}
                 />
-                <Typography variant="caption" sx={{ color: '#64748b', fontSize: '11px', display: 'block' }}>
+                <Typography 
+                  variant="caption" 
+                  sx={{ 
+                    color: '#64748b', 
+                    fontSize: '11px', 
+                    display: 'block',
+                    fontWeight: 600,
+                    mb: 0.5,
+                  }}
+                >
                   {item.category}
                 </Typography>
-                <Typography variant="body2" fontWeight={700} sx={{ color: '#1e293b', fontSize: '14px' }}>
+                <Typography 
+                  variant="body2" 
+                  fontWeight={700} 
+                  sx={{ 
+                    color: '#1e293b', 
+                    fontSize: '15px',
+                    mb: 0.5,
+                  }}
+                >
                   {formatCurrency(item.amount)}
                 </Typography>
-                <Typography variant="caption" sx={{ color: '#94a3b8', fontSize: '10px' }}>
+                <Typography 
+                  variant="caption" 
+                  sx={{ 
+                    color: '#94a3b8', 
+                    fontSize: '10px',
+                    fontWeight: 500,
+                  }}
+                >
                   {item.count} khách hàng
                 </Typography>
               </Box>

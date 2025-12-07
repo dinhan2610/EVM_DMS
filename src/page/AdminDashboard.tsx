@@ -1,9 +1,9 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
-import SystemKPIs from '../components/admin/SystemKPIs';
-import TrafficChart from '../components/admin/TrafficChart';
-import UserDistributionChart from '../components/admin/UserDistributionChart';
-import AuditLogTable from '../components/admin/AuditLogTable';
+import SystemKPIs from '../components/admindashboard/SystemKPIs';
+import TrafficChart from '../components/admindashboard/TrafficChart';
+import UserDistributionChart from '../components/admindashboard/UserDistributionChart';
+import AuditLogTable from '../components/admindashboard/AuditLogTable';
 import {
   mockKPIData,
   mockTrafficData,
