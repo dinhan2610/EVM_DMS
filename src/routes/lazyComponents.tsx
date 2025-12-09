@@ -1,7 +1,11 @@
 import { lazy } from 'react'
 
-// Dashboard Routes
-export const Dashboard = lazy(() => import('@/page/Dashboard'))
+// Dashboard
+export const HODDashboard = lazy(() => import('@/page/HODDashboard'))
+export const AdminDashboard = lazy(() => import('@/page/AdminDashboard'))
+export const StaffDashboard = lazy(() => import('@/page/StaffDashboard'))
+export const SaleDashboard = lazy(() => import('@/page/SaleDashboard'))
+export const CustomerDashboard = lazy(() => import('@/page/CustomerDashboard'))
 
 // Apps Routes
 export const EcommerceCustomers = lazy(() => import('@/app/(admin)/ecommerce/customers/page'))
@@ -28,10 +32,14 @@ export const CreateAdjustmentInvoice = lazy(() => import('@/page/CreateAdjustmen
 export const CreateReplacementInvoice = lazy(() => import('@/page/CreateReplacementInvoice'))
 export const RequestManagement = lazy(() => import('@/page/RequestManagement'))
 export const ItemsManagement = lazy(() => import('@/page/ItemsManagement'))
+export const StatementManagement = lazy(() => import('@/page/StatementManagement'))
+export const CreateStatement = lazy(() => import('@/page/CreateStatement'))
+export const DebtManagement = lazy(() => import('@/page/DebtManagement'))
 export const TemplateManagement = lazy(() => import('@/page/TemplateManagement'))
 export const TemplateSelection = lazy(() => import('@/page/TemplateSelection'))
 export const TemplateEditor = lazy(() => import('@/page/TemplateEditor'))
 export const TemplatePreview = lazy(() => import('@/page/TemplatePreviewPage'))
+export const EmailTemplateManagement = lazy(() => import('@/page/EmailTemplateManagement'))
 
 // User Management Routes
 export const UserManagement = lazy(() => import('@/page/UserManagement'))

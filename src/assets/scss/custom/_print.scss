@@ -133,6 +133,31 @@
   }
 
   // ============================================
+  // 4B. HEADER MỖI TRANG - THÔNG TIN HÓA ĐƠN
+  // ============================================
+  // Đảm bảo header (tiêu đề, công ty, khách hàng) luôn hiện ở mọi trang
+  
+  // Tiêu đề hóa đơn - compact khi in
+  .MuiPaper-root > div > div:first-child {
+    page-break-inside: avoid; // Không ngắt giữa header
+    page-break-after: avoid; // Không ngắt sau header
+  }
+
+  // Header sections - giữ nguyên ở mọi trang
+  .invoice-title-section,
+  .invoice-company-section,
+  .invoice-customer-section {
+    page-break-inside: avoid !important;
+    margin-bottom: 0.2cm !important;
+  }
+
+  // Đảm bảo divider không bị ngắt
+  .MuiDivider-root {
+    page-break-inside: avoid !important;
+    margin: 0.15cm 0 !important;
+  }
+
+  // ============================================
   // 5. BODY - NỘI DUNG CHÍNH (NGẮT TRANG)
   // ============================================
   

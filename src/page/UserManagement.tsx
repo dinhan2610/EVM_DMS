@@ -560,24 +560,28 @@ const UserManagement = () => {
           </IconButton>
         </Tooltip>,
         <Tooltip title="Chỉnh sửa" key="edit">
-          <IconButton
-            size="small"
-            color="primary"
-            onClick={() => handleOpenModal(params.row)}
-            disabled
-          >
-            <EditOutlinedIcon fontSize="small" />
-          </IconButton>
+          <span>
+            <IconButton
+              size="small"
+              color="primary"
+              onClick={() => handleOpenModal(params.row)}
+              disabled
+            >
+              <EditOutlinedIcon fontSize="small" />
+            </IconButton>
+          </span>
         </Tooltip>,
         <Tooltip title="Đặt lại mật khẩu" key="reset">
-          <IconButton
-            size="small"
-            color="warning"
-            onClick={() => handleOpenResetModal(params.row)}
-            disabled
-          >
-            <VpnKeyOutlinedIcon fontSize="small" />
-          </IconButton>
+          <span>
+            <IconButton
+              size="small"
+              color="warning"
+              onClick={() => handleOpenResetModal(params.row)}
+              disabled
+            >
+              <VpnKeyOutlinedIcon fontSize="small" />
+            </IconButton>
+          </span>
         </Tooltip>,
         <Tooltip
           title={params.row.status === 'Active' ? 'Vô hiệu hóa' : 'Kích hoạt'}
@@ -963,7 +967,6 @@ const UserManagement = () => {
                           checked={sendInviteEmail}
                           onChange={(e) => setSendInviteEmail(e.target.checked)}
                           color="primary"
-                          defaultChecked
                         />
                       }
                       label={

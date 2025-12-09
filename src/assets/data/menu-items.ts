@@ -132,6 +132,12 @@ export const MENU_ITEMS: MenuItemType[] = [
         parentKey: 'apps-admin',
       },
       {
+        key: 'admin-email-templates',
+        label: 'Mẫu Email',
+        url: '/admin/email-templates',
+        parentKey: 'apps-admin',
+      },
+      {
         key: 'admin-users',
         label: 'Người dùng',
         url: '/admin/usermanager',
@@ -178,6 +184,18 @@ export const MENU_ITEMS: MenuItemType[] = [
         key: 'invoices',
         label: 'Danh sách hoá đơn',
         url: '/invoices',
+        parentKey: 'apps-invoices',
+      },
+      {
+        key: 'statements',
+        label: 'Bảng kê',
+        url: '/statements',
+        parentKey: 'apps-invoices',
+      },
+      {
+        key: 'debt',
+        label: 'Công nợ',
+        url: '/debt',
         parentKey: 'apps-invoices',
       },
       {

@@ -42,6 +42,9 @@ export interface InvoiceListItem {
   xmlPath: string | null;
   createdAt: string;
   invoiceItems: InvoiceItemResponse[];
+  contactPerson?: string;        // ✅ Họ tên người mua hàng (buyerName)
+  contactEmail?: string;         // Email liên hệ
+  contactPhone?: string;         // SĐT liên hệ
 }
 
 export interface InvoiceItemResponse {

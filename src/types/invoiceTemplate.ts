@@ -23,8 +23,11 @@ export interface ProductItem {
   name: string;
   unit: string;
   quantity: number;
-  unitPrice: number; // Changed from 'price' to 'unitPrice' for clarity
-  total?: number; // Optional, can be calculated from quantity * unitPrice
+  unitPrice: number; // Đơn giá (chưa VAT nếu là VAT invoice)
+  discountAmount?: number; // Tiền chiết khấu
+  total?: number; // Thành tiền sau chiết khấu, chưa VAT
+  vatRate?: number; // Thuế suất GTGT (0, 5, 8, 10)
+  vatAmount?: number; // Tiền thuế GTGT
 }
 
 /**
@@ -108,12 +111,24 @@ export interface InvoiceSymbol {
 // ==================== COMPONENT PROPS ====================
 
 /**
+ * Invoice totals structure
+ */
+export interface InvoiceTotals {
+  subtotal: number; // Tổng tiền hàng (chưa chiết khấu)
+  discount: number; // Tổng chiết khấu
+  subtotalAfterDiscount: number; // Tổng sau chiết khấu (chưa VAT)
+  tax: number; // Tổng VAT
+  total: number; // Tổng cộng tiền thanh toán
+}
+
+/**
  * Props for InvoiceTemplatePreview component (unified for both preview and print)
  */
 export interface InvoiceTemplatePreviewProps {
   config: TemplateConfigProps;
   visibility?: TemplateVisibility;
   products?: ProductItem[]; // NEW: Support actual product data
+  totals?: InvoiceTotals; // NEW: Pre-calculated totals (if not provided, will calculate from products)
   blankRows?: number;
   backgroundFrame?: string;
   bilingual?: boolean;
@@ -138,11 +153,12 @@ export interface InvoiceTemplatePreviewProps {
  * Customer information structure
  */
 export interface CustomerInfo {
-  name: string;
+  name: string;           // Tên công ty/đơn vị
   email: string;
   taxCode: string;
   address: string;
   phone?: string;
+  buyerName?: string;     // ✅ Họ tên người mua hàng (có thể để trống)
 }
 
 /**

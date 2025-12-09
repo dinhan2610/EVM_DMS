@@ -6,6 +6,9 @@ import productService, { Product } from '@/services/productService'
 import companyService, { Company } from '@/services/companyService'
 import { mapToBackendInvoiceRequest } from '@/utils/invoiceAdapter'
 import { numberToWords } from '@/utils/numberToWords'
+import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
+import type { ProductItem, CustomerInfo, TemplateConfigProps} from '@/types/invoiceTemplate'
+import { DEFAULT_TEMPLATE_VISIBILITY, DEFAULT_INVOICE_SYMBOL } from '@/types/invoiceTemplate'
 import {
   Box,
   Paper,
@@ -24,6 +27,10 @@ import {
   Snackbar,
   Alert,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material'
 import {
   HelpOutline,
@@ -31,15 +38,16 @@ import {
   Public,
   VerifiedUser,
   ExpandMore,
-  Settings,
-  Send,
   Visibility,
   Close,
   Save,
   Publish,
+  Print,
   KeyboardArrowUp,
   KeyboardArrowDown,
   DeleteOutline,
+  Warning,
+  Add,
 } from '@mui/icons-material'
 import SendInvoiceEmailModal from '@/components/SendInvoiceEmailModal'
 import { DataGrid, GridColDef, GridRenderCellParams, GridRenderEditCellParams } from '@mui/x-data-grid'
@@ -47,34 +55,52 @@ import { DataGrid, GridColDef, GridRenderCellParams, GridRenderEditCellParams } 
 // Interface cho hàng hóa/dịch vụ
 interface InvoiceItem {
   id: number
+  productId?: number        // ✅ ID sản phẩm từ DB
   stt: number
-  type: string
-  code: string
-  name: string
-  unit: string
-  quantity: number
-  priceAfterTax: number
-  discountPercent: number // Tỷ lệ chiết khấu (%)
-  discountAmount: number // Tiền chiết khấu
-  totalAfterTax: number
+  type: string              // Tính chất HHDV (lấy từ description của Product)
+  code: string              // Mã sản phẩm
+  name: string              // Tên sản phẩm
+  unit: string              // Đơn vị tính
+  quantity: number          // Số lượng
+  priceAfterTax: number     // Đơn giá CHƯA thuế (basePrice)
+  discountPercent: number   // Tỷ lệ chiết khấu (%)
+  discountAmount: number    // Tiền chiết khấu
+  vatRate?: number          // ✅ Thuế suất GTGT của sản phẩm (0, 5, 8, 10)
+  vatTax?: number           // ✅ Tiền thuế GTGT của dòng này
+  totalAfterTax: number     // Thành tiền (chưa bao gồm thuế)
 }
 
-// Component edit cell cho Tên hàng hóa/Dịch vụ
+// Component edit cell cho Tên hàng hóa/Dịch vụ - với search
 const ProductNameEditCell = (params: GridRenderEditCellParams & { products?: Product[], onProductSelect?: (rowId: string | number, product: Product) => void }) => {
   const [inputValue, setInputValue] = useState(params.value || '')
-  const availableProducts = params.products || []
+  const [searchText, setSearchText] = useState('')
+  
+  // ✅ Wrap trong useMemo để tránh re-render
+  const availableProducts = React.useMemo(() => params.products || [], [params.products])
+
+  // ✅ Lọc sản phẩm theo tên hoặc mã khi tìm kiếm
+  const filteredProducts = React.useMemo(() => {
+    if (!searchText) return availableProducts
+    const search = searchText.toLowerCase()
+    return availableProducts.filter(p => 
+      p.name.toLowerCase().includes(search) || 
+      p.code.toLowerCase().includes(search)
+    )
+  }, [searchText, availableProducts])
 
   const handleChange = (event: SelectChangeEvent<string>) => {
     const newValue = event.target.value
     setInputValue(newValue)
     params.api.setEditCellValue({ id: params.id, field: params.field, value: newValue })
     
-    // Tìm product được chọn và lưu productId
+    // ✅ Tìm product được chọn và auto-fill TẤT CẢ thông tin
     const selectedProduct = availableProducts.find(p => p.name === newValue)
+    console.log('🔍 ProductNameEditCell - Selected:', newValue, selectedProduct)
     if (selectedProduct && params.onProductSelect) {
+      console.log('✅ Calling onProductSelect for row:', params.id, selectedProduct)
       params.onProductSelect(params.id, selectedProduct)
-      // Cập nhật unit tự động
-      params.api.setEditCellValue({ id: params.id, field: 'unit', value: selectedProduct.unit })
+    } else {
+      console.warn('⚠️ Product not found or onProductSelect missing:', { selectedProduct, hasCallback: !!params.onProductSelect })
     }
   }
 
@@ -101,11 +127,12 @@ const ProductNameEditCell = (params: GridRenderEditCellParams & { products?: Pro
         variant="outlined"
         size="small"
         displayEmpty
+        onOpen={() => setSearchText('')} // Reset search khi mở
         MenuProps={{
           PaperProps: {
             sx: {
               mt: 0.5,
-              maxHeight: 200,
+              maxHeight: 300,
               boxShadow: '0 4px 12px rgba(25, 118, 210, 0.15)',
               border: '1.5px solid #1976d2',
               borderRadius: 1.5,
@@ -145,35 +172,235 @@ const ProductNameEditCell = (params: GridRenderEditCellParams & { products?: Pro
           },
         }}
       >
+        {/* ✅ Search field cố định ở đầu dropdown */}
+        <Box sx={{ p: 1, position: 'sticky', top: 0, bgcolor: '#fff', borderBottom: '1px solid #e0e0e0', zIndex: 1 }}>
+          <TextField
+            size="small"
+            fullWidth
+            placeholder="Tìm theo tên hoặc mã..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                height: '32px',
+                fontSize: '0.75rem',
+              },
+            }}
+          />
+        </Box>
+        
         <MenuItem value="" disabled sx={{ fontSize: '0.8125rem', color: '#999' }}>
           {availableProducts.length === 0 ? '-- Đang tải sản phẩm... --' : '-- Chọn sản phẩm --'}
         </MenuItem>
-        {availableProducts.map((product) => (
-          <MenuItem
-            key={product.id}
-            value={product.name}
-            sx={{
-              fontSize: '0.8125rem',
-              py: 0.75,
-              px: 1.25,
-              minHeight: 'auto',
-              borderRadius: 1,
-              transition: 'all 0.2s ease',
-              '&:hover': {
-                backgroundColor: '#e3f2fd',
-              },
-              '&.Mui-selected': {
-                backgroundColor: '#bbdefb',
-                '&:hover': {
-                  backgroundColor: '#90caf9',
-                },
-              },
-            }}
-          >
-            {product.name} ({product.code})
+        
+        {filteredProducts.length === 0 && searchText ? (
+          <MenuItem disabled sx={{ fontSize: '0.75rem', color: '#999', fontStyle: 'italic' }}>
+            Không tìm thấy sản phẩm phù hợp
           </MenuItem>
-        ))}
+        ) : (
+          filteredProducts.map((product) => (
+            <MenuItem
+              key={product.id}
+              value={product.name}
+              sx={{
+                fontSize: '0.8125rem',
+                py: 0.75,
+                px: 1.25,
+                minHeight: 'auto',
+                borderRadius: 1,
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                '&:hover': {
+                  backgroundColor: '#e3f2fd',
+                },
+                '&.Mui-selected': {
+                  backgroundColor: '#bbdefb',
+                  '&:hover': {
+                    backgroundColor: '#90caf9',
+                  },
+                },
+              }}
+            >
+              <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8125rem' }}>
+                {product.name}
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#666', fontSize: '0.7rem' }}>
+                Mã: {product.code} | Đơn vị: {product.unit} | Giá: {product.salesPrice.toLocaleString('vi-VN')}đ
+              </Typography>
+            </MenuItem>
+          ))
+        )}
       </Select>
+    </Box>
+  )
+}
+
+// Component edit cell cho Mã hàng hóa - Auto-complete khi nhập mã
+const ProductCodeEditCell = (params: GridRenderEditCellParams & { products?: Product[], onProductSelect?: (rowId: string | number, product: Product) => void }) => {
+  const [inputValue, setInputValue] = useState(params.value || '')
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  
+  // ✅ Wrap trong useMemo để tránh re-render
+  const availableProducts = React.useMemo(() => params.products || [], [params.products])
+
+  // ✅ Lọc sản phẩm khi người dùng nhập
+  useEffect(() => {
+    if (inputValue.length > 0) {
+      const filtered = availableProducts.filter(p => 
+        p.code.toUpperCase().includes(inputValue.toUpperCase())
+      ).slice(0, 5) // Giới hạn 5 gợi ý
+      setFilteredProducts(filtered)
+      setShowSuggestions(filtered.length > 0)
+    } else {
+      setFilteredProducts([])
+      setShowSuggestions(false)
+    }
+  }, [inputValue, availableProducts])
+
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = event.target.value.toUpperCase() // Uppercase cho mã sản phẩm
+    setInputValue(newValue)
+    params.api.setEditCellValue({ id: params.id, field: params.field, value: newValue })
+    
+    // ✅ Tự động tìm và điền nếu khớp chính xác
+    const exactMatch = availableProducts.find(p => p.code.toUpperCase() === newValue)
+    console.log('🔍 ProductCodeEditCell - Typing:', newValue, exactMatch)
+    if (exactMatch && params.onProductSelect) {
+      console.log('✅ Exact match found, calling onProductSelect for row:', params.id, exactMatch)
+      params.onProductSelect(params.id, exactMatch)
+      setShowSuggestions(false)
+    }
+  }
+
+  const handleSelectSuggestion = (product: Product) => {
+    console.log('✅ Suggestion selected:', product)
+    setInputValue(product.code)
+    params.api.setEditCellValue({ id: params.id, field: params.field, value: product.code })
+    if (params.onProductSelect) {
+      console.log('✅ Calling onProductSelect from suggestion for row:', params.id, product)
+      params.onProductSelect(params.id, product)
+    }
+    setShowSuggestions(false)
+    params.api.stopCellEditMode({ id: params.id, field: params.field })
+  }
+
+  const handleBlur = () => {
+    // Delay để cho phép click vào suggestion
+    setTimeout(() => {
+      const selectedProduct = availableProducts.find(p => p.code.toUpperCase() === inputValue.toUpperCase())
+      console.log('🔍 ProductCodeEditCell - Blur:', inputValue, selectedProduct)
+      if (selectedProduct && params.onProductSelect) {
+        console.log('✅ Calling onProductSelect on blur for row:', params.id, selectedProduct)
+        params.onProductSelect(params.id, selectedProduct)
+      }
+      setShowSuggestions(false)
+      params.api.stopCellEditMode({ id: params.id, field: params.field })
+    }, 200)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      handleBlur()
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false)
+      params.api.stopCellEditMode({ id: params.id, field: params.field })
+    }
+  }
+
+  return (
+    <Box sx={{ 
+      position: 'relative',
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center',
+      width: '100%', 
+      height: '100%',
+    }}>
+      <TextField
+        autoFocus
+        fullWidth
+        value={inputValue}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        variant="outlined"
+        size="small"
+        placeholder="Nhập mã SP"
+        sx={{
+          '& .MuiOutlinedInput-root': {
+            fontSize: '0.8125rem',
+            height: '28px',
+            borderRadius: '6px',
+            backgroundColor: '#fff',
+          },
+          '& input': {
+            fontSize: '0.8125rem',
+            padding: '4px 8px',
+            height: '28px',
+            textTransform: 'uppercase',
+          },
+          '& fieldset': {
+            borderColor: '#d0d0d0',
+            borderWidth: '1px',
+          },
+          '&:hover fieldset': {
+            borderColor: '#1976d2',
+          },
+          '&.Mui-focused fieldset': {
+            borderColor: '#1976d2',
+            borderWidth: '2px',
+          },
+        }}
+      />
+      {/* ✅ Suggestion Dropdown */}
+      {showSuggestions && filteredProducts.length > 0 && (
+        <Paper
+          sx={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            zIndex: 9999,
+            maxHeight: '200px',
+            overflow: 'auto',
+            mt: 0.5,
+            boxShadow: '0 4px 12px rgba(25, 118, 210, 0.15)',
+            border: '1px solid #1976d2',
+            borderRadius: 1,
+          }}
+        >
+          {filteredProducts.map((product) => (
+            <Box
+              key={product.id}
+              onMouseDown={() => handleSelectSuggestion(product)}
+              sx={{
+                p: 1,
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+                '&:hover': {
+                  backgroundColor: '#e3f2fd',
+                },
+                borderBottom: '1px solid #f0f0f0',
+                '&:last-child': {
+                  borderBottom: 'none',
+                },
+              }}
+            >
+              <Typography variant="caption" sx={{ fontWeight: 600, color: '#1976d2' }}>
+                {product.code}
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#666', ml: 1 }}>
+                {product.name}
+              </Typography>
+            </Box>
+          ))}
+        </Paper>
+      )}
     </Box>
   )
 }
@@ -524,8 +751,8 @@ const CreateVatInvoice: React.FC = () => {
   const [isPaid, setIsPaid] = useState(false)
   const [showTypeColumn, setShowTypeColumn] = useState(true)
   const [discountType, setDiscountType] = useState<string>('none') // 'none' | 'per-item' | 'total'
-  const [vatRate, setVatRate] = useState<number>(10) // Thuế GTGT: 0, 5, 10
   const [sendEmailModalOpen, setSendEmailModalOpen] = useState(false)
+  const [previewModalOpen, setPreviewModalOpen] = useState(false) // ✅ Preview modal
   const [invoiceNotes, setInvoiceNotes] = useState<string>('') // Ghi chú chung cho hóa đơn
   const [showInvoiceNotes, setShowInvoiceNotes] = useState(false) // Hiện/ẩn ô ghi chú
   const calculateAfterTax = false // Giá nhập vào là giá CHƯA thuế, VAT tính thêm
@@ -537,6 +764,14 @@ const CreateVatInvoice: React.FC = () => {
     message: string
     severity: 'success' | 'error' | 'warning'
   }>({ open: false, message: '', severity: 'success' })
+  
+  // ✅ State cho Dialog xác nhận sản phẩm trùng
+  const [duplicateDialog, setDuplicateDialog] = useState<{
+    open: boolean
+    rowId: string | number
+    product: Product | null
+    existingItem: InvoiceItem | null
+  }>({ open: false, rowId: '', product: null, existingItem: null })
 
   // Load templates on mount
   useEffect(() => {
@@ -673,23 +908,170 @@ const CreateVatInvoice: React.FC = () => {
     }
   }
   
-  // Handle product selection - lưu productId vào item
-  const handleProductSelect = useCallback((rowId: string | number, product: Product) => {
-    setItems(prevItems => 
-      prevItems.map(item => 
-        item.id === rowId 
-          ? { ...item, productId: product.id, name: product.name, unit: product.unit }
-          : item
-      )
-    )
-    console.log(`✅ Selected product for row ${rowId}:`, product.name, `(ID: ${product.id})`)
+  // ✅ Hàm điền thông tin sản phẩm (tái sử dụng cho cả trường hợp thêm mới và tăng số lượng)
+  const fillProductData = useCallback(async (rowId: string | number, product: Product) => {
+    try {
+      console.log('🔄 fillProductData called for row:', rowId, 'product:', product)
+      
+      // ✅ Gọi API để lấy thông tin đầy đủ
+      const productDetail = await productService.getProductById(product.id)
+      
+      console.log('✅ Product detail fetched:', productDetail)
+      
+      const productVatRate = parseFloat(productDetail.vatTaxRate) || 0
+      const basePrice = productDetail.salesPrice
+      
+      console.log('📊 Price calculation:', {
+        basePrice,
+        vatRate: productVatRate,
+        vatTaxRate: productDetail.vatTaxRate,
+      })
+      
+      // ✅ Auto-fill TẤT CẢ thông tin - Tạo object mới hoàn toàn để force re-render
+      setItems(prevItems => {
+        console.log('📝 Updating items, previous state:', prevItems)
+        const updatedItems = prevItems.map(item => {
+          if (item.id === rowId) {
+            // Tính thành tiền CHƯA thuế
+            const totalAfterTax = basePrice * item.quantity
+            
+            // ✅ Tạo object hoàn toàn mới để React detect thay đổi
+            const updatedItem: InvoiceItem = {
+              id: item.id,
+              stt: item.stt,
+              productId: productDetail.id,              // ID sản phẩm
+              code: productDetail.code,                 // Mã sản phẩm (DV001)
+              name: productDetail.name,                 // Tên sản phẩm
+              type: productDetail.description || 'Hàng hóa', // Tính chất HHDV từ description
+              unit: productDetail.unit,                 // Đơn vị tính
+              quantity: item.quantity,                  // Giữ nguyên số lượng
+              priceAfterTax: basePrice,                // ✅ Đơn giá CHƯA thuế
+              discountPercent: item.discountPercent,   // Giữ nguyên chiết khấu
+              discountAmount: item.discountAmount,     // Giữ nguyên chiết khấu
+              totalAfterTax: totalAfterTax,            // ✅ Thành tiền CHƯA thuế
+              vatRate: productVatRate,                 // ✅ Thuế suất của sản phẩm
+            }
+            console.log('✅ Updated item:', updatedItem)
+            return updatedItem
+          }
+          return item
+        })
+        console.log('🔄 New items state:', updatedItems)
+        return updatedItems
+      })
+      
+      console.log(`✅ Auto-filled product for row ${rowId}:`, {
+        name: productDetail.name,
+        code: productDetail.code,
+        unit: productDetail.unit,
+        basePrice: productDetail.salesPrice,
+        vatRate: productDetail.vatTaxRate,
+      })
+      
+      // ✅ Hiển thị thông báo thành công
+      setSnackbar({
+        open: true,
+        message: `Đã tải thông tin sản phẩm: ${productDetail.name}`,
+        severity: 'success',
+      })
+    } catch (error) {
+      console.error('❌ Error fetching product details:', error)
+      setSnackbar({
+        open: true,
+        message: 'Lỗi khi tải thông tin sản phẩm',
+        severity: 'error',
+      })
+    }
   }, [])
+  
+  // Handle product selection - Auto-fill TẤT CẢ thông tin sản phẩm
+  const handleProductSelect = useCallback(async (rowId: string | number, product: Product) => {
+    console.log('🎯 handleProductSelect called:', { rowId, product })
+    
+    // ✅ Kiểm tra xem sản phẩm đã tồn tại trong danh sách chưa (trừ dòng hiện tại)
+    const existingItem = items.find(item => 
+      item.productId === product.id && item.id !== rowId
+    )
+    
+    console.log('🔍 Checking duplicate:', { existingItem, currentItems: items })
+    
+    if (existingItem) {
+      // ⚠️ Sản phẩm đã tồn tại → Hiển thị Dialog xác nhận
+      console.log('⚠️ Duplicate product found, showing dialog')
+      setDuplicateDialog({
+        open: true,
+        rowId,
+        product,
+        existingItem,
+      })
+      return
+    }
+    
+    // ✅ Sản phẩm chưa tồn tại → Điền thông tin bình thường
+    console.log('✅ Product not duplicate, calling fillProductData')
+    await fillProductData(rowId, product)
+    console.log('✅ fillProductData completed')
+  }, [items, fillProductData])
   
   // Handle tax code change with debounce
   const handleTaxCodeChange = (value: string) => {
     setBuyerTaxCode(value)
     setCustomerNotFound(false)
   }
+  
+  // ✅ Xử lý khi chọn "Tăng số lượng" cho sản phẩm trùng
+  const handleIncreaseQuantity = useCallback(() => {
+    const { existingItem, rowId } = duplicateDialog
+    
+    if (existingItem) {
+      // Tăng số lượng của sản phẩm đã tồn tại
+      setItems(prevItems => 
+        prevItems.map(item => {
+          if (item.id === existingItem.id) {
+            const newQuantity = item.quantity + 1
+            const totalAfterTax = item.priceAfterTax * newQuantity - (item.discountAmount || 0)
+            return {
+              ...item,
+              quantity: newQuantity,
+              totalAfterTax,
+            }
+          }
+          return item
+        })
+      )
+      
+      // Xóa dòng trống vừa thêm
+      setItems(prevItems => prevItems.filter(item => item.id !== rowId))
+      
+      setSnackbar({
+        open: true,
+        message: `Đã tăng số lượng "${existingItem.name}" lên ${existingItem.quantity + 1}`,
+        severity: 'success',
+      })
+    }
+    
+    // Đóng Dialog
+    setDuplicateDialog({ open: false, rowId: '', product: null, existingItem: null })
+  }, [duplicateDialog])
+  
+  // ✅ Xử lý khi chọn "Thêm dòng mới" cho sản phẩm trùng
+  const handleAddNewRow = useCallback(async () => {
+    const { rowId, product } = duplicateDialog
+    
+    if (product) {
+      // Điền thông tin cho dòng mới
+      await fillProductData(rowId, product)
+      
+      setSnackbar({
+        open: true,
+        message: `Đã thêm dòng mới cho "${product.name}"`,
+        severity: 'success',
+      })
+    }
+    
+    // Đóng Dialog
+    setDuplicateDialog({ open: false, rowId: '', product: null, existingItem: null })
+  }, [duplicateDialog, fillProductData])
   
   // Handle tax code blur (trigger lookup)
   const handleTaxCodeBlur = () => {
@@ -698,9 +1080,7 @@ const CreateVatInvoice: React.FC = () => {
     }
   }
 
-  const handleOpenSendEmailModal = () => {
-    setSendEmailModalOpen(true)
-  }
+  
 
   const handleCloseSendEmailModal = () => {
     setSendEmailModalOpen(false)
@@ -720,6 +1100,7 @@ const CreateVatInvoice: React.FC = () => {
       priceAfterTax: 0,
       discountPercent: 0,
       discountAmount: 0,
+      vatRate: 0,              // ✅ Thuế suất mặc định 0%
       totalAfterTax: 0,
     }
     setItems([...items, newItem])
@@ -739,8 +1120,7 @@ const CreateVatInvoice: React.FC = () => {
 
   // Tính toán tổng tiền
   const calculateTotals = (currentItems: InvoiceItem[]) => {
-    // priceAfterTax là giá CHƯA thuế (vì calculateAfterTax = false)
-    // Tính tổng tiền hàng (CHƯA bao gồm thuế, chưa trừ chiết khấu)
+    // ✅ Tính theo TỪNG DÒNG sản phẩm
     const subtotalBeforeDiscount = currentItems.reduce((sum, item) => {
       const itemTotal = item.quantity * item.priceAfterTax
       return sum + itemTotal
@@ -749,11 +1129,17 @@ const CreateVatInvoice: React.FC = () => {
     // Tính tổng tiền chiết khấu
     const totalDiscount = currentItems.reduce((sum, item) => sum + (item.discountAmount || 0), 0)
 
-    // Tổng tiền sau chiết khấu (VẪN chưa bao gồm thuế)
+    // Tổng tiền sau chiết khấu (CHƯA bao gồm thuế)
     const subtotalAfterDiscount = subtotalBeforeDiscount - totalDiscount
 
-    // Tính thuế GTGT = subtotalAfterDiscount × (vatRate/100)
-    const tax = Math.round(subtotalAfterDiscount * (vatRate / 100))
+    // ✅ Tính thuế GTGT theo TỪNG DÒNG (vì mỗi sản phẩm có thuế suất khác nhau)
+    const tax = currentItems.reduce((sum, item) => {
+      // Tiền hàng của dòng này sau chiết khấu
+      const itemSubtotal = (item.quantity * item.priceAfterTax) - (item.discountAmount || 0)
+      // Tiền thuế = Tiền hàng × Thuế suất
+      const itemTax = itemSubtotal * ((item.vatRate || 0) / 100)
+      return sum + itemTax
+    }, 0)
     
     // Tổng tiền thanh toán = subtotalAfterDiscount + thuế
     const total = subtotalAfterDiscount + tax
@@ -762,7 +1148,7 @@ const CreateVatInvoice: React.FC = () => {
       subtotal: Math.round(subtotalAfterDiscount),     // Tổng tiền hàng CHƯA thuế (sau CK)
       discount: Math.round(totalDiscount),             // Chiết khấu
       subtotalAfterDiscount: Math.round(subtotalAfterDiscount), // Sau chiết khấu, chưa thuế
-      tax: Math.round(tax),                            // Tiền thuế VAT
+      tax: Math.round(tax),                            // ✅ Tiền thuế VAT (tổng của tất cả dòng)
       total: Math.round(total),                        // Tổng thanh toán (= subtotal + tax)
     }
   }
@@ -820,6 +1206,69 @@ const CreateVatInvoice: React.FC = () => {
   )
 
   const totals = calculateTotals(items)
+
+  // ==================== PREVIEW MODAL - DATA MAPPING ====================
+  
+  /**
+   * Map InvoiceItem[] → ProductItem[] cho InvoiceTemplatePreview
+   * ✅ Truyền ĐẦY ĐỦ thông tin: VAT rate, discount, VAT amount
+   */
+  const mapItemsToProducts = (): ProductItem[] => {
+    return items
+      .filter(item => item.name && item.name.trim() !== '') // Chỉ lấy dòng có tên sản phẩm
+      .map((item, index) => {
+        // Tính VAT amount cho item này
+        const itemSubtotal = item.totalAfterTax // Thành tiền sau CK, chưa VAT
+        const itemVatRate = item.vatRate || 0
+        const itemVatAmount = Math.round(itemSubtotal * (itemVatRate / 100))
+
+        return {
+          stt: index + 1,
+          name: item.name,
+          unit: item.unit,
+          quantity: item.quantity,
+          unitPrice: item.priceAfterTax, // Đơn giá chưa VAT
+          discountAmount: item.discountAmount, // Tiền chiết khấu
+          total: itemSubtotal, // Thành tiền sau CK, chưa VAT
+          vatRate: itemVatRate, // Thuế suất GTGT
+          vatAmount: itemVatAmount, // Tiền thuế GTGT
+        }
+      })
+  }
+
+  /**
+   * Map buyer info → CustomerInfo cho InvoiceTemplatePreview
+   * ✅ LUÔN return object để preview hiển thị đầy đủ template
+   */
+  const mapBuyerToCustomerInfo = (): CustomerInfo => {
+    return {
+      name: buyerCompanyName || '', // Để trống nếu chưa nhập
+      email: buyerEmail || '',
+      taxCode: buyerTaxCode || '',
+      address: buyerAddress || '',
+      phone: buyerPhone || '',
+      buyerName: buyerName || '', // Họ tên người mua
+    }
+  }
+
+  /**
+   * Map template + company → TemplateConfigProps
+   */
+  const mapTemplateToConfig = (): TemplateConfigProps | null => {
+    if (!selectedTemplate || !company) return null
+
+    return {
+      companyLogo: null, // ⚠️ TODO: Backend chưa có field logo cho company
+      companyName: company.companyName,
+      companyTaxCode: company.taxCode,
+      companyAddress: company.address,
+      companyPhone: company.contactPhone,
+      modelCode: selectedTemplate.serial,
+      templateCode: selectedTemplate.templateName,
+    }
+  }
+
+  // ==================== HANDLERS ====================
 
   // Hàm lấy user ID từ token (cần implement)
   // Hàm submit hóa đơn
@@ -880,7 +1329,6 @@ const CreateVatInvoice: React.FC = () => {
           phone: buyerPhone,
         },
         items,
-        vatRate,
         totals,
         paymentMethod, // Hình thức thanh toán từ dropdown
         5,              // minRows
@@ -947,7 +1395,6 @@ const CreateVatInvoice: React.FC = () => {
     language: string
   }) => {
     const invoiceSnapshot = {
-      vatRate,
       totals,
       itemsCount: items.length,
     }
@@ -994,12 +1441,7 @@ const CreateVatInvoice: React.FC = () => {
       editable: true,
       align: 'center' as const,
       headerAlign: 'center' as const,
-      renderCell: (params: GridRenderCellParams) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, width: '100%', height: '100%' }}>
-          <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>{params.value || ''}</Typography>
-          <Info sx={{ fontSize: 16, color: '#1976d2', cursor: 'pointer' }} />
-        </Box>
-      ),
+      renderEditCell: (params) => <ProductCodeEditCell {...params} products={products} onProductSelect={handleProductSelect} />,
     },
     {
       field: 'name',
@@ -1059,6 +1501,22 @@ const CreateVatInvoice: React.FC = () => {
         </Box>
       ),
       renderEditCell: (params) => <PriceEditCell {...params} />,
+    },
+    {
+      field: 'vatRate',
+      headerName: 'Thuế suất (%)',
+      width: 100,
+      type: 'number' as const,
+      editable: false, // Không cho chỉnh sửa thủ công, lấy từ sản phẩm
+      align: 'center' as const,
+      headerAlign: 'center' as const,
+      renderCell: (params: GridRenderCellParams) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          <Typography variant="body2" sx={{ fontSize: '0.8125rem', color: params.value > 0 ? '#1976d2' : 'text.secondary' }}>
+            {params.value || 0}%
+          </Typography>
+        </Box>
+      ),
     },
     ...(discountType === 'per-item' || discountType === 'total'
       ? [
@@ -1588,7 +2046,7 @@ const CreateVatInvoice: React.FC = () => {
               Hàng hóa/Dịch vụ
             </Typography>
 
-            {/* Dòng 1: Hiện cột + Loại tiền + Tỷ giá + Chiết khấu */}
+            {/* Dòng 1: Hiện cột + Loại tiền + Chiết khấu */}
             <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
               <FormControlLabel
                 control={
@@ -1601,36 +2059,14 @@ const CreateVatInvoice: React.FC = () => {
               {/* Spacer để đẩy các trường sang phải */}
               <Box sx={{ flex: 1, minWidth: 20 }} />
 
-              {/* Loại tiền */}
+              {/* Loại tiền - Chỉ hiển thị VNĐ (hóa đơn VAT Việt Nam) */}
               <Stack direction="row" spacing={1} alignItems="center">
                 <Typography variant="caption" sx={{ fontSize: '0.8125rem', whiteSpace: 'nowrap' }}>
                   Loại tiền:
                 </Typography>
-                <Select size="small" value="VND" variant="outlined" sx={{ width: 90, fontSize: '0.8125rem' }}>
-                  <MenuItem value="VND">VND</MenuItem>
-                  <MenuItem value="USD">USD</MenuItem>
-                  <MenuItem value="EUR">EUR</MenuItem>
-                </Select>
-              </Stack>
-
-              {/* Tỷ giá */}
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Typography variant="caption" sx={{ fontSize: '0.8125rem', whiteSpace: 'nowrap' }}>
-                  Tỷ giá:
+                <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 500, color: '#1976d2' }}>
+                  VNĐ
                 </Typography>
-                <TextField
-                  size="small"
-                  value="1,00"
-                  variant="outlined"
-                  sx={{
-                    width: 80,
-                    fontSize: '0.8125rem',
-                    '& .MuiInputBase-input': {
-                      textAlign: 'right',
-                      fontSize: '0.8125rem',
-                    },
-                  }}
-                />
               </Stack>
 
               {/* Chiết khấu */}
@@ -1909,28 +2345,6 @@ const CreateVatInvoice: React.FC = () => {
                   </Stack>
                 )}
 
-                <Stack direction="row" alignItems="center" spacing={1}>
-                  <Typography variant="caption" sx={{ fontSize: '0.8125rem' }}>Thuế GTGT:</Typography>
-                  <Select 
-                    size="small" 
-                    value={vatRate} 
-                    onChange={(e) => setVatRate(Number(e.target.value))}
-                    variant="standard" 
-                    sx={{ 
-                      width: 70, 
-                      fontSize: '0.8125rem',
-                      '& .MuiSelect-select': {
-                        textAlign: 'center',
-                        paddingLeft: '8px',
-                      }
-                    }}
-                  >
-                    <MenuItem value={0} sx={{ justifyContent: 'center' }}>0%</MenuItem>
-                    <MenuItem value={5} sx={{ justifyContent: 'center' }}>5%</MenuItem>
-                    <MenuItem value={10} sx={{ justifyContent: 'center' }}>10%</MenuItem>
-                  </Select>
-                </Stack>
-
                 <Stack direction="row" justifyContent="space-between">
                   <Typography variant="caption" sx={{ fontSize: '0.8125rem' }}>Tiền thuế GTGT:</Typography>
                   <Typography variant="caption" sx={{ fontWeight: 500, fontSize: '0.8125rem' }}>
@@ -1968,22 +2382,8 @@ const CreateVatInvoice: React.FC = () => {
               <Button
                 size="small"
                 variant="outlined"
-                startIcon={<Settings fontSize="small" />}
-                sx={{ textTransform: 'none', color: '#666', borderColor: '#ccc', fontSize: '0.8125rem', py: 0.5 }}>
-                Thêm trường mở rộng
-              </Button>
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<Send fontSize="small" />}
-                sx={{ textTransform: 'none', color: '#666', borderColor: '#ccc', fontSize: '0.8125rem', py: 0.5 }}
-                onClick={handleOpenSendEmailModal}>
-                Gửi hóa đơn nháp
-              </Button>
-              <Button
-                size="small"
-                variant="outlined"
                 startIcon={<Visibility fontSize="small" />}
+                onClick={() => setPreviewModalOpen(true)}
                 sx={{ textTransform: 'none', color: '#666', borderColor: '#ccc', fontSize: '0.8125rem', py: 0.5 }}>
                 Xem trước
               </Button>
@@ -2044,6 +2444,160 @@ const CreateVatInvoice: React.FC = () => {
             {snackbar.message}
           </Alert>
         </Snackbar>
+
+        {/* ==================== PREVIEW MODAL ==================== */}
+        <Dialog
+          open={previewModalOpen}
+          onClose={() => setPreviewModalOpen(false)}
+          maxWidth="lg"
+          fullWidth
+          PaperProps={{
+            sx: {
+              maxWidth: '900px',
+              maxHeight: '90vh',
+            }
+          }}
+        >
+          <DialogTitle sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            borderBottom: '1px solid #e0e0e0',
+            pb: 2
+          }}>
+            <Typography variant="h6" fontWeight="bold">
+              Xem trước hóa đơn
+            </Typography>
+            <IconButton 
+              onClick={() => setPreviewModalOpen(false)}
+              size="small"
+              sx={{ color: '#666' }}
+            >
+              <Close />
+            </IconButton>
+          </DialogTitle>
+
+          <DialogContent sx={{ p: 3, bgcolor: '#f5f5f5' }}>
+            {selectedTemplate && company ? (
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'center',
+                '& > div': { // Target InvoiceTemplatePreview wrapper
+                  maxWidth: '21cm',
+                  width: '100%',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                }
+              }}>
+                <InvoiceTemplatePreview
+                  config={mapTemplateToConfig()!}
+                  products={mapItemsToProducts()}
+                  totals={totals} // ✅ Truyền totals đã tính sẵn từ form
+                  blankRows={5}
+                  visibility={DEFAULT_TEMPLATE_VISIBILITY}
+                  bilingual={false}
+                  invoiceDate={new Date().toISOString()}
+                  invoiceType="withCode"
+                  symbol={DEFAULT_INVOICE_SYMBOL}
+                  customerVisibility={{
+                    customerName: true,      // ✅ LUÔN HIỆN để xem template đầy đủ
+                    customerTaxCode: true,
+                    customerAddress: true,
+                    customerPhone: true,
+                    customerEmail: true,
+                    paymentMethod: true,
+                  }}
+                  customerInfo={mapBuyerToCustomerInfo()}
+                  paymentMethod={paymentMethod}
+                  invoiceNumber={undefined} // ⚠️ KHÔNG CÓ MÃ HÓA ĐƠN - chưa tạo
+                  taxAuthorityCode={null} // ⚠️ KHÔNG CÓ MÃ CQT - chưa đồng bộ
+                  backgroundFrame={selectedTemplate.frameUrl || ''}
+                  notes={invoiceNotes || null}
+                />
+              </Box>
+            ) : (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography color="text.secondary">
+                  Vui lòng chọn mẫu hóa đơn để xem trước
+                </Typography>
+              </Box>
+            )}
+          </DialogContent>
+
+          <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #e0e0e0' }}>
+            <Button
+              variant="outlined"
+              onClick={() => setPreviewModalOpen(false)}
+              sx={{ textTransform: 'none' }}
+            >
+              Đóng
+            </Button>
+            <Button
+              variant="contained"
+              onClick={() => {
+                setPreviewModalOpen(false)
+                // TODO: Có thể thêm chức năng in trực tiếp từ preview
+                window.print()
+              }}
+              startIcon={<Print />}
+              sx={{ textTransform: 'none', backgroundColor: '#1976d2' }}
+            >
+              In hóa đơn
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* ✅ Dialog xác nhận sản phẩm trùng */}
+        <Dialog
+          open={duplicateDialog.open}
+          onClose={() => setDuplicateDialog({ open: false, rowId: '', product: null, existingItem: null })}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle sx={{ pb: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Warning sx={{ color: '#ed6c02', fontSize: 28 }} />
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                Sản phẩm đã tồn tại
+              </Typography>
+            </Box>
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              Sản phẩm <strong>"{duplicateDialog.existingItem?.name}"</strong> đã có trong danh sách với số lượng <strong>{duplicateDialog.existingItem?.quantity}</strong>.
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              Bạn muốn:
+            </Typography>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+            <Button
+              onClick={() => setDuplicateDialog({ open: false, rowId: '', product: null, existingItem: null })}
+              variant="outlined"
+              size="small"
+              sx={{ textTransform: 'none' }}
+            >
+              Hủy
+            </Button>
+            <Button
+              onClick={handleIncreaseQuantity}
+              variant="contained"
+              size="small"
+              startIcon={<Add />}
+              sx={{ textTransform: 'none', backgroundColor: '#1976d2' }}
+            >
+              Tăng số lượng ({(duplicateDialog.existingItem?.quantity || 0) + 1})
+            </Button>
+            <Button
+              onClick={handleAddNewRow}
+              variant="contained"
+              size="small"
+              startIcon={<Add />}
+              sx={{ textTransform: 'none', backgroundColor: '#2e7d32' }}
+            >
+              Thêm dòng mới
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Box>
   )

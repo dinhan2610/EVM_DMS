@@ -1,7 +1,11 @@
 import { Navigate, type RouteProps } from 'react-router-dom'
 
 import {
-  Dashboard,
+  HODDashboard,
+  AdminDashboard,
+  StaffDashboard,
+  SaleDashboard,
+  CustomerDashboard,
   EcommerceCustomers,
   EcommerceSellers,
   CustomerProfile,
@@ -24,10 +28,14 @@ import {
   CreateReplacementInvoice,
   RequestManagement,
   ItemsManagement,
+  StatementManagement,
+  CreateStatement,
+  DebtManagement,
   TemplateManagement,
   TemplateSelection,
   TemplateEditor,
   TemplatePreview,
+  EmailTemplateManagement,
   UserManagement,
   RolesPermissions,
   SystemConfiguration,
@@ -67,9 +75,29 @@ const initialRoutes: RoutesProps[] = [
     element: <Navigate to="/dashboard" />,
   },
   {
-    name: 'Dashboard',
     path: '/dashboard',
-    element: <Dashboard />,
+    name: 'Dashboard',
+    element: <HODDashboard />,
+  },
+  {
+    path: '/admin-dashboard',
+    name: 'Admin Dashboard',
+    element: <AdminDashboard />,
+  },
+  {
+    path: '/staff-dashboard',
+    name: 'Staff Dashboard',
+    element: <StaffDashboard />,
+  },
+  {
+    path: '/sale-dashboard',
+    name: 'Sale Dashboard',
+    element: <SaleDashboard />,
+  },
+  {
+    path: '/customer-dashboard',
+    name: 'Customer Dashboard',
+    element: <CustomerDashboard />,
   },
 ]
 
@@ -140,6 +168,11 @@ const appsRoutes: RoutesProps[] = [
     element: <TemplateManagement />,
   },
   {
+    name: 'Email Template Management',
+    path: '/admin/email-templates',
+    element: <EmailTemplateManagement />,
+  },
+  {
     name: 'Select Template',
     path: '/admin/templates/select',
     element: <TemplateSelection />,
@@ -163,6 +196,26 @@ const appsRoutes: RoutesProps[] = [
     name: 'Invoices List',
     path: '/invoices',
     element: <InvoiceManagement />,
+  },
+  {
+    name: 'Statement Management',
+    path: '/statements',
+    element: <StatementManagement />,
+  },
+  {
+    name: 'Create Statement',
+    path: '/statements/new',
+    element: <CreateStatement />,
+  },
+  {
+    name: 'Edit Statement',
+    path: '/statements/edit/:id',
+    element: <CreateStatement />,
+  },
+  {
+    name: 'Debt Management',
+    path: '/debt',
+    element: <DebtManagement />,
   },
   {
     name: 'Invoice Approval',

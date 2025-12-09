@@ -1,7 +1,6 @@
 import { lazy } from 'react'
 
-// Dashboard Routes
-export const Dashboard = lazy(() => import('@/page/Dashboard'))
+
 
 // Apps Routes
 export const EcommerceCustomers = lazy(() => import('@/app/(admin)/ecommerce/customers/page'))
@@ -22,6 +21,9 @@ export const CreateAdjustmentInvoice = lazy(() => import('@/page/CreateAdjustmen
 export const CreateReplacementInvoice = lazy(() => import('@/page/CreateReplacementInvoice'))
 export const RequestManagement = lazy(() => import('@/page/RequestManagement'))
 export const ItemsManagement = lazy(() => import('@/page/ItemsManagement'))
+export const StatementManagement = lazy(() => import('@/page/StatementManagement'))
+export const CreateStatement = lazy(() => import('@/page/CreateStatement'))
+export const DebtManagement = lazy(() => import('@/page/DebtManagement'))
 export const TemplateManagement = lazy(() => import('@/page/TemplateManagement'))
 export const TemplateSelection = lazy(() => import('@/page/TemplateSelection'))
 export const TemplateEditor = lazy(() => import('@/page/TemplateEditor'))
@@ -45,6 +47,11 @@ export const TimelinePage = lazy(() => import('@/app/(admin)/pages/timeline/page
 export const UserProfile = lazy(() => import('@/page/UserProfile'))
 export const AllNotifications = lazy(() => import('@/page/AllNotifications'))
 export const Pricing = lazy(() => import('@/app/(admin)/pages/pricing/page'))
+
+// Dashboard Routes
+export const StaffDashboard = lazy(() => import('@/page/StaffDashboard'))
+export const SaleDashboard = lazy(() => import('@/page/SaleDashboard'))
+export const CustomerDashboard = lazy(() => import('@/page/CustomerDashboard'))
 
 // Charts Routes (Chỉ giữ 4 loại: Area, Bar, Line, Pie)
 export const Area = lazy(() => import('@/app/(admin)/charts/area/page'))
