@@ -7,6 +7,13 @@ import {
   Button,
   IconButton,
   Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Alert,
+  Snackbar,
   Menu,
   MenuItem,
   ListItemIcon,
@@ -20,17 +27,15 @@ import dayjs from 'dayjs'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
-import AddIcon from '@mui/icons-material/Add'
-import SendIcon from '@mui/icons-material/Send'
+import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import CancelIcon from '@mui/icons-material/Cancel'
 import DrawIcon from '@mui/icons-material/Draw'
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
-import DownloadIcon from '@mui/icons-material/Download'
 import EmailIcon from '@mui/icons-material/Email'
 import PrintIcon from '@mui/icons-material/Print'
-import RestoreIcon from '@mui/icons-material/Restore'
+import DownloadIcon from '@mui/icons-material/Download'
 import FindReplaceIcon from '@mui/icons-material/FindReplace'
-import { Link, useNavigate } from 'react-router-dom'
-import { Snackbar, Alert } from '@mui/material'
+import RestoreIcon from '@mui/icons-material/Restore'
+import { Link } from 'react-router-dom'
 import InvoiceFilter, { InvoiceFilterState } from '@/components/InvoiceFilter'
 import invoiceService, { InvoiceListItem } from '@/services/invoiceService'
 import templateService from '@/services/templateService'
@@ -49,15 +54,15 @@ import {
 export interface Invoice {
   id: string
   invoiceNumber: string
-  symbol: string // Ký hiệu hoá đơn (template serial)
-  customerName: string // Tên khách hàng
-  taxCode: string // Mã số thuế khách hàng
-  taxAuthority: string // Mã của CQT
+  symbol: string
+  customerName: string
+  taxCode: string
+  taxAuthority: string
   issueDate: string
-  internalStatusId: number // ID trạng thái nội bộ (0-5)
-  internalStatus: string // Label trạng thái nội bộ
-  taxStatusId: number // ID trạng thái thuế (0-3)
-  taxStatus: string // Label trạng thái thuế
+  internalStatusId: number
+  internalStatus: string
+  taxStatusId: number
+  taxStatus: string
   amount: number
 }
 
@@ -70,14 +75,13 @@ const mapInvoiceToUI = (
   const template = templateMap.get(item.templateID)
   const customer = customerMap.get(item.customerID)
   
-  // Xác định trạng thái thuế dựa trên taxAuthorityCode
   const taxStatusId = item.taxAuthorityCode 
     ? TAX_AUTHORITY_STATUS.ACCEPTED 
     : TAX_AUTHORITY_STATUS.NOT_SENT
   
   return {
     id: item.invoiceID.toString(),
-    invoiceNumber: `0000${item.invoiceID}`, // Dùng invoiceID thay vì invoiceNumber để tránh trùng
+    invoiceNumber: `0000${item.invoiceID}`,
     symbol: template || '',
     customerName: customer?.name || '',
     taxCode: customer?.taxCode || '',
@@ -92,14 +96,13 @@ const mapInvoiceToUI = (
 }
 
 // Component menu thao tác cho mỗi hóa đơn
-interface InvoiceActionsMenuProps {
+interface InvoiceApprovalActionsMenuProps {
   invoice: Invoice
-  onSendForApproval: (id: string) => void
-  isSending: boolean
+  onApprove: (id: string, invoiceNumber: string) => void
+  onReject: (id: string, invoiceNumber: string) => void
 }
 
-const InvoiceActionsMenu = ({ invoice, onSendForApproval, isSending }: InvoiceActionsMenuProps) => {
-  const navigate = useNavigate()
+const InvoiceApprovalActionsMenu = ({ invoice, onApprove, onReject }: InvoiceApprovalActionsMenuProps) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
 
@@ -111,10 +114,13 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, isSending }: InvoiceAc
     setAnchorEl(null)
   }
 
-  // Xác định trạng thái hóa đơn (chỉ giữ lại status đang dùng)
-  const isDraft = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.DRAFT
-  const isPendingSign = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN
-  const isIssued = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.ISSUED // Đã phát hành = Đã ký + gửi
+  // Xác định trạng thái hóa đơn
+  const isPendingApproval = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_APPROVAL // 6 - Chờ duyệt
+  const isPendingSign = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN // 7 - Đã duyệt, chờ ký
+  const isIssued = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.ISSUED // 2 - Đã phát hành (đã ký + gửi)
+  
+  // Logic điều khiển menu
+  const canCancel = isPendingApproval || isPendingSign // Có thể hủy khi Chờ duyệt HOẶC Chờ ký
 
   const menuItems = [
     {
@@ -122,15 +128,17 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, isSending }: InvoiceAc
       icon: <VisibilityOutlinedIcon fontSize="small" />,
       enabled: true,
       action: () => {
-        navigate(`/invoices/${invoice.id}`)
+        // Link sẽ được xử lý riêng
         handleClose()
       },
       color: 'primary.main',
+      isLink: true,
+      linkTo: `/approval/invoices/${invoice.id}`,
     },
     {
       label: 'Chỉnh sửa',
       icon: <EditOutlinedIcon fontSize="small" />,
-      enabled: isDraft,
+      enabled: isPendingApproval,
       action: () => {
         console.log('Chỉnh sửa:', invoice.id)
         handleClose()
@@ -138,11 +146,11 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, isSending }: InvoiceAc
       color: 'primary.main',
     },
     {
-      label: 'Gửi duyệt',
-      icon: <SendIcon fontSize="small" />,
-      enabled: isDraft && !isSending,
+      label: 'Duyệt',
+      icon: <CheckCircleIcon fontSize="small" />,
+      enabled: isPendingApproval,
       action: () => {
-        onSendForApproval(invoice.id)
+        onApprove(invoice.id, invoice.invoiceNumber)
         handleClose()
       },
       color: 'success.main',
@@ -210,11 +218,11 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, isSending }: InvoiceAc
       color: 'warning.main',
     },
     {
-      label: 'Xóa',
-      icon: <DeleteOutlineIcon fontSize="small" />,
-      enabled: isDraft,
+      label: 'Hủy',
+      icon: <CancelIcon fontSize="small" />,
+      enabled: canCancel, // Chờ duyệt hoặc Chờ ký (chưa phát hành)
       action: () => {
-        console.log('Xóa:', invoice.id)
+        onReject(invoice.id, invoice.invoiceNumber) // Dùng lại logic reject/cancel
         handleClose()
       },
       color: 'error.main',
@@ -285,6 +293,53 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, isSending }: InvoiceAc
             return <Divider key={`divider-${index}`} sx={{ my: 1 }} />
           }
 
+          // Nếu là link item
+          if ('isLink' in item && item.isLink) {
+            return (
+              <MenuItem
+                key={item.label}
+                component={Link}
+                to={item.linkTo || '#'}
+                disabled={!item.enabled}
+                sx={{
+                  py: 1.25,
+                  px: 2.5,
+                  gap: 1.5,
+                  textDecoration: 'none',
+                  color: 'inherit',
+                  transition: 'all 0.2s ease',
+                  '&:hover': item.enabled ? {
+                    backgroundColor: 'action.hover',
+                    transform: 'translateX(4px)',
+                  } : {},
+                  '&.Mui-disabled': {
+                    opacity: 0.4,
+                  },
+                  cursor: item.enabled ? 'pointer' : 'not-allowed',
+                }}
+              >
+                <ListItemIcon
+                  sx={{
+                    color: item.enabled ? item.color : 'text.disabled',
+                    minWidth: 28,
+                    transition: 'color 0.2s ease',
+                  }}
+                >
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primary={item.label}
+                  primaryTypographyProps={{
+                    fontSize: '0.875rem',
+                    fontWeight: item.enabled ? 500 : 400,
+                    letterSpacing: '0.01em',
+                    color: item.enabled ? 'text.primary' : 'text.disabled',
+                  }}
+                />
+              </MenuItem>
+            )
+          }
+
           return (
             <MenuItem
               key={item.label}
@@ -331,17 +386,13 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, isSending }: InvoiceAc
   )
 }
 
-const InvoiceManagement = () => {
-  const navigate = useNavigate()
-  
+const InvoiceApproval = () => {
   // State quản lý data
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [submittingId, setSubmittingId] = useState<string | null>(null)
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
   
-  // State quản lý bộ lọc - sử dụng InvoiceFilterState
+  // State quản lý bộ lọc
   const [filters, setFilters] = useState<InvoiceFilterState>({
     searchText: '',
     dateFrom: null,
@@ -355,20 +406,39 @@ const InvoiceManagement = () => {
     amountTo: '',
   })
 
+  // State cho dialog duyệt/từ chối
+  const [approvalDialog, setApprovalDialog] = useState({
+    open: false,
+    invoiceId: '',
+    invoiceNumber: '',
+    action: '' as 'approve' | 'reject' | '',
+  })
+  const [rejectionReason, setRejectionReason] = useState('')
+  const [actionLoading, setActionLoading] = useState(false)
+  
+  // State cho snackbar
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success' as 'success' | 'error' | 'warning',
+  })
+
   // Load invoices từ API
+  useEffect(() => {
+    loadInvoices()
+  }, [])
+
   const loadInvoices = async () => {
     try {
       setLoading(true)
       setError(null)
       
-      // Load all data in parallel
       const [invoicesData, templatesData, customersData] = await Promise.all([
         invoiceService.getAllInvoices(),
         templateService.getAllTemplates(),
         customerService.getAllCustomers(),
       ])
       
-      // Create maps for quick lookup
       const templateMap = new Map(
         templatesData.map(t => [t.templateID, t.serial])
       )
@@ -376,8 +446,12 @@ const InvoiceManagement = () => {
         customersData.map(c => [c.customerID, { name: c.customerName, taxCode: c.taxCode }])
       )
       
-      // Map invoices with real data
-      const mappedData = invoicesData.map(item => mapInvoiceToUI(item, templateMap, customerMap))
+      // ⭐ KẾ TOÁN TRƯỞNG XEM TẤT CẢ HÓA ĐƠN TRỪ NHÁP (status !== 1)
+      const managementInvoices = invoicesData.filter(
+        item => item.invoiceStatusID !== INVOICE_INTERNAL_STATUS.DRAFT
+      )
+      
+      const mappedData = managementInvoices.map(item => mapInvoiceToUI(item, templateMap, customerMap))
       setInvoices(mappedData)
     } catch (err) {
       console.error('Failed to load invoices:', err)
@@ -387,16 +461,11 @@ const InvoiceManagement = () => {
     }
   }
 
-  useEffect(() => {
-    loadInvoices()
-  }, [])
-
-  // Handler khi filter thay đổi
+  // Handlers
   const handleFilterChange = (newFilters: InvoiceFilterState) => {
     setFilters(newFilters)
   }
 
-  // Handler khi reset filter
   const handleResetFilter = () => {
     setFilters({
       searchText: '',
@@ -412,41 +481,78 @@ const InvoiceManagement = () => {
     })
   }
 
-  // Gửi hóa đơn cho Kế toán trưởng (update status 1 -> 6)
-  const handleSendForApproval = async (invoiceId: string) => {
-    try {
-      setSubmittingId(invoiceId)
-      
-      // Gọi API update status
-      await invoiceService.updateInvoiceStatus(parseInt(invoiceId), 6)
-      
-      // Update UI optimistically
-      setInvoices(prev => prev.map(inv => 
-        inv.id === invoiceId 
-          ? { ...inv, internalStatusId: 6, internalStatus: INVOICE_INTERNAL_STATUS_LABELS[6] }
-          : inv
-      ))
-      
+  const handleOpenApprovalDialog = (invoiceId: string, invoiceNumber: string, action: 'approve' | 'reject') => {
+    setApprovalDialog({
+      open: true,
+      invoiceId,
+      invoiceNumber,
+      action,
+    })
+    setRejectionReason('')
+  }
+
+  const handleCloseApprovalDialog = () => {
+    setApprovalDialog({
+      open: false,
+      invoiceId: '',
+      invoiceNumber: '',
+      action: '',
+    })
+    setRejectionReason('')
+  }
+
+  const handleConfirmAction = async () => {
+    if (approvalDialog.action === 'reject' && !rejectionReason.trim()) {
       setSnackbar({
         open: true,
-        message: 'Đã gửi hóa đơn cho Kế toán trưởng',
-        severity: 'success'
+        message: 'Vui lòng nhập lý do từ chối',
+        severity: 'warning',
       })
+      return
+    }
+
+    setActionLoading(true)
+    try {
+      // ⭐ Gọi API để update status
       
-      // Reload data
+      if (approvalDialog.action === 'approve') {
+        // ✅ Update status từ PENDING_APPROVAL (6) -> PENDING_SIGN (7)
+        await invoiceService.updateInvoiceStatus(parseInt(approvalDialog.invoiceId), INVOICE_INTERNAL_STATUS.PENDING_SIGN)
+        
+        setSnackbar({
+          open: true,
+          message: `Đã duyệt hóa đơn ${approvalDialog.invoiceNumber}`,
+          severity: 'success',
+        })
+      } else {
+        // ✅ Update status từ PENDING_APPROVAL (6) -> CANCELLED (3) - Bị từ chối
+        await invoiceService.updateInvoiceStatus(parseInt(approvalDialog.invoiceId), INVOICE_INTERNAL_STATUS.CANCELLED)
+        // TODO: Gửi rejectionReason lên backend nếu API hỗ trợ
+        
+        setSnackbar({
+          open: true,
+          message: `Đã từ chối hóa đơn ${approvalDialog.invoiceNumber}`,
+          severity: 'success',
+        })
+      }
+
+      handleCloseApprovalDialog()
+      
+      // Reload data để refresh danh sách
       await loadInvoices()
+      
     } catch (err) {
       setSnackbar({
         open: true,
-        message: err instanceof Error ? err.message : 'Không thể gửi hóa đơn',
-        severity: 'error'
+        message: err instanceof Error ? err.message : 'Không thể thực hiện thao tác',
+        severity: 'error',
       })
     } finally {
-      setSubmittingId(null)
+      setActionLoading(false)
     }
   }
 
-  // Định nghĩa columns
+  // Định nghĩa columns với chức năng duyệt
   const columns: GridColDef[] = [
     {
       field: 'invoiceNumber',
@@ -458,7 +564,7 @@ const InvoiceManagement = () => {
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
         <Link
-          to={`/invoices/${params.row.id}`}
+          to={`/approval/invoices/${params.row.id}`}
           style={{
             textDecoration: 'none',
             color: '#1976d2',
@@ -541,34 +647,6 @@ const InvoiceManagement = () => {
       },
     },
     {
-      field: 'taxAuthority',
-      headerName: 'Mã của CQT',
-      flex: 1,
-      minWidth: 130,
-      sortable: true,
-      align: 'center',
-      headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) => {
-        const value = params.value as string
-        if (!value) return <Typography variant="body2" sx={{ color: '#bdbdbd' }}>-</Typography>
-        return (
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 600,
-              letterSpacing: '0.02em',
-              color: '#1976d2',
-              backgroundColor: '#e3f2fd',
-              px: 1.5,
-              py: 0.5,
-              borderRadius: 1,
-            }}>
-            {value}
-          </Typography>
-        )
-      },
-    },
-    {
       field: 'issueDate',
       headerName: 'Ngày phát hành',
       flex: 1,
@@ -639,23 +717,20 @@ const InvoiceManagement = () => {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
-        const isSending = submittingId === params.row.id
-        
         return (
-          <InvoiceActionsMenu
+          <InvoiceApprovalActionsMenu
             invoice={params.row as Invoice}
-            onSendForApproval={handleSendForApproval}
-            isSending={isSending}
+            onApprove={(id, invoiceNumber) => handleOpenApprovalDialog(id, invoiceNumber, 'approve')}
+            onReject={(id, invoiceNumber) => handleOpenApprovalDialog(id, invoiceNumber, 'reject')}
           />
         )
       },
     },
   ]
 
-  // Logic lọc dữ liệu - tích hợp với InvoiceFilter
+  // Logic lọc dữ liệu
   const filteredInvoices = useMemo(() => {
     return invoices.filter((invoice) => {
-      // Lọc theo text search (số HĐ, ký hiệu, tên khách hàng, mã số thuế)
       const matchesSearch =
         !filters.searchText ||
         invoice.invoiceNumber.toLowerCase().includes(filters.searchText.toLowerCase()) ||
@@ -663,20 +738,11 @@ const InvoiceManagement = () => {
         invoice.customerName.toLowerCase().includes(filters.searchText.toLowerCase()) ||
         invoice.taxCode.toLowerCase().includes(filters.searchText.toLowerCase())
 
-      // Lọc theo khoảng ngày
       const matchesDateFrom = !filters.dateFrom || dayjs(invoice.issueDate).isAfter(filters.dateFrom, 'day') || dayjs(invoice.issueDate).isSame(filters.dateFrom, 'day')
       const matchesDateTo = !filters.dateTo || dayjs(invoice.issueDate).isBefore(filters.dateTo, 'day') || dayjs(invoice.issueDate).isSame(filters.dateTo, 'day')
-
-      // Lọc theo trạng thái hóa đơn (multiselect)
       const matchesInvoiceStatus = filters.invoiceStatus.length === 0 || filters.invoiceStatus.includes(invoice.internalStatus)
-
-      // Lọc theo trạng thái CQT
       const matchesTaxStatus = !filters.taxStatus || invoice.taxStatus === filters.taxStatus
-
-      // Lọc theo khách hàng
       const matchesCustomer = !filters.customer || invoice.customerName === filters.customer
-
-      // Lọc theo khoảng tiền
       const matchesAmountFrom = !filters.amountFrom || invoice.amount >= parseFloat(filters.amountFrom)
       const matchesAmountTo = !filters.amountTo || invoice.amount <= parseFloat(filters.amountTo)
 
@@ -693,48 +759,45 @@ const InvoiceManagement = () => {
     })
   }, [invoices, filters])
 
+  // Count pending approval invoices
+  const pendingCount = useMemo(() => {
+    return invoices.filter(inv => inv.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_APPROVAL).length
+  }, [invoices])
+
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box sx={{ width: '100%', backgroundColor: '#f5f5f5', minHeight: '100vh', py: 4 }}>
         <Box sx={{ width: '100%', px: { xs: 2, sm: 3, md: 4 } }}>
           {/* Header */}
-          <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
-                Quản lý Hóa đơn
+          <Box sx={{ mb: 4 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a' }}>
+                Duyệt Hóa đơn
               </Typography>
-              <Typography variant="body2" sx={{ color: '#666' }}>
-                Quản lý và theo dõi các hóa đơn điện tử của doanh nghiệp
-              </Typography>
+              {pendingCount > 0 && (
+                <Chip
+                  label={`${pendingCount} chờ duyệt`}
+                  color="warning"
+                  sx={{ fontWeight: 600, fontSize: '0.875rem' }}
+                />
+              )}
             </Box>
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<AddIcon />}
-              onClick={() => navigate('/newinvoices')}
-              sx={{
-                textTransform: 'none',
-                fontWeight: 500,
-                boxShadow: '0 2px 8px rgba(28, 132, 238, 0.24)',
-                '&:hover': {
-                  boxShadow: '0 4px 12px rgba(28, 132, 238, 0.32)',
-                },
-              }}>
-              Tạo hóa đơn
-            </Button>
+            <Typography variant="body2" sx={{ color: '#666' }}>
+              Duyệt và quản lý các hóa đơn điện tử - Dành cho Kế toán trưởng
+            </Typography>
           </Box>
 
-          {/* Bộ lọc nâng cao */}
+          {/* Bộ lọc */}
           <InvoiceFilter onFilterChange={handleFilterChange} onReset={handleResetFilter} />
 
-          {/* Loading State */}
+          {/* Loading */}
           {loading && (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
               <Spinner />
             </Box>
           )}
 
-          {/* Error State */}
+          {/* Error */}
           {error && (
             <Paper sx={{ p: 3, mt: 2, backgroundColor: '#fff3e0', border: '1px solid #ffb74d' }}>
               <Typography color="error" variant="body1">
@@ -754,96 +817,102 @@ const InvoiceManagement = () => {
                 boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                 overflow: 'hidden',
               }}>
-              {/* Table Section */}
               <DataGrid
-              rows={filteredInvoices}
-              columns={columns}
-              checkboxSelection
-              disableRowSelectionOnClick
-              initialState={{
-                pagination: {
-                  paginationModel: { pageSize: 10, page: 0 },
-                },
-              }}
-              pageSizeOptions={[5, 10, 25, 50]}
-              sx={{
-                border: 'none',
-                '& .MuiDataGrid-cell': {
-                  borderBottom: '1px solid #f0f0f0',
-                },
-                '& .MuiDataGrid-columnHeaders': {
-                  backgroundColor: '#f8f9fa',
-                  borderBottom: '2px solid #e0e0e0',
-                  fontWeight: 600,
-                },
-                '& .MuiDataGrid-row:hover': {
-                  backgroundColor: '#f8f9fa',
-                },
-                '& .MuiDataGrid-footerContainer': {
-                  borderTop: '2px solid #e0e0e0',
-                  backgroundColor: '#fafafa',
-                  minHeight: '56px',
-                  padding: '8px 16px',
-                },
-                '& .MuiTablePagination-root': {
-                  overflow: 'visible',
-                },
-                '& .MuiTablePagination-toolbar': {
-                  minHeight: '56px',
-                  paddingLeft: '16px',
-                  paddingRight: '8px',
-                },
-                '& .MuiTablePagination-selectLabel': {
-                  margin: 0,
-                  fontSize: '0.875rem',
-                  fontWeight: 500,
-                  color: '#666',
-                },
-                '& .MuiTablePagination-displayedRows': {
-                  margin: 0,
-                  fontSize: '0.875rem',
-                  fontWeight: 500,
-                  color: '#666',
-                },
-                '& .MuiTablePagination-select': {
-                  paddingTop: '8px',
-                  paddingBottom: '8px',
-                  fontSize: '0.875rem',
-                  fontWeight: 500,
-                },
-                '& .MuiTablePagination-actions': {
-                  marginLeft: '20px',
-                  '& .MuiIconButton-root': {
-                    padding: '8px',
-                    '&:hover': {
-                      backgroundColor: '#e3f2fd',
-                    },
-                    '&.Mui-disabled': {
-                      opacity: 0.3,
-                    },
+                rows={filteredInvoices}
+                columns={columns}
+                checkboxSelection
+                disableRowSelectionOnClick
+                initialState={{
+                  pagination: {
+                    paginationModel: { pageSize: 10, page: 0 },
                   },
-                },
-              }}
-              autoHeight
-            />
-          </Paper>
-        )}
-        
-        {/* Snackbar for notifications */}
+                }}
+                pageSizeOptions={[5, 10, 25, 50]}
+                sx={{
+                  border: 'none',
+                  '& .MuiDataGrid-cell': {
+                    borderBottom: '1px solid #f0f0f0',
+                  },
+                  '& .MuiDataGrid-columnHeaders': {
+                    backgroundColor: '#f8f9fa',
+                    borderBottom: '2px solid #e0e0e0',
+                    fontWeight: 600,
+                  },
+                  '& .MuiDataGrid-row:hover': {
+                    backgroundColor: '#f8f9fa',
+                  },
+                  '& .MuiDataGrid-footerContainer': {
+                    borderTop: '2px solid #e0e0e0',
+                    backgroundColor: '#fafafa',
+                  },
+                }}
+                autoHeight
+              />
+            </Paper>
+          )}
+        </Box>
+
+        {/* Approval/Rejection Dialog */}
+        <Dialog
+          open={approvalDialog.open}
+          onClose={handleCloseApprovalDialog}
+          maxWidth="sm"
+          fullWidth>
+          <DialogTitle>
+            {approvalDialog.action === 'approve' ? 'Xác nhận duyệt hóa đơn' : 'Xác nhận từ chối hóa đơn'}
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body1" sx={{ mb: 2 }}>
+              {approvalDialog.action === 'approve' 
+                ? `Bạn có chắc chắn muốn duyệt hóa đơn ${approvalDialog.invoiceNumber}?`
+                : `Bạn có chắc chắn muốn từ chối hóa đơn ${approvalDialog.invoiceNumber}?`
+              }
+            </Typography>
+            
+            {approvalDialog.action === 'reject' && (
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                label="Lý do từ chối *"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Nhập lý do từ chối hóa đơn..."
+                sx={{ mt: 2 }}
+              />
+            )}
+          </DialogContent>
+          <DialogActions sx={{ p: 2, pt: 0 }}>
+            <Button onClick={handleCloseApprovalDialog} disabled={actionLoading}>
+              Hủy
+            </Button>
+            <Button
+              variant="contained"
+              color={approvalDialog.action === 'approve' ? 'success' : 'error'}
+              onClick={handleConfirmAction}
+              disabled={actionLoading}
+              startIcon={approvalDialog.action === 'approve' ? <CheckCircleIcon /> : <CancelIcon />}>
+              {actionLoading ? 'Đang xử lý...' : (approvalDialog.action === 'approve' ? 'Duyệt' : 'Từ chối')}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Snackbar */}
         <Snackbar
           open={snackbar.open}
-          autoHideDuration={4000}
+          autoHideDuration={6000}
           onClose={() => setSnackbar({ ...snackbar, open: false })}
-          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        >
-          <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} sx={{ width: '100%' }}>
+          anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
+          <Alert
+            onClose={() => setSnackbar({ ...snackbar, open: false })}
+            severity={snackbar.severity}
+            sx={{ width: '100%' }}>
             {snackbar.message}
           </Alert>
         </Snackbar>
       </Box>
-    </Box>
-  </LocalizationProvider>
+    </LocalizationProvider>
   )
 }
 
-export default InvoiceManagement
+export default InvoiceApproval

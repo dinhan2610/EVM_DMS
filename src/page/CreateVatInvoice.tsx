@@ -526,6 +526,8 @@ const CreateVatInvoice: React.FC = () => {
   const [discountType, setDiscountType] = useState<string>('none') // 'none' | 'per-item' | 'total'
   const [vatRate, setVatRate] = useState<number>(10) // Thuế GTGT: 0, 5, 10
   const [sendEmailModalOpen, setSendEmailModalOpen] = useState(false)
+  const [invoiceNotes, setInvoiceNotes] = useState<string>('') // Ghi chú chung cho hóa đơn
+  const [showInvoiceNotes, setShowInvoiceNotes] = useState(false) // Hiện/ẩn ô ghi chú
   const calculateAfterTax = false // Giá nhập vào là giá CHƯA thuế, VAT tính thêm
 
   // State cho loading và error
@@ -821,7 +823,8 @@ const CreateVatInvoice: React.FC = () => {
 
   // Hàm lấy user ID từ token (cần implement)
   // Hàm submit hóa đơn
-  const handleSubmit = async () => {
+  // ⭐ Handler chung để xử lý submit
+  const handleSubmitInvoice = async (invoiceStatusID: number, statusLabel: string) => {
     try {
       // Validate
       if (!selectedTemplate) {
@@ -880,10 +883,13 @@ const CreateVatInvoice: React.FC = () => {
         vatRate,
         totals,
         paymentMethod, // Hình thức thanh toán từ dropdown
-        5 // minRows
+        5,              // minRows
+        invoiceStatusID, // ⭐ Status: 1=Nháp, 6=Chờ duyệt
+        invoiceNotes,   // Ghi chú hóa đơn
+        0               // signedBy (0=chưa ký)
       )
 
-      console.log('📤 Sending invoice request:', backendRequest)
+      console.log(`📤 Sending invoice request (${statusLabel}):`, backendRequest)
 
       // Gọi API
       const response = await invoiceService.createInvoice(backendRequest)
@@ -892,7 +898,7 @@ const CreateVatInvoice: React.FC = () => {
 
       setSnackbar({
         open: true,
-        message: 'Tạo hóa đơn thành công!',
+        message: `${statusLabel} thành công!`,
         severity: 'success'
       })
 
@@ -913,6 +919,16 @@ const CreateVatInvoice: React.FC = () => {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // ⭐ Lưu nháp (invoiceStatusID = 1)
+  const handleSaveDraft = async () => {
+    await handleSubmitInvoice(1, 'Lưu hóa đơn nháp')
+  }
+
+  // ⭐ Gửi duyệt (invoiceStatusID = 6)
+  const handleSubmitForApproval = async () => {
+    await handleSubmitInvoice(6, 'Gửi hóa đơn chờ duyệt')
   }
 
   // Đóng snackbar
@@ -1823,17 +1839,52 @@ const CreateVatInvoice: React.FC = () => {
             </Button>
             <Button
               size="small"
-              variant="outlined"
+              variant="text"
+              onClick={() => setShowInvoiceNotes(!showInvoiceNotes)}
+              startIcon={showInvoiceNotes ? <i className="ri-subtract-line" /> : <i className="ri-add-line" />}
               sx={{
                 textTransform: 'none',
                 color: '#1976d2',
-                borderColor: '#ccc',
                 fontSize: '0.8125rem',
-                py: 0.5,
+                py: 0.25,
+                px: 1,
+                '&:hover': { bgcolor: 'rgba(25, 118, 210, 0.04)' }
               }}>
-              Thêm ghi chú
+              {showInvoiceNotes ? 'Ẩn ghi chú' : 'Thêm ghi chú'}
             </Button>
           </Stack>
+
+          {/* Ô nhập ghi chú hóa đơn - Tối ưu UI */}
+          {showInvoiceNotes && (
+            <Box sx={{ mb: 1.5, pl: 6 }}>
+              <TextField
+                fullWidth
+                multiline
+                rows={2}
+                value={invoiceNotes}
+                onChange={(e) => setInvoiceNotes(e.target.value)}
+                placeholder="(Ghi chú: Nhập nội dung ghi chú cho hóa đơn...)"
+                variant="standard"
+                size="small"
+                sx={{
+                  '& .MuiInputBase-root': {
+                    fontSize: '0.75rem',
+                    fontStyle: 'italic',
+                    color: 'text.secondary',
+                    '&:before': { borderBottom: '1px dashed #e0e0e0' },
+                    '&:hover:before': { borderBottom: '1px dashed #999' },
+                  },
+                  '& .MuiInputBase-input': {
+                    padding: '4px 0',
+                  },
+                  '& .MuiInputBase-input::placeholder': {
+                    fontStyle: 'italic',
+                    opacity: 0.6,
+                  }
+                }}
+              />
+            </Box>
+          )}
 
           <Divider sx={{ my: 1.5 }} />
 
@@ -1951,17 +2002,19 @@ const CreateVatInvoice: React.FC = () => {
                 size="small"
                 variant="contained"
                 startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Save fontSize="small" />}
-                onClick={handleSubmit}
+                onClick={handleSaveDraft}
                 disabled={isSubmitting}
                 sx={{ textTransform: 'none', backgroundColor: '#1976d2', fontSize: '0.8125rem', py: 0.5 }}>
-                {isSubmitting ? 'Đang lưu...' : 'Lưu'}
+                {isSubmitting ? 'Đang lưu...' : 'Lưu nháp'}
               </Button>
               <Button
                 size="small"
                 variant="contained"
                 startIcon={<Publish fontSize="small" />}
-                sx={{ textTransform: 'none', backgroundColor: '#2196f3', minWidth: 140, fontSize: '0.8125rem', py: 0.5 }}>
-                Lưu và Gửi duyệt
+                onClick={handleSubmitForApproval}
+                disabled={isSubmitting}
+                sx={{ textTransform: 'none', backgroundColor: '#2e7d32', minWidth: 140, fontSize: '0.8125rem', py: 0.5 }}>
+                Gửi cho KT Trưởng
               </Button>
             </Stack>
           </Stack>

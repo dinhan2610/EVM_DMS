@@ -47,6 +47,33 @@ const companyService = {
    */
   getDefaultCompany: async (): Promise<Company> => {
     return companyService.getCompanyById(1);
+  },
+
+  /**
+   * Update company information
+   */
+  updateCompany: async (companyId: number, data: Omit<Company, 'companyID'>): Promise<Company> => {
+    try {
+      const response = await axios.put<Company>(
+        `${API_CONFIG.BASE_URL}/Company/${companyId}`,
+        {
+          companyID: companyId,
+          ...data
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'accept': '*/*',
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error updating company:', error);
+      throw error;
+    }
   }
 };
 

@@ -39,6 +39,7 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
   paymentMethod, // NEW: Payment method
   invoiceNumber, // NEW: Actual invoice number
   taxAuthorityCode, // NEW: Tax authority code
+  notes, // NEW: Invoice notes
 }) => {
   const {
     showQrCode = true,
@@ -171,7 +172,7 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
               {page.isFirst && (
                 <>
                   {/* Logo + Tiêu đề - CÙNG 1 HÀNG */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, position: 'relative' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4, mt: 2, marginTop: '2rem', position: 'relative' }}>
                     {/* Cột Trái: Logo - CHỈ HIỆN KHI CÓ LOGO */}
                     <Box sx={{ flex: 1 }}>
                       {showLogo && config.companyLogo && (
@@ -202,9 +203,9 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                         sx={{ 
                           textTransform: 'uppercase', 
                           fontSize: '1.4rem', 
-                          lineHeight: 1.3,
+                          lineHeight: 1.5,
                           letterSpacing: 0.2,
-                          mb: 0.3,
+                          mb: 0.5,
                         }}
                       >
                         HÓA ĐƠN GIÁ TRỊ GIA TĂNG
@@ -216,8 +217,9 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                           sx={{ 
                             fontSize: '1.1rem',
                             textTransform: 'uppercase',
-                            lineHeight: 1.3,
+                            lineHeight: 1.5,
                             letterSpacing: 0.2,
+                            mb: 1,
                           }}
                         >
                           (VAT INVOICE)
@@ -230,28 +232,28 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                   </Box>
 
                   {/* Ký hiệu/Số và Mã CQT/Ngày - HÀNG RIÊNG */}
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
                     {/* Cột Trái: Trống */}
                     <Box sx={{ flex: 1 }} />
 
                     {/* Cột Giữa: Mã CQT và Ngày */}
                     <Box sx={{ flex: 1, textAlign: 'center' }}>
                       {invoiceType === 'withCode' && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.3, lineHeight: 1.4 }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.5, lineHeight: 1.8 }}>
                           {renderBilingual('Mã CQT', 'Tax Code')}: <strong>{taxAuthorityCode || ''}</strong>
                         </Typography>
                       )}
-                      <Typography variant="body2" fontStyle="italic" sx={{ fontSize: '0.75rem', lineHeight: 1.4 }}>
+                      <Typography variant="body2" fontStyle="italic" sx={{ fontSize: '0.75rem', lineHeight: 1.8 }}>
                         {formatDate(invoiceDate)}
                       </Typography>
                     </Box>
 
                     {/* Cột Phải: Ký hiệu và Số */}
                     <Box sx={{ flex: 1, textAlign: 'right' }}>
-                      <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.3, lineHeight: 1.4 }}>
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.5, lineHeight: 1.8 }}>
                         {renderBilingual('Ký hiệu', 'Symbol')}: <strong>{symbol.invoiceType}{symbol.taxCode}{symbol.year}{symbol.invoiceForm}{symbol.management}</strong>
                       </Typography>
-                      <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.4 }}>
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8 }}>
                         {renderBilingual('Số', 'No.')}: {
                           invoiceNumber ? 
                             <strong>{String(invoiceNumber).padStart(7, '0')}</strong> : 
@@ -269,31 +271,31 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                     <Box sx={{ flex: 7 }}>
                       {/* Đơn vị bán - Chung dòng */}
                       {showCompanyName && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.25, lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.4, lineHeight: 1.8, overflow: 'visible' }}>
                           {renderBilingual('Đơn vị bán', 'Seller')}: <strong>{config.companyName || 'Công ty Cổ phần Giải pháp Tổng thể Kỷ Nguyên Số'}</strong>
                         </Typography>
                       )}
                       
                       {showCompanyTaxCode && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.25, lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.4, lineHeight: 1.8, overflow: 'visible' }}>
                           {renderBilingual('Mã số thuế', 'Tax ID')}: <strong>{config.companyTaxCode || '0316882091'}</strong>
                         </Typography>
                       )}
                       
                       {showCompanyAddress && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.25, lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.4, lineHeight: 1.8, overflow: 'visible' }}>
                           {renderBilingual('Địa chỉ', 'Address')}: <strong>{config.companyAddress || 'Tòa nhà ABC, 123 Đường XYZ, Phường Tân Định, Quận 1, Thành phố Hồ Chí Minh, Việt Nam.'}</strong>
                         </Typography>
                       )}
                       
                       {showCompanyPhone && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.25, lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 0.4, lineHeight: 1.8, overflow: 'visible' }}>
                           {renderBilingual('Điện thoại', 'Phone')}: <strong>{config.companyPhone || '(028) 38 995 822'}</strong>
                         </Typography>
                       )}
                       
                       {showCompanyBankAccount && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
                           {renderBilingual('Số tài khoản', 'Account No.')}: <strong>245889119</strong> - <strong>Ngân hàng TMCP Á Châu - Chi Nhánh Sài Gòn</strong>
                         </Typography>
                       )}
@@ -326,39 +328,39 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
 
                   {/* Phần 3: Thông tin Người mua - CHỈ Ở TRANG 1 */}
                   {showCustomerInfo && (
-                    <Stack spacing={0.25} sx={{ mb: 1 }}>
+                    <Stack spacing={0.4} sx={{ mb: 1 }}>
                       {customerVisibility.customerName && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
                           {renderBilingual('Họ tên người mua hàng', 'Buyer Name')}: <strong>{customerInfo?.name || '......................................................'}</strong>
                         </Typography>
                       )}
                       {customerVisibility.customerName && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
                           {renderBilingual('Tên đơn vị', 'Company Name')}: <strong>{customerInfo?.name || '......................................................'}</strong>
                         </Typography>
                       )}
                       {customerVisibility.customerTaxCode && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
                           {renderBilingual('Mã số thuế', 'Tax ID')}: <strong>{customerInfo?.taxCode || '......................................................'}</strong>
                         </Typography>
                       )}
                       {customerVisibility.customerAddress && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
                           {renderBilingual('Địa chỉ', 'Address')}: <strong>{customerInfo?.address || '......................................................'}</strong>
                         </Typography>
                       )}
                       {customerVisibility.customerPhone && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
                           {renderBilingual('Số điện thoại', 'Phone')}: <strong>{customerInfo?.phone || '......................................................'}</strong>
                         </Typography>
                       )}
                       {customerVisibility.customerEmail && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
                           {renderBilingual('Email', 'Email')}: <strong>{customerInfo?.email || '......................................................'}</strong>
                         </Typography>
                       )}
                       {showPaymentInfo && customerVisibility.paymentMethod && (
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'visible' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.8, overflow: 'visible' }}>
                           {renderBilingual('Hình thức thanh toán', 'Payment Method')}: <strong>{paymentMethod || '......................................................'}</strong>
                         </Typography>
                       )}
@@ -429,10 +431,21 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                     {pageIndex === pages.length - 1 && (
                       <TableRow>
                         <TableCell sx={{ padding: '4px 8px', border: '1px solid #000', borderTop: 'none', bgcolor: 'transparent' }} />
-                        <TableCell sx={{ fontStyle: 'italic', pt: 0, pl: 1.5, fontSize: '0.75rem', padding: '0 8px 4px 16px', color: 'text.secondary', border: '1px solid #000', borderTop: 'none', bgcolor: 'transparent' }}>
-                          {renderBilingual('Nhập ghi chú nếu có', 'Notes if any')}
+                        <TableCell 
+                          colSpan={5}
+                          sx={{ 
+                            fontStyle: 'italic',
+                            pt: 0, 
+                            pl: 3,
+                            fontSize: '0.75rem', 
+                            padding: '0 8px 4px 24px',
+                            color: notes ? 'text.secondary' : '#aaa',
+                            border: '1px solid #000', 
+                            borderTop: 'none', 
+                            bgcolor: 'transparent' 
+                          }}>
+                          {notes ? `(Ghi chú: ${notes})` : renderBilingual('Nhập ghi chú nếu có', 'Notes if any')}
                         </TableCell>
-                        <TableCell colSpan={4} sx={{ padding: '4px 8px', border: '1px solid #000', borderTop: 'none', bgcolor: 'transparent' }} />
                       </TableRow>
                     )}
                   </TableBody>

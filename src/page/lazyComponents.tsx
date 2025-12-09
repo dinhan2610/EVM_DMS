@@ -14,6 +14,7 @@ export const Contacts = lazy(() => import('@/app/(admin)/apps/contacts/page'))
 
 // Invoice Management Routes
 export const InvoiceManagement = lazy(() => import('@/page/InvoiceManagement'))
+export const InvoiceApproval = lazy(() => import('@/page/InvoiceApproval'))
 export const InvoiceDetail = lazy(() => import('@/page/InvoiceDetail'))
 export const CreateInvoice = lazy(() => import('@/page/CreateInvoice'))
 export const CreateVatInvoice = lazy(() => import('@/page/CreateVatInvoice'))

@@ -6,6 +6,12 @@ import {
   Stack,
   Chip,
   Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Snackbar,
 } from '@mui/material'
 import {
   Send,
@@ -29,6 +35,7 @@ import { getAllCustomers, Customer } from '@/services/customerService'
 import companyService, { Company } from '@/services/companyService'
 import type { ProductItem, TemplateConfigProps, CustomerInfo } from '@/types/invoiceTemplate'
 import { DEFAULT_TEMPLATE_VISIBILITY, DEFAULT_INVOICE_SYMBOL } from '@/types/invoiceTemplate'
+import { INVOICE_INTERNAL_STATUS } from '@/constants/invoiceStatus'
 
 // Định nghĩa status types
 type InvoiceStatus = 'Nháp' | 'Đã tạo' | 'Đã ký' | 'Đã gửi' | 'Đã hủy'
@@ -138,6 +145,8 @@ const InvoiceDetail: React.FC = () => {
         
         // Load invoice data
         const invoiceData = await invoiceService.getInvoiceById(Number(id))
+        console.log('🔍 Invoice data loaded:', invoiceData)
+        console.log('📝 Invoice notes:', invoiceData.notes)
         setInvoice(invoiceData)
         
         // Load template data
@@ -187,6 +196,15 @@ const InvoiceDetail: React.FC = () => {
     window.print()
   }
 
+  // Cancel invoice dialog state
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean
+    message: string
+    severity: 'success' | 'error'
+  }>({ open: false, message: '', severity: 'success' })
+
   const handleDownload = () => {
     if (!invoice) return
     console.log('Tải xuống hóa đơn:', invoice.invoiceNumber)
@@ -194,9 +212,37 @@ const InvoiceDetail: React.FC = () => {
   }
 
   const handleCancelInvoice = () => {
+    setCancelDialogOpen(true)
+  }
+
+  const handleConfirmCancel = async () => {
     if (!invoice) return
-    console.log('Hủy hóa đơn:', invoice.invoiceNumber)
-    // TODO: API call to cancel invoice
+    
+    try {
+      setCancelling(true)
+      // Update status to CANCELLED (3)
+      await invoiceService.updateInvoiceStatus(invoice.invoiceID, INVOICE_INTERNAL_STATUS.CANCELLED)
+      
+      setSnackbar({
+        open: true,
+        message: `Đã hủy hóa đơn ${invoice.invoiceNumber}`,
+        severity: 'success',
+      })
+      
+      setCancelDialogOpen(false)
+      
+      // Reload invoice data
+      const updatedInvoice = await invoiceService.getInvoiceById(invoice.invoiceID)
+      setInvoice(updatedInvoice)
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Không thể hủy hóa đơn',
+        severity: 'error',
+      })
+    } finally {
+      setCancelling(false)
+    }
   }
 
   const handleAdjustInvoice = () => {
@@ -281,6 +327,7 @@ const InvoiceDetail: React.FC = () => {
           <InvoiceTemplatePreview
             config={templateConfig}
             products={products}
+            blankRows={5}
             visibility={DEFAULT_TEMPLATE_VISIBILITY}
             bilingual={false}
             invoiceDate={invoice.createdAt}
@@ -299,6 +346,7 @@ const InvoiceDetail: React.FC = () => {
             invoiceNumber={invoice.invoiceNumber}
             taxAuthorityCode={invoice.taxAuthorityCode}
             backgroundFrame={template?.frameUrl || ''}
+            notes={invoice.notes}
           />
         </Box>
       </Box>
@@ -367,6 +415,53 @@ const InvoiceDetail: React.FC = () => {
             totalAmount: invoice.totalAmount.toLocaleString('vi-VN'),
           }}
         />
+
+        {/* Cancel Confirmation Dialog */}
+        <Dialog
+          open={cancelDialogOpen}
+          onClose={() => !cancelling && setCancelDialogOpen(false)}
+        >
+          <DialogTitle>Xác nhận hủy hóa đơn</DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              Bạn có chắc chắn muốn hủy hóa đơn <strong>{invoice.invoiceNumber}</strong>?
+              <br />
+              Hành động này không thể hoàn tác.
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button 
+              onClick={() => setCancelDialogOpen(false)} 
+              disabled={cancelling}
+            >
+              Không
+            </Button>
+            <Button 
+              onClick={handleConfirmCancel} 
+              color="error" 
+              variant="contained"
+              disabled={cancelling}
+            >
+              {cancelling ? 'Đang hủy...' : 'Hủy hóa đơn'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Snackbar */}
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={3000}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert 
+            onClose={() => setSnackbar({ ...snackbar, open: false })} 
+            severity={snackbar.severity}
+            sx={{ width: '100%' }}
+          >
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
       </Box>
     )
   }
