@@ -44,7 +44,7 @@ export interface BackendInvoiceItem {
 
 export interface BackendInvoiceResponse {
   invoiceID: number;
-  invoiceNumber?: string;
+  invoiceNumber?: number;        // ✅ FIX: Backend trả về kiểu number, không phải string
   templateID?: number;
   customerName?: string;
   totalAmount?: number;
@@ -275,7 +275,7 @@ export function mapFromBackendInvoiceResponse(
 } {
   return {
     invoiceID: response.invoiceID,
-    invoiceNumber: response.invoiceNumber || `INV-${response.invoiceID}`,
+    invoiceNumber: response.invoiceNumber ? String(response.invoiceNumber) : `INV-${response.invoiceID}`,
     status: response.status || 'Draft',
     createdAt: response.createdAt || new Date().toISOString()
   };

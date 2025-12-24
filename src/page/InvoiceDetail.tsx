@@ -156,8 +156,14 @@ const InvoiceDetail: React.FC = () => {
         
         // Load invoice data
         const invoiceData = await invoiceService.getInvoiceById(Number(id))
-        console.log('🔍 Invoice data loaded:', invoiceData)
-        console.log('📝 Invoice notes:', invoiceData.notes)
+        console.log('🔍 Invoice data loaded:', {
+          invoiceID: invoiceData.invoiceID,
+          invoiceNumber: invoiceData.invoiceNumber,
+          invoiceStatusID: invoiceData.invoiceStatusID,
+          taxAuthorityCode: invoiceData.taxAuthorityCode,
+          notes: invoiceData.notes
+        })
+        console.log('📝 Full invoice data:', JSON.stringify(invoiceData, null, 2))
         setInvoice(invoiceData)
         
         // Load template data
@@ -235,7 +241,11 @@ const InvoiceDetail: React.FC = () => {
               Chi tiết Hóa đơn
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              {template?.templateName || 'Hóa đơn'} - Số: {invoice.invoiceNumber}
+              {template?.templateName || 'Hóa đơn'} - Số: {
+                invoice.invoiceNumber && invoice.invoiceNumber !== 0 
+                  ? invoice.invoiceNumber 
+                  : '<Chưa cấp số>'
+              }
             </Typography>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Chip label={status} color={getStatusColor(status)} size="small" />
@@ -290,7 +300,12 @@ const InvoiceDetail: React.FC = () => {
             }}
             customerInfo={customerInfo || undefined}
             paymentMethod={invoice.paymentMethod}
-            invoiceNumber={invoice.invoiceStatusID === INVOICE_INTERNAL_STATUS.DRAFT ? undefined : invoice.invoiceNumber}
+            invoiceNumber={
+              // ✅ Logic đúng: Chỉ ẩn số nếu là nháp HOẶC invoiceNumber = 0
+              (invoice.invoiceStatusID === INVOICE_INTERNAL_STATUS.DRAFT || !invoice.invoiceNumber || invoice.invoiceNumber === 0) 
+                ? undefined 
+                : invoice.invoiceNumber
+            }
             taxAuthorityCode={invoice.taxAuthorityCode}
             backgroundFrame={template?.frameUrl || ''}
             notes={invoice.notes}
