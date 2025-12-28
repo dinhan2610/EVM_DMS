@@ -5,7 +5,6 @@ import {
   Paper,
   TextField,
   InputAdornment,
-  Badge,
   Chip,
   Tabs,
   Tab,
@@ -48,6 +47,10 @@ import { useAuthContext } from '@/context/useAuthContext'
 // ==================== HELPER FUNCTIONS ====================
 
 const formatCurrency = (amount: number): string => {
+  // Handle null, undefined, or NaN
+  if (amount === null || amount === undefined || isNaN(amount)) {
+    return '0 ₫'
+  }
   return new Intl.NumberFormat('vi-VN', {
     style: 'currency',
     currency: 'VND',
@@ -214,6 +217,8 @@ const DebtManagement = () => {
           description: inv.description,
           isOverdue: inv.isOverdue,
         }))
+        // Sort by invoiceDate descending (newest first)
+        .sort((a, b) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime())
 
         const mappedPayments: PaymentRecord[] = response.paymentHistory.map(pay => ({
           id: pay.paymentId,
@@ -467,77 +472,67 @@ const DebtManagement = () => {
       {
         field: 'invoiceNo',
         headerName: 'Số hóa đơn',
-        flex: 1,
-        minWidth: 130,
+        width: 130,
         align: 'center',
         headerAlign: 'center',
         renderCell: (params: GridRenderCellParams) => (
-          <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976d2' }}>
-            {params.value as string}
-          </Typography>
-        ),
-      },
-      {
-        field: 'invoiceStatus',
-        headerName: 'Trạng thái HĐ',
-        width: 140,
-        align: 'center',
-        headerAlign: 'center',
-        renderCell: (params: GridRenderCellParams) => (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-            <Chip
-              label={params.value as string}
-              color="success"
-              size="small"
-              sx={{ fontWeight: 500, fontSize: '0.75rem' }}
-            />
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976d2' }}>
+              {params.value as string}
+            </Typography>
           </Box>
         ),
       },
       {
         field: 'invoiceDate',
         headerName: 'Ngày HĐ',
-        width: 110,
+        width: 100,
         align: 'center',
         headerAlign: 'center',
         renderCell: (params: GridRenderCellParams) => (
-          <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>
-            {dayjs(params.value as string).format('DD/MM/YYYY')}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>
+              {dayjs(params.value as string).format('DD/MM/YYYY')}
+            </Typography>
+          </Box>
         ),
       },
       {
         field: 'dueDate',
         headerName: 'Hạn TT',
-        width: 110,
+        width: 100,
         align: 'center',
         headerAlign: 'center',
         renderCell: (params: GridRenderCellParams) => {
           const overdue = isOverdue(params.value as string)
           return (
-            <Typography
-              variant="body2"
-              sx={{
-                fontSize: '0.8125rem',
-                color: overdue ? '#d32f2f' : 'inherit',
-                fontWeight: overdue ? 600 : 400,
-              }}
-            >
-              {dayjs(params.value as string).format('DD/MM/YYYY')}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontSize: '0.8125rem',
+                  color: overdue ? '#d32f2f' : 'inherit',
+                  fontWeight: overdue ? 600 : 400,
+                }}
+              >
+                {dayjs(params.value as string).format('DD/MM/YYYY')}
+              </Typography>
+            </Box>
           )
         },
       },
       {
         field: 'totalAmount',
         headerName: 'Tổng tiền',
-        width: 140,
+        width: 180,
         align: 'center',
         headerAlign: 'center',
         renderCell: (params: GridRenderCellParams) => (
-          <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
-            {formatCurrency(params.value as number)}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+              {formatCurrency(params.value as number)}
+            </Typography>
+          </Box>
         ),
       },
       {
@@ -547,37 +542,41 @@ const DebtManagement = () => {
         align: 'center',
         headerAlign: 'center',
         renderCell: (params: GridRenderCellParams) => (
-          <Typography variant="body2" sx={{ fontSize: '0.8125rem', color: '#2e7d32' }}>
-            {formatCurrency(params.value as number)}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Typography variant="body2" sx={{ fontSize: '0.8125rem', color: '#2e7d32' }}>
+              {formatCurrency(params.value as number)}
+            </Typography>
+          </Box>
         ),
       },
       {
         field: 'remainingAmount',
         headerName: 'Còn nợ',
-        width: 140,
+        width: 180,
         align: 'center',
         headerAlign: 'center',
         renderCell: (params: GridRenderCellParams) => (
-          <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 700, color: '#d32f2f' }}>
-            {formatCurrency(params.value as number)}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 700, color: '#d32f2f' }}>
+              {formatCurrency(params.value as number)}
+            </Typography>
+          </Box>
         ),
       },
       
       {
         field: 'paymentStatus',
         headerName: 'Trạng thái',
-        width: 140,
+        width: 150,
         align: 'center',
         headerAlign: 'center',
         renderCell: (params: GridRenderCellParams) => (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
             <Chip
               label={getPaymentStatusLabel(params.value as DebtInvoice['paymentStatus'])}
               color={getPaymentStatusColor(params.value as DebtInvoice['paymentStatus'])}
               size="small"
-              sx={{ fontWeight: 500, fontSize: '0.75rem' }}
+              sx={{ fontWeight: 500, fontSize: '0.7rem', minWidth: 90 }}
             />
           </Box>
         ),
@@ -585,7 +584,7 @@ const DebtManagement = () => {
       {
         field: 'actions',
         headerName: 'Thao tác',
-        width: 120,
+        width: 90,
         align: 'center',
         headerAlign: 'center',
         sortable: false,
@@ -593,7 +592,7 @@ const DebtManagement = () => {
           const invoice = params.row as DebtInvoice
           if (invoice.paymentStatus === 'Paid') return null
           return (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
               <Tooltip title="Ghi nhận thanh toán">
                 <IconButton
                   size="small"
@@ -912,39 +911,39 @@ const DebtManagement = () => {
                   </Stack>
                 </Box>
 
-                {/* KPI Inline - Compact */}
+                {/* KPI Inline - Professional */}
                 <Stack 
                   direction="row" 
-                  spacing={3} 
-                  divider={<Box sx={{ width: 1, height: 40, bgcolor: '#e0e0e0' }} />}
+                  spacing={2.5} 
+                  divider={<Box sx={{ width: '1.5px', height: 36, bgcolor: '#2c3e50', opacity: 0.8, borderRadius: '2px' }} />}
                   sx={{ pr: 1 }}
                 >
-                  <Box sx={{ textAlign: 'center', minWidth: 120 }}>
-                    <Typography variant="caption" sx={{ color: '#999', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase' }}>
+                  <Box sx={{ textAlign: 'center', minWidth: 110 }}>
+                    <Typography variant="caption" sx={{ color: '#666', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                       Tổng nợ
                     </Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#d32f2f', fontSize: '1.25rem', mt: 0.5 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#d32f2f', fontSize: '1.2rem', mt: 0.5 }}>
                       {formatCurrency(selectedCustomer.totalDebt)}
                     </Typography>
                   </Box>
-                  <Box sx={{ textAlign: 'center', minWidth: 120 }}>
-                    <Typography variant="caption" sx={{ color: '#999', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase' }}>
+                  <Box sx={{ textAlign: 'center', minWidth: 110 }}>
+                    <Typography variant="caption" sx={{ color: '#666', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                       Đã thanh toán
                     </Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#2e7d32', fontSize: '1.25rem', mt: 0.5 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#2e7d32', fontSize: '1.2rem', mt: 0.5 }}>
                       {formatCurrency(paymentHistory.reduce((sum, payment) => sum + payment.amount, 0))}
                     </Typography>
                   </Box>
-                  <Box sx={{ textAlign: 'center', minWidth: 120 }}>
+                  <Box sx={{ textAlign: 'center', minWidth: 110 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, mb: 0.5 }}>
-                      <Typography variant="caption" sx={{ color: '#999', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase' }}>
+                      <Typography variant="caption" sx={{ color: '#666', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                         Quá hạn
                       </Typography>
                       {selectedCustomer.overdueDebt > 0 && (
-                        <WarningAmberIcon sx={{ fontSize: 14, color: '#ff9800' }} />
+                        <WarningAmberIcon sx={{ fontSize: 13, color: '#ff9800' }} />
                       )}
                     </Box>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#ff9800', fontSize: '1.25rem' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#ff9800', fontSize: '1.2rem' }}>
                       {formatCurrency(selectedCustomer.overdueDebt)}
                     </Typography>
                   </Box>
@@ -981,17 +980,6 @@ const DebtManagement = () => {
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <PaymentIcon sx={{ fontSize: 18 }} />
                           Hóa đơn chưa thanh toán
-                          <Badge 
-                            badgeContent={unpaidInvoices.length} 
-                            color="error"
-                            sx={{
-                              '& .MuiBadge-badge': {
-                                fontSize: '0.65rem',
-                                height: 18,
-                                minWidth: 18,
-                              }
-                            }}
-                          />
                         </Box>
                       }
                     />
