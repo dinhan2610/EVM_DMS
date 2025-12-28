@@ -35,6 +35,8 @@ export interface CustomerDebtDetailResponse {
   unpaidInvoices: Array<{
     invoiceId: number;
     invoiceNumber: string;
+    invoiceStatusID: number; // ✅ NEW: Backend đã thêm - Luôn = 2 (ISSUED)
+    invoiceStatus: string; // ✅ NEW: Backend đã thêm - "Issued"
     invoiceDate: string;
     dueDate: string;
     totalAmount: number;
@@ -48,7 +50,7 @@ export interface CustomerDebtDetailResponse {
     paymentId: number;
     invoiceId: number;
     invoiceNumber: string;
-    amount: number;
+    amount: number; // ✅ Changed from "amountPaid" to "amount"
     paymentMethod: string;
     transactionCode: string | null;
     note: string;
@@ -56,6 +58,23 @@ export interface CustomerDebtDetailResponse {
     userId: number;
     userName: string;
   }>;
+  // ✅ NEW: Add pagination metadata
+  unpaidInvoicesPagination?: {
+    pageIndex: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+    hasPreviousPage: boolean;
+    hasNextPage: boolean;
+  };
+  paymentHistoryPagination?: {
+    pageIndex: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+    hasPreviousPage: boolean;
+    hasNextPage: boolean;
+  };
 }
 
 export interface DebtQueryParams {
@@ -148,22 +167,92 @@ export const getCustomerDebtSummary = async (
 };
 
 /**
- * Get detailed debt information for a specific customer
+ * Get detailed debt information for a specific customer with pagination
  * GET /api/Customer/{customerId}/debt-detail
  */
 export const getCustomerDebtDetail = async (
-  customerId: number
+  customerId: number,
+  params?: { 
+    InvoicePageSize?: number; 
+    InvoicePageIndex?: number;
+    PaymentPageSize?: number;
+    PaymentPageIndex?: number;
+    SortBy?: string;
+    SortOrder?: 'asc' | 'desc';
+  }
 ): Promise<CustomerDebtDetailResponse> => {
   try {
-    console.log('[getCustomerDebtDetail] Fetching debt detail for customer:', customerId);
+    console.log('[getCustomerDebtDetail] Fetching debt detail for customer:', customerId, 'with params:', params);
     
-    const response = await axios.get<CustomerDebtDetailResponse>(
+    // ✅ NEW: Use backend pagination parameters (InvoicePageSize, InvoicePageIndex, etc.)
+    const response = await axios.get<{
+      customer: CustomerDebtDetailResponse['customer'];
+      summary: CustomerDebtDetailResponse['summary'];
+      unpaidInvoices: {
+        items: CustomerDebtDetailResponse['unpaidInvoices'];
+        pageIndex: number;
+        pageSize: number;
+        totalCount: number;
+        totalPages: number;
+        hasPreviousPage?: boolean;
+        hasNextPage?: boolean;
+      };
+      paymentHistory: {
+        items: CustomerDebtDetailResponse['paymentHistory'];
+        pageIndex: number;
+        pageSize: number;
+        totalCount: number;
+        totalPages: number;
+        hasPreviousPage?: boolean;
+        hasNextPage?: boolean;
+      };
+    }>(
       `/api/Customer/${customerId}/debt-detail`,
-      { headers: getAuthHeaders() }
+      { 
+        headers: getAuthHeaders(),
+        params: {
+          InvoicePageIndex: params?.InvoicePageIndex || 1,
+          InvoicePageSize: params?.InvoicePageSize || 10,
+          PaymentPageIndex: params?.PaymentPageIndex || 1,
+          PaymentPageSize: params?.PaymentPageSize || 10,
+          SortBy: params?.SortBy || 'invoiceDate',
+          SortOrder: params?.SortOrder || 'desc',
+        }
+      }
     );
     
-    console.log('[getCustomerDebtDetail] Success:', response.data);
-    return response.data;
+    console.log('[getCustomerDebtDetail] Success:', {
+      customer: response.data.customer.customerName,
+      invoices: response.data.unpaidInvoices.items.length,
+      invoicesTotalCount: response.data.unpaidInvoices.totalCount,
+      payments: response.data.paymentHistory.items.length,
+      paymentsTotalCount: response.data.paymentHistory.totalCount,
+    });
+    
+    // ✅ NEW: Return paginated structure
+    return {
+      customer: response.data.customer,
+      summary: response.data.summary,
+      unpaidInvoices: response.data.unpaidInvoices.items,
+      paymentHistory: response.data.paymentHistory.items,
+      // Add pagination metadata
+      unpaidInvoicesPagination: {
+        pageIndex: response.data.unpaidInvoices.pageIndex,
+        pageSize: response.data.unpaidInvoices.pageSize,
+        totalCount: response.data.unpaidInvoices.totalCount,
+        totalPages: response.data.unpaidInvoices.totalPages,
+        hasPreviousPage: response.data.unpaidInvoices.hasPreviousPage ?? response.data.unpaidInvoices.pageIndex > 1,
+        hasNextPage: response.data.unpaidInvoices.hasNextPage ?? response.data.unpaidInvoices.pageIndex < response.data.unpaidInvoices.totalPages,
+      },
+      paymentHistoryPagination: {
+        pageIndex: response.data.paymentHistory.pageIndex,
+        pageSize: response.data.paymentHistory.pageSize,
+        totalCount: response.data.paymentHistory.totalCount,
+        totalPages: response.data.paymentHistory.totalPages,
+        hasPreviousPage: response.data.paymentHistory.hasPreviousPage ?? response.data.paymentHistory.pageIndex > 1,
+        hasNextPage: response.data.paymentHistory.hasNextPage ?? response.data.paymentHistory.pageIndex < response.data.paymentHistory.totalPages,
+      },
+    };
   } catch (error) {
     return handleApiError(error, 'getCustomerDebtDetail');
   }

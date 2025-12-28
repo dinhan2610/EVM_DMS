@@ -5,6 +5,8 @@
 export interface DebtInvoice {
   id: number // Changed from string to number to match backend
   invoiceNo: string
+  invoiceStatusId: number // ✅ NEW: Backend đã thêm field này
+  invoiceStatus: string // ✅ NEW: Backend đã thêm field này ("Issued")
   invoiceDate: string
   dueDate: string
   totalAmount: number
@@ -12,6 +14,7 @@ export interface DebtInvoice {
   remainingAmount: number
   paymentStatus: 'Unpaid' | 'PartiallyPaid' | 'Paid' | 'Overdue'
   description: string
+  isOverdue?: boolean // ✅ NEW: Backend có thể trả về field này
   customerId?: number
   customerName?: string
 }

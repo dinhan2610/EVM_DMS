@@ -17,6 +17,31 @@ export interface PaymentRequest {
   userId: number;
 }
 
+// Backend actual response format (different field names)
+interface BackendPaymentResponse {
+  paymentID: number;
+  invoiceID: number;
+  amountPaid: number;
+  paymentMethod: string;
+  transactionCode?: string;
+  note?: string;
+  paymentDate: string;
+  createdBy: number;
+  invoice?: {
+    invoiceNumber: string | number;  // Can be number
+    customerName?: string;
+    totalAmount: number;
+    paidAmount: number;
+    remainingAmount: number;
+    paymentStatus?: string;
+  };
+  user?: {
+    userId: number;
+    userName: string;
+  };
+}
+
+// Frontend expected format
 export interface PaymentResponse {
   id: number;
   invoiceId: number;
@@ -28,13 +53,13 @@ export interface PaymentResponse {
   userId: number;
   createdAt: string;
   updatedAt?: string;
-  // Additional fields backend might return
   invoice?: {
     invoiceNumber: string;
     customerName?: string;
     totalAmount: number;
     paidAmount: number;
     remainingAmount: number;
+    paymentStatus?: string;
   };
   user?: {
     userId: number;
@@ -108,10 +133,13 @@ const handleApiError = (error: unknown, context: string): never => {
 
 /**
  * Create a new payment record
+ * Transforms backend response format to frontend format
  */
 export const createPayment = async (paymentData: PaymentRequest): Promise<PaymentResponse> => {
   try {
-    const response = await axios.post<PaymentResponse>(
+    console.log('[createPayment] Request:', paymentData);
+    
+    const response = await axios.post<BackendPaymentResponse>(
       `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PAYMENT.CREATE}`,
       paymentData,
       {
@@ -120,8 +148,37 @@ export const createPayment = async (paymentData: PaymentRequest): Promise<Paymen
       }
     );
     
-    return response.data;
+    console.log('[createPayment] Backend response:', response.data);
+    
+    // Transform backend response to frontend format
+    const backendData = response.data;
+    
+    const transformedResponse: PaymentResponse = {
+      id: backendData.paymentID,                    // Map paymentID → id
+      invoiceId: backendData.invoiceID,
+      amount: backendData.amountPaid,               // Map amountPaid → amount
+      paymentMethod: backendData.paymentMethod,
+      transactionCode: backendData.transactionCode,
+      note: backendData.note,
+      paymentDate: backendData.paymentDate,
+      userId: backendData.createdBy,                // Map createdBy → userId
+      createdAt: backendData.paymentDate,           // Use paymentDate as createdAt
+      invoice: backendData.invoice ? {
+        invoiceNumber: String(backendData.invoice.invoiceNumber), // Convert to string
+        customerName: backendData.invoice.customerName,
+        totalAmount: backendData.invoice.totalAmount,
+        paidAmount: backendData.invoice.paidAmount,
+        remainingAmount: backendData.invoice.remainingAmount,
+        paymentStatus: backendData.invoice.paymentStatus,
+      } : undefined,
+      user: backendData.user
+    };
+    
+    console.log('[createPayment] ✅ Transformed response:', transformedResponse);
+    
+    return transformedResponse;
   } catch (error) {
+    console.error('[createPayment] ❌ Error:', error);
     return handleApiError(error, 'Create Payment');
   }
 };

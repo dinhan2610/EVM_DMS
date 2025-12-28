@@ -92,6 +92,20 @@ const DebtManagement = () => {
   const [unpaidInvoices, setUnpaidInvoices] = useState<DebtInvoice[]>([])
   const [paymentHistory, setPaymentHistory] = useState<PaymentRecord[]>([])
   
+  // Pagination state for invoices and payments
+  const [invoicePagination, setInvoicePagination] = useState({
+    pageIndex: 1,
+    pageSize: 10,
+    totalCount: 0,
+    totalPages: 0,
+  })
+  const [paymentPagination, setPaymentPagination] = useState({
+    pageIndex: 1,
+    pageSize: 10,
+    totalCount: 0,
+    totalPages: 0,
+  })
+  
   // State - UI
   const [searchText, setSearchText] = useState('')
   const [selectedTab, setSelectedTab] = useState<'invoices' | 'history'>('invoices')
@@ -155,10 +169,11 @@ const DebtManagement = () => {
     }
 
     fetchCustomerDebts()
-  }, []) // Only run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   /**
-   * Fetch customer debt detail when selected customer changes
+   * Fetch customer debt detail when selected customer or pagination changes
    */
   useEffect(() => {
     const fetchCustomerDebtDetail = async () => {
@@ -170,12 +185,26 @@ const DebtManagement = () => {
 
       try {
         setIsLoadingDetail(true)
-        const response = await debtService.getCustomerDebtDetail(selectedCustomer.customerId)
+        
+        // ✅ NEW: Use proper pagination parameters
+        const response = await debtService.getCustomerDebtDetail(
+          selectedCustomer.customerId,
+          {
+            InvoicePageSize: invoicePagination.pageSize,
+            InvoicePageIndex: invoicePagination.pageIndex,
+            PaymentPageSize: paymentPagination.pageSize,
+            PaymentPageIndex: paymentPagination.pageIndex,
+            SortBy: 'invoiceDate',
+            SortOrder: 'desc',
+          }
+        )
         
         // Map backend response to frontend types
         const mappedInvoices: DebtInvoice[] = response.unpaidInvoices.map(inv => ({
           id: inv.invoiceId,
           invoiceNo: inv.invoiceNumber,
+          invoiceStatusId: inv.invoiceStatusID,
+          invoiceStatus: inv.invoiceStatus,
           invoiceDate: inv.invoiceDate,
           dueDate: inv.dueDate,
           totalAmount: inv.totalAmount,
@@ -183,6 +212,7 @@ const DebtManagement = () => {
           remainingAmount: inv.remainingAmount,
           paymentStatus: inv.paymentStatus,
           description: inv.description,
+          isOverdue: inv.isOverdue,
         }))
 
         const mappedPayments: PaymentRecord[] = response.paymentHistory.map(pay => ({
@@ -197,9 +227,27 @@ const DebtManagement = () => {
           userId: pay.userId,
           userName: pay.userName,
         }))
-
+        
         setUnpaidInvoices(mappedInvoices)
         setPaymentHistory(mappedPayments)
+        
+        // Update pagination state from API response
+        if (response.unpaidInvoicesPagination) {
+          setInvoicePagination({
+            pageIndex: response.unpaidInvoicesPagination.pageIndex,
+            pageSize: response.unpaidInvoicesPagination.pageSize,
+            totalCount: response.unpaidInvoicesPagination.totalCount,
+            totalPages: response.unpaidInvoicesPagination.totalPages,
+          })
+        }
+        if (response.paymentHistoryPagination) {
+          setPaymentPagination({
+            pageIndex: response.paymentHistoryPagination.pageIndex,
+            pageSize: response.paymentHistoryPagination.pageSize,
+            totalCount: response.paymentHistoryPagination.totalCount,
+            totalPages: response.paymentHistoryPagination.totalPages,
+          })
+        }
       } catch (error) {
         console.error('Failed to fetch customer debt detail:', error)
         setSnackbar({
@@ -213,7 +261,7 @@ const DebtManagement = () => {
     }
 
     fetchCustomerDebtDetail()
-  }, [selectedCustomer])
+  }, [selectedCustomer, invoicePagination.pageIndex, invoicePagination.pageSize, paymentPagination.pageIndex, paymentPagination.pageSize])
 
   /**
    * Refresh customer list after successful payment
@@ -250,11 +298,16 @@ const DebtManagement = () => {
     if (!selectedCustomer) return
 
     try {
-      const response = await debtService.getCustomerDebtDetail(selectedCustomer.customerId)
+      const response = await debtService.getCustomerDebtDetail(
+        selectedCustomer.customerId,
+        { InvoicePageSize: 1000, InvoicePageIndex: 1, PaymentPageSize: 1000, PaymentPageIndex: 1 }
+      )
       
       const mappedInvoices: DebtInvoice[] = response.unpaidInvoices.map(inv => ({
         id: inv.invoiceId,
         invoiceNo: inv.invoiceNumber,
+        invoiceStatusId: inv.invoiceStatusID,
+        invoiceStatus: inv.invoiceStatus,
         invoiceDate: inv.invoiceDate,
         dueDate: inv.dueDate,
         totalAmount: inv.totalAmount,
@@ -262,7 +315,10 @@ const DebtManagement = () => {
         remainingAmount: inv.remainingAmount,
         paymentStatus: inv.paymentStatus,
         description: inv.description,
+        isOverdue: inv.isOverdue,
       }))
+      // Sort by invoiceDate descending (newest first)
+      .sort((a, b) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime())
 
       const mappedPayments: PaymentRecord[] = response.paymentHistory.map(pay => ({
         id: pay.paymentId,
@@ -276,6 +332,8 @@ const DebtManagement = () => {
         userId: pay.userId,
         userName: pay.userName,
       }))
+      // Sort by paymentDate descending (newest first)
+      .sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())
 
       setUnpaidInvoices(mappedInvoices)
       setPaymentHistory(mappedPayments)
@@ -349,35 +407,53 @@ const DebtManagement = () => {
         transactionCode: paymentData.transactionCode || undefined,
         note: paymentData.note || undefined,
         paymentDate: paymentData.date.toISOString(),
-        userId: parseInt(user.id), // Convert string to number
+        userId: parseInt(user.id),
       }
 
-      await paymentService.createPayment(paymentRequest)
+      const paymentResponse = await paymentService.createPayment(paymentRequest)
 
-      const isPartialPayment = paymentData.amount < selectedInvoice.remainingAmount
+      // Check if invoice info is in response
+      if (paymentResponse.invoice) {
+        const statusText = paymentResponse.invoice.remainingAmount === 0
+          ? 'Đã thanh toán đầy đủ ✓'
+          : 'Đã thanh toán một phần'
+        
+        setSnackbar({
+          open: true,
+          message: `✅ ${statusText}\n💰 Số tiền: ${formatCurrency(paymentData.amount)}\n📊 Còn nợ: ${formatCurrency(paymentResponse.invoice.remainingAmount)}`,
+          severity: paymentResponse.invoice.remainingAmount === 0 ? 'success' : 'info',
+        })
+      } else {
+        // Fallback if invoice info not in response
+        setSnackbar({
+          open: true,
+          message: `✅ Đã ghi nhận thanh toán thành công!\n💰 Số tiền: ${formatCurrency(paymentData.amount)}`,
+          severity: 'success',
+        })
+      }
 
-      setSnackbar({
-        open: true,
-        message: isPartialPayment
-          ? `✓ Đã ghi nhận thanh toán một phần: ${formatCurrency(paymentData.amount)}`
-          : `✓ Đã ghi nhận thanh toán đầy đủ: ${formatCurrency(paymentData.amount)}`,
-        severity: 'success',
-      })
-
+      // Close modal and reset
       setPaymentModalOpen(false)
       setSelectedInvoice(null)
+      setPaymentData({
+        amount: 0,
+        date: dayjs(),
+        method: PAYMENT_METHODS.BANK_TRANSFER,
+        transactionCode: '',
+        note: '',
+      })
 
-      // ⭐ REFRESH DATA after successful payment
+      // Refresh data to show updated amounts
       await Promise.all([
         refreshCustomerList(),
         refreshCustomerDetail(),
       ])
-      
+
     } catch (error) {
-      console.error('Payment error:', error)
+      console.error('❌ Payment failed:', error)
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Có lỗi xảy ra khi ghi nhận thanh toán. Vui lòng thử lại.',
+        message: error instanceof Error ? error.message : 'Không thể ghi nhận thanh toán',
         severity: 'error',
       })
     } finally {
@@ -399,6 +475,23 @@ const DebtManagement = () => {
           <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976d2' }}>
             {params.value as string}
           </Typography>
+        ),
+      },
+      {
+        field: 'invoiceStatus',
+        headerName: 'Trạng thái HĐ',
+        width: 140,
+        align: 'center',
+        headerAlign: 'center',
+        renderCell: (params: GridRenderCellParams) => (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+            <Chip
+              label={params.value as string}
+              color="success"
+              size="small"
+              sx={{ fontWeight: 500, fontSize: '0.75rem' }}
+            />
+          </Box>
         ),
       },
       {
@@ -621,16 +714,18 @@ const DebtManagement = () => {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Box sx={{ bgcolor: '#f5f5f5', minHeight: '100vh', py: 3 }}>
+      <Box sx={{ width: '100%', backgroundColor: '#f5f5f5', minHeight: '100vh', py: 4 }}>
         <Box sx={{ width: '100%', px: { xs: 2, sm: 3, md: 4 } }}>
           {/* Header */}
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
-              Quản lý Công nợ & Thu tiền
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#666' }}>
-              Theo dõi dư nợ khách hàng và ghi nhận thanh toán
-            </Typography>
+          <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
+                Quản lý Công nợ & Thu tiền
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#666' }}>
+                Theo dõi dư nợ khách hàng và ghi nhận thanh toán
+              </Typography>
+            </Box>
           </Box>
 
           {/* Loading State */}
@@ -673,7 +768,7 @@ const DebtManagement = () => {
               </Typography>
             </Paper>
           ) : (
-            <>
+            <Box>
               {/* Customer Selection Bar - Compact */}
               <Paper
             elevation={0}
@@ -775,11 +870,7 @@ const DebtManagement = () => {
                 border: '1px solid #e0e0e0',
                 borderRadius: 2,
                 backgroundColor: '#fff',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                minHeight: 'calc(100vh - 240px)',
-                maxHeight: 'calc(100vh - 240px)',
-                display: 'flex',
-                flexDirection: 'column',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                 overflow: 'hidden',
               }}
             >
@@ -916,18 +1007,15 @@ const DebtManagement = () => {
                   </Tabs>
 
                   <Box sx={{ 
-                    flex: 1, 
-                    overflow: 'hidden', 
-                    display: 'flex', 
-                    flexDirection: 'column',
-                    minHeight: 0, // Important for flex children
+                    mt: 2,
+                    width: '100%',
                   }}>
                     {isLoadingDetail ? (
                       <Box sx={{ 
                         display: 'flex', 
                         alignItems: 'center', 
                         justifyContent: 'center', 
-                        height: '100%',
+                        minHeight: 400,
                         flexDirection: 'column',
                         gap: 2
                       }}>
@@ -937,93 +1025,107 @@ const DebtManagement = () => {
                         </Typography>
                       </Box>
                     ) : selectedTab === 'invoices' ? (
-                      <Box sx={{ height: '100%', width: '100%' }}>
-                        <DataGrid
-                          rows={unpaidInvoices}
-                          columns={invoiceColumns}
-                          disableRowSelectionOnClick
-                          hideFooter={unpaidInvoices.length <= 10}
-                          loading={isLoadingDetail}
-                          sx={{
-                            border: 'none',
-                            height: '100%',
-                            width: '100%',
+                      <DataGrid
+                        rows={unpaidInvoices}
+                        columns={invoiceColumns}
+                        disableRowSelectionOnClick
+                        loading={isLoadingDetail}
+                        paginationMode="server"
+                        rowCount={invoicePagination.totalCount}
+                        paginationModel={{
+                          page: invoicePagination.pageIndex - 1, // MUI uses 0-based, API uses 1-based
+                          pageSize: invoicePagination.pageSize,
+                        }}
+                        onPaginationModelChange={(model) => {
+                          setInvoicePagination(prev => ({
+                            ...prev,
+                            pageIndex: model.page + 1, // Convert back to 1-based
+                            pageSize: model.pageSize,
+                          }))
+                        }}
+                        pageSizeOptions={[5, 10, 25, 50]}
+                        sx={{
+                          border: 'none',
                           '& .MuiDataGrid-cell': {
-                            borderColor: '#f5f5f5',
-                            fontSize: '0.875rem',
-                            py: 1.5,
+                            borderBottom: '1px solid #f0f0f0',
                           },
                           '& .MuiDataGrid-columnHeaders': {
                             backgroundColor: '#f8f9fa',
-                            fontWeight: 600,
-                            fontSize: '0.8125rem',
-                            color: '#666',
                             borderBottom: '2px solid #e0e0e0',
+                            fontWeight: 600,
                           },
-                          '& .MuiDataGrid-row': {
-                            '&:hover': {
-                              backgroundColor: '#f9fafb',
-                              cursor: 'pointer',
-                            },
-                            '&:nth-of-type(even)': {
-                              backgroundColor: '#fafbfc',
-                            },
+                          '& .MuiDataGrid-row:hover': {
+                            backgroundColor: '#f8f9fa',
                           },
                           '& .MuiDataGrid-footerContainer': {
                             borderTop: '2px solid #e0e0e0',
+                            backgroundColor: '#fafafa',
+                            minHeight: '56px',
+                            padding: '8px 16px',
+                          },
+                          '& .MuiTablePagination-root': {
+                            overflow: 'visible',
+                          },
+                          '& .MuiTablePagination-toolbar': {
+                            minHeight: '56px',
+                            paddingLeft: '16px',
+                            paddingRight: '8px',
                           },
                         }}
                       />
-                      </Box>
                     ) : (
-                      <Box sx={{ height: '100%', width: '100%' }}>
                         <DataGrid
-                          rows={paymentHistory}
-                          columns={historyColumns}
-                          disableRowSelectionOnClick
-                          hideFooter={paymentHistory.length <= 10}
-                          loading={isLoadingDetail}
-                          sx={{
-                            border: 'none',
-                            height: '100%',
-                            width: '100%',
-                          flex: 1,
+                        rows={paymentHistory}
+                        columns={historyColumns}
+                        disableRowSelectionOnClick
+                        loading={isLoadingDetail}
+                        paginationMode="server"
+                        rowCount={paymentPagination.totalCount}
+                        paginationModel={{
+                          page: paymentPagination.pageIndex - 1, // MUI uses 0-based, API uses 1-based
+                          pageSize: paymentPagination.pageSize,
+                        }}
+                        onPaginationModelChange={(model) => {
+                          setPaymentPagination(prev => ({
+                            ...prev,
+                            pageIndex: model.page + 1, // Convert back to 1-based
+                            pageSize: model.pageSize,
+                          }))
+                        }}
+                        pageSizeOptions={[5, 10, 25, 50]}
+                        sx={{
+                          border: 'none',
                           '& .MuiDataGrid-cell': {
-                            borderColor: '#f5f5f5',
-                            fontSize: '0.875rem',
-                            py: 1.5,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
+                            borderBottom: '1px solid #f0f0f0',
                           },
                           '& .MuiDataGrid-columnHeaders': {
                             backgroundColor: '#f8f9fa',
-                            fontWeight: 600,
-                            fontSize: '0.8125rem',
-                            color: '#666',
                             borderBottom: '2px solid #e0e0e0',
+                            fontWeight: 600,
                           },
-                          '& .MuiDataGrid-row': {
-                            '&:hover': {
-                              backgroundColor: '#f9fafb',
-                              cursor: 'pointer',
-                            },
-                            '&:nth-of-type(even)': {
-                              backgroundColor: '#fafbfc',
-                            },
+                          '& .MuiDataGrid-row:hover': {
+                            backgroundColor: '#f8f9fa',
                           },
                           '& .MuiDataGrid-footerContainer': {
                             borderTop: '2px solid #e0e0e0',
+                            backgroundColor: '#fafafa',
+                            minHeight: '56px',
+                            padding: '8px 16px',
+                          },
+                          '& .MuiTablePagination-root': {
+                            overflow: 'visible',
+                          },
+                          '& .MuiTablePagination-toolbar': {
+                            minHeight: '56px',
+                            paddingLeft: '16px',
+                            paddingRight: '8px',
                           },
                         }}
                       />
-                      </Box>
                     )}
                   </Box>
-                </Paper>
+              </Paper>
               )}
-            </>
-          )}
 
           {/* Payment Modal */}
           <Dialog
@@ -1210,6 +1312,8 @@ const DebtManagement = () => {
               {snackbar.message}
             </Alert>
           </Snackbar>
+            </Box>
+          )}
         </Box>
       </Box>
     </LocalizationProvider>
