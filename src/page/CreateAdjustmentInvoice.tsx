@@ -16,9 +16,13 @@ import { useParams, useNavigate } from 'react-router-dom'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
-import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+
+// MUI v7 Grid compatibility wrappers
+const GridContainer = (props: Record<string, unknown>) => <Grid container {...props} />
+// @ts-expect-error - MUI v7 removed 'item' prop, keeping for backward compatibility
+const GridItem = (props: Record<string, unknown>) => <Grid item {...props} />
 
 // Interfaces
 export interface InvoiceItem {
@@ -275,8 +279,8 @@ const CreateAdjustmentInvoice = () => {
             </Typography>
           </Box>
           <Box sx={{ p: 3 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
+            <GridContainer spacing={2}>
+              <GridItem xs={12} md={6}>
                 <TextField
                   fullWidth
                   label="Tên khách hàng"
@@ -286,8 +290,8 @@ const CreateAdjustmentInvoice = () => {
                     readOnly: true,
                   }}
                 />
-              </Grid>
-              <Grid item xs={12} md={6}>
+              </GridItem>
+              <GridItem xs={12} md={6}>
                 <TextField
                   fullWidth
                   label="Email"
@@ -297,8 +301,8 @@ const CreateAdjustmentInvoice = () => {
                     readOnly: true,
                   }}
                 />
-              </Grid>
-              <Grid item xs={12} md={6}>
+              </GridItem>
+              <GridItem xs={12} md={6}>
                 <TextField
                   fullWidth
                   label="Mã số thuế"
@@ -308,8 +312,8 @@ const CreateAdjustmentInvoice = () => {
                     readOnly: true,
                   }}
                 />
-              </Grid>
-              <Grid item xs={12} md={6}>
+              </GridItem>
+              <GridItem xs={12} md={6}>
                 <TextField
                   fullWidth
                   label="Địa chỉ"
@@ -319,8 +323,8 @@ const CreateAdjustmentInvoice = () => {
                     readOnly: true,
                   }}
                 />
-              </Grid>
-            </Grid>
+              </GridItem>
+            </GridContainer>
           </Box>
         </Paper>
 
@@ -374,8 +378,8 @@ const CreateAdjustmentInvoice = () => {
           <Box sx={{ p: 3 }}>
             <Stack spacing={2}>
               {adjustmentItems.map((item, index) => (
-                <Grid container spacing={2} alignItems="center" key={item.id || index}>
-                  <Grid item xs={12} md={4}>
+                <GridContainer spacing={2} alignItems="center" key={item.id || index}>
+                  <GridItem xs={12} md={4}>
                     <TextField
                       fullWidth
                       label="Nội dung điều chỉnh"
@@ -384,8 +388,8 @@ const CreateAdjustmentInvoice = () => {
                       onChange={(e) => handleItemChange(index, 'description', e.target.value)}
                       size="small"
                     />
-                  </Grid>
-                  <Grid item xs={6} md={2}>
+                  </GridItem>
+                  <GridItem xs={6} md={2}>
                     <TextField
                       fullWidth
                       label="Số lượng"
@@ -395,8 +399,8 @@ const CreateAdjustmentInvoice = () => {
                       size="small"
                       inputProps={{ min: 1 }}
                     />
-                  </Grid>
-                  <Grid item xs={6} md={2}>
+                  </GridItem>
+                  <GridItem xs={6} md={2}>
                     <TextField
                       fullWidth
                       label="Đơn giá (±)"
@@ -406,8 +410,8 @@ const CreateAdjustmentInvoice = () => {
                       size="small"
                       helperText="Âm để giảm"
                     />
-                  </Grid>
-                  <Grid item xs={10} md={3}>
+                  </GridItem>
+                  <GridItem xs={10} md={3}>
                     <TextField
                       fullWidth
                       label="Thành tiền"
@@ -421,8 +425,8 @@ const CreateAdjustmentInvoice = () => {
                         },
                       }}
                     />
-                  </Grid>
-                  <Grid item xs={2} md={1}>
+                  </GridItem>
+                  <GridItem xs={2} md={1}>
                     <IconButton
                       color="error"
                       onClick={() => handleRemoveItem(index)}
@@ -430,8 +434,8 @@ const CreateAdjustmentInvoice = () => {
                       size="small">
                       <DeleteIcon />
                     </IconButton>
-                  </Grid>
-                </Grid>
+                  </GridItem>
+                </GridContainer>
               ))}
             </Stack>
             <Button

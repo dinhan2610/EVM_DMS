@@ -36,6 +36,8 @@ import {
   AuditLogsPage,
   ReportsPage,
   CustomerManagement,
+  CustomerInvoiceList,
+  CustomerPaymentHistory,
   Welcome,
   FAQs,
   ContactUs,
@@ -96,6 +98,16 @@ const initialRoutes: RoutesProps[] = [
 ]
 
 const appsRoutes: RoutesProps[] = [
+  {
+    path: '/customer/invoices',
+    name: 'Customer Invoices',
+    element: <CustomerInvoiceList />,
+  },
+  {
+    path: '/customer/payments',
+    name: 'Customer Payment History',
+    element: <CustomerPaymentHistory />,
+  },
   {
     name: 'Customers',
     path: '/ecommerce/customers',

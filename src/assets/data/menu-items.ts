@@ -143,6 +143,25 @@ export const MENU_ITEMS: MenuItemType[] = [
     ],
   },
   {
+    key: 'customer-portal',
+    icon: 'iconamoon:profile-circle-duotone',
+    label: 'Khách hàng',
+    children: [
+      {
+        key: 'customer-invoices',
+        label: 'Hóa đơn của tôi',
+        url: '/customer/invoices',
+        parentKey: 'customer-portal',
+      },
+      {
+        key: 'customer-payments',
+        label: 'Lịch sử giao dịch',
+        url: '/customer/payments',
+        parentKey: 'customer-portal',
+      },
+    ],
+  },
+  {
     key: 'apps-invoices',
     icon: 'iconamoon:invoice-duotone',
     label: 'Hoá đơn',
