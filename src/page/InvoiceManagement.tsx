@@ -123,10 +123,12 @@ interface InvoiceActionsMenuProps {
   onIssue: (id: string, invoiceNumber: string) => void
   onResendToTax: (id: string, invoiceNumber: string) => void
   onCancel: (id: string, invoiceNumber: string) => void
+  onPrintInvoice: (id: string, invoiceNumber: string) => void
+  onDownloadPDF: (id: string, invoiceNumber: string) => void
   isSending: boolean
 }
 
-const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onIssue, onResendToTax, onCancel, isSending }: InvoiceActionsMenuProps) => {
+const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onIssue, onResendToTax, onCancel, onPrintInvoice, onDownloadPDF, isSending }: InvoiceActionsMenuProps) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
 
@@ -247,19 +249,19 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onIssue, onRes
     {
       label: 'In hóa đơn',
       icon: <PrintIcon fontSize="small" />,
-      enabled: true, // Luôn dùng được
+      enabled: hasInvoiceNumber, // Chỉ in khi đã có số (đã ký)
       action: () => {
-        console.log('In hóa đơn:', invoice.id)
+        onPrintInvoice(invoice.id, invoice.invoiceNumber)
         handleClose()
       },
       color: 'text.primary',
     },
     {
-      label: 'Tải xuống',
+      label: 'Tải PDF',
       icon: <DownloadIcon fontSize="small" />,
-      enabled: true, // Luôn dùng được
+      enabled: hasInvoiceNumber, // Chỉ tải khi đã có số (đã ký)
       action: () => {
-        console.log('Tải xuống:', invoice.id)
+        onDownloadPDF(invoice.id, invoice.invoiceNumber)
         handleClose()
       },
       color: 'text.primary',
@@ -843,6 +845,48 @@ const InvoiceManagement = () => {
     }
   }
 
+  // 🆕 Handler in hóa đơn (Print HTML Preview)
+  const handlePrintInvoice = async (invoiceId: string, invoiceNumber: string) => {
+    try {
+      console.log(`🖨️ Đang mở cửa sổ in cho hóa đơn ${invoiceNumber}...`)
+      
+      await invoiceService.printInvoiceHTML(parseInt(invoiceId))
+      
+      console.log('✅ Đã mở cửa sổ in')
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: `❌ Không thể mở cửa sổ in.\n${err instanceof Error ? err.message : 'Vui lòng cho phép popup.'}`,
+        severity: 'error',
+      })
+    }
+  }
+
+  // 🆕 Handler tải xuống PDF
+  const handleDownloadPDF = async (invoiceId: string, invoiceNumber: string) => {
+    try {
+      console.log(`📥 Đang tải PDF cho hóa đơn ${invoiceNumber}...`)
+      
+      setSubmittingId(invoiceId) // Show loading indicator
+      
+      await invoiceService.saveInvoicePDF(parseInt(invoiceId), invoiceNumber)
+      
+      setSnackbar({
+        open: true,
+        message: `✅ Đã tải xuống hóa đơn ${invoiceNumber}.pdf`,
+        severity: 'success',
+      })
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: `❌ Không thể tải PDF.\n${err instanceof Error ? err.message : 'Vui lòng thử lại.'}`,
+        severity: 'error',
+      })
+    } finally {
+      setSubmittingId(null)
+    }
+  }
+
   // Định nghĩa columns
   const columns: GridColDef[] = [
     {
@@ -1052,6 +1096,8 @@ const InvoiceManagement = () => {
             onIssue={handleIssueInvoice}
             onResendToTax={handleResendToTax}
             onCancel={handleCancelInvoice}
+            onPrintInvoice={handlePrintInvoice}
+            onDownloadPDF={handleDownloadPDF}
             isSending={isSending}
           />
         )

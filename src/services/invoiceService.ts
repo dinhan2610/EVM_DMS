@@ -211,10 +211,8 @@ export const getAllInvoices = async (): Promise<InvoiceListItem[]> => {
     if (!Array.isArray(invoicesArray)) {
       // Try to unwrap common response formats
       if (response.data && typeof response.data === 'object') {
-        invoicesArray = (response.data as any).data || 
-                       (response.data as any).invoices || 
-                       (response.data as any).items || 
-                       [];
+        const dataObj = response.data as unknown as Record<string, unknown>;
+        invoicesArray = (dataObj.data || dataObj.invoices || dataObj.items || []) as InvoiceListItem[];
       } else {
         invoicesArray = [];
       }
@@ -388,7 +386,8 @@ export const cancelInvoice = async (invoiceId: number, reason?: string): Promise
  * ⚠️ KHÔNG DÙNG NỮA - Lỗi gửi CQT hiển thị ở cột "Trạng thái CQT", không phải cột "Trạng thái"
  * @deprecated Sử dụng taxStatusID thay vì internal status
  */
-export const markSendError = async (invoiceId: number, errorMessage?: string): Promise<void> => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const markSendError = async (_invoiceId: number, _errorMessage?: string): Promise<void> => {
   console.warn('[markSendError] DEPRECATED: Lỗi gửi CQT nên hiển thị ở Tax Status, không phải Internal Status');
   // Giữ hóa đơn ở trạng thái SIGNED (10), chỉ cập nhật Tax Status
   // Backend sẽ xử lý việc update taxApiStatusID
@@ -507,6 +506,7 @@ export const signInvoice = async (invoiceId: number, signerId: number): Promise<
     
     console.log('🔍 [signInvoice] Invoice status check:', {
       invoiceId,
+      signerId,
       statusID: invoice.invoiceStatusID,
       invoiceNumber: invoice.invoiceNumber,
       templateID: invoice.templateID
@@ -546,7 +546,7 @@ export const signInvoice = async (invoiceId: number, signerId: number): Promise<
     
     // TRY BOTH: Empty body for status=7, serial body for swagger compatibility
     // Test 1: Try with empty body first (might be what backend expects for fresh sign)
-    let requestBody: any = undefined;
+    let requestBody: Record<string, unknown> | undefined = undefined;
     
     console.log('🧪 [signInvoice] Testing with EMPTY body first...');
     
@@ -704,6 +704,139 @@ const invoiceService = {
   submitToTaxAuthority,
 };
 
-export default invoiceService;
+// ==================== PREVIEW & EXPORT APIs (Using existing backend) ====================
+
+/**
+ * Get HTML preview of issued invoice
+ * API: GET /api/Invoice/preview-by-invoice/{id}
+ * Use case: Quick view in modal, print preview, email inline content
+ * @param invoiceId - ID của hóa đơn đã phát hành
+ * @returns HTML string của hóa đơn
+ */
+export const getInvoiceHTML = async (invoiceId: number): Promise<string> => {
+  try {
+    console.log(`[getInvoiceHTML] Fetching HTML preview for invoice ${invoiceId}`);
+    
+    const response = await axios.get(
+      `/api/Invoice/preview-by-invoice/${invoiceId}`,
+      { 
+        headers: getAuthHeaders(),
+        responseType: 'text'
+      }
+    );
+    
+    console.log('[getInvoiceHTML] ✅ HTML preview loaded successfully');
+    return response.data;
+  } catch (error) {
+    console.error('[getInvoiceHTML] Error:', error);
+    return handleApiError(error, 'Không thể tải preview hóa đơn');
+  }
+};
+
+/**
+ * Download PDF of issued invoice
+ * API: GET /api/Invoice/{id}/pdf
+ * Use case: User download, email attachment, archive
+ * @param invoiceId - ID của hóa đơn
+ * @returns PDF file as Blob
+ */
+export const downloadInvoicePDF = async (invoiceId: number): Promise<Blob> => {
+  try {
+    console.log(`[downloadInvoicePDF] Downloading PDF for invoice ${invoiceId}`);
+    
+    const response = await axios.get(
+      `/api/Invoice/${invoiceId}/pdf`,
+      { 
+        headers: getAuthHeaders(),
+        responseType: 'blob'
+      }
+    );
+    
+    console.log('[downloadInvoicePDF] ✅ PDF downloaded successfully');
+    return response.data;
+  } catch (error) {
+    console.error('[downloadInvoicePDF] Error:', error);
+    return handleApiError(error, 'Không thể tải PDF hóa đơn');
+  }
+};
+
+/**
+ * Helper: Open invoice HTML in new window for printing
+ * Use case: Quick print without download
+ */
+export const printInvoiceHTML = async (invoiceId: number): Promise<void> => {
+  try {
+    const html = await getInvoiceHTML(invoiceId);
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      throw new Error('Popup bị chặn. Vui lòng cho phép popup để in hóa đơn.');
+    }
+    
+    printWindow.document.write(html);
+    printWindow.document.close();
+    
+    // Wait for content to load before printing
+    printWindow.onload = () => {
+      printWindow.print();
+    };
+    
+    console.log('[printInvoiceHTML] ✅ Print window opened');
+  } catch (error) {
+    console.error('[printInvoiceHTML] Error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Helper: Download PDF with proper filename
+ * Use case: Save PDF to user's computer
+ */
+export const saveInvoicePDF = async (
+  invoiceId: number, 
+  invoiceNumber?: string | number
+): Promise<void> => {
+  try {
+    const blob = await downloadInvoicePDF(invoiceId);
+    
+    // Create download link
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    
+    // Format filename
+    const filename = invoiceNumber 
+      ? `HoaDon_${String(invoiceNumber).padStart(7, '0')}.pdf`
+      : `HoaDon_${invoiceId}.pdf`;
+    link.download = filename;
+    
+    // Trigger download
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Cleanup
+    window.URL.revokeObjectURL(url);
+    
+    console.log(`[saveInvoicePDF] ✅ PDF saved as ${filename}`);
+  } catch (error) {
+    console.error('[saveInvoicePDF] Error:', error);
+    throw error;
+  }
+};
+
+// ==================== EXTENDED EXPORTS ====================
+
+const invoiceServiceExtended = {
+  ...invoiceService,
+  
+  // Preview & Export (using existing backend APIs)
+  getInvoiceHTML,
+  downloadInvoicePDF,
+  printInvoiceHTML,
+  saveInvoicePDF,
+};
+
+export default invoiceServiceExtended;
 
 

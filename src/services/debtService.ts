@@ -32,7 +32,7 @@ export interface CustomerDebtDetailResponse {
     unpaidInvoiceCount: number;
     lastPaymentDate: string | null;
   };
-  unpaidInvoices: Array<{
+  invoices: Array<{
     invoiceId: number;
     invoiceNumber: string;
     invoiceStatusID: number; // ✅ NEW: Backend đã thêm - Luôn = 2 (ISSUED)
@@ -58,8 +58,8 @@ export interface CustomerDebtDetailResponse {
     userId: number;
     userName: string;
   }>;
-  // ✅ NEW: Add pagination metadata
-  unpaidInvoicesPagination?: {
+  // ✅ Pagination metadata for invoices (ALL statuses: Unpaid, PartiallyPaid, Paid, Overdue)
+  invoicesPagination?: {
     pageIndex: number;
     pageSize: number;
     totalCount: number;
@@ -188,8 +188,8 @@ export const getCustomerDebtDetail = async (
     const response = await axios.get<{
       customer: CustomerDebtDetailResponse['customer'];
       summary: CustomerDebtDetailResponse['summary'];
-      unpaidInvoices: {
-        items: CustomerDebtDetailResponse['unpaidInvoices'];
+      invoices: {
+        items: CustomerDebtDetailResponse['invoices'];
         pageIndex: number;
         pageSize: number;
         totalCount: number;
@@ -223,26 +223,29 @@ export const getCustomerDebtDetail = async (
     
     console.log('[getCustomerDebtDetail] Success:', {
       customer: response.data.customer.customerName,
-      invoices: response.data.unpaidInvoices.items.length,
-      invoicesTotalCount: response.data.unpaidInvoices.totalCount,
+      invoices: response.data.invoices.items.length,
+      invoicesTotalCount: response.data.invoices.totalCount,
       payments: response.data.paymentHistory.items.length,
       paymentsTotalCount: response.data.paymentHistory.totalCount,
+      hasPaidInvoices: response.data.invoices.items.some(
+        (inv: { paymentStatus: string }) => inv.paymentStatus === 'Paid'
+      ),
     });
     
-    // ✅ NEW: Return paginated structure
+    // ✅ Return paginated structure with ALL invoices (Unpaid, PartiallyPaid, Paid, Overdue)
     return {
       customer: response.data.customer,
       summary: response.data.summary,
-      unpaidInvoices: response.data.unpaidInvoices.items,
+      invoices: response.data.invoices.items,
       paymentHistory: response.data.paymentHistory.items,
       // Add pagination metadata
-      unpaidInvoicesPagination: {
-        pageIndex: response.data.unpaidInvoices.pageIndex,
-        pageSize: response.data.unpaidInvoices.pageSize,
-        totalCount: response.data.unpaidInvoices.totalCount,
-        totalPages: response.data.unpaidInvoices.totalPages,
-        hasPreviousPage: response.data.unpaidInvoices.hasPreviousPage ?? response.data.unpaidInvoices.pageIndex > 1,
-        hasNextPage: response.data.unpaidInvoices.hasNextPage ?? response.data.unpaidInvoices.pageIndex < response.data.unpaidInvoices.totalPages,
+      invoicesPagination: {
+        pageIndex: response.data.invoices.pageIndex,
+        pageSize: response.data.invoices.pageSize,
+        totalCount: response.data.invoices.totalCount,
+        totalPages: response.data.invoices.totalPages,
+        hasPreviousPage: response.data.invoices.hasPreviousPage ?? response.data.invoices.pageIndex > 1,
+        hasNextPage: response.data.invoices.hasNextPage ?? response.data.invoices.pageIndex < response.data.invoices.totalPages,
       },
       paymentHistoryPagination: {
         pageIndex: response.data.paymentHistory.pageIndex,

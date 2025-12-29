@@ -57,10 +57,62 @@ const formatCurrency = (amount: number): string => {
   }).format(amount)
 }
 
+/**
+ * Format number input with Vietnamese thousand separator (dot)
+ * Example: 1000000 -> "1.000.000"
+ */
+const formatNumberInput = (value: string): string => {
+  // Remove all non-digit characters
+  const numbers = value.replace(/\D/g, '')
+  if (!numbers) return ''
+  
+  // Add thousand separators (dots)
+  return numbers.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+}
+
+/**
+ * Parse formatted input back to number
+ * Example: "1.000.000" -> 1000000
+ */
+const parseFormattedNumber = (value: string): number => {
+  const cleaned = value.replace(/\./g, '')
+  return parseFloat(cleaned) || 0
+}
+
 const isOverdue = (dueDate: string): boolean => {
   return dayjs(dueDate).isBefore(dayjs(), 'day')
 }
 
+/**
+ * Calculate payment status from amounts if backend doesn't provide it
+ * This is a fallback function
+ */
+const calculatePaymentStatus = (
+  totalAmount: number, 
+  paidAmount: number, 
+  remainingAmount: number
+): DebtInvoice['paymentStatus'] => {
+  if (remainingAmount === 0 || paidAmount === totalAmount) {
+    return 'Paid'
+  } else if (paidAmount > 0 && remainingAmount > 0) {
+    return 'PartiallyPaid'
+  } else {
+    return 'Unpaid'
+  }
+}
+
+/**
+ * Get MUI Chip color based on payment status
+ * 
+ * Backend values (case-sensitive):
+ * - "Unpaid" → default (gray)
+ * - "PartiallyPaid" → warning (orange) 
+ * - "Paid" → success (green)
+ * - "Overdue" → error (red)
+ * 
+ * @param status Payment status from backend API
+ * @returns MUI Chip color variant
+ */
 const getPaymentStatusColor = (
   status: DebtInvoice['paymentStatus']
 ): 'default' | 'warning' | 'success' | 'error' => {
@@ -73,10 +125,22 @@ const getPaymentStatusColor = (
   return colors[status]
 }
 
+/**
+ * Get Vietnamese label for payment status
+ * 
+ * Backend-aligned mapping:
+ * - "Unpaid" → "Chưa Thanh toán"
+ * - "PartiallyPaid" → "Trả một phần"
+ * - "Paid" → "Đã thanh toán"
+ * - "Overdue" → "Quá hạn"
+ * 
+ * @param status Payment status from backend API  
+ * @returns Vietnamese display label
+ */
 const getPaymentStatusLabel = (status: DebtInvoice['paymentStatus']): string => {
   const labels = {
-    Unpaid: 'Chưa thanh toán',
-    PartiallyPaid: 'Đã trả 1 phần',
+    Unpaid: 'Chưa Thanh toán',
+    PartiallyPaid: 'Trả một phần',
     Paid: 'Đã thanh toán',
     Overdue: 'Quá hạn',
   }
@@ -92,7 +156,18 @@ const DebtManagement = () => {
   // State - Data
   const [customers, setCustomers] = useState<CustomerDebt[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerDebt | null>(null)
-  const [unpaidInvoices, setUnpaidInvoices] = useState<DebtInvoice[]>([])
+  const [selectedCustomerDetail, setSelectedCustomerDetail] = useState<{
+    summary: {
+      totalDebt: number;
+      overdueDebt: number;
+      totalPaid: number;
+      invoiceCount: number;
+      unpaidInvoiceCount: number;
+      lastPaymentDate: string | null;
+    };
+  } | null>(null)
+  // Note: Despite the backend field name 'unpaidInvoices', this should contain ALL invoices (Unpaid, PartiallyPaid, Paid)
+  const [invoices, setInvoices] = useState<DebtInvoice[]>([])
   const [paymentHistory, setPaymentHistory] = useState<PaymentRecord[]>([])
   
   // Pagination state for invoices and payments
@@ -122,6 +197,14 @@ const DebtManagement = () => {
     method: PAYMENT_METHODS.BANK_TRANSFER,
     transactionCode: '',
     note: '',
+  })
+  
+  // State - Form Validation
+  const [formErrors, setFormErrors] = useState({
+    amount: '',
+    date: '',
+    method: '',
+    transactionCode: '',
   })
   
   // State - Feedback
@@ -181,8 +264,9 @@ const DebtManagement = () => {
   useEffect(() => {
     const fetchCustomerDebtDetail = async () => {
       if (!selectedCustomer) {
-        setUnpaidInvoices([])
+        setInvoices([])
         setPaymentHistory([])
+        setSelectedCustomerDetail(null)
         return
       }
 
@@ -202,23 +286,51 @@ const DebtManagement = () => {
           }
         )
         
-        // Map backend response to frontend types
-        const mappedInvoices: DebtInvoice[] = response.unpaidInvoices.map(inv => ({
-          id: inv.invoiceId,
-          invoiceNo: inv.invoiceNumber,
-          invoiceStatusId: inv.invoiceStatusID,
-          invoiceStatus: inv.invoiceStatus,
-          invoiceDate: inv.invoiceDate,
-          dueDate: inv.dueDate,
-          totalAmount: inv.totalAmount,
-          paidAmount: inv.paidAmount,
-          remainingAmount: inv.remainingAmount,
-          paymentStatus: inv.paymentStatus,
-          description: inv.description,
-          isOverdue: inv.isOverdue,
-        }))
+        // 🔍 DEBUG: Check if backend now returns Paid invoices
+        console.log('[DebtManagement] Raw backend response - invoice count:', response.invoices.length);
+        console.log('[DebtManagement] Invoice payment statuses:', 
+          response.invoices.map(inv => ({ 
+            invoiceNo: inv.invoiceNumber, 
+            status: inv.paymentStatus,
+            remaining: inv.remainingAmount 
+          }))
+        );
+        
+        // ✅ FIXED: Backend now returns ALL invoices (including Paid) via 'invoices' field
+        const mappedInvoices: DebtInvoice[] = response.invoices.map(inv => {
+          // 🔧 FIX: Backend returns "Partially Paid" (with space), normalize to "PartiallyPaid"
+          let normalizedStatus = inv.paymentStatus
+          if (normalizedStatus === 'Partially Paid') {
+            normalizedStatus = 'PartiallyPaid'
+          }
+          
+          return {
+            id: inv.invoiceId,
+            invoiceNo: inv.invoiceNumber,
+            invoiceStatusId: inv.invoiceStatusID,
+            invoiceStatus: inv.invoiceStatus,
+            invoiceDate: inv.invoiceDate,
+            dueDate: inv.dueDate,
+            totalAmount: inv.totalAmount,
+            paidAmount: inv.paidAmount,
+            remainingAmount: inv.remainingAmount,
+            paymentStatus: normalizedStatus as DebtInvoice['paymentStatus'],
+            description: inv.description,
+            isOverdue: inv.isOverdue,
+          }
+        })
         // Sort by invoiceDate descending (newest first)
         .sort((a, b) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime())
+        
+        // 🔍 DEBUG: Log payment statuses to verify ALL statuses are included
+        console.log('[DebtManagement] Total invoices:', mappedInvoices.length);
+        const breakdown = {
+          unpaid: mappedInvoices.filter(i => i.paymentStatus === 'Unpaid').length,
+          partiallyPaid: mappedInvoices.filter(i => i.paymentStatus === 'PartiallyPaid').length,
+          paid: mappedInvoices.filter(i => i.paymentStatus === 'Paid').length,
+          overdue: mappedInvoices.filter(i => i.paymentStatus === 'Overdue').length,
+        };
+        console.log('[DebtManagement] Payment status breakdown:', JSON.stringify(breakdown));
 
         const mappedPayments: PaymentRecord[] = response.paymentHistory.map(pay => ({
           id: pay.paymentId,
@@ -233,16 +345,21 @@ const DebtManagement = () => {
           userName: pay.userName,
         }))
         
-        setUnpaidInvoices(mappedInvoices)
+        setInvoices(mappedInvoices)
         setPaymentHistory(mappedPayments)
         
+        // Store customer detail summary for header stats
+        setSelectedCustomerDetail({
+          summary: response.summary
+        })
+        
         // Update pagination state from API response
-        if (response.unpaidInvoicesPagination) {
+        if (response.invoicesPagination) {
           setInvoicePagination({
-            pageIndex: response.unpaidInvoicesPagination.pageIndex,
-            pageSize: response.unpaidInvoicesPagination.pageSize,
-            totalCount: response.unpaidInvoicesPagination.totalCount,
-            totalPages: response.unpaidInvoicesPagination.totalPages,
+            pageIndex: response.invoicesPagination.pageIndex,
+            pageSize: response.invoicesPagination.pageSize,
+            totalCount: response.invoicesPagination.totalCount,
+            totalPages: response.invoicesPagination.totalPages,
           })
         }
         if (response.paymentHistoryPagination) {
@@ -266,6 +383,7 @@ const DebtManagement = () => {
     }
 
     fetchCustomerDebtDetail()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCustomer, invoicePagination.pageIndex, invoicePagination.pageSize, paymentPagination.pageIndex, paymentPagination.pageSize])
 
   /**
@@ -303,9 +421,17 @@ const DebtManagement = () => {
     if (!selectedCustomer) return
 
     try {
+      // ✅ Use proper pagination (max 100 per backend limit)
       const response = await debtService.getCustomerDebtDetail(
         selectedCustomer.customerId,
-        { InvoicePageSize: 1000, InvoicePageIndex: 1, PaymentPageSize: 1000, PaymentPageIndex: 1 }
+        { 
+          InvoicePageSize: invoicePagination.pageSize, 
+          InvoicePageIndex: invoicePagination.pageIndex, 
+          PaymentPageSize: paymentPagination.pageSize, 
+          PaymentPageIndex: paymentPagination.pageIndex,
+          SortBy: 'invoiceDate',
+          SortOrder: 'desc',
+        }
       )
       
       const mappedInvoices: DebtInvoice[] = response.unpaidInvoices.map(inv => ({
@@ -340,12 +466,12 @@ const DebtManagement = () => {
       // Sort by paymentDate descending (newest first)
       .sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())
 
-      setUnpaidInvoices(mappedInvoices)
+      setInvoices(mappedInvoices)
       setPaymentHistory(mappedPayments)
     } catch (error) {
       console.error('Failed to refresh customer detail:', error)
     }
-  }, [selectedCustomer])
+  }, [selectedCustomer, invoicePagination.pageSize, invoicePagination.pageIndex, paymentPagination.pageSize, paymentPagination.pageIndex])
 
   // ==================== COMPUTED VALUES ====================
   
@@ -377,25 +503,64 @@ const DebtManagement = () => {
       transactionCode: '',
       note: '',
     })
+    // Reset validation errors
+    setFormErrors({
+      amount: '',
+      date: '',
+      method: '',
+      transactionCode: '',
+    })
     setPaymentModalOpen(true)
-  }, [])
+  }, []) // Empty deps OK - only using setters which are stable
 
   const handlePaymentSubmit = useCallback(async () => {
     if (!selectedInvoice || !user) return
 
-    if (paymentData.amount > selectedInvoice.remainingAmount) {
-      setSnackbar({
-        open: true,
-        message: 'Số tiền thanh toán không được lớn hơn số nợ còn lại!',
-        severity: 'error',
-      })
-      return
+    // Comprehensive validation for all required fields (except note)
+    const errors = {
+      amount: '',
+      date: '',
+      method: '',
+      transactionCode: '',
     }
 
-    if (paymentData.amount <= 0) {
+    let hasError = false
+
+    // Validate amount (required)
+    if (!paymentData.amount || paymentData.amount <= 0) {
+      errors.amount = 'Vui lòng nhập số tiền thanh toán'
+      hasError = true
+    } else if (paymentData.amount > selectedInvoice.remainingAmount) {
+      errors.amount = `Số tiền không được lớn hơn số nợ còn lại (${formatCurrency(selectedInvoice.remainingAmount)})`
+      hasError = true
+    }
+
+    // Validate date (required)
+    if (!paymentData.date || !paymentData.date.isValid()) {
+      errors.date = 'Vui lòng chọn ngày thanh toán'
+      hasError = true
+    }
+
+    // Validate payment method (required)
+    if (!paymentData.method) {
+      errors.method = 'Vui lòng chọn hình thức thanh toán'
+      hasError = true
+    }
+
+    // Validate transaction code (required)
+    if (!paymentData.transactionCode || paymentData.transactionCode.trim() === '') {
+      errors.transactionCode = 'Vui lòng nhập mã giao dịch'
+      hasError = true
+    }
+
+    // Update error state
+    setFormErrors(errors)
+
+    // If validation failed, show error notification
+    if (hasError) {
       setSnackbar({
         open: true,
-        message: 'Số tiền thanh toán phải lớn hơn 0!',
+        message: '⚠️ Vui lòng điền đầy đủ thông tin bắt buộc',
         severity: 'error',
       })
       return
@@ -420,8 +585,8 @@ const DebtManagement = () => {
       // Check if invoice info is in response
       if (paymentResponse.invoice) {
         const statusText = paymentResponse.invoice.remainingAmount === 0
-          ? 'Đã thanh toán đầy đủ ✓'
-          : 'Đã thanh toán một phần'
+          ? 'Trả toàn bộ ✓'
+          : 'Trả một phần'
         
         setSnackbar({
           open: true,
@@ -447,6 +612,12 @@ const DebtManagement = () => {
         transactionCode: '',
         note: '',
       })
+      setFormErrors({
+        amount: '',
+        date: '',
+        method: '',
+        transactionCode: '',
+      })
 
       // Refresh data to show updated amounts
       await Promise.all([
@@ -464,7 +635,7 @@ const DebtManagement = () => {
     } finally {
       setIsSubmitting(false)
     }
-  }, [selectedInvoice, paymentData, user, refreshCustomerList, refreshCustomerDetail])
+  }, [selectedInvoice, paymentData, user, refreshCustomerList, refreshCustomerDetail]) // setFormErrors is stable, no need to include
 
   // DataGrid columns for invoices
   const invoiceColumns: GridColDef[] = useMemo(
@@ -475,13 +646,16 @@ const DebtManagement = () => {
         width: 130,
         align: 'center',
         headerAlign: 'center',
-        renderCell: (params: GridRenderCellParams) => (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-            <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976d2' }}>
-              {params.value as string}
-            </Typography>
-          </Box>
-        ),
+        renderCell: (params: GridRenderCellParams) => {
+          const invoiceNo = params.value as string | null
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: invoiceNo ? '#1976d2' : '#999' }}>
+                {invoiceNo || '(Chưa có số)'}
+              </Typography>
+            </Box>
+          )
+        },
       },
       {
         field: 'invoiceDate',
@@ -570,16 +744,24 @@ const DebtManagement = () => {
         width: 150,
         align: 'center',
         headerAlign: 'center',
-        renderCell: (params: GridRenderCellParams) => (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-            <Chip
-              label={getPaymentStatusLabel(params.value as DebtInvoice['paymentStatus'])}
-              color={getPaymentStatusColor(params.value as DebtInvoice['paymentStatus'])}
-              size="small"
-              sx={{ fontWeight: 500, fontSize: '0.7rem', minWidth: 90 }}
-            />
-          </Box>
-        ),
+        valueGetter: (value: unknown, row: DebtInvoice) => {
+          // If backend doesn't provide status, calculate it
+          return value || calculatePaymentStatus(row.totalAmount, row.paidAmount, row.remainingAmount)
+        },
+        renderCell: (params: GridRenderCellParams) => {
+          const finalStatus = params.value as DebtInvoice['paymentStatus']
+          
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Chip
+                label={getPaymentStatusLabel(finalStatus)}
+                color={getPaymentStatusColor(finalStatus)}
+                size="small"
+                sx={{ fontWeight: 500, fontSize: '0.7rem', minWidth: 90 }}
+              />
+            </Box>
+          )
+        },
       },
       {
         field: 'actions',
@@ -931,7 +1113,7 @@ const DebtManagement = () => {
                       Đã thanh toán
                     </Typography>
                     <Typography variant="h6" sx={{ fontWeight: 700, color: '#2e7d32', fontSize: '1.2rem', mt: 0.5 }}>
-                      {formatCurrency(paymentHistory.reduce((sum, payment) => sum + payment.amount, 0))}
+                      {formatCurrency(selectedCustomerDetail?.summary.totalPaid ?? 0)}
                     </Typography>
                   </Box>
                   <Box sx={{ textAlign: 'center', minWidth: 110 }}>
@@ -1014,7 +1196,7 @@ const DebtManagement = () => {
                       </Box>
                     ) : selectedTab === 'invoices' ? (
                       <DataGrid
-                        rows={unpaidInvoices}
+                        rows={invoices}
                         columns={invoiceColumns}
                         disableRowSelectionOnClick
                         loading={isLoadingDetail}
@@ -1168,49 +1350,70 @@ const DebtManagement = () => {
                     </Stack>
                   </Alert>
 
-                  {/* Payment Amount */}
+                  {/* Payment Amount with VN formatting */}
                   <TextField
                     fullWidth
+                    required
                     label="Số tiền thanh toán"
-                    type="number"
-                    value={paymentData.amount}
-                    onChange={(e) =>
-                      setPaymentData({ ...paymentData, amount: parseFloat(e.target.value) || 0 })
-                    }
+                    type="text"
+                    value={paymentData.amount ? formatNumberInput(paymentData.amount.toString()) : ''}
+                    onChange={(e) => {
+                      const parsedAmount = parseFormattedNumber(e.target.value)
+                      setPaymentData({ ...paymentData, amount: parsedAmount })
+                      // Clear error on change
+                      if (formErrors.amount) {
+                        setFormErrors({ ...formErrors, amount: '' })
+                      }
+                    }}
                     InputProps={{
                       endAdornment: <InputAdornment position="end">VNĐ</InputAdornment>,
                     }}
                     helperText={
-                      paymentData.amount < selectedInvoice.remainingAmount
-                        ? '⚠️ Thanh toán một phần - Hóa đơn sẽ chuyển sang trạng thái "Đã trả 1 phần"'
+                      formErrors.amount ||
+                      (paymentData.amount > 0 && paymentData.amount < selectedInvoice.remainingAmount
+                        ? '⚠️ Thanh toán một phần - Hóa đơn sẽ chuyển sang trạng thái "Trả một phần"'
                         : paymentData.amount === selectedInvoice.remainingAmount
-                        ? '✓ Thanh toán đầy đủ - Hóa đơn sẽ chuyển sang trạng thái "Đã thanh toán"'
-                        : ''
+                        ? '✓ Thanh toán đầy đủ - Hóa đơn sẽ chuyển sang trạng thái "Trả toàn bộ"'
+                        : 'Ví dụ: 1.000.000 (dùng dấu chấm phân cách nghìn)')
                     }
-                    error={paymentData.amount > selectedInvoice.remainingAmount}
+                    error={!!formErrors.amount || (paymentData.amount > selectedInvoice.remainingAmount)}
+                    placeholder="Ví dụ: 1.000.000"
                   />
 
                   {/* Payment Date */}
                   <DatePicker
                     label="Ngày thanh toán"
                     value={paymentData.date}
-                    onChange={(newValue) => setPaymentData({ ...paymentData, date: newValue || dayjs() })}
+                    onChange={(newValue) => {
+                      setPaymentData({ ...paymentData, date: newValue || dayjs() })
+                      // Clear error on change
+                      if (formErrors.date) {
+                        setFormErrors({ ...formErrors, date: '' })
+                      }
+                    }}
                     slotProps={{
                       textField: {
                         fullWidth: true,
+                        required: true,
+                        error: !!formErrors.date,
+                        helperText: formErrors.date || 'Chọn ngày thực hiện thanh toán',
                       },
                     }}
                   />
 
                   {/* Payment Method */}
-                  <FormControl fullWidth>
+                  <FormControl fullWidth required error={!!formErrors.method}>
                     <InputLabel>Hình thức thanh toán</InputLabel>
                     <Select
                       value={paymentData.method}
                       label="Hình thức thanh toán"
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setPaymentData({ ...paymentData, method: e.target.value })
-                      }
+                        // Clear error on change
+                        if (formErrors.method) {
+                          setFormErrors({ ...formErrors, method: '' })
+                        }
+                      }}
                     >
                       <MenuItem value={PAYMENT_METHODS.BANK_TRANSFER}>Chuyển khoản ngân hàng</MenuItem>
                       <MenuItem value={PAYMENT_METHODS.CASH}>Tiền mặt</MenuItem>
@@ -1220,27 +1423,41 @@ const DebtManagement = () => {
                       <MenuItem value={PAYMENT_METHODS.CHECK}>Séc</MenuItem>
                       <MenuItem value={PAYMENT_METHODS.OTHER}>Khác</MenuItem>
                     </Select>
+                    {formErrors.method && (
+                      <Typography variant="caption" sx={{ color: '#d32f2f', mt: 0.5, ml: 1.75 }}>
+                        {formErrors.method}
+                      </Typography>
+                    )}
                   </FormControl>
 
                   {/* Transaction Code */}
                   <TextField
                     fullWidth
+                    required
                     label="Mã giao dịch"
                     value={paymentData.transactionCode}
-                    onChange={(e) => setPaymentData({ ...paymentData, transactionCode: e.target.value })}
+                    onChange={(e) => {
+                      setPaymentData({ ...paymentData, transactionCode: e.target.value })
+                      // Clear error on change
+                      if (formErrors.transactionCode) {
+                        setFormErrors({ ...formErrors, transactionCode: '' })
+                      }
+                    }}
                     placeholder="VD: TXN123456, REF789..."
-                    helperText="Mã tham chiếu giao dịch ngân hàng (tùy chọn)"
+                    helperText={formErrors.transactionCode || 'Mã tham chiếu giao dịch ngân hàng, mã chuyển khoản'}
+                    error={!!formErrors.transactionCode}
                   />
 
-                  {/* Note */}
+                  {/* Note (Optional) */}
                   <TextField
                     fullWidth
-                    label="Ghi chú"
+                    label="Ghi chú (Tùy chọn)"
                     multiline
                     rows={3}
                     value={paymentData.note}
                     onChange={(e) => setPaymentData({ ...paymentData, note: e.target.value })}
                     placeholder="Ví dụ: Thanh toán đợt 1, thanh toán theo hợp đồng..."
+                    helperText="Thông tin bổ sung về khoản thanh toán này (không bắt buộc)"
                   />
                 </Stack>
               )}
@@ -1256,12 +1473,7 @@ const DebtManagement = () => {
               <Button
                 variant="contained"
                 onClick={handlePaymentSubmit}
-                disabled={
-                  !selectedInvoice ||
-                  paymentData.amount <= 0 ||
-                  paymentData.amount > selectedInvoice.remainingAmount ||
-                  isSubmitting
-                }
+                disabled={isSubmitting}
                 sx={{
                   textTransform: 'none',
                   fontWeight: 600,
