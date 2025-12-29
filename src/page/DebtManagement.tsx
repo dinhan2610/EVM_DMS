@@ -299,7 +299,7 @@ const DebtManagement = () => {
         // ✅ FIXED: Backend now returns ALL invoices (including Paid) via 'invoices' field
         const mappedInvoices: DebtInvoice[] = response.invoices.map(inv => {
           // 🔧 FIX: Backend returns "Partially Paid" (with space), normalize to "PartiallyPaid"
-          let normalizedStatus = inv.paymentStatus
+          let normalizedStatus = inv.paymentStatus as string
           if (normalizedStatus === 'Partially Paid') {
             normalizedStatus = 'PartiallyPaid'
           }
@@ -434,22 +434,30 @@ const DebtManagement = () => {
         }
       )
       
-      const mappedInvoices: DebtInvoice[] = response.unpaidInvoices.map(inv => ({
-        id: inv.invoiceId,
-        invoiceNo: inv.invoiceNumber,
-        invoiceStatusId: inv.invoiceStatusID,
-        invoiceStatus: inv.invoiceStatus,
-        invoiceDate: inv.invoiceDate,
-        dueDate: inv.dueDate,
-        totalAmount: inv.totalAmount,
-        paidAmount: inv.paidAmount,
-        remainingAmount: inv.remainingAmount,
-        paymentStatus: inv.paymentStatus,
-        description: inv.description,
-        isOverdue: inv.isOverdue,
-      }))
+      const mappedInvoices: DebtInvoice[] = response.invoices.map(inv => {
+        // 🔧 FIX: Backend returns "Partially Paid" (with space), normalize to "PartiallyPaid"
+        let normalizedStatus = inv.paymentStatus as string
+        if (normalizedStatus === 'Partially Paid') {
+          normalizedStatus = 'PartiallyPaid'
+        }
+        
+        return {
+          id: inv.invoiceId,
+          invoiceNo: inv.invoiceNumber,
+          invoiceStatusId: inv.invoiceStatusID,
+          invoiceStatus: inv.invoiceStatus,
+          invoiceDate: inv.invoiceDate,
+          dueDate: inv.dueDate,
+          totalAmount: inv.totalAmount,
+          paidAmount: inv.paidAmount,
+          remainingAmount: inv.remainingAmount,
+          paymentStatus: normalizedStatus as DebtInvoice['paymentStatus'],
+          description: inv.description,
+          isOverdue: inv.isOverdue,
+        }
+      })
       // Sort by invoiceDate descending (newest first)
-      .sort((a, b) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime())
+      .sort((a: DebtInvoice, b: DebtInvoice) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime())
 
       const mappedPayments: PaymentRecord[] = response.paymentHistory.map(pay => ({
         id: pay.paymentId,
