@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   Box,
-  Grid,
+  Grid, // Used in GridContainer/GridItem wrappers
   Paper,
   Typography,
   Button,
@@ -10,7 +10,6 @@ import {
   IconButton,
   Alert,
   Divider,
-  Chip,
 } from '@mui/material'
 import { useParams, useNavigate } from 'react-router-dom'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
@@ -19,10 +18,14 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import dayjs, { Dayjs } from 'dayjs'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
+
+// MUI v7 Grid compatibility wrappers
+const GridContainer = (props: Record<string, unknown>) => <Grid container {...props} />
+// @ts-expect-error - MUI v7 removed 'item' prop, keeping for backward compatibility
+const GridItem = (props: Record<string, unknown>) => <Grid item {...props} />
 
 // Interfaces
 export interface InvoiceItem {
@@ -350,8 +353,8 @@ const CreateReplacementInvoice = () => {
               </Typography>
             </Box>
             <Box sx={{ p: 3 }}>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
+              <GridContainer spacing={2}>
+                <GridItem xs={12} md={6}>
                   <TextField
                     fullWidth
                     label="Tên khách hàng"
@@ -359,8 +362,8 @@ const CreateReplacementInvoice = () => {
                     onChange={(e) => handleFormChange('customerName', e.target.value)}
                     required
                   />
-                </Grid>
-                <Grid item xs={12} md={6}>
+                </GridItem>
+                <GridItem xs={12} md={6}>
                   <TextField
                     fullWidth
                     label="Email"
@@ -369,8 +372,8 @@ const CreateReplacementInvoice = () => {
                     onChange={(e) => handleFormChange('customerEmail', e.target.value)}
                     required
                   />
-                </Grid>
-                <Grid item xs={12} md={6}>
+                </GridItem>
+                <GridItem xs={12} md={6}>
                   <TextField
                     fullWidth
                     label="Mã số thuế"
@@ -378,8 +381,8 @@ const CreateReplacementInvoice = () => {
                     onChange={(e) => handleFormChange('customerTaxCode', e.target.value)}
                     required
                   />
-                </Grid>
-                <Grid item xs={12} md={6}>
+                </GridItem>
+                <GridItem xs={12} md={6}>
                   <TextField
                     fullWidth
                     label="Địa chỉ"
@@ -387,8 +390,8 @@ const CreateReplacementInvoice = () => {
                     onChange={(e) => handleFormChange('customerAddress', e.target.value)}
                     required
                   />
-                </Grid>
-              </Grid>
+                </GridItem>
+              </GridContainer>
             </Box>
           </Paper>
 
@@ -408,8 +411,8 @@ const CreateReplacementInvoice = () => {
               </Typography>
             </Box>
             <Box sx={{ p: 3 }}>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
+              <GridContainer spacing={2}>
+                <GridItem xs={12} md={6}>
                   <DatePicker
                     label="Ngày phát hành"
                     value={formData.issueDate ? dayjs(formData.issueDate) : null}
@@ -421,8 +424,8 @@ const CreateReplacementInvoice = () => {
                       },
                     }}
                   />
-                </Grid>
-                <Grid item xs={12} md={6}>
+                </GridItem>
+                <GridItem xs={12} md={6}>
                   <DatePicker
                     label="Ngày hết hạn"
                     value={formData.dueDate ? dayjs(formData.dueDate) : null}
@@ -434,8 +437,8 @@ const CreateReplacementInvoice = () => {
                       },
                     }}
                   />
-                </Grid>
-                <Grid item xs={12}>
+                </GridItem>
+                <GridItem xs={12}>
                   <TextField
                     fullWidth
                     multiline
@@ -445,8 +448,8 @@ const CreateReplacementInvoice = () => {
                     value={formData.notes}
                     onChange={(e) => handleFormChange('notes', e.target.value)}
                   />
-                </Grid>
-              </Grid>
+                </GridItem>
+              </GridContainer>
             </Box>
           </Paper>
 
@@ -471,8 +474,8 @@ const CreateReplacementInvoice = () => {
             <Box sx={{ p: 3 }}>
               <Stack spacing={2}>
                 {items.map((item, index) => (
-                  <Grid container spacing={2} alignItems="center" key={item.id || index}>
-                    <Grid item xs={12} md={4}>
+                  <GridContainer spacing={2} alignItems="center" key={item.id || index}>
+                    <GridItem xs={12} md={4}>
                       <TextField
                         fullWidth
                         label="Mô tả hàng hóa/dịch vụ"
@@ -481,8 +484,8 @@ const CreateReplacementInvoice = () => {
                         size="small"
                         required
                       />
-                    </Grid>
-                    <Grid item xs={6} md={2}>
+                    </GridItem>
+                    <GridItem xs={6} md={2}>
                       <TextField
                         fullWidth
                         label="Số lượng"
@@ -493,8 +496,8 @@ const CreateReplacementInvoice = () => {
                         inputProps={{ min: 1 }}
                         required
                       />
-                    </Grid>
-                    <Grid item xs={6} md={2}>
+                    </GridItem>
+                    <GridItem xs={6} md={2}>
                       <TextField
                         fullWidth
                         label="Đơn giá"
@@ -505,8 +508,8 @@ const CreateReplacementInvoice = () => {
                         inputProps={{ min: 0 }}
                         required
                       />
-                    </Grid>
-                    <Grid item xs={10} md={3}>
+                    </GridItem>
+                    <GridItem xs={10} md={3}>
                       <TextField
                         fullWidth
                         label="Thành tiền"
@@ -520,8 +523,8 @@ const CreateReplacementInvoice = () => {
                           },
                         }}
                       />
-                    </Grid>
-                    <Grid item xs={2} md={1}>
+                    </GridItem>
+                    <GridItem xs={2} md={1}>
                       <IconButton
                         color="error"
                         onClick={() => handleRemoveItem(index)}
@@ -529,8 +532,8 @@ const CreateReplacementInvoice = () => {
                         size="small">
                         <DeleteIcon />
                       </IconButton>
-                    </Grid>
-                  </Grid>
+                    </GridItem>
+                  </GridContainer>
                 ))}
               </Stack>
               <Button

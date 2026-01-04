@@ -1,11 +1,10 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import {
   Box,
   Typography,
   Paper,
   TextField,
   InputAdornment,
-  Badge,
   Chip,
   Tabs,
   Tab,
@@ -24,6 +23,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  CircularProgress,
   
   alpha,
 } from '@mui/material'
@@ -31,7 +31,7 @@ import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
-import dayjs from 'dayjs'
+import dayjs, { Dayjs } from 'dayjs'
 import SearchIcon from '@mui/icons-material/Search'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import PaymentIcon from '@mui/icons-material/Payment'
@@ -39,260 +39,80 @@ import HistoryIcon from '@mui/icons-material/History'
 import PersonIcon from '@mui/icons-material/Person'
 import EmailIcon from '@mui/icons-material/Email'
 import PhoneIcon from '@mui/icons-material/Phone'
-import { CustomerDebt, DebtInvoice, PaymentRecord } from '@/types/debt.types'
-
-// ==================== MOCK DATA ====================
-
-const mockCustomerDebts: CustomerDebt[] = [
-  {
-    customerId: '1',
-    customerName: 'Công ty TNHH ABC Technology',
-    taxCode: '0123456789',
-    email: 'abc@company.com',
-    phone: '024 1234 5678',
-    address: '123 Đường Láng, Đống Đa, Hà Nội',
-    totalDebt: 45000000,
-    overdueDebt: 15000000,
-    invoiceCount: 3,
-    lastPaymentDate: '2024-11-20',
-  },
-  {
-    customerId: '2',
-    customerName: 'Công ty CP XYZ Solutions',
-    taxCode: '0987654321',
-    email: 'xyz@company.com',
-    phone: '028 9876 5432',
-    address: '456 Nguyễn Huệ, Quận 1, TP.HCM',
-    totalDebt: 28000000,
-    overdueDebt: 28000000,
-    invoiceCount: 2,
-    lastPaymentDate: null,
-  },
-  {
-    customerId: '3',
-    customerName: 'Doanh nghiệp Minh Tuấn',
-    taxCode: '0111222333',
-    email: 'minhtuan@company.com',
-    phone: '0236 3333 444',
-    address: '789 Trần Phú, Hải Châu, Đà Nẵng',
-    totalDebt: 12000000,
-    overdueDebt: 0,
-    invoiceCount: 1,
-    lastPaymentDate: '2024-12-01',
-  },
-  {
-    customerId: '4',
-    customerName: 'Tập đoàn DEF Group',
-    taxCode: '0444555666',
-    email: 'def@company.com',
-    phone: '0511 2222 333',
-    address: '101 Lê Duẩn, Thanh Khê, Đà Nẵng',
-    totalDebt: 67000000,
-    overdueDebt: 25000000,
-    invoiceCount: 5,
-    lastPaymentDate: '2024-10-15',
-  },
-  {
-    customerId: '5',
-    customerName: 'Công ty TNHH GHI Logistics',
-    taxCode: '0777888999',
-    email: 'ghi@company.com',
-    phone: '0254 4444 555',
-    address: '202 Quang Trung, Gò Vấp, TP.HCM',
-    totalDebt: 8500000,
-    overdueDebt: 0,
-    invoiceCount: 1,
-    lastPaymentDate: '2024-12-05',
-  },
-]
-
-const mockInvoices: Record<string, DebtInvoice[]> = {
-  '1': [
-    {
-      id: 'INV-001',
-      invoiceNo: 'C24TAA-001',
-      invoiceDate: '2024-10-01',
-      dueDate: '2024-10-31',
-      totalAmount: 15000000,
-      paidAmount: 10000000,
-      remainingAmount: 5000000,
-      paymentStatus: 'PartiallyPaid',
-      description: 'Dịch vụ tư vấn tháng 10/2024',
-    },
-    {
-      id: 'INV-002',
-      invoiceNo: 'C24TAA-002',
-      invoiceDate: '2024-11-01',
-      dueDate: '2024-11-30',
-      totalAmount: 25000000,
-      paidAmount: 15000000,
-      remainingAmount: 10000000,
-      paymentStatus: 'Overdue',
-      description: 'Cước hosting VPS tháng 11/2024',
-    },
-    {
-      id: 'INV-003',
-      invoiceNo: 'C24TAA-003',
-      invoiceDate: '2024-12-01',
-      dueDate: '2024-12-31',
-      totalAmount: 30000000,
-      paidAmount: 0,
-      remainingAmount: 30000000,
-      paymentStatus: 'Unpaid',
-      description: 'Bảo trì hệ thống tháng 12/2024',
-    },
-  ],
-  '2': [
-    {
-      id: 'INV-004',
-      invoiceNo: 'C24TAB-001',
-      invoiceDate: '2024-09-15',
-      dueDate: '2024-10-15',
-      totalAmount: 18000000,
-      paidAmount: 0,
-      remainingAmount: 18000000,
-      paymentStatus: 'Overdue',
-      description: 'Thiết kế website',
-    },
-    {
-      id: 'INV-005',
-      invoiceNo: 'C24TAB-002',
-      invoiceDate: '2024-10-20',
-      dueDate: '2024-11-20',
-      totalAmount: 10000000,
-      paidAmount: 0,
-      remainingAmount: 10000000,
-      paymentStatus: 'Overdue',
-      description: 'Tên miền + Hosting',
-    },
-  ],
-  '3': [
-    {
-      id: 'INV-006',
-      invoiceNo: 'C24TAC-001',
-      invoiceDate: '2024-11-25',
-      dueDate: '2024-12-25',
-      totalAmount: 12000000,
-      paidAmount: 0,
-      remainingAmount: 12000000,
-      paymentStatus: 'Unpaid',
-      description: 'Phần mềm quản lý',
-    },
-  ],
-  '4': [
-    {
-      id: 'INV-007',
-      invoiceNo: 'C24TAD-001',
-      invoiceDate: '2024-09-01',
-      dueDate: '2024-10-01',
-      totalAmount: 20000000,
-      paidAmount: 0,
-      remainingAmount: 20000000,
-      paymentStatus: 'Overdue',
-      description: 'Tư vấn chuyển đổi số Q3/2024',
-    },
-    {
-      id: 'INV-008',
-      invoiceNo: 'C24TAD-002',
-      invoiceDate: '2024-10-10',
-      dueDate: '2024-11-10',
-      totalAmount: 15000000,
-      paidAmount: 10000000,
-      remainingAmount: 5000000,
-      paymentStatus: 'Overdue',
-      description: 'Đào tạo nhân viên',
-    },
-    {
-      id: 'INV-009',
-      invoiceNo: 'C24TAD-003',
-      invoiceDate: '2024-11-15',
-      dueDate: '2024-12-15',
-      totalAmount: 22000000,
-      paidAmount: 0,
-      remainingAmount: 22000000,
-      paymentStatus: 'Unpaid',
-      description: 'Dịch vụ IT Outsourcing',
-    },
-    {
-      id: 'INV-010',
-      invoiceNo: 'C24TAD-004',
-      invoiceDate: '2024-12-01',
-      dueDate: '2025-01-01',
-      totalAmount: 10000000,
-      paidAmount: 0,
-      remainingAmount: 10000000,
-      paymentStatus: 'Unpaid',
-      description: 'Bảo trì server',
-    },
-  ],
-  '5': [
-    {
-      id: 'INV-011',
-      invoiceNo: 'C24TAE-001',
-      invoiceDate: '2024-12-03',
-      dueDate: '2025-01-03',
-      totalAmount: 8500000,
-      paidAmount: 0,
-      remainingAmount: 8500000,
-      paymentStatus: 'Unpaid',
-      description: 'Phần mềm kế toán',
-    },
-  ],
-}
-
-const mockPaymentHistory: Record<string, PaymentRecord[]> = {
-  '1': [
-    {
-      id: 'PAY-001',
-      invoiceId: 'INV-001',
-      invoiceNo: 'C24TAA-001',
-      amount: 10000000,
-      paymentDate: '2024-11-20',
-      method: 'Transfer',
-      note: 'Thanh toán đợt 1',
-      createdBy: 'Admin',
-    },
-    {
-      id: 'PAY-002',
-      invoiceId: 'INV-002',
-      invoiceNo: 'C24TAA-002',
-      amount: 15000000,
-      paymentDate: '2024-11-25',
-      method: 'Cash',
-      note: 'Thanh toán một phần',
-      createdBy: 'Admin',
-    },
-  ],
-  '4': [
-    {
-      id: 'PAY-003',
-      invoiceId: 'INV-008',
-      invoiceNo: 'C24TAD-002',
-      amount: 10000000,
-      paymentDate: '2024-11-15',
-      method: 'Transfer',
-      note: 'Thanh toán đợt 1 - 50%',
-      createdBy: 'Kế toán',
-    },
-  ],
-  '5': [],
-  '2': [],
-  '3': [],
-}
+import { CustomerDebt, DebtInvoice, PaymentRecord, PAYMENT_METHODS } from '@/types/debt.types'
+import { paymentService } from '@/services/paymentService'
+import { debtService } from '@/services/debtService'
+import { useAuthContext } from '@/context/useAuthContext'
 
 // ==================== HELPER FUNCTIONS ====================
 
 const formatCurrency = (amount: number): string => {
+  // Handle null, undefined, or NaN
+  if (amount === null || amount === undefined || isNaN(amount)) {
+    return '0 ₫'
+  }
   return new Intl.NumberFormat('vi-VN', {
     style: 'currency',
     currency: 'VND',
   }).format(amount)
 }
 
+/**
+ * Format number input with Vietnamese thousand separator (dot)
+ * Example: 1000000 -> "1.000.000"
+ */
+const formatNumberInput = (value: string): string => {
+  // Remove all non-digit characters
+  const numbers = value.replace(/\D/g, '')
+  if (!numbers) return ''
+  
+  // Add thousand separators (dots)
+  return numbers.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+}
+
+/**
+ * Parse formatted input back to number
+ * Example: "1.000.000" -> 1000000
+ */
+const parseFormattedNumber = (value: string): number => {
+  const cleaned = value.replace(/\./g, '')
+  return parseFloat(cleaned) || 0
+}
+
 const isOverdue = (dueDate: string): boolean => {
   return dayjs(dueDate).isBefore(dayjs(), 'day')
 }
 
+/**
+ * Calculate payment status from amounts if backend doesn't provide it
+ * This is a fallback function
+ */
+const calculatePaymentStatus = (
+  totalAmount: number, 
+  paidAmount: number, 
+  remainingAmount: number
+): DebtInvoice['paymentStatus'] => {
+  if (remainingAmount === 0 || paidAmount === totalAmount) {
+    return 'Paid'
+  } else if (paidAmount > 0 && remainingAmount > 0) {
+    return 'PartiallyPaid'
+  } else {
+    return 'Unpaid'
+  }
+}
+
+/**
+ * Get MUI Chip color based on payment status
+ * 
+ * Backend values (case-sensitive):
+ * - "Unpaid" → default (gray)
+ * - "PartiallyPaid" → warning (orange) 
+ * - "Paid" → success (green)
+ * - "Overdue" → error (red)
+ * 
+ * @param status Payment status from backend API
+ * @returns MUI Chip color variant
+ */
 const getPaymentStatusColor = (
   status: DebtInvoice['paymentStatus']
 ): 'default' | 'warning' | 'success' | 'error' => {
@@ -305,10 +125,22 @@ const getPaymentStatusColor = (
   return colors[status]
 }
 
+/**
+ * Get Vietnamese label for payment status
+ * 
+ * Backend-aligned mapping:
+ * - "Unpaid" → "Chưa Thanh toán"
+ * - "PartiallyPaid" → "Trả một phần"
+ * - "Paid" → "Đã thanh toán"
+ * - "Overdue" → "Quá hạn"
+ * 
+ * @param status Payment status from backend API  
+ * @returns Vietnamese display label
+ */
 const getPaymentStatusLabel = (status: DebtInvoice['paymentStatus']): string => {
   const labels = {
-    Unpaid: 'Chưa thanh toán',
-    PartiallyPaid: 'Đã trả 1 phần',
+    Unpaid: 'Chưa Thanh toán',
+    PartiallyPaid: 'Trả một phần',
     Paid: 'Đã thanh toán',
     Overdue: 'Quá hạn',
   }
@@ -318,49 +150,353 @@ const getPaymentStatusLabel = (status: DebtInvoice['paymentStatus']): string => 
 // ==================== MAIN COMPONENT ====================
 
 const DebtManagement = () => {
-  // State
+  // Auth context
+  const { user } = useAuthContext()
+  
+  // State - Data
+  const [customers, setCustomers] = useState<CustomerDebt[]>([])
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerDebt | null>(null)
+  const [selectedCustomerDetail, setSelectedCustomerDetail] = useState<{
+    summary: {
+      totalDebt: number;
+      overdueDebt: number;
+      totalPaid: number;
+      invoiceCount: number;
+      unpaidInvoiceCount: number;
+      lastPaymentDate: string | null;
+    };
+  } | null>(null)
+  // Note: Despite the backend field name 'unpaidInvoices', this should contain ALL invoices (Unpaid, PartiallyPaid, Paid)
+  const [invoices, setInvoices] = useState<DebtInvoice[]>([])
+  const [paymentHistory, setPaymentHistory] = useState<PaymentRecord[]>([])
+  
+  // Pagination state for invoices and payments
+  const [invoicePagination, setInvoicePagination] = useState({
+    pageIndex: 1,
+    pageSize: 10,
+    totalCount: 0,
+    totalPages: 0,
+  })
+  const [paymentPagination, setPaymentPagination] = useState({
+    pageIndex: 1,
+    pageSize: 10,
+    totalCount: 0,
+    totalPages: 0,
+  })
+  
+  // State - UI
   const [searchText, setSearchText] = useState('')
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerDebt | null>(mockCustomerDebts[0])
   const [selectedTab, setSelectedTab] = useState<'invoices' | 'history'>('invoices')
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<DebtInvoice | null>(null)
+  
+  // State - Form
   const [paymentData, setPaymentData] = useState({
     amount: 0,
-    date: dayjs(),
-    method: 'Transfer' as 'Transfer' | 'Cash',
+    date: dayjs() as Dayjs,
+    method: PAYMENT_METHODS.BANK_TRANSFER,
+    transactionCode: '',
     note: '',
   })
+  
+  // State - Form Validation
+  const [formErrors, setFormErrors] = useState({
+    amount: '',
+    date: '',
+    method: '',
+    transactionCode: '',
+  })
+  
+  // State - Feedback
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
     severity: 'success' as 'success' | 'error' | 'info' | 'warning',
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false)
 
-  // Filtered customers
+  // ==================== DATA FETCHING ====================
+  
+  /**
+   * Fetch customer debt summary on mount
+   */
+  useEffect(() => {
+    const fetchCustomerDebts = async () => {
+      try {
+        setIsLoading(true)
+        const response = await debtService.getCustomerDebtSummary({
+          PageIndex: 1,
+          PageSize: 100, // Get all customers
+          SortBy: 'totalDebt',
+          SortOrder: 'desc',
+        })
+        
+        // Defensive: Ensure data is an array
+        const customerData = Array.isArray(response.data) ? response.data : []
+        setCustomers(customerData)
+        
+        // Auto-select first customer if exists
+        if (customerData.length > 0 && !selectedCustomer) {
+          setSelectedCustomer(customerData[0])
+        }
+      } catch (error) {
+        console.error('Failed to fetch customer debts:', error)
+        setCustomers([]) // Set empty array on error
+        setSnackbar({
+          open: true,
+          message: 'Không thể tải danh sách công nợ. Vui lòng thử lại.',
+          severity: 'error',
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchCustomerDebts()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  /**
+   * Fetch customer debt detail when selected customer or pagination changes
+   */
+  useEffect(() => {
+    const fetchCustomerDebtDetail = async () => {
+      if (!selectedCustomer) {
+        setInvoices([])
+        setPaymentHistory([])
+        setSelectedCustomerDetail(null)
+        return
+      }
+
+      try {
+        setIsLoadingDetail(true)
+        
+        // ✅ NEW: Use proper pagination parameters
+        const response = await debtService.getCustomerDebtDetail(
+          selectedCustomer.customerId,
+          {
+            InvoicePageSize: invoicePagination.pageSize,
+            InvoicePageIndex: invoicePagination.pageIndex,
+            PaymentPageSize: paymentPagination.pageSize,
+            PaymentPageIndex: paymentPagination.pageIndex,
+            SortBy: 'invoiceDate',
+            SortOrder: 'desc',
+          }
+        )
+        
+        // 🔍 DEBUG: Check if backend now returns Paid invoices
+        console.log('[DebtManagement] Raw backend response - invoice count:', response.invoices.length);
+        console.log('[DebtManagement] Invoice payment statuses:', 
+          response.invoices.map(inv => ({ 
+            invoiceNo: inv.invoiceNumber, 
+            status: inv.paymentStatus,
+            remaining: inv.remainingAmount 
+          }))
+        );
+        
+        // ✅ FIXED: Backend now returns ALL invoices (including Paid) via 'invoices' field
+        const mappedInvoices: DebtInvoice[] = response.invoices.map(inv => {
+          // 🔧 FIX: Backend returns "Partially Paid" (with space), normalize to "PartiallyPaid"
+          let normalizedStatus = inv.paymentStatus as string
+          if (normalizedStatus === 'Partially Paid') {
+            normalizedStatus = 'PartiallyPaid'
+          }
+          
+          return {
+            id: inv.invoiceId,
+            invoiceNo: inv.invoiceNumber,
+            invoiceStatusId: inv.invoiceStatusID,
+            invoiceStatus: inv.invoiceStatus,
+            invoiceDate: inv.invoiceDate,
+            dueDate: inv.dueDate,
+            totalAmount: inv.totalAmount,
+            paidAmount: inv.paidAmount,
+            remainingAmount: inv.remainingAmount,
+            paymentStatus: normalizedStatus as DebtInvoice['paymentStatus'],
+            description: inv.description,
+            isOverdue: inv.isOverdue,
+          }
+        })
+        // Sort by invoiceDate descending (newest first)
+        .sort((a, b) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime())
+        
+        // 🔍 DEBUG: Log payment statuses to verify ALL statuses are included
+        console.log('[DebtManagement] Total invoices:', mappedInvoices.length);
+        const breakdown = {
+          unpaid: mappedInvoices.filter(i => i.paymentStatus === 'Unpaid').length,
+          partiallyPaid: mappedInvoices.filter(i => i.paymentStatus === 'PartiallyPaid').length,
+          paid: mappedInvoices.filter(i => i.paymentStatus === 'Paid').length,
+          overdue: mappedInvoices.filter(i => i.paymentStatus === 'Overdue').length,
+        };
+        console.log('[DebtManagement] Payment status breakdown:', JSON.stringify(breakdown));
+
+        const mappedPayments: PaymentRecord[] = response.paymentHistory.map(pay => ({
+          id: pay.paymentId,
+          invoiceId: pay.invoiceId,
+          invoiceNo: pay.invoiceNumber,
+          amount: pay.amount,
+          paymentDate: pay.paymentDate,
+          paymentMethod: pay.paymentMethod,
+          transactionCode: pay.transactionCode || undefined,
+          note: pay.note,
+          userId: pay.userId,
+          userName: pay.userName,
+        }))
+        
+        setInvoices(mappedInvoices)
+        setPaymentHistory(mappedPayments)
+        
+        // Store customer detail summary for header stats
+        setSelectedCustomerDetail({
+          summary: response.summary
+        })
+        
+        // Update pagination state from API response
+        if (response.invoicesPagination) {
+          setInvoicePagination({
+            pageIndex: response.invoicesPagination.pageIndex,
+            pageSize: response.invoicesPagination.pageSize,
+            totalCount: response.invoicesPagination.totalCount,
+            totalPages: response.invoicesPagination.totalPages,
+          })
+        }
+        if (response.paymentHistoryPagination) {
+          setPaymentPagination({
+            pageIndex: response.paymentHistoryPagination.pageIndex,
+            pageSize: response.paymentHistoryPagination.pageSize,
+            totalCount: response.paymentHistoryPagination.totalCount,
+            totalPages: response.paymentHistoryPagination.totalPages,
+          })
+        }
+      } catch (error) {
+        console.error('Failed to fetch customer debt detail:', error)
+        setSnackbar({
+          open: true,
+          message: 'Không thể tải chi tiết công nợ. Vui lòng thử lại.',
+          severity: 'error',
+        })
+      } finally {
+        setIsLoadingDetail(false)
+      }
+    }
+
+    fetchCustomerDebtDetail()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCustomer, invoicePagination.pageIndex, invoicePagination.pageSize, paymentPagination.pageIndex, paymentPagination.pageSize])
+
+  /**
+   * Refresh customer list after successful payment
+   */
+  const refreshCustomerList = useCallback(async () => {
+    try {
+      const response = await debtService.getCustomerDebtSummary({
+        PageIndex: 1,
+        PageSize: 100,
+        SortBy: 'totalDebt',
+        SortOrder: 'desc',
+      })
+      
+      setCustomers(response.data)
+      
+      // Update selected customer data
+      if (selectedCustomer) {
+        const updatedCustomer = response.data.find(
+          c => c.customerId === selectedCustomer.customerId
+        )
+        if (updatedCustomer) {
+          setSelectedCustomer(updatedCustomer)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to refresh customer list:', error)
+    }
+  }, [selectedCustomer])
+
+  /**
+   * Refresh customer debt detail after successful payment
+   */
+  const refreshCustomerDetail = useCallback(async () => {
+    if (!selectedCustomer) return
+
+    try {
+      // ✅ Use proper pagination (max 100 per backend limit)
+      const response = await debtService.getCustomerDebtDetail(
+        selectedCustomer.customerId,
+        { 
+          InvoicePageSize: invoicePagination.pageSize, 
+          InvoicePageIndex: invoicePagination.pageIndex, 
+          PaymentPageSize: paymentPagination.pageSize, 
+          PaymentPageIndex: paymentPagination.pageIndex,
+          SortBy: 'invoiceDate',
+          SortOrder: 'desc',
+        }
+      )
+      
+      const mappedInvoices: DebtInvoice[] = response.invoices.map(inv => {
+        // 🔧 FIX: Backend returns "Partially Paid" (with space), normalize to "PartiallyPaid"
+        let normalizedStatus = inv.paymentStatus as string
+        if (normalizedStatus === 'Partially Paid') {
+          normalizedStatus = 'PartiallyPaid'
+        }
+        
+        return {
+          id: inv.invoiceId,
+          invoiceNo: inv.invoiceNumber,
+          invoiceStatusId: inv.invoiceStatusID,
+          invoiceStatus: inv.invoiceStatus,
+          invoiceDate: inv.invoiceDate,
+          dueDate: inv.dueDate,
+          totalAmount: inv.totalAmount,
+          paidAmount: inv.paidAmount,
+          remainingAmount: inv.remainingAmount,
+          paymentStatus: normalizedStatus as DebtInvoice['paymentStatus'],
+          description: inv.description,
+          isOverdue: inv.isOverdue,
+        }
+      })
+      // Sort by invoiceDate descending (newest first)
+      .sort((a: DebtInvoice, b: DebtInvoice) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime())
+
+      const mappedPayments: PaymentRecord[] = response.paymentHistory.map(pay => ({
+        id: pay.paymentId,
+        invoiceId: pay.invoiceId,
+        invoiceNo: pay.invoiceNumber,
+        amount: pay.amount,
+        paymentDate: pay.paymentDate,
+        paymentMethod: pay.paymentMethod,
+        transactionCode: pay.transactionCode || undefined,
+        note: pay.note,
+        userId: pay.userId,
+        userName: pay.userName,
+      }))
+      // Sort by paymentDate descending (newest first)
+      .sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())
+
+      setInvoices(mappedInvoices)
+      setPaymentHistory(mappedPayments)
+    } catch (error) {
+      console.error('Failed to refresh customer detail:', error)
+    }
+  }, [selectedCustomer, invoicePagination.pageSize, invoicePagination.pageIndex, paymentPagination.pageSize, paymentPagination.pageIndex])
+
+  // ==================== COMPUTED VALUES ====================
+  
+  // Filtered customers based on search text
   const filteredCustomers = useMemo(() => {
-    return mockCustomerDebts.filter((customer) =>
-      customer.customerName.toLowerCase().includes(searchText.toLowerCase())
+    if (!searchText.trim()) return customers
+    
+    const searchLower = searchText.toLowerCase()
+    return customers.filter((customer) =>
+      customer.customerName.toLowerCase().includes(searchLower) ||
+      customer.taxCode.toLowerCase().includes(searchLower) ||
+      customer.email?.toLowerCase().includes(searchLower) ||
+      customer.phone?.toLowerCase().includes(searchLower)
     )
-  }, [searchText])
+  }, [customers, searchText])
 
-  // Get invoices for selected customer
-  const customerInvoices = useMemo(() => {
-    if (!selectedCustomer) return []
-    return mockInvoices[selectedCustomer.customerId] || []
-  }, [selectedCustomer])
-
-  // Get unpaid invoices
-  const unpaidInvoices = useMemo(() => {
-    return customerInvoices.filter((inv) => inv.paymentStatus !== 'Paid')
-  }, [customerInvoices])
-
-  // Get payment history
-  const paymentHistory = useMemo(() => {
-    if (!selectedCustomer) return []
-    return mockPaymentHistory[selectedCustomer.customerId] || []
-  }, [selectedCustomer])
-
-  // Handlers
+  // ==================== EVENT HANDLERS ====================
   const handleCustomerClick = useCallback((customer: CustomerDebt) => {
     setSelectedCustomer(customer)
     setSelectedTab('invoices')
@@ -371,47 +507,143 @@ const DebtManagement = () => {
     setPaymentData({
       amount: invoice.remainingAmount,
       date: dayjs(),
-      method: 'Transfer',
+      method: PAYMENT_METHODS.BANK_TRANSFER,
+      transactionCode: '',
       note: '',
     })
-    setPaymentModalOpen(true)
-  }, [])
-
-  const handlePaymentSubmit = useCallback(() => {
-    if (!selectedInvoice) return
-
-    if (paymentData.amount > selectedInvoice.remainingAmount) {
-      setSnackbar({
-        open: true,
-        message: 'Số tiền thanh toán không được lớn hơn số nợ còn lại!',
-        severity: 'error',
-      })
-      return
-    }
-
-    if (paymentData.amount <= 0) {
-      setSnackbar({
-        open: true,
-        message: 'Số tiền thanh toán phải lớn hơn 0!',
-        severity: 'error',
-      })
-      return
-    }
-
-    // Simulate payment processing
-    const isPartialPayment = paymentData.amount < selectedInvoice.remainingAmount
-
-    setSnackbar({
-      open: true,
-      message: isPartialPayment
-        ? `✓ Đã ghi nhận thanh toán một phần: ${formatCurrency(paymentData.amount)}`
-        : `✓ Đã ghi nhận thanh toán đầy đủ: ${formatCurrency(paymentData.amount)}`,
-      severity: 'success',
+    // Reset validation errors
+    setFormErrors({
+      amount: '',
+      date: '',
+      method: '',
+      transactionCode: '',
     })
+    setPaymentModalOpen(true)
+  }, []) // Empty deps OK - only using setters which are stable
 
-    setPaymentModalOpen(false)
-    setSelectedInvoice(null)
-  }, [selectedInvoice, paymentData])
+  const handlePaymentSubmit = useCallback(async () => {
+    if (!selectedInvoice || !user) return
+
+    // Comprehensive validation for all required fields (except note)
+    const errors = {
+      amount: '',
+      date: '',
+      method: '',
+      transactionCode: '',
+    }
+
+    let hasError = false
+
+    // Validate amount (required)
+    if (!paymentData.amount || paymentData.amount <= 0) {
+      errors.amount = 'Vui lòng nhập số tiền thanh toán'
+      hasError = true
+    } else if (paymentData.amount > selectedInvoice.remainingAmount) {
+      errors.amount = `Số tiền không được lớn hơn số nợ còn lại (${formatCurrency(selectedInvoice.remainingAmount)})`
+      hasError = true
+    }
+
+    // Validate date (required)
+    if (!paymentData.date || !paymentData.date.isValid()) {
+      errors.date = 'Vui lòng chọn ngày thanh toán'
+      hasError = true
+    }
+
+    // Validate payment method (required)
+    if (!paymentData.method) {
+      errors.method = 'Vui lòng chọn hình thức thanh toán'
+      hasError = true
+    }
+
+    // Validate transaction code (required)
+    if (!paymentData.transactionCode || paymentData.transactionCode.trim() === '') {
+      errors.transactionCode = 'Vui lòng nhập mã giao dịch'
+      hasError = true
+    }
+
+    // Update error state
+    setFormErrors(errors)
+
+    // If validation failed, show error notification
+    if (hasError) {
+      setSnackbar({
+        open: true,
+        message: '⚠️ Vui lòng điền đầy đủ thông tin bắt buộc',
+        severity: 'error',
+      })
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      // Call API to create payment
+      const paymentRequest = {
+        invoiceId: selectedInvoice.id,
+        amount: paymentData.amount,
+        paymentMethod: paymentData.method,
+        transactionCode: paymentData.transactionCode || undefined,
+        note: paymentData.note || undefined,
+        paymentDate: paymentData.date.toISOString(),
+        userId: parseInt(user.id),
+      }
+
+      const paymentResponse = await paymentService.createPayment(paymentRequest)
+
+      // Check if invoice info is in response
+      if (paymentResponse.invoice) {
+        const statusText = paymentResponse.invoice.remainingAmount === 0
+          ? 'Trả toàn bộ ✓'
+          : 'Trả một phần'
+        
+        setSnackbar({
+          open: true,
+          message: `✅ ${statusText}\n💰 Số tiền: ${formatCurrency(paymentData.amount)}\n📊 Còn nợ: ${formatCurrency(paymentResponse.invoice.remainingAmount)}`,
+          severity: paymentResponse.invoice.remainingAmount === 0 ? 'success' : 'info',
+        })
+      } else {
+        // Fallback if invoice info not in response
+        setSnackbar({
+          open: true,
+          message: `✅ Đã ghi nhận thanh toán thành công!\n💰 Số tiền: ${formatCurrency(paymentData.amount)}`,
+          severity: 'success',
+        })
+      }
+
+      // Close modal and reset
+      setPaymentModalOpen(false)
+      setSelectedInvoice(null)
+      setPaymentData({
+        amount: 0,
+        date: dayjs(),
+        method: PAYMENT_METHODS.BANK_TRANSFER,
+        transactionCode: '',
+        note: '',
+      })
+      setFormErrors({
+        amount: '',
+        date: '',
+        method: '',
+        transactionCode: '',
+      })
+
+      // Refresh data to show updated amounts
+      await Promise.all([
+        refreshCustomerList(),
+        refreshCustomerDetail(),
+      ])
+
+    } catch (error) {
+      console.error('❌ Payment failed:', error)
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Không thể ghi nhận thanh toán',
+        severity: 'error',
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [selectedInvoice, paymentData, user, refreshCustomerList, refreshCustomerDetail]) // setFormErrors is stable, no need to include
 
   // DataGrid columns for invoices
   const invoiceColumns: GridColDef[] = useMemo(
@@ -419,60 +651,70 @@ const DebtManagement = () => {
       {
         field: 'invoiceNo',
         headerName: 'Số hóa đơn',
-        flex: 1,
-        minWidth: 130,
+        width: 130,
         align: 'center',
         headerAlign: 'center',
-        renderCell: (params: GridRenderCellParams) => (
-          <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976d2' }}>
-            {params.value as string}
-          </Typography>
-        ),
+        renderCell: (params: GridRenderCellParams) => {
+          const invoiceNo = params.value as string | null
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: invoiceNo ? '#1976d2' : '#999' }}>
+                {invoiceNo || '(Chưa có số)'}
+              </Typography>
+            </Box>
+          )
+        },
       },
       {
         field: 'invoiceDate',
         headerName: 'Ngày HĐ',
-        width: 110,
+        width: 100,
         align: 'center',
         headerAlign: 'center',
         renderCell: (params: GridRenderCellParams) => (
-          <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>
-            {dayjs(params.value as string).format('DD/MM/YYYY')}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>
+              {dayjs(params.value as string).format('DD/MM/YYYY')}
+            </Typography>
+          </Box>
         ),
       },
       {
         field: 'dueDate',
         headerName: 'Hạn TT',
-        width: 110,
+        width: 100,
         align: 'center',
         headerAlign: 'center',
         renderCell: (params: GridRenderCellParams) => {
           const overdue = isOverdue(params.value as string)
           return (
-            <Typography
-              variant="body2"
-              sx={{
-                fontSize: '0.8125rem',
-                color: overdue ? '#d32f2f' : 'inherit',
-                fontWeight: overdue ? 600 : 400,
-              }}
-            >
-              {dayjs(params.value as string).format('DD/MM/YYYY')}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontSize: '0.8125rem',
+                  color: overdue ? '#d32f2f' : 'inherit',
+                  fontWeight: overdue ? 600 : 400,
+                }}
+              >
+                {dayjs(params.value as string).format('DD/MM/YYYY')}
+              </Typography>
+            </Box>
           )
         },
       },
       {
         field: 'totalAmount',
         headerName: 'Tổng tiền',
-        width: 140,
+        width: 180,
         align: 'center',
         headerAlign: 'center',
         renderCell: (params: GridRenderCellParams) => (
-          <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
-            {formatCurrency(params.value as number)}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+              {formatCurrency(params.value as number)}
+            </Typography>
+          </Box>
         ),
       },
       {
@@ -482,45 +724,57 @@ const DebtManagement = () => {
         align: 'center',
         headerAlign: 'center',
         renderCell: (params: GridRenderCellParams) => (
-          <Typography variant="body2" sx={{ fontSize: '0.8125rem', color: '#2e7d32' }}>
-            {formatCurrency(params.value as number)}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Typography variant="body2" sx={{ fontSize: '0.8125rem', color: '#2e7d32' }}>
+              {formatCurrency(params.value as number)}
+            </Typography>
+          </Box>
         ),
       },
       {
         field: 'remainingAmount',
         headerName: 'Còn nợ',
-        width: 140,
+        width: 180,
         align: 'center',
         headerAlign: 'center',
         renderCell: (params: GridRenderCellParams) => (
-          <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 700, color: '#d32f2f' }}>
-            {formatCurrency(params.value as number)}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 700, color: '#d32f2f' }}>
+              {formatCurrency(params.value as number)}
+            </Typography>
+          </Box>
         ),
       },
       
       {
         field: 'paymentStatus',
         headerName: 'Trạng thái',
-        width: 140,
+        width: 150,
         align: 'center',
         headerAlign: 'center',
-        renderCell: (params: GridRenderCellParams) => (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-            <Chip
-              label={getPaymentStatusLabel(params.value as DebtInvoice['paymentStatus'])}
-              color={getPaymentStatusColor(params.value as DebtInvoice['paymentStatus'])}
-              size="small"
-              sx={{ fontWeight: 500, fontSize: '0.75rem' }}
-            />
-          </Box>
-        ),
+        valueGetter: (value: unknown, row: DebtInvoice) => {
+          // If backend doesn't provide status, calculate it
+          return value || calculatePaymentStatus(row.totalAmount, row.paidAmount, row.remainingAmount)
+        },
+        renderCell: (params: GridRenderCellParams) => {
+          const finalStatus = params.value as DebtInvoice['paymentStatus']
+          
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Chip
+                label={getPaymentStatusLabel(finalStatus)}
+                color={getPaymentStatusColor(finalStatus)}
+                size="small"
+                sx={{ fontWeight: 500, fontSize: '0.7rem', minWidth: 90 }}
+              />
+            </Box>
+          )
+        },
       },
       {
         field: 'actions',
         headerName: 'Thao tác',
-        width: 120,
+        width: 90,
         align: 'center',
         headerAlign: 'center',
         sortable: false,
@@ -528,7 +782,7 @@ const DebtManagement = () => {
           const invoice = params.row as DebtInvoice
           if (invoice.paymentStatus === 'Paid') return null
           return (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
               <Tooltip title="Ghi nhận thanh toán">
                 <IconButton
                   size="small"
@@ -592,19 +846,31 @@ const DebtManagement = () => {
         ),
       },
       {
-        field: 'method',
+        field: 'paymentMethod',
         headerName: 'Hình thức',
         width: 130,
         align: 'center',
         headerAlign: 'center',
-        renderCell: (params: GridRenderCellParams) => (
-          <Chip
-            label={params.value === 'Transfer' ? 'Chuyển khoản' : 'Tiền mặt'}
-            color={params.value === 'Transfer' ? 'primary' : 'default'}
-            size="small"
-            sx={{ fontSize: '0.75rem' }}
-          />
-        ),
+        renderCell: (params: GridRenderCellParams) => {
+          const method = params.value as string
+          const methodLabels: Record<string, string> = {
+            BankTransfer: 'Chuyển khoản',
+            Cash: 'Tiền mặt',
+            CreditCard: 'Thẻ tín dụng',
+            DebitCard: 'Thẻ ghi nợ',
+            EWallet: 'Ví điện tử',
+            Check: 'Séc',
+            Other: 'Khác',
+          }
+          return (
+            <Chip
+              label={methodLabels[method] || method}
+              color={method === 'BankTransfer' ? 'primary' : 'default'}
+              size="small"
+              sx={{ fontSize: '0.75rem' }}
+            />
+          )
+        },
       },
       {
         field: 'note',
@@ -620,7 +886,7 @@ const DebtManagement = () => {
         ),
       },
       {
-        field: 'createdBy',
+        field: 'userName',
         headerName: 'Người tạo',
         width: 120,
         align: 'center',
@@ -637,20 +903,63 @@ const DebtManagement = () => {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Box sx={{ bgcolor: '#f5f5f5', minHeight: '100vh', py: 3 }}>
+      <Box sx={{ width: '100%', backgroundColor: '#f5f5f5', minHeight: '100vh', py: 4 }}>
         <Box sx={{ width: '100%', px: { xs: 2, sm: 3, md: 4 } }}>
           {/* Header */}
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
-              Quản lý Công nợ & Thu tiền
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#666' }}>
-              Theo dõi dư nợ khách hàng và ghi nhận thanh toán
-            </Typography>
+          <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
+                Quản lý Công nợ & Thu tiền
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#666' }}>
+                Theo dõi dư nợ khách hàng và ghi nhận thanh toán
+              </Typography>
+            </Box>
           </Box>
 
-          {/* Customer Selection Bar - Compact */}
-          <Paper
+          {/* Loading State */}
+          {isLoading ? (
+            <Paper
+              elevation={0}
+              sx={{
+                p: 8,
+                border: '1px solid #e0e0e0',
+                borderRadius: 2,
+                backgroundColor: '#fff',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 2,
+              }}
+            >
+              <CircularProgress size={60} />
+              <Typography variant="body1" sx={{ color: '#999', mt: 2 }}>
+                Đang tải danh sách công nợ...
+              </Typography>
+            </Paper>
+          ) : customers.length === 0 ? (
+            <Paper
+              elevation={0}
+              sx={{
+                p: 8,
+                border: '1px solid #e0e0e0',
+                borderRadius: 2,
+                backgroundColor: '#fff',
+                textAlign: 'center',
+              }}
+            >
+              <Typography variant="h6" sx={{ color: '#999', mb: 1 }}>
+                Không có khách hàng nào có công nợ
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#bbb' }}>
+                Danh sách trống hoặc tất cả khách hàng đã thanh toán hết
+              </Typography>
+            </Paper>
+          ) : (
+            <Box>
+              {/* Customer Selection Bar - Compact */}
+              <Paper
             elevation={0}
             sx={{
               mb: 2,
@@ -691,15 +1000,17 @@ const DebtManagement = () => {
               />
 
               {/* Customer Select Dropdown */}
-              <FormControl size="small" sx={{ flex: 1 }}>
-                <InputLabel sx={{ fontSize: '0.875rem' }}>Chọn khách hàng</InputLabel>
+              <FormControl size="small" sx={{ flex: 1 }} disabled={isLoading}>
+                <InputLabel sx={{ fontSize: '0.875rem' }}>
+                  {isLoading ? 'Đang tải...' : 'Chọn khách hàng'}
+                </InputLabel>
                 <Select
                   value={selectedCustomer?.customerId || ''}
                   onChange={(e) => {
-                    const customer = mockCustomerDebts.find((c) => c.customerId === e.target.value)
+                    const customer = customers.find((c) => c.customerId === e.target.value)
                     if (customer) handleCustomerClick(customer)
                   }}
-                  label="Chọn khách hàng"
+                  label={isLoading ? 'Đang tải...' : 'Chọn khách hàng'}
                   sx={{
                     backgroundColor: '#fafafa',
                     fontSize: '0.875rem',
@@ -708,18 +1019,33 @@ const DebtManagement = () => {
                     },
                   }}
                 >
-                  {filteredCustomers.map((customer) => (
-                    <MenuItem key={customer.customerId} value={customer.customerId}>
-                      <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#1a1a1a', fontSize: '0.875rem' }}>
-                          {customer.customerName}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: '#999', fontSize: '0.75rem' }}>
-                          MST: {customer.taxCode} • {customer.phone}
-                        </Typography>
+                  {isLoading ? (
+                    <MenuItem disabled>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <CircularProgress size={16} />
+                        <Typography variant="body2">Đang tải...</Typography>
                       </Box>
                     </MenuItem>
-                  ))}
+                  ) : filteredCustomers.length === 0 ? (
+                    <MenuItem disabled>
+                      <Typography variant="body2" sx={{ color: '#999' }}>
+                        Không tìm thấy khách hàng
+                      </Typography>
+                    </MenuItem>
+                  ) : (
+                    filteredCustomers.map((customer) => (
+                      <MenuItem key={customer.customerId} value={customer.customerId}>
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#1a1a1a', fontSize: '0.875rem' }}>
+                            {customer.customerName}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: '#999', fontSize: '0.75rem' }}>
+                            MST: {customer.taxCode} • {customer.phone}
+                          </Typography>
+                        </Box>
+                      </MenuItem>
+                    ))
+                  )}
                 </Select>
               </FormControl>
             </Box>
@@ -733,10 +1059,8 @@ const DebtManagement = () => {
                 border: '1px solid #e0e0e0',
                 borderRadius: 2,
                 backgroundColor: '#fff',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                height: 'calc(100vh - 240px)',
-                display: 'flex',
-                flexDirection: 'column',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                overflow: 'hidden',
               }}
             >
               {/* Customer Info & KPI - Inline Compact */}
@@ -777,39 +1101,39 @@ const DebtManagement = () => {
                   </Stack>
                 </Box>
 
-                {/* KPI Inline - Compact */}
+                {/* KPI Inline - Professional */}
                 <Stack 
                   direction="row" 
-                  spacing={3} 
-                  divider={<Box sx={{ width: 1, height: 40, bgcolor: '#e0e0e0' }} />}
+                  spacing={2.5} 
+                  divider={<Box sx={{ width: '1.5px', height: 36, bgcolor: '#2c3e50', opacity: 0.8, borderRadius: '2px' }} />}
                   sx={{ pr: 1 }}
                 >
-                  <Box sx={{ textAlign: 'center', minWidth: 120 }}>
-                    <Typography variant="caption" sx={{ color: '#999', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase' }}>
+                  <Box sx={{ textAlign: 'center', minWidth: 110 }}>
+                    <Typography variant="caption" sx={{ color: '#666', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                       Tổng nợ
                     </Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#d32f2f', fontSize: '1.25rem', mt: 0.5 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#d32f2f', fontSize: '1.2rem', mt: 0.5 }}>
                       {formatCurrency(selectedCustomer.totalDebt)}
                     </Typography>
                   </Box>
-                  <Box sx={{ textAlign: 'center', minWidth: 120 }}>
-                    <Typography variant="caption" sx={{ color: '#999', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase' }}>
+                  <Box sx={{ textAlign: 'center', minWidth: 110 }}>
+                    <Typography variant="caption" sx={{ color: '#666', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                       Đã thanh toán
                     </Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#2e7d32', fontSize: '1.25rem', mt: 0.5 }}>
-                      {formatCurrency(customerInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0))}
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#2e7d32', fontSize: '1.2rem', mt: 0.5 }}>
+                      {formatCurrency(selectedCustomerDetail?.summary.totalPaid ?? 0)}
                     </Typography>
                   </Box>
-                  <Box sx={{ textAlign: 'center', minWidth: 120 }}>
+                  <Box sx={{ textAlign: 'center', minWidth: 110 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, mb: 0.5 }}>
-                      <Typography variant="caption" sx={{ color: '#999', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase' }}>
+                      <Typography variant="caption" sx={{ color: '#666', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                         Quá hạn
                       </Typography>
                       {selectedCustomer.overdueDebt > 0 && (
-                        <WarningAmberIcon sx={{ fontSize: 14, color: '#ff9800' }} />
+                        <WarningAmberIcon sx={{ fontSize: 13, color: '#ff9800' }} />
                       )}
                     </Box>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#ff9800', fontSize: '1.25rem' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#ff9800', fontSize: '1.2rem' }}>
                       {formatCurrency(selectedCustomer.overdueDebt)}
                     </Typography>
                   </Box>
@@ -846,17 +1170,6 @@ const DebtManagement = () => {
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <PaymentIcon sx={{ fontSize: 18 }} />
                           Hóa đơn chưa thanh toán
-                          <Badge 
-                            badgeContent={unpaidInvoices.length} 
-                            color="error"
-                            sx={{
-                              '& .MuiBadge-badge': {
-                                fontSize: '0.65rem',
-                                height: 18,
-                                minWidth: 18,
-                              }
-                            }}
-                          />
                         </Box>
                       }
                     />
@@ -871,83 +1184,125 @@ const DebtManagement = () => {
                     />
                   </Tabs>
 
-                  <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                    {selectedTab === 'invoices' ? (
+                  <Box sx={{ 
+                    mt: 2,
+                    width: '100%',
+                  }}>
+                    {isLoadingDetail ? (
+                      <Box sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        minHeight: 400,
+                        flexDirection: 'column',
+                        gap: 2
+                      }}>
+                        <CircularProgress size={40} />
+                        <Typography variant="body2" sx={{ color: '#999' }}>
+                          Đang tải dữ liệu...
+                        </Typography>
+                      </Box>
+                    ) : selectedTab === 'invoices' ? (
                       <DataGrid
-                        rows={unpaidInvoices}
+                        rows={invoices}
                         columns={invoiceColumns}
                         disableRowSelectionOnClick
-                        hideFooter={unpaidInvoices.length <= 10}
+                        loading={isLoadingDetail}
+                        paginationMode="server"
+                        rowCount={invoicePagination.totalCount}
+                        paginationModel={{
+                          page: invoicePagination.pageIndex - 1, // MUI uses 0-based, API uses 1-based
+                          pageSize: invoicePagination.pageSize,
+                        }}
+                        onPaginationModelChange={(model) => {
+                          setInvoicePagination(prev => ({
+                            ...prev,
+                            pageIndex: model.page + 1, // Convert back to 1-based
+                            pageSize: model.pageSize,
+                          }))
+                        }}
+                        pageSizeOptions={[5, 10, 25, 50]}
                         sx={{
                           border: 'none',
-                          flex: 1,
                           '& .MuiDataGrid-cell': {
-                            borderColor: '#f5f5f5',
-                            fontSize: '0.875rem',
-                            py: 1.5,
+                            borderBottom: '1px solid #f0f0f0',
                           },
                           '& .MuiDataGrid-columnHeaders': {
                             backgroundColor: '#f8f9fa',
-                            fontWeight: 600,
-                            fontSize: '0.8125rem',
-                            color: '#666',
                             borderBottom: '2px solid #e0e0e0',
+                            fontWeight: 600,
                           },
-                          '& .MuiDataGrid-row': {
-                            '&:hover': {
-                              backgroundColor: '#f9fafb',
-                              cursor: 'pointer',
-                            },
-                            '&:nth-of-type(even)': {
-                              backgroundColor: '#fafbfc',
-                            },
+                          '& .MuiDataGrid-row:hover': {
+                            backgroundColor: '#f8f9fa',
                           },
                           '& .MuiDataGrid-footerContainer': {
                             borderTop: '2px solid #e0e0e0',
+                            backgroundColor: '#fafafa',
+                            minHeight: '56px',
+                            padding: '8px 16px',
+                          },
+                          '& .MuiTablePagination-root': {
+                            overflow: 'visible',
+                          },
+                          '& .MuiTablePagination-toolbar': {
+                            minHeight: '56px',
+                            paddingLeft: '16px',
+                            paddingRight: '8px',
                           },
                         }}
                       />
                     ) : (
-                      <DataGrid
+                        <DataGrid
                         rows={paymentHistory}
                         columns={historyColumns}
                         disableRowSelectionOnClick
-                        hideFooter={paymentHistory.length <= 10}
+                        loading={isLoadingDetail}
+                        paginationMode="server"
+                        rowCount={paymentPagination.totalCount}
+                        paginationModel={{
+                          page: paymentPagination.pageIndex - 1, // MUI uses 0-based, API uses 1-based
+                          pageSize: paymentPagination.pageSize,
+                        }}
+                        onPaginationModelChange={(model) => {
+                          setPaymentPagination(prev => ({
+                            ...prev,
+                            pageIndex: model.page + 1, // Convert back to 1-based
+                            pageSize: model.pageSize,
+                          }))
+                        }}
+                        pageSizeOptions={[5, 10, 25, 50]}
                         sx={{
                           border: 'none',
-                          flex: 1,
                           '& .MuiDataGrid-cell': {
-                            borderColor: '#f5f5f5',
-                            fontSize: '0.875rem',
-                            py: 1.5,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
+                            borderBottom: '1px solid #f0f0f0',
                           },
                           '& .MuiDataGrid-columnHeaders': {
                             backgroundColor: '#f8f9fa',
-                            fontWeight: 600,
-                            fontSize: '0.8125rem',
-                            color: '#666',
                             borderBottom: '2px solid #e0e0e0',
+                            fontWeight: 600,
                           },
-                          '& .MuiDataGrid-row': {
-                            '&:hover': {
-                              backgroundColor: '#f9fafb',
-                              cursor: 'pointer',
-                            },
-                            '&:nth-of-type(even)': {
-                              backgroundColor: '#fafbfc',
-                            },
+                          '& .MuiDataGrid-row:hover': {
+                            backgroundColor: '#f8f9fa',
                           },
                           '& .MuiDataGrid-footerContainer': {
                             borderTop: '2px solid #e0e0e0',
+                            backgroundColor: '#fafafa',
+                            minHeight: '56px',
+                            padding: '8px 16px',
+                          },
+                          '& .MuiTablePagination-root': {
+                            overflow: 'visible',
+                          },
+                          '& .MuiTablePagination-toolbar': {
+                            minHeight: '56px',
+                            paddingLeft: '16px',
+                            paddingRight: '8px',
                           },
                         }}
                       />
                     )}
                   </Box>
-                </Paper>
+              </Paper>
               )}
 
           {/* Payment Modal */}
@@ -1003,80 +1358,130 @@ const DebtManagement = () => {
                     </Stack>
                   </Alert>
 
-                  {/* Payment Amount */}
+                  {/* Payment Amount with VN formatting */}
                   <TextField
                     fullWidth
+                    required
                     label="Số tiền thanh toán"
-                    type="number"
-                    value={paymentData.amount}
-                    onChange={(e) =>
-                      setPaymentData({ ...paymentData, amount: parseFloat(e.target.value) || 0 })
-                    }
+                    type="text"
+                    value={paymentData.amount ? formatNumberInput(paymentData.amount.toString()) : ''}
+                    onChange={(e) => {
+                      const parsedAmount = parseFormattedNumber(e.target.value)
+                      setPaymentData({ ...paymentData, amount: parsedAmount })
+                      // Clear error on change
+                      if (formErrors.amount) {
+                        setFormErrors({ ...formErrors, amount: '' })
+                      }
+                    }}
                     InputProps={{
                       endAdornment: <InputAdornment position="end">VNĐ</InputAdornment>,
                     }}
                     helperText={
-                      paymentData.amount < selectedInvoice.remainingAmount
-                        ? '⚠️ Thanh toán một phần - Hóa đơn sẽ chuyển sang trạng thái "Đã trả 1 phần"'
+                      formErrors.amount ||
+                      (paymentData.amount > 0 && paymentData.amount < selectedInvoice.remainingAmount
+                        ? '⚠️ Thanh toán một phần - Hóa đơn sẽ chuyển sang trạng thái "Trả một phần"'
                         : paymentData.amount === selectedInvoice.remainingAmount
-                        ? '✓ Thanh toán đầy đủ - Hóa đơn sẽ chuyển sang trạng thái "Đã thanh toán"'
-                        : ''
+                        ? '✓ Thanh toán đầy đủ - Hóa đơn sẽ chuyển sang trạng thái "Trả toàn bộ"'
+                        : 'Ví dụ: 1.000.000 (dùng dấu chấm phân cách nghìn)')
                     }
-                    error={paymentData.amount > selectedInvoice.remainingAmount}
+                    error={!!formErrors.amount || (paymentData.amount > selectedInvoice.remainingAmount)}
+                    placeholder="Ví dụ: 1.000.000"
                   />
 
                   {/* Payment Date */}
                   <DatePicker
                     label="Ngày thanh toán"
                     value={paymentData.date}
-                    onChange={(newValue) => setPaymentData({ ...paymentData, date: newValue || dayjs() })}
+                    onChange={(newValue) => {
+                      setPaymentData({ ...paymentData, date: newValue || dayjs() })
+                      // Clear error on change
+                      if (formErrors.date) {
+                        setFormErrors({ ...formErrors, date: '' })
+                      }
+                    }}
                     slotProps={{
                       textField: {
                         fullWidth: true,
+                        required: true,
+                        error: !!formErrors.date,
+                        helperText: formErrors.date || 'Chọn ngày thực hiện thanh toán',
                       },
                     }}
                   />
 
                   {/* Payment Method */}
-                  <FormControl fullWidth>
+                  <FormControl fullWidth required error={!!formErrors.method}>
                     <InputLabel>Hình thức thanh toán</InputLabel>
                     <Select
                       value={paymentData.method}
                       label="Hình thức thanh toán"
-                      onChange={(e) =>
-                        setPaymentData({ ...paymentData, method: e.target.value as 'Transfer' | 'Cash' })
-                      }
+                      onChange={(e) => {
+                        setPaymentData({ ...paymentData, method: e.target.value })
+                        // Clear error on change
+                        if (formErrors.method) {
+                          setFormErrors({ ...formErrors, method: '' })
+                        }
+                      }}
                     >
-                      <MenuItem value="Transfer">Chuyển khoản</MenuItem>
-                      <MenuItem value="Cash">Tiền mặt</MenuItem>
+                      <MenuItem value={PAYMENT_METHODS.BANK_TRANSFER}>Chuyển khoản ngân hàng</MenuItem>
+                      <MenuItem value={PAYMENT_METHODS.CASH}>Tiền mặt</MenuItem>
+                      <MenuItem value={PAYMENT_METHODS.CREDIT_CARD}>Thẻ tín dụng</MenuItem>
+                      <MenuItem value={PAYMENT_METHODS.DEBIT_CARD}>Thẻ ghi nợ</MenuItem>
+                      <MenuItem value={PAYMENT_METHODS.EWALLET}>Ví điện tử</MenuItem>
+                      <MenuItem value={PAYMENT_METHODS.CHECK}>Séc</MenuItem>
+                      <MenuItem value={PAYMENT_METHODS.OTHER}>Khác</MenuItem>
                     </Select>
+                    {formErrors.method && (
+                      <Typography variant="caption" sx={{ color: '#d32f2f', mt: 0.5, ml: 1.75 }}>
+                        {formErrors.method}
+                      </Typography>
+                    )}
                   </FormControl>
 
-                  {/* Note */}
+                  {/* Transaction Code */}
                   <TextField
                     fullWidth
-                    label="Ghi chú"
+                    required
+                    label="Mã giao dịch"
+                    value={paymentData.transactionCode}
+                    onChange={(e) => {
+                      setPaymentData({ ...paymentData, transactionCode: e.target.value })
+                      // Clear error on change
+                      if (formErrors.transactionCode) {
+                        setFormErrors({ ...formErrors, transactionCode: '' })
+                      }
+                    }}
+                    placeholder="VD: TXN123456, REF789..."
+                    helperText={formErrors.transactionCode || 'Mã tham chiếu giao dịch ngân hàng, mã chuyển khoản'}
+                    error={!!formErrors.transactionCode}
+                  />
+
+                  {/* Note (Optional) */}
+                  <TextField
+                    fullWidth
+                    label="Ghi chú (Tùy chọn)"
                     multiline
                     rows={3}
                     value={paymentData.note}
                     onChange={(e) => setPaymentData({ ...paymentData, note: e.target.value })}
                     placeholder="Ví dụ: Thanh toán đợt 1, thanh toán theo hợp đồng..."
+                    helperText="Thông tin bổ sung về khoản thanh toán này (không bắt buộc)"
                   />
                 </Stack>
               )}
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 3 }}>
-              <Button onClick={() => setPaymentModalOpen(false)} sx={{ textTransform: 'none' }}>
+              <Button 
+                onClick={() => setPaymentModalOpen(false)} 
+                sx={{ textTransform: 'none' }}
+                disabled={isSubmitting}
+              >
                 Hủy
               </Button>
               <Button
                 variant="contained"
                 onClick={handlePaymentSubmit}
-                disabled={
-                  !selectedInvoice ||
-                  paymentData.amount <= 0 ||
-                  paymentData.amount > selectedInvoice.remainingAmount
-                }
+                disabled={isSubmitting}
                 sx={{
                   textTransform: 'none',
                   fontWeight: 600,
@@ -1088,7 +1493,14 @@ const DebtManagement = () => {
                   },
                 }}
               >
-                Xác nhận thanh toán
+                {isSubmitting ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CircularProgress size={20} sx={{ color: 'white' }} />
+                    <span>Đang xử lý...</span>
+                  </Box>
+                ) : (
+                  'Xác nhận thanh toán'
+                )}
               </Button>
             </DialogActions>
           </Dialog>
@@ -1108,6 +1520,8 @@ const DebtManagement = () => {
               {snackbar.message}
             </Alert>
           </Snackbar>
+            </Box>
+          )}
         </Box>
       </Box>
     </LocalizationProvider>

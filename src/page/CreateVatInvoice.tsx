@@ -31,6 +31,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Tooltip,
 } from '@mui/material'
 import {
   HelpOutline,
@@ -733,7 +734,41 @@ const DiscountAmountEditCell = (params: GridRenderEditCellParams) => {
   )
 }
 
-
+/**
+ * CreateVatInvoice Component
+ * 
+ * 📋 Chức năng: Tạo hóa đơn GTGT (Giá trị gia tăng) mới với đầy đủ tính năng:
+ * 
+ * ✅ Các tính năng chính:
+ * - Chọn mẫu hóa đơn (template) từ danh sách có sẵn
+ * - Nhập thông tin người mua (có thể chọn từ DB hoặc nhập tay)
+ * - Thêm/sửa/xóa sản phẩm/dịch vụ với tính VAT riêng biệt
+ * - Tự động tính toán: tổng tiền, VAT, chiết khấu
+ * - Lưu nháp (invoiceStatusID = 1)
+ * - Gửi duyệt (invoiceStatusID = 6)
+ * - Preview hóa đơn trước khi lưu
+ * - Gửi email hóa đơn nháp
+ * 
+ * 📊 Quy trình cấp số hóa đơn:
+ * 1. Tạo mới/Lưu nháp → invoiceNumber = 0 (chưa có số)
+ * 2. Sau khi ký số → Backend tự động cấp số duy nhất
+ * 3. Sau khi gửi CQT → Nhận mã cơ quan thuế (taxAuthorityCode)
+ * 
+ * ⚠️ Lưu ý quan trọng:
+ * - Số hóa đơn (invoiceNumber) chỉ được cấp SAU KHI KÝ SỐ
+ * - Hóa đơn nháp có invoiceNumber = 0 hoặc NULL
+ * - Để ký số: Vào trang danh sách → Chọn hóa đơn → Nhấn "Ký số"
+ * - Giá sản phẩm nhập vào là giá CHƯA thuế (calculateAfterTax = false)
+ * - Mỗi sản phẩm có thể có thuế suất VAT khác nhau (0%, 5%, 8%, 10%)
+ * 
+ * 🔗 API liên quan:
+ * - POST /api/Invoice - Tạo hóa đơn mới
+ * - POST /api/Invoice/{id}/sign - Ký số hóa đơn (cấp số tự động)
+ * - POST /api/Tax/submit - Gửi hóa đơn lên CQT
+ * 
+ * @component
+ * @returns {JSX.Element} Form tạo hóa đơn GTGT
+ */
 const CreateVatInvoice: React.FC = () => {
   const navigate = useNavigate()
 
@@ -1275,11 +1310,13 @@ const CreateVatInvoice: React.FC = () => {
   // ⭐ Handler chung để xử lý submit
   const handleSubmitInvoice = async (invoiceStatusID: number, statusLabel: string) => {
     try {
-      // Validate
+      // ========== VALIDATION ==========
+      
+      // 1. Validate template
       if (!selectedTemplate) {
         setSnackbar({
           open: true,
-          message: 'Vui lòng chọn mẫu hóa đơn',
+          message: '⚠️ Vui lòng chọn mẫu hóa đơn',
           severity: 'warning'
         })
         return
@@ -1289,31 +1326,71 @@ const CreateVatInvoice: React.FC = () => {
       if (!selectedTemplate.templateID || selectedTemplate.templateID <= 0) {
         setSnackbar({
           open: true,
-          message: `Template không hợp lệ (ID: ${selectedTemplate.templateID}). Vui lòng chọn template khác.`,
+          message: `❌ Template không hợp lệ (ID: ${selectedTemplate.templateID}). Vui lòng chọn template khác.`,
           severity: 'error'
         })
         console.error('❌ Invalid template:', selectedTemplate)
         return
       }
 
+      // 2. Validate buyer information
       if (!buyerCompanyName || !buyerAddress) {
         setSnackbar({
           open: true,
-          message: 'Vui lòng điền tên đơn vị và địa chỉ người mua',
+          message: '⚠️ Vui lòng điền đầy đủ Tên đơn vị và Địa chỉ người mua',
           severity: 'warning'
         })
         return
       }
 
+      if (!buyerTaxCode || buyerTaxCode.trim() === '') {
+        setSnackbar({
+          open: true,
+          message: '⚠️ Vui lòng nhập Mã số thuế người mua',
+          severity: 'warning'
+        })
+        return
+      }
+
+      // 3. Validate items
       if (items.length === 0) {
         setSnackbar({
           open: true,
-          message: 'Vui lòng thêm ít nhất một sản phẩm',
+          message: '⚠️ Vui lòng thêm ít nhất một sản phẩm/dịch vụ',
           severity: 'warning'
         })
         return
       }
 
+      // Validate từng item có đầy đủ thông tin
+      const invalidItems = items.filter(item => 
+        !item.name || 
+        !item.unit || 
+        item.quantity <= 0 || 
+        item.priceAfterTax <= 0
+      )
+
+      if (invalidItems.length > 0) {
+        setSnackbar({
+          open: true,
+          message: `⚠️ Có ${invalidItems.length} sản phẩm chưa điền đầy đủ thông tin (Tên, Đơn vị, Số lượng, Đơn giá)`,
+          severity: 'warning'
+        })
+        return
+      }
+
+      // 4. Validate totals
+      if (totals.total <= 0) {
+        setSnackbar({
+          open: true,
+          message: '⚠️ Tổng tiền phải lớn hơn 0',
+          severity: 'warning'
+        })
+        return
+      }
+
+      // ========== SUBMIT ==========
+      
       setIsSubmitting(true)
 
       // Map frontend state sang backend request
@@ -1344,24 +1421,60 @@ const CreateVatInvoice: React.FC = () => {
 
       console.log('✅ Invoice created:', response)
 
+      // ⭐ Hiển thị thông báo chi tiết với invoiceID và hướng dẫn
+      const successMessage = invoiceStatusID === 1
+        ? `✅ Lưu hóa đơn nháp thành công! (ID: ${response.invoiceID})\n💡 Số hóa đơn sẽ được cấp sau khi ký số tại trang danh sách hóa đơn.`
+        : `✅ Gửi hóa đơn chờ duyệt thành công! (ID: ${response.invoiceID})\n📋 Hóa đơn đang chờ phê duyệt từ quản lý.`
+
       setSnackbar({
         open: true,
-        message: `${statusLabel} thành công!`,
+        message: successMessage,
         severity: 'success'
       })
 
-      // Navigate to invoice list after 1 second
+      // Navigate to invoice list after 2 seconds (để user đọc message)
       setTimeout(() => {
         navigate('/invoices')
-      }, 1000)
+      }, 2000)
 
     } catch (error: unknown) {
       console.error('❌ Error creating invoice:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Lỗi khi tạo hóa đơn'
-      const apiError = error as { response?: { data?: { message?: string } } }
+      
+      // Parse error message từ nhiều nguồn
+      let errorMessage = 'Lỗi khi tạo hóa đơn'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      }
+      
+      // Kiểm tra response error từ API
+      const apiError = error as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } }
+      
+      if (apiError.response?.data) {
+        // Nếu có message cụ thể từ backend
+        if (apiError.response.data.message) {
+          errorMessage = apiError.response.data.message
+        }
+        
+        // Nếu có validation errors từ backend
+        if (apiError.response.data.errors) {
+          const validationErrors = Object.entries(apiError.response.data.errors)
+            .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
+            .join('\n')
+          errorMessage = `Validation errors:\n${validationErrors}`
+        }
+        
+        // Log chi tiết để debug
+        console.error('🔍 API Error Details:', {
+          status: apiError.response,
+          data: apiError.response.data,
+          fullError: error
+        })
+      }
+      
       setSnackbar({
         open: true,
-        message: apiError.response?.data?.message || errorMessage,
+        message: `❌ ${errorMessage}`,
         severity: 'error'
       })
     } finally {
@@ -1689,13 +1802,46 @@ const CreateVatInvoice: React.FC = () => {
                     size="small"
                     fullWidth
                     disabled
+                    value="<Chưa cấp số>"
                     placeholder="<Chưa cấp số>"
                     variant="outlined"
-                    sx={{ fontSize: '0.8125rem' }}
+                    sx={{ 
+                      fontSize: '0.8125rem',
+                      '& .MuiInputBase-input.Mui-disabled': {
+                        WebkitTextFillColor: '#999',
+                        fontStyle: 'italic',
+                        cursor: 'not-allowed',
+                      },
+                      '& .MuiOutlinedInput-root.Mui-disabled': {
+                        backgroundColor: '#f5f5f5',
+                      }
+                    }}
                     InputProps={{
                       endAdornment: (
                         <InputAdornment position="end">
-                          <Info fontSize="small" sx={{ color: '#1976d2' }} />
+                          <Tooltip 
+                            title={
+                              <Box sx={{ p: 0.5 }}>
+                                <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+                                  📋 Quy trình cấp số hóa đơn:
+                                </Typography>
+                                <Typography variant="caption" sx={{ display: 'block', mb: 0.3 }}>
+                                  • Hóa đơn nháp: Chưa có số
+                                </Typography>
+                                <Typography variant="caption" sx={{ display: 'block', mb: 0.3 }}>
+                                  • Sau khi ký số: Tự động cấp số
+                                </Typography>
+                                <Typography variant="caption" sx={{ display: 'block', color: '#ffa726' }}>
+                                  ⚠️ Số hóa đơn do hệ thống cấp, không thể chỉnh sửa
+                                </Typography>
+                              </Box>
+                            }
+                            arrow
+                            placement="top"
+                            enterDelay={300}
+                          >
+                            <Info fontSize="small" sx={{ color: '#1976d2', cursor: 'help' }} />
+                          </Tooltip>
                         </InputAdornment>
                       ),
                     }}

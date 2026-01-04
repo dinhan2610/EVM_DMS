@@ -47,6 +47,13 @@ export const API_CONFIG = {
       SIGN: (id: number) => `/Invoice/${id}/sign`,
       SEND_EMAIL: (id: number) => `/Invoice/${id}/send-email`,
     },
+    PAYMENT: {
+      CREATE: '/Payment',
+      GET_ALL: '/Payment',
+      GET_BY_ID: (id: number) => `/Payment/${id}`,
+      GET_BY_INVOICE: (invoiceId: number) => `/Payment?InvoiceId=${invoiceId}`,
+      GET_BY_CUSTOMER: (customerId: number) => `/Payment?CustomerId=${customerId}`,
+    },
   },
   
   HTTP_STATUS: {
