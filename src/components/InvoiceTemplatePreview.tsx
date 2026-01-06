@@ -166,14 +166,28 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
               backgroundRepeat: 'no-repeat',
               margin: '0 auto',
               padding: '2cm 1.5cm',
-              width: '234mm',
-              minHeight: '320mm',
+              width: '100%',
+              maxWidth: '234mm', // A4 width
+              minHeight: '320mm', // A4 height + margins
               boxSizing: 'border-box',
               bgcolor: 'white',
               overflow: 'visible',
               display: 'flex',
               flexDirection: 'column',
               position: 'relative',
+              // Responsive: scale down on smaller screens
+              '@media print': {
+                width: '210mm',
+                maxWidth: '210mm',
+                padding: '1.5cm 1cm',
+                boxShadow: 'none',
+              },
+              '@media (max-width: 900px)': {
+                width: '100%',
+                maxWidth: '100%',
+                padding: '1.5rem 1rem',
+                minHeight: 'auto',
+              },
             }}
           >
             {/* ✅ Watermark "BẢN NHÁP" nếu chưa có invoice number */}

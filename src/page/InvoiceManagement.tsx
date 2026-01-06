@@ -37,6 +37,7 @@ import CancelIcon from '@mui/icons-material/Cancel'
 import { Link, useNavigate } from 'react-router-dom'
 import { Snackbar, Alert } from '@mui/material'
 import InvoiceFilter, { InvoiceFilterState } from '@/components/InvoiceFilter'
+import InvoicePreviewModal from '@/components/invoices/InvoicePreviewModal'
 import invoiceService, { InvoiceListItem } from '@/services/invoiceService'
 import templateService from '@/services/templateService'
 import customerService from '@/services/customerService'
@@ -500,6 +501,13 @@ const InvoiceManagement = () => {
   const [isSigningInvoice, setIsSigningInvoice] = useState(false)
   const signingInProgress = useRef<Set<number>>(new Set())
   
+  // State quản lý preview modal
+  const [previewModal, setPreviewModal] = useState({
+    open: false,
+    invoiceId: 0,
+    invoiceNumber: '',
+  })
+  
   // State quản lý bộ lọc - sử dụng InvoiceFilterState
   const [filters, setFilters] = useState<InvoiceFilterState>({
     searchText: '',
@@ -857,21 +865,13 @@ const InvoiceManagement = () => {
     }
   }
 
-  // 🆕 Handler in hóa đơn (Print HTML Preview)
-  const handlePrintInvoice = async (invoiceId: string, invoiceNumber: string) => {
-    try {
-      console.log(`🖨️ Đang mở cửa sổ in cho hóa đơn ${invoiceNumber}...`)
-      
-      await invoiceService.printInvoiceHTML(parseInt(invoiceId))
-      
-      console.log('✅ Đã mở cửa sổ in')
-    } catch (err) {
-      setSnackbar({
-        open: true,
-        message: `❌ Không thể mở cửa sổ in.\n${err instanceof Error ? err.message : 'Vui lòng cho phép popup.'}`,
-        severity: 'error',
-      })
-    }
+  // 🆕 Handler xem preview & in hóa đơn (sử dụng modal)
+  const handlePrintInvoice = (invoiceId: string, invoiceNumber: string) => {
+    setPreviewModal({
+      open: true,
+      invoiceId: parseInt(invoiceId),
+      invoiceNumber: invoiceNumber,
+    })
   }
 
   // 🆕 Handler tải xuống PDF
@@ -1354,6 +1354,14 @@ const InvoiceManagement = () => {
             {snackbar.message}
           </Alert>
         </Snackbar>
+
+        {/* Invoice Preview Modal */}
+        <InvoicePreviewModal
+          open={previewModal.open}
+          onClose={() => setPreviewModal({ ...previewModal, open: false })}
+          invoiceId={previewModal.invoiceId}
+          invoiceNumber={previewModal.invoiceNumber}
+        />
       </Box>
     </Box>
   </LocalizationProvider>

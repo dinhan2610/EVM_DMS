@@ -6,13 +6,12 @@ import {
   Stack,
   Chip,
   Alert,
- 
-  
+  CircularProgress,
 } from '@mui/material'
 import {
   
   Print,
-  
+  Download,
   ArrowBack,
   CheckCircle,
   Warning,
@@ -20,7 +19,7 @@ import {
 } from '@mui/icons-material'
 import { useParams, useNavigate } from 'react-router-dom'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
-
+import InvoicePreviewModal from '@/components/invoices/InvoicePreviewModal'
 import Spinner from '@/components/Spinner'
 import invoiceService, { InvoiceListItem, INVOICE_STATUS } from '@/services/invoiceService'
 import templateService, { TemplateResponse } from '@/services/templateService'
@@ -82,8 +81,8 @@ const mapInvoiceToProducts = (invoice: InvoiceListItem): ProductItem[] => {
       quantity: item.quantity,
       unitPrice: unitPrice,
       total: item.amount,
-      vatRate: vatRate, // ✅ Tính từ vatAmount
-      vatAmount: item.vatAmount, // ✅ Từ backend
+      vatRate: vatRate,
+      vatAmount: item.vatAmount,
     }
   })
 }
@@ -113,7 +112,7 @@ const mapCustomerToCustomerInfo = (customer: Customer, invoice?: InvoiceListItem
     taxCode: customer.taxCode,
     address: customer.address,
     phone: customer.contactPhone,
-    buyerName: invoice?.contactPerson || '',  // ✅ Lấy từ invoice.contactPerson
+    buyerName: invoice?.contactPerson || '',
   }
 }
 
@@ -128,16 +127,20 @@ const InvoiceDetail: React.FC = () => {
   const [company, setCompany] = useState<Company | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
   
+  const [htmlPreview, setHtmlPreview] = useState<string>('')
+  const [loadingHtml, setLoadingHtml] = useState(false)
+  const [useHtmlView, setUseHtmlView] = useState(true)
 
   // Derived data
   const status = invoice ? (INVOICE_STATUS[invoice.invoiceStatusID] as InvoiceStatus) : 'Nháp'
   const taxStatus: TaxStatus = invoice?.taxAuthorityCode ? 'Đã đồng bộ' : 'Chờ đồng bộ'
+  const isIssuedInvoice = invoice && invoice.invoiceNumber > 0
   const products = invoice ? mapInvoiceToProducts(invoice) : []
   const templateConfig = template ? mapTemplateToConfig(template, company) : null
-  const customerInfo = customer && invoice ? mapCustomerToCustomerInfo(customer, invoice) : null  // ✅ Truyền thêm invoice
+  const customerInfo = customer && invoice ? mapCustomerToCustomerInfo(customer, invoice) : null
   
-  // ✅ Calculate totals from invoice data (matching CreateVatInvoice logic)
   const invoiceTotals = invoice ? {
     subtotal: invoice.subtotalAmount,
     discount: 0, // Backend không trả discount riêng
@@ -170,6 +173,39 @@ const InvoiceDetail: React.FC = () => {
         const templateData = await templateService.getTemplateById(invoiceData.templateID)
         setTemplate(templateData)
         
+        if (invoiceData.invoiceNumber > 0 && useHtmlView) {
+          setLoadingHtml(true)
+          try {
+            let html = await invoiceService.getInvoiceHTML(Number(id))
+            
+            const cssOverride = `
+              <style>
+                .page-container {
+                  width: 209mm !important;
+                }
+              </style>
+            `
+            
+            // Insert CSS before </head> tag, or before </body> if no </head>
+            if (html.includes('</head>')) {
+              html = html.replace('</head>', `${cssOverride}</head>`)
+            } else if (html.includes('</body>')) {
+              html = html.replace('</body>', `${cssOverride}</body>`)
+            } else {
+              // Fallback: append to end
+              html += cssOverride
+            }
+            
+            setHtmlPreview(html)
+            console.log('✅ [InvoiceDetail] HTML preview loaded with CSS override (width: 209mm)')
+          } catch (htmlError) {
+            console.error('⚠️ [InvoiceDetail] HTML preview failed, fallback to React:', htmlError)
+            setUseHtmlView(false) // Fallback to React component
+          } finally {
+            setLoadingHtml(false)
+          }
+        }
+        
         // Load customer data
         const customers = await getAllCustomers()
         const matchedCustomer = customers.find(c => c.customerID === invoiceData.customerID)
@@ -188,32 +224,29 @@ const InvoiceDetail: React.FC = () => {
     }
 
     fetchInvoiceDetail()
-  }, [id])
-
-  
-  
+  }, [id, useHtmlView])
 
   const handlePrint = () => {
-    window.print()
+    if (isIssuedInvoice && useHtmlView && htmlPreview) {
+      const printWindow = window.open('', '_blank')
+      if (printWindow) {
+        printWindow.document.write(htmlPreview)
+        printWindow.document.close()
+        printWindow.onload = () => {
+          printWindow.print()
+        }
+      } else {
+        alert('❌ Popup bị chặn. Vui lòng cho phép popup.')
+      }
+    } else {
+      window.print()
+    }
   }
-
-  
-
- 
-
-  
-
-  
-     
-  
-
-  
 
   const handleBack = () => {
     navigate('/invoices')
   }
 
-  // Loading state
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
@@ -233,9 +266,17 @@ const InvoiceDetail: React.FC = () => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      {/* Header - Giống TemplatePreview */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+    <>
+      <Box 
+        sx={{ 
+          p: 3,
+          width: '100%',
+          maxWidth: '100vw',
+          overflow: 'hidden',
+          boxSizing: 'border-box',
+        }}
+      >
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
           <Box>
             <Typography variant="h4" sx={{ fontWeight: 600, fontSize: '1.75rem', mb: 0.5 }}>
               Chi tiết Hóa đơn
@@ -258,7 +299,6 @@ const InvoiceDetail: React.FC = () => {
             </Stack>
           </Box>
           
-          {/* Action Buttons - Giống TemplatePreview */}
           <Stack direction="row" spacing={1.5}>
             <Button
               variant="outlined"
@@ -267,6 +307,33 @@ const InvoiceDetail: React.FC = () => {
               sx={{ textTransform: 'none' }}>
               Quay lại
             </Button>
+            
+            {isIssuedInvoice && htmlPreview && (
+              <Button
+                variant="outlined"
+                onClick={() => setUseHtmlView(!useHtmlView)}
+                sx={{ textTransform: 'none' }}
+                size="small">
+                {useHtmlView ? '📄 Xem React' : '📋 Xem PDF'}
+              </Button>
+            )}
+            
+            {isIssuedInvoice && (
+              <Button
+                variant="outlined"
+                startIcon={<Download />}
+                onClick={async () => {
+                  try {
+                    await invoiceService.saveInvoicePDF(invoice.invoiceID, invoice.invoiceNumber)
+                  } catch (err) {
+                    alert('Không thể tải PDF: ' + (err instanceof Error ? err.message : 'Unknown'))
+                  }
+                }}
+                sx={{ textTransform: 'none' }}>
+                Tải PDF
+              </Button>
+            )}
+            
             <Button
               variant="contained"
               startIcon={<Print />}
@@ -277,39 +344,111 @@ const InvoiceDetail: React.FC = () => {
           </Stack>
       </Stack>
 
-      {/* Preview Content - GIỐNG 100% TemplatePreview */}
-      <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-        <Box sx={{ maxWidth: '21cm', width: '100%' }}>
-          <InvoiceTemplatePreview
-            config={templateConfig}
-            products={products}
-            totals={invoiceTotals} // ✅ Truyền totals đã tính từ invoice data
-            blankRows={5}
-            visibility={DEFAULT_TEMPLATE_VISIBILITY}
-            bilingual={false}
-            invoiceDate={invoice.createdAt}
-            invoiceType="withCode"
-            symbol={DEFAULT_INVOICE_SYMBOL}
-            customerVisibility={{
-              customerName: true,
-              customerTaxCode: true,
-              customerAddress: true,
-              customerPhone: true,
-              customerEmail: true,
-              paymentMethod: true,
-            }}
-            customerInfo={customerInfo || undefined}
-            paymentMethod={invoice.paymentMethod}
-            invoiceNumber={
-              // ✅ Logic đúng: Chỉ ẩn số nếu là nháp HOẶC invoiceNumber = 0
-              (invoice.invoiceStatusID === INVOICE_INTERNAL_STATUS.DRAFT || !invoice.invoiceNumber || invoice.invoiceNumber === 0) 
-                ? undefined 
-                : invoice.invoiceNumber
-            }
-            taxAuthorityCode={invoice.taxAuthorityCode}
-            backgroundFrame={template?.frameUrl || ''}
-            notes={invoice.notes}
-          />
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'center',
+          width: '100%',
+          overflow: 'hidden', // Prevent horizontal scroll
+        }}
+      >
+        <Box 
+          sx={{ 
+            maxWidth: '21cm',
+            width: '100%',
+            '@media (max-width: 900px)': {
+              maxWidth: '100%',
+              px: 1,
+            },
+          }}
+        >
+          {isIssuedInvoice && useHtmlView && loadingHtml && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}>
+              <Stack alignItems="center" spacing={2}>
+                <CircularProgress />
+                <Typography variant="body2" color="text.secondary">
+                  Đang tải preview chính thức...
+                </Typography>
+              </Stack>
+            </Box>
+          )}
+          
+          {isIssuedInvoice && useHtmlView && !loadingHtml && htmlPreview && (
+            <Box 
+              sx={{ 
+                border: '1px solid #e0e0e0',
+                borderRadius: 1,
+                overflow: 'hidden',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                mb: 2,
+              }}
+            >
+              <Alert severity="info" sx={{ borderRadius: 0 }}>
+                📋 Đang xem preview chính thức (100% giống PDF). Click "📄 Xem React" để xem giao diện tương tác.
+              </Alert>
+              <iframe
+                srcDoc={htmlPreview}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  minHeight: '297mm', // A4 height
+                  border: 'none',
+                  display: 'block',
+                }}
+                title={`Invoice ${invoice.invoiceNumber} Preview`}
+                onLoad={(e) => {
+                  const iframe = e.target as HTMLIFrameElement
+                  if (iframe.contentWindow) {
+                    try {
+                      const contentHeight = iframe.contentWindow.document.body.scrollHeight
+                      iframe.style.height = contentHeight + 'px'
+                    } catch (err) {
+                      console.log('Cannot access iframe content height (CORS):', err)
+                    }
+                  }
+                }}
+              />
+            </Box>
+          )}
+          
+          {(!isIssuedInvoice || !useHtmlView || !htmlPreview) && (
+            <>
+              {isIssuedInvoice && !useHtmlView && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  📄 Đang xem giao diện React (tương tác). Click "📋 Xem PDF" để xem preview chính thức.
+                </Alert>
+              )}
+              <InvoiceTemplatePreview
+                config={templateConfig}
+                products={products}
+                totals={invoiceTotals}
+                blankRows={5}
+                visibility={DEFAULT_TEMPLATE_VISIBILITY}
+                bilingual={false}
+                invoiceDate={invoice.createdAt}
+                invoiceType="withCode"
+                symbol={DEFAULT_INVOICE_SYMBOL}
+                customerVisibility={{
+                  customerName: true,
+                  customerTaxCode: true,
+                  customerAddress: true,
+                  customerPhone: true,
+                  customerEmail: true,
+                  paymentMethod: true,
+                }}
+                customerInfo={customerInfo || undefined}
+                paymentMethod={invoice.paymentMethod}
+                invoiceNumber={
+                  (invoice.invoiceStatusID === INVOICE_INTERNAL_STATUS.DRAFT || !invoice.invoiceNumber || invoice.invoiceNumber === 0) 
+                    ? undefined 
+                    : invoice.invoiceNumber
+                }
+                taxAuthorityCode={invoice.taxAuthorityCode}
+                backgroundFrame={template?.frameUrl || ''}
+                notes={invoice.notes}
+              />
+            </>
+          )}
         </Box>
       </Box>
 
@@ -318,9 +457,18 @@ const InvoiceDetail: React.FC = () => {
        
 
        
-        
       </Box>
-    )
-  }
 
-  export default InvoiceDetail
+      {invoice && invoice.invoiceNumber > 0 && (
+        <InvoicePreviewModal
+          open={showPreviewModal}
+          onClose={() => setShowPreviewModal(false)}
+          invoiceId={invoice.invoiceID}
+          invoiceNumber={invoice.invoiceNumber.toString()}
+        />
+      )}
+    </>
+  )
+}
+
+export default InvoiceDetail
