@@ -1,6 +1,7 @@
 // src/services/customerService.ts
 
 import axios from 'axios';
+import API_CONFIG from '@/config/api.config';
 
 // ============================
 // INTERFACES
@@ -44,10 +45,13 @@ export interface UpdateCustomerRequest {
  * Get authorization headers with JWT token
  */
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem(API_CONFIG.TOKEN_KEY);
+  if (!token) {
+    throw new Error('No authentication token found. Please login again.');
+  }
   return {
+    'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json',
-    ...(token && { Authorization: `Bearer ${token}` }),
   };
 };
 
@@ -58,8 +62,16 @@ const handleApiError = (error: unknown, context: string): never => {
   console.error(`[${context}] Error:`, error);
   
   if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
     const message = error.response?.data?.detail || error.response?.data?.message || error.message;
-    throw new Error(message);
+    
+    if (status === 401) {
+      localStorage.removeItem(API_CONFIG.TOKEN_KEY);
+      window.location.href = '/auth/sign-in';
+      throw new Error('Session expired. Please login again.');
+    }
+    
+    throw new Error(`${context}: ${message}`);
   }
   
   throw error;

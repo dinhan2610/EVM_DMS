@@ -41,6 +41,7 @@ import invoiceService, { InvoiceListItem } from '@/services/invoiceService'
 import templateService from '@/services/templateService'
 import customerService from '@/services/customerService'
 import Spinner from '@/components/Spinner'
+import { useAuthContext } from '@/context/useAuthContext'
 import {
   INVOICE_INTERNAL_STATUS,
   INVOICE_INTERNAL_STATUS_LABELS,
@@ -481,6 +482,7 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onIssue, onRes
 
 const InvoiceManagement = () => {
   const navigate = useNavigate()
+  const authContext = useAuthContext()
   
   // State quản lý data
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -517,6 +519,13 @@ const InvoiceManagement = () => {
     try {
       setLoading(true)
       setError(null)
+      
+      // Check authentication first
+      if (!authContext?.isAuthenticated) {
+        setError('Vui lòng đăng nhập để xem danh sách hóa đơn')
+        navigate('/auth/sign-in')
+        return
+      }
       
       // Load all data in parallel
       const [invoicesData, templatesData, customersData] = await Promise.all([

@@ -68,6 +68,9 @@ export type TemplateResponse = TemplateApiResponse
 const getAuthHeaders = () => {
   const token = localStorage.getItem(API_CONFIG.TOKEN_KEY)
   if (!token) {
+    // Clear any stale auth data
+    localStorage.removeItem(API_CONFIG.TOKEN_KEY);
+    localStorage.removeItem(API_CONFIG.REFRESH_TOKEN_KEY);
     throw new Error('No authentication token found. Please login again.')
   }
   return {

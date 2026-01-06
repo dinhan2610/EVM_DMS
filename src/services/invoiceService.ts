@@ -87,6 +87,10 @@ const getAuthToken = (): string | null => {
 const getAuthHeaders = () => {
   const token = getAuthToken();
   if (!token) {
+    // Clear any stale auth data and redirect to login
+    localStorage.removeItem(API_CONFIG.TOKEN_KEY);
+    localStorage.removeItem(API_CONFIG.REFRESH_TOKEN_KEY);
+    // Redirect will be handled by the calling component
     throw new Error('No authentication token found. Please login again.');
   }
   return {

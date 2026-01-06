@@ -46,6 +46,11 @@ export function AuthProvider({ children }: ChildrenType) {
     }
   }
 
+  // Check if both cookie and localStorage token exist
+  const checkAuthentication = (): boolean => {
+    return hasCookie(authSessionKey) && !!localStorage.getItem('eims_access_token')
+  }
+
   const removeSession = () => {
     deleteCookie(authSessionKey)
     authService.clearAuthData()
@@ -67,7 +72,7 @@ export function AuthProvider({ children }: ChildrenType) {
     <AuthContext.Provider
       value={{
         user,
-        isAuthenticated: hasCookie(authSessionKey),
+        isAuthenticated: checkAuthentication(),
         saveSession,
         removeSession,
         logout,
