@@ -20,6 +20,8 @@ import {
 import { useParams, useNavigate } from 'react-router-dom'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
 import InvoicePreviewModal from '@/components/invoices/InvoicePreviewModal'
+import InvoiceTypeBadge from '@/components/invoices/InvoiceTypeBadge'
+import OriginalInvoiceLink from '@/components/invoices/OriginalInvoiceLink'
 import Spinner from '@/components/Spinner'
 import invoiceService, { InvoiceListItem, INVOICE_STATUS } from '@/services/invoiceService'
 import templateService, { TemplateResponse } from '@/services/templateService'
@@ -136,7 +138,16 @@ const InvoiceDetail: React.FC = () => {
   // Derived data
   const status = invoice ? (INVOICE_STATUS[invoice.invoiceStatusID] as InvoiceStatus) : 'Nháp'
   const taxStatus: TaxStatus = invoice?.taxAuthorityCode ? 'Đã đồng bộ' : 'Chờ đồng bộ'
-  const isIssuedInvoice = invoice && invoice.invoiceNumber > 0
+  
+  // ✨ Xác định xem có nên dùng HTML view không:
+  // - Hóa đơn đã phát hành (invoiceNumber > 0): Dùng HTML
+  // - Hóa đơn điều chỉnh/thay thế/hủy/giải trình (invoiceType > 1): Dùng HTML từ API
+  // - Hóa đơn nháp hoàn toàn mới (invoiceType = 1 && invoiceNumber = 0): Dùng React
+  const isIssuedInvoice = invoice && (
+    invoice.invoiceNumber > 0 || 
+    (invoice.invoiceType && invoice.invoiceType > 1)
+  )
+  
   const products = invoice ? mapInvoiceToProducts(invoice) : []
   const templateConfig = template ? mapTemplateToConfig(template, company) : null
   const customerInfo = customer && invoice ? mapCustomerToCustomerInfo(customer, invoice) : null
@@ -173,7 +184,12 @@ const InvoiceDetail: React.FC = () => {
         const templateData = await templateService.getTemplateById(invoiceData.templateID)
         setTemplate(templateData)
         
-        if (invoiceData.invoiceNumber > 0 && useHtmlView) {
+        // ✨ Load HTML preview cho:
+        // 1. Hóa đơn đã phát hành (invoiceNumber > 0)
+        // 2. Hóa đơn điều chỉnh/thay thế/hủy/giải trình (invoiceType > 1)
+        const shouldLoadHtml = invoiceData.invoiceNumber > 0 || (invoiceData.invoiceType && invoiceData.invoiceType > 1)
+        
+        if (shouldLoadHtml && useHtmlView) {
           setLoadingHtml(true)
           try {
             let html = await invoiceService.getInvoiceHTML(Number(id))
@@ -197,7 +213,8 @@ const InvoiceDetail: React.FC = () => {
             }
             
             setHtmlPreview(html)
-            console.log('✅ [InvoiceDetail] HTML preview loaded with CSS override (width: 209mm)')
+            const typeLabel = invoiceData.invoiceType > 1 ? ` (Type: ${invoiceData.invoiceType})` : ''
+            console.log(`✅ [InvoiceDetail] HTML preview loaded${typeLabel} with CSS override (width: 209mm)`)
           } catch (htmlError) {
             console.error('⚠️ [InvoiceDetail] HTML preview failed, fallback to React:', htmlError)
             setUseHtmlView(false) // Fallback to React component
@@ -296,7 +313,31 @@ const InvoiceDetail: React.FC = () => {
                 color={getTaxStatusColor(taxStatus)}
                 size="small"
               />
+              {invoice.invoiceType && <InvoiceTypeBadge invoiceType={invoice.invoiceType} size="small" />}
             </Stack>
+            
+            {/* Display link to original invoice for adjustment/replacement/cancelled/explanation invoices */}
+            {invoice.originalInvoiceID && (
+              <Box sx={{ mt: 2 }}>
+                <OriginalInvoiceLink 
+                  originalInvoiceID={invoice.originalInvoiceID}
+                  originalInvoiceNumber={invoice.originalInvoiceNumber}
+                  variant="full"
+                />
+              </Box>
+            )}
+            
+            {/* Display adjustment reason if exists */}
+            {invoice.adjustmentReason && (
+              <Alert severity="info" sx={{ mt: 2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  Lý do điều chỉnh:
+                </Typography>
+                <Typography variant="body2">
+                  {invoice.adjustmentReason}
+                </Typography>
+              </Alert>
+            )}
           </Box>
           
           <Stack direction="row" spacing={1.5}>
@@ -465,6 +506,9 @@ const InvoiceDetail: React.FC = () => {
           onClose={() => setShowPreviewModal(false)}
           invoiceId={invoice.invoiceID}
           invoiceNumber={invoice.invoiceNumber.toString()}
+          invoiceType={invoice.invoiceType}
+          originalInvoiceNumber={invoice.originalInvoiceNumber}
+          adjustmentReason={invoice.adjustmentReason || undefined}
         />
       )}
     </>

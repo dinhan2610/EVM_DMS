@@ -38,7 +38,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Snackbar, Alert } from '@mui/material'
 import InvoiceFilter, { InvoiceFilterState } from '@/components/InvoiceFilter'
 import InvoicePreviewModal from '@/components/invoices/InvoicePreviewModal'
-import invoiceService, { InvoiceListItem } from '@/services/invoiceService'
+import InvoiceTypeBadge from '@/components/invoices/InvoiceTypeBadge'
+import OriginalInvoiceLink from '@/components/invoices/OriginalInvoiceLink'
+import invoiceService, { InvoiceListItem, INVOICE_TYPE } from '@/services/invoiceService'
 import templateService from '@/services/templateService'
 import customerService from '@/services/customerService'
 import Spinner from '@/components/Spinner'
@@ -68,6 +70,12 @@ export interface Invoice {
   taxStatus: string // Label trạng thái thuế
   taxStatusCode: string | null // Mã trạng thái (PENDING, TB01, KQ01, etc.)
   amount: number
+  
+  // Invoice type fields
+  invoiceType: number // 1=Gốc, 2=Điều chỉnh, 3=Thay thế, 4=Hủy, 5=Giải trình
+  originalInvoiceID: number | null
+  originalInvoiceNumber?: number
+  adjustmentReason?: string | null
 }
 
 // Mapper từ backend response sang UI format
@@ -114,6 +122,12 @@ const mapInvoiceToUI = (
     taxStatus: taxStatusLabel,
     taxStatusCode: item.taxStatusCode || null,
     amount: item.totalAmount,
+    
+    // Invoice type fields
+    invoiceType: item.invoiceType || INVOICE_TYPE.ORIGINAL,
+    originalInvoiceID: item.originalInvoiceID,
+    originalInvoiceNumber: item.originalInvoiceNumber,
+    adjustmentReason: item.adjustmentReason,
   }
 }
 
@@ -506,6 +520,9 @@ const InvoiceManagement = () => {
     open: false,
     invoiceId: 0,
     invoiceNumber: '',
+    invoiceType: 1,
+    originalInvoiceNumber: undefined as number | undefined,
+    adjustmentReason: undefined as string | undefined,
   })
   
   // State quản lý bộ lọc - sử dụng InvoiceFilterState
@@ -867,10 +884,16 @@ const InvoiceManagement = () => {
 
   // 🆕 Handler xem preview & in hóa đơn (sử dụng modal)
   const handlePrintInvoice = (invoiceId: string, invoiceNumber: string) => {
+    // Tìm invoice để lấy invoiceType
+    const invoice = invoices.find(inv => inv.id === invoiceId)
+    
     setPreviewModal({
       open: true,
       invoiceId: parseInt(invoiceId),
       invoiceNumber: invoiceNumber,
+      invoiceType: invoice?.invoiceType || 1,
+      originalInvoiceNumber: invoice?.originalInvoiceNumber,
+      adjustmentReason: invoice?.adjustmentReason || undefined,
     })
   }
 
@@ -1076,6 +1099,33 @@ const InvoiceManagement = () => {
               }}
             />
           </Tooltip>
+        )
+      },
+    },
+    {
+      field: 'invoiceType',
+      headerName: 'Loại HĐ',
+      flex: 1,
+      minWidth: 140,
+      sortable: true,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams) => {
+        const invoiceType = params.row.invoiceType as number
+        const originalInvoiceID = params.row.originalInvoiceID as number | null
+        const originalInvoiceNumber = params.row.originalInvoiceNumber as number | undefined
+        
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'center' }}>
+            <InvoiceTypeBadge invoiceType={invoiceType} size="small" />
+            {originalInvoiceID && (
+              <OriginalInvoiceLink 
+                originalInvoiceID={originalInvoiceID}
+                originalInvoiceNumber={originalInvoiceNumber}
+                variant="compact"
+              />
+            )}
+          </Box>
         )
       },
     },
@@ -1361,6 +1411,9 @@ const InvoiceManagement = () => {
           onClose={() => setPreviewModal({ ...previewModal, open: false })}
           invoiceId={previewModal.invoiceId}
           invoiceNumber={previewModal.invoiceNumber}
+          invoiceType={previewModal.invoiceType}
+          originalInvoiceNumber={previewModal.originalInvoiceNumber}
+          adjustmentReason={previewModal.adjustmentReason}
         />
       </Box>
     </Box>

@@ -48,6 +48,15 @@ export interface InvoiceListItem {
   contactPerson?: string;        // ✅ Họ tên người mua hàng (buyerName)
   contactEmail?: string;         // Email liên hệ
   contactPhone?: string;         // SĐT liên hệ
+  
+  // ==================== INVOICE TYPE FIELDS ====================
+  invoiceType: number;                  // ✅ 1=Gốc, 2=Điều chỉnh, 3=Thay thế, 4=Hủy, 5=Giải trình
+  originalInvoiceID: number | null;     // ✅ ID hóa đơn gốc (cho HĐ điều chỉnh/thay thế/hủy/giải trình)
+  adjustmentReason: string | null;      // ✅ Lý do điều chỉnh
+  replacementReason?: string | null;    // Lý do thay thế
+  cancellationReason?: string | null;   // Lý do hủy
+  explanationText?: string | null;      // Nội dung giải trình
+  originalInvoiceNumber?: number;       // Số hóa đơn gốc (để hiển thị)
 }
 
 export interface InvoiceItemResponse {
@@ -57,7 +66,58 @@ export interface InvoiceItemResponse {
   quantity: number;
   amount: number;
   vatAmount: number;
+  isAdjustmentItem?: boolean;           // ✅ Đánh dấu item điều chỉnh
 }
+
+// ==================== INVOICE TYPE CONSTANTS ====================
+/**
+ * Loại hóa đơn theo quy định
+ * 1: Hóa đơn gốc (thường)
+ * 2: Hóa đơn điều chỉnh
+ * 3: Hóa đơn thay thế
+ * 4: Hóa đơn hủy
+ * 5: Hóa đơn giải trình
+ */
+export const INVOICE_TYPE = {
+  ORIGINAL: 1,      // Hóa đơn gốc
+  ADJUSTMENT: 2,    // Hóa đơn điều chỉnh
+  REPLACEMENT: 3,   // Hóa đơn thay thế
+  CANCELLED: 4,     // Hóa đơn hủy
+  EXPLANATION: 5,   // Hóa đơn giải trình
+} as const;
+
+export type InvoiceType = typeof INVOICE_TYPE[keyof typeof INVOICE_TYPE];
+
+export const INVOICE_TYPE_LABELS: Record<number, string> = {
+  [INVOICE_TYPE.ORIGINAL]: 'Hóa đơn gốc',
+  [INVOICE_TYPE.ADJUSTMENT]: 'Hóa đơn điều chỉnh',
+  [INVOICE_TYPE.REPLACEMENT]: 'Hóa đơn thay thế',
+  [INVOICE_TYPE.CANCELLED]: 'Hóa đơn hủy',
+  [INVOICE_TYPE.EXPLANATION]: 'Hóa đơn giải trình',
+};
+
+export const INVOICE_TYPE_COLORS: Record<number, string> = {
+  [INVOICE_TYPE.ORIGINAL]: 'default',
+  [INVOICE_TYPE.ADJUSTMENT]: 'warning',
+  [INVOICE_TYPE.REPLACEMENT]: 'info',
+  [INVOICE_TYPE.CANCELLED]: 'error',
+  [INVOICE_TYPE.EXPLANATION]: 'secondary',
+};
+
+// Helper function: Check if invoice has original invoice
+export const hasOriginalInvoice = (invoice: InvoiceListItem): boolean => {
+  return invoice.invoiceType !== INVOICE_TYPE.ORIGINAL && !!invoice.originalInvoiceID;
+};
+
+// Helper function: Get invoice type label
+export const getInvoiceTypeLabel = (invoiceType: number): string => {
+  return INVOICE_TYPE_LABELS[invoiceType] || 'Không xác định';
+};
+
+// Helper function: Get invoice type color
+export const getInvoiceTypeColor = (invoiceType: number): string => {
+  return INVOICE_TYPE_COLORS[invoiceType] || 'default';
+};
 
 // Invoice status mapping
 export const INVOICE_STATUS: Record<number, string> = {
@@ -147,8 +207,10 @@ export const getActiveTemplates = async (): Promise<Template[]> => {
  */
 export const createInvoice = async (data: BackendInvoiceRequest): Promise<BackendInvoiceResponse> => {
   try {
-    console.log('[createInvoice] Request:', data);
-    console.log('[createInvoice] Request JSON:', JSON.stringify(data, null, 2));
+    if (import.meta.env.DEV) {
+      console.log('[createInvoice] Request:', data);
+      console.log('[createInvoice] Request JSON:', JSON.stringify(data, null, 2));
+    }
     
     // ⭐ DEBUGGING: Thử với signedBy = null thay vì 0
     const debugData = {
@@ -158,7 +220,9 @@ export const createInvoice = async (data: BackendInvoiceRequest): Promise<Backen
       // companyID: undefined,
     };
     
-    console.log('[createInvoice] Sending modified request:', debugData);
+    if (import.meta.env.DEV) {
+      console.log('[createInvoice] Sending modified request:', debugData);
+    }
     
     // ⭐ Thử gửi trực tiếp trước
     let response;
@@ -173,7 +237,9 @@ export const createInvoice = async (data: BackendInvoiceRequest): Promise<Backen
       if (axios.isAxiosError(firstError) && 
           firstError.response?.status === 400 && 
           JSON.stringify(firstError.response?.data).includes('command')) {
-        console.log('[createInvoice] Retrying with command wrapper...');
+        if (import.meta.env.DEV) {
+          console.log('[createInvoice] Retrying with command wrapper...');
+        }
         
         // ⭐ Thử wrap trong object "command"
         response = await axios.post<BackendInvoiceResponse>(
@@ -186,14 +252,18 @@ export const createInvoice = async (data: BackendInvoiceRequest): Promise<Backen
       }
     }
     
-    console.log('[createInvoice] Success:', response.data);
+    if (import.meta.env.DEV) {
+      console.log('[createInvoice] Success:', response.data);
+    }
     return response.data;
   } catch (error) {
-    console.error('[createInvoice] Error details:', error);
-    if (axios.isAxiosError(error) && error.response) {
-      console.error('[createInvoice] Response status:', error.response.status);
-      console.error('[createInvoice] Response data:', error.response.data);
-      console.error('[createInvoice] Full error response:', JSON.stringify(error.response.data, null, 2));
+    if (import.meta.env.DEV) {
+      console.error('[createInvoice] Error details:', error);
+      if (axios.isAxiosError(error) && error.response) {
+        console.error('[createInvoice] Response status:', error.response.status);
+        console.error('[createInvoice] Response data:', error.response.data);
+        console.error('[createInvoice] Full error response:', JSON.stringify(error.response.data, null, 2));
+      }
     }
     return handleApiError(error, 'Create invoice failed');
   }
@@ -224,7 +294,9 @@ export const getAllInvoices = async (): Promise<InvoiceListItem[]> => {
     
     return invoicesArray;
   } catch (error) {
-    console.error('[getAllInvoices] Error:', error);
+    if (import.meta.env.DEV) {
+      console.error('[getAllInvoices] Error:', error);
+    }
     return handleApiError(error, 'Get invoices failed');
   }
 };
@@ -281,9 +353,11 @@ export const updateInvoiceStatus = async (
   note?: string
 ): Promise<void> => {
   try {
-    console.log(`[updateInvoiceStatus] Updating invoice ${invoiceId} to status ${statusId}`);
-    if (note) {
-      console.log(`[updateInvoiceStatus] Note: ${note}`);
+    if (import.meta.env.DEV) {
+      console.log(`[updateInvoiceStatus] Updating invoice ${invoiceId} to status ${statusId}`);
+      if (note) {
+        console.log(`[updateInvoiceStatus] Note: ${note}`);
+      }
     }
     
     // ✅ Backend API: PATCH /api/Invoice/{id}/status
@@ -304,11 +378,17 @@ export const updateInvoiceStatus = async (
       { headers: getAuthHeaders() }
     );
     
-    console.log('[updateInvoiceStatus] ✅ Success - Status updated');
+    if (import.meta.env.DEV) {
+      console.log('[updateInvoiceStatus] ✅ Success - Status updated');
+    }
   } catch (error) {
-    console.error('[updateInvoiceStatus] Error:', error);
+    if (import.meta.env.DEV) {
+      console.error('[updateInvoiceStatus] Error:', error);
+      if (axios.isAxiosError(error) && error.response) {
+        console.error('[updateInvoiceStatus] Response data:', error.response.data);
+      }
+    }
     if (axios.isAxiosError(error) && error.response) {
-      console.error('[updateInvoiceStatus] Response data:', error.response.data);
       
       // Xử lý lỗi cụ thể
       const status = error.response.status;
@@ -433,7 +513,9 @@ export const issueInvoice = async (
   note: string = ''
 ): Promise<InvoiceListItem> => {
   try {
-    console.log(`[issueInvoice] Issuing invoice ${invoiceId} by user ${issuerId}`);
+    if (import.meta.env.DEV) {
+      console.log(`[issueInvoice] Issuing invoice ${invoiceId} by user ${issuerId}`);
+    }
     
     // ✅ Backend API: POST /api/Invoice/{id}/issue
     // ⭐ Body request theo API spec
@@ -445,7 +527,9 @@ export const issueInvoice = async (
       note: note
     };
     
-    console.log('[issueInvoice] Request body:', JSON.stringify(requestBody, null, 2));
+    if (import.meta.env.DEV) {
+      console.log('[issueInvoice] Request body:', JSON.stringify(requestBody, null, 2));
+    }
     
     const response = await axios.post<InvoiceListItem>(
       `/api/Invoice/${invoiceId}/issue`,
@@ -453,23 +537,29 @@ export const issueInvoice = async (
       { headers: getAuthHeaders() }
     );
     
-    console.log('[issueInvoice] ✅ Success - Invoice issued');
-    console.log('[issueInvoice] 🔍 FULL Response data:', JSON.stringify(response.data, null, 2));
-    console.log('[issueInvoice] Response with invoiceNumber:', JSON.stringify({
-      invoiceID: response.data.invoiceID,
-      invoiceNumber: response.data.invoiceNumber,
-      invoiceStatusID: response.data.invoiceStatusID
-    }, null, 2));
+    if (import.meta.env.DEV) {
+      console.log('[issueInvoice] ✅ Success - Invoice issued');
+      console.log('[issueInvoice] 🔍 FULL Response data:', JSON.stringify(response.data, null, 2));
+      console.log('[issueInvoice] Response with invoiceNumber:', JSON.stringify({
+        invoiceID: response.data.invoiceID,
+        invoiceNumber: response.data.invoiceNumber,
+        invoiceStatusID: response.data.invoiceStatusID
+      }, null, 2));
+    }
     
     return response.data;
   } catch (error) {
-    console.error('[issueInvoice] Error:', error);
+    if (import.meta.env.DEV) {
+      console.error('[issueInvoice] Error:', error);
+      if (axios.isAxiosError(error)) {
+        // Log chi tiết error response
+        console.error('[issueInvoice] Error status:', error.response?.status);
+        console.error('[issueInvoice] Error data:', error.response?.data);
+        console.error('[issueInvoice] Error errors array:', error.response?.data?.errors);
+        console.error('[issueInvoice] Error message:', error.response?.data?.message || error.response?.data?.title);
+      }
+    }
     if (axios.isAxiosError(error)) {
-      // Log chi tiết error response
-      console.error('[issueInvoice] Error status:', error.response?.status);
-      console.error('[issueInvoice] Error data:', error.response?.data);
-      console.error('[issueInvoice] Error errors array:', error.response?.data?.errors);
-      console.error('[issueInvoice] Error message:', error.response?.data?.message || error.response?.data?.title);
       
       if (error.response?.status === 400) {
         const errorData = error.response?.data;
@@ -508,27 +598,35 @@ export const signInvoice = async (invoiceId: number, signerId: number): Promise<
     // Step 1: Get invoice to extract templateID and check status
     const invoice = await getInvoiceById(invoiceId);
     
-    console.log('🔍 [signInvoice] Invoice status check:', {
-      invoiceId,
-      signerId,
-      statusID: invoice.invoiceStatusID,
-      invoiceNumber: invoice.invoiceNumber,
-      templateID: invoice.templateID
-    });
+    if (import.meta.env.DEV) {
+      console.log('🔍 [signInvoice] Invoice status check:', {
+        invoiceId,
+        signerId,
+        statusID: invoice.invoiceStatusID,
+        invoiceNumber: invoice.invoiceNumber,
+        templateID: invoice.templateID
+      });
+    }
     
     // Step 1.5: Check if already signed
     if (invoice.invoiceStatusID === 8) {
-      console.log('⚠️ [signInvoice] Invoice already signed (status=8)');
+      if (import.meta.env.DEV) {
+        console.log('⚠️ [signInvoice] Invoice already signed (status=8)');
+      }
       
       // If already signed with invoice number → Success (idempotent)
       if (invoice.invoiceNumber && invoice.invoiceNumber > 0) {
-        console.log('✅ [signInvoice] Invoice already has number:', invoice.invoiceNumber);
+        if (import.meta.env.DEV) {
+          console.log('✅ [signInvoice] Invoice already has number:', invoice.invoiceNumber);
+        }
         return invoice;
       }
       
       // If signed but no number → This is the inconsistent state we're trying to fix
       // Backend should handle this, but for now we'll try to proceed
-      console.log('⚠️ [signInvoice] Invoice signed but no number - attempting to proceed');
+      if (import.meta.env.DEV) {
+        console.log('⚠️ [signInvoice] Invoice signed but no number - attempting to proceed');
+      }
       
       // Return error to trigger recovery flow in UI
       throw new Error('Hóa đơn đã được ký nhưng chưa có số. Vui lòng liên hệ IT để kiểm tra backend.');
