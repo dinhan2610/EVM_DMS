@@ -674,35 +674,75 @@ export const submitToTaxAuthority = async (invoiceId: number): Promise<string> =
   }
 };
 
-// ==================== EXPORTS ====================
+// ==================== ADJUSTMENT INVOICE API ====================
 
-const invoiceService = {
-  // Templates
-  getAllTemplates,
-  getActiveTemplates,
-  
-  // Invoices
-  createInvoice,
-  getAllInvoices,
-  getInvoiceById,
-  
-  // Status Management (New PATCH API)
-  updateInvoiceStatus,
-  sendForApproval,      // 1 → 6
-  approveInvoice,       // 6 → 9 ✨ NEW
-  markPendingSign,      // 9 → 7 ✨ NEW
-  markSigned,           // 7 → 10 ✨ NEW
-  rejectInvoice,        // 6 → 3
-  cancelInvoice,        // 6/7 → 1 ✨ NEW
-  markIssued,           // 10 → 2
-  
-  // Sign & Issue
-  issueInvoice,
-  signInvoice,
-  
-  // Tax Authority
-  submitToTaxAuthority,
+/**
+ * Request body cho tạo hóa đơn điều chỉnh
+ */
+export interface CreateAdjustmentInvoiceRequest {
+  originalInvoiceId: number;
+  templateId: number;
+  referenceText: string;
+  adjustmentReason: string;
+  performedBy: number;
+  adjustmentItems: Array<{
+    productID: number;
+    quantity: number;        // = adjustmentQuantity (có thể âm)
+    unitPrice: number;       // = adjustmentUnitPrice (có thể âm)
+    overrideVATRate?: number;
+  }>;
+}
+
+/**
+ * Response từ API tạo hóa đơn điều chỉnh
+ */
+export interface CreateAdjustmentInvoiceResponse {
+  success: boolean;
+  message: string;
+  invoiceId?: number;
+  invoiceNumber?: string;
+  invoiceSerial?: string;
+  fullInvoiceCode?: string;
+  totalAmount?: number;
+  adjustmentAmount?: number;
+}
+
+/**
+ * Tạo hóa đơn điều chỉnh
+ * API: POST /api/Invoice/adjustment
+ * 
+ * @param data - Dữ liệu hóa đơn điều chỉnh
+ * @returns Response với invoice ID và thông tin
+ */
+export const createAdjustmentInvoice = async (
+  data: CreateAdjustmentInvoiceRequest
+): Promise<CreateAdjustmentInvoiceResponse> => {
+  try {
+    console.log('[createAdjustmentInvoice] Request:', data);
+    console.log('[createAdjustmentInvoice] Request JSON:', JSON.stringify(data, null, 2));
+    
+    const response = await axios.post<CreateAdjustmentInvoiceResponse>(
+      `/api/Invoice/adjustment`,
+      data,
+      { headers: getAuthHeaders() }
+    );
+    
+    console.log('[createAdjustmentInvoice] ✅ Success:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('[createAdjustmentInvoice] ❌ Error:', error);
+    
+    if (axios.isAxiosError(error) && error.response) {
+      console.error('[createAdjustmentInvoice] Response status:', error.response.status);
+      console.error('[createAdjustmentInvoice] Response data:', error.response.data);
+      console.error('[createAdjustmentInvoice] Full error response:', JSON.stringify(error.response.data, null, 2));
+    }
+    
+    return handleApiError(error, 'Tạo hóa đơn điều chỉnh thất bại');
+  }
 };
+
+// ==================== EXPORTS ====================
 
 // ==================== PREVIEW & EXPORT APIs (Using existing backend) ====================
 
@@ -825,18 +865,43 @@ export const saveInvoicePDF = async (
   }
 };
 
-// ==================== EXTENDED EXPORTS ====================
-
-const invoiceServiceExtended = {
-  ...invoiceService,
+const invoiceService = {
+  // Templates
+  getAllTemplates,
+  getActiveTemplates,
   
-  // Preview & Export (using existing backend APIs)
+  // Invoices
+  createInvoice,
+  getAllInvoices,
+  getInvoiceById,
+  
+  // Adjustment Invoice ✨ NEW
+  createAdjustmentInvoice,
+  
+  // Status Management (New PATCH API)
+  updateInvoiceStatus,
+  sendForApproval,      // 1 → 6
+  approveInvoice,       // 6 → 9 ✨ NEW
+  markPendingSign,      // 9 → 7 ✨ NEW
+  markSigned,           // 7 → 10 ✨ NEW
+  rejectInvoice,        // 6 → 3
+  cancelInvoice,        // 6/7 → 1 ✨ NEW
+  markIssued,           // 10 → 2
+  
+  // Sign & Issue
+  issueInvoice,
+  signInvoice,
+  
+  // Tax Authority
+  submitToTaxAuthority,
+  
+  // Preview & Export
   getInvoiceHTML,
   downloadInvoicePDF,
   printInvoiceHTML,
   saveInvoicePDF,
 };
 
-export default invoiceServiceExtended;
+export default invoiceService;
 
 

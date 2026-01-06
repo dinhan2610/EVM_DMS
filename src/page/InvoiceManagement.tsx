@@ -129,6 +129,7 @@ interface InvoiceActionsMenuProps {
 }
 
 const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onIssue, onResendToTax, onCancel, onPrintInvoice, onDownloadPDF, isSending }: InvoiceActionsMenuProps) => {
+  const navigate = useNavigate()
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
 
@@ -283,6 +284,7 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onIssue, onRes
       enabled: isIssued,
       action: () => {
         console.log('Tạo HĐ điều chỉnh:', invoice.id)
+        navigate(`/invoices/${invoice.id}/adjust`)
         handleClose()
       },
       color: 'warning.main',
@@ -293,6 +295,7 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onIssue, onRes
       enabled: isIssued,
       action: () => {
         console.log('Tạo HĐ thay thế:', invoice.id)
+        navigate(`/invoices/${invoice.id}/replace`)
         handleClose()
       },
       color: 'warning.main',

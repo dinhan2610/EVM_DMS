@@ -46,6 +46,11 @@ export const API_CONFIG = {
       DELETE: (id: number) => `/Invoice/${id}`,
       SIGN: (id: number) => `/Invoice/${id}/sign`,
       SEND_EMAIL: (id: number) => `/Invoice/${id}/send-email`,
+      // Adjustment & Replacement APIs
+      ADJUSTMENT: '/Invoice/adjustment',
+      REPLACEMENT: '/Invoice/replacement',
+      GET_ADJUSTMENTS: (id: number) => `/Invoice/${id}/adjustments`,
+      GET_REPLACEMENT_STATUS: (id: number) => `/Invoice/${id}/replacement-status`,
     },
     PAYMENT: {
       CREATE: '/Payment',
