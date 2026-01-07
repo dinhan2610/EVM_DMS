@@ -304,6 +304,48 @@ export const getAllInvoices = async (): Promise<InvoiceListItem[]> => {
 };
 
 /**
+ * Lấy danh sách hóa đơn cho role Kế toán trưởng (HOD - Head of Department)
+ * API: GET /api/Invoice/hodInvoices
+ * 
+ * @returns Danh sách hóa đơn cần xử lý bởi Kế toán trưởng
+ */
+export const getHODInvoices = async (): Promise<InvoiceListItem[]> => {
+  try {
+    const response = await axios.get<{ items: InvoiceListItem[] }>(
+      `/api/Invoice/hodInvoices`,
+      { headers: getAuthHeaders() }
+    );
+    
+    // Backend trả về format: { items: [...] }
+    let invoicesArray: InvoiceListItem[] = [];
+    
+    if (response.data && typeof response.data === 'object') {
+      if (Array.isArray(response.data)) {
+        // Nếu response trực tiếp là array
+        invoicesArray = response.data;
+      } else if ('items' in response.data && Array.isArray(response.data.items)) {
+        // Nếu response là { items: [...] }
+        invoicesArray = response.data.items;
+      } else if ('data' in response.data && Array.isArray((response.data as Record<string, unknown>).data)) {
+        // Nếu response là { data: [...] }
+        invoicesArray = (response.data as Record<string, unknown>).data as InvoiceListItem[];
+      }
+    }
+    
+    if (import.meta.env.DEV) {
+      console.log(`[getHODInvoices] Loaded ${invoicesArray.length} invoices for HOD role`);
+    }
+    
+    return invoicesArray;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error('[getHODInvoices] Error:', error);
+    }
+    return handleApiError(error, 'Get HOD invoices failed');
+  }
+};
+
+/**
  * Lấy chi tiết hóa đơn theo ID
  */
 export const getInvoiceById = async (invoiceId: number): Promise<InvoiceListItem> => {
@@ -977,6 +1019,7 @@ const invoiceService = {
   // Invoices
   createInvoice,
   getAllInvoices,
+  getHODInvoices,       // ✅ NEW: API cho role Kế toán trưởng
   getInvoiceById,
   
   // Adjustment Invoice ✨ NEW
