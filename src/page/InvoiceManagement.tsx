@@ -112,6 +112,17 @@ const mapInvoiceToUI = (
     taxStatusLabel = 'Chưa gửi CQT'
   }
   
+  // 🔍 DEBUG: Log nếu status không xác định
+  const statusLabel = INVOICE_INTERNAL_STATUS_LABELS[item.invoiceStatusID]
+  if (!statusLabel) {
+    console.warn('⚠️ [mapInvoiceToUI] Unknown invoice status:', {
+      invoiceID: item.invoiceID,
+      invoiceNumber: item.invoiceNumber,
+      invoiceStatusID: item.invoiceStatusID,
+      availableStatuses: Object.keys(INVOICE_INTERNAL_STATUS_LABELS).join(', ')
+    })
+  }
+  
   return {
     id: item.invoiceID.toString(),
     invoiceNumber: item.invoiceNumber?.toString() || '0', // ✅ Dùng invoiceNumber từ backend
@@ -121,7 +132,7 @@ const mapInvoiceToUI = (
     taxAuthority: item.taxAuthorityCode || '',
     issueDate: item.createdAt,
     internalStatusId: item.invoiceStatusID,
-    internalStatus: INVOICE_INTERNAL_STATUS_LABELS[item.invoiceStatusID] || `Không xác định (ID: ${item.invoiceStatusID})`,
+    internalStatus: statusLabel || `Không xác định (ID: ${item.invoiceStatusID})`,
     taxStatusId: taxStatusId,
     taxStatus: taxStatusLabel,
     taxStatusCode: item.taxStatusCode || null,
@@ -145,15 +156,14 @@ interface InvoiceActionsMenuProps {
   invoice: Invoice
   onSendForApproval: (id: string) => void
   onSign: (id: string, invoiceNumber: string) => void
-  onIssue: (id: string, invoiceNumber: string) => void
   onResendToTax: (id: string, invoiceNumber: string) => void
   onCancel: (id: string, invoiceNumber: string) => void
   onPrintInvoice: (id: string, invoiceNumber: string) => void
-  onDownloadPDF: (id: string, invoiceNumber: string) => void
   isSending: boolean
+  hasBeenAdjusted: boolean // Đã có hóa đơn điều chỉnh từ hóa đơn này chưa
 }
 
-const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onIssue, onResendToTax, onCancel, onPrintInvoice, onDownloadPDF, isSending }: InvoiceActionsMenuProps) => {
+const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax, onCancel, onPrintInvoice, isSending, hasBeenAdjusted }: InvoiceActionsMenuProps) => {
   const navigate = useNavigate()
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
@@ -171,8 +181,6 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onIssue, onRes
   const isPendingApproval = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_APPROVAL // 6
   const isApproved = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.APPROVED // 9
   const isPendingSign = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN // 7 - Chờ ký
-  const isSignedPendingIssue = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.SIGNED_PENDING_ISSUE // 8 - Đã ký, chờ phát hành
-  const isSigned = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.SIGNED // 10 - Đã ký, chưa phát hành
   const isIssued = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.ISSUED // 2 - Đã phát hành
   
   // ⚠️ Kiểm tra lỗi gửi CQT từ Tax Status (không phải Internal Status)
@@ -190,35 +198,32 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onIssue, onRes
     return numStr !== '' && numStr !== '0'
   })()
   
-  // 🎯 Logic hiển thị nút "Ký số" và "Phát hành"
+  // 🎯 Logic hiển thị nút "Ký số & Phát hành" (Gộp 1 bước)
   // ✅ Backend đã sửa: /sign API cấp số luôn
   // 
-  // - Ký số: Cho phép khi:
+  // - Ký số & Phát hành: Cho phép khi:
   //   + Status = 7 (PENDING_SIGN) - Chờ ký
   //   + HOẶC Status = 9 (APPROVED) - Đã duyệt
   //   + VÀ CHƯA CÓ SỐ (chưa ký)
+  //   ➡️ Sau khi ký xong → TỰ ĐỘNG gửi CQT và phát hành
   // 
-  // - Phát hành: Cho phép khi:
+  // - Phát hành (fallback): Chỉ hiển thị khi:
   //   + Status = 8 (SIGNED_PENDING_ISSUE) - Đã ký, chờ phát hành
-  //   + HOẶC Status = 10 (SIGNED) - Đã ký (backend có thể dùng status này)
-  //   + VÀ ĐÃ CÓ SỐ (đã ký rồi mới phát hành được)
-  const canSign = (isPendingSign || isApproved) && !hasInvoiceNumber
-  const canIssue = (isSignedPendingIssue || isSigned) && hasInvoiceNumber
+  //   + HOẶC Status = 10 (SIGNED) - Đã ký
+  //   + VÀ ĐÃ CÓ SỐ (đã ký rồi)
+  //   ➡️ Trường hợp ký thành công nhưng chưa phát hành (lỗi, gián đoạn)
+  const canSignAndIssue = (isPendingSign || isApproved) && !hasInvoiceNumber // ⚡ Gộp 1 bước
   const canCancel = isPendingApproval || isPendingSign // Có thể hủy khi Chờ duyệt HOẶC Chờ ký
+  
+  // 📋 Logic "Tạo HĐ điều chỉnh"
+  // Điều kiện:
+  // 1. Hóa đơn đã phát hành (isIssued)
+  // 2. Chưa có hóa đơn điều chỉnh con (!hasBeenAdjusted)
+  // 3. Chính nó KHÔNG phải là hóa đơn điều chỉnh (invoiceType !== ADJUSTMENT)
+  const isAdjustmentInvoice = invoice.invoiceType === INVOICE_TYPE.ADJUSTMENT
+  const canAdjust = isIssued && !hasBeenAdjusted && !isAdjustmentInvoice
 
   const menuItems = [
-    {
-      label: 'Xem chi tiết',
-      icon: <VisibilityOutlinedIcon fontSize="small" />,
-      enabled: true,
-      action: () => {
-        // Link sẽ được xử lý riêng
-        handleClose()
-      },
-      color: 'primary.main',
-      isLink: true,
-      linkTo: `/invoices/${invoice.id}`,
-    },
     {
       label: 'Chỉnh sửa',
       icon: <EditOutlinedIcon fontSize="small" />,
@@ -240,90 +245,78 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onIssue, onRes
       color: 'success.main',
     },
     {
-      label: 'Ký số',
-      icon: <DrawIcon fontSize="small" />,
-      enabled: canSign,
+      label: '⚡ Ký số & Phát hành',
+      icon: <SendIcon fontSize="small" />,
+      enabled: canSignAndIssue,
       action: () => {
         onSign(invoice.id, invoice.invoiceNumber)
         handleClose()
       },
-      color: 'secondary.main',
-      tooltip: 'Ký chữ ký số điện tử vào hóa đơn',
-    },
-    {
-      label: '🚀 Phát hành',
-      icon: <SendIcon fontSize="small" />,
-      enabled: canIssue,
-      action: () => {
-        onIssue(invoice.id, invoice.invoiceNumber)
-        handleClose()
-      },
       color: 'success.main',
-      tooltip: 'Cấp số hóa đơn và gửi lên Cơ quan Thuế',
+      tooltip: 'Ký chữ ký số điện tử và phát hành hóa đơn (1 bước)',
     },
     { divider: true },
     {
       label: 'Gửi email',
       icon: <EmailIcon fontSize="small" />,
-      enabled: true, // Luôn dùng được
+      enabled: true, // ✅ Luôn dùng được
       action: () => {
         console.log('Gửi email:', invoice.id)
         handleClose()
       },
       color: 'info.main',
+      tooltip: 'Gửi hóa đơn qua email cho khách hàng',
     },
     {
       label: 'In hóa đơn',
       icon: <PrintIcon fontSize="small" />,
-      enabled: hasInvoiceNumber, // Chỉ in khi đã có số (đã ký)
+      enabled: true, // ✅ Luôn dùng được
       action: () => {
         onPrintInvoice(invoice.id, invoice.invoiceNumber)
         handleClose()
       },
       color: 'text.primary',
-    },
-    {
-      label: 'Tải PDF',
-      icon: <DownloadIcon fontSize="small" />,
-      enabled: hasInvoiceNumber, // Chỉ tải khi đã có số (đã ký)
-      action: () => {
-        onDownloadPDF(invoice.id, invoice.invoiceNumber)
-        handleClose()
-      },
-      color: 'text.primary',
+      tooltip: 'In hóa đơn để kiểm tra hoặc lưu trữ',
     },
     { divider: true },
     {
       label: 'Gửi lại CQT',
       icon: <RestoreIcon fontSize="small" />,
-      enabled: (isSigned || isIssued) && hasTaxError,
+      enabled: isIssued && hasTaxError,
       action: () => {
         onResendToTax(invoice.id, invoice.invoiceNumber)
         handleClose()
       },
       color: 'warning.main',
+      tooltip: 'Gửi lại hóa đơn lên Cơ quan Thuế khi có lỗi',
     },
     {
       label: 'Tạo HĐ điều chỉnh',
       icon: <FindReplaceIcon fontSize="small" />,
-      enabled: isIssued,
+      enabled: canAdjust,
       action: () => {
         console.log('Tạo HĐ điều chỉnh:', invoice.id)
         navigate(`/invoices/${invoice.id}/adjust`)
         handleClose()
       },
       color: 'warning.main',
+      tooltip: isAdjustmentInvoice
+        ? '⚠️ Hóa đơn điều chỉnh không thể điều chỉnh tiếp'
+        : hasBeenAdjusted 
+          ? '⚠️ Hóa đơn này đã được điều chỉnh rồi (chỉ được điều chỉnh 1 lần)'
+          : 'Tạo hóa đơn điều chỉnh từ hóa đơn gốc đã phát hành',
     },
     {
       label: 'Tạo HĐ thay thế',
       icon: <RestoreIcon fontSize="small" />,
-      enabled: isIssued,
+      enabled: isIssued, // ✅ Thay thế bao nhiêu lần cũng được
       action: () => {
         console.log('Tạo HĐ thay thế:', invoice.id)
         navigate(`/invoices/${invoice.id}/replace`)
         handleClose()
       },
       color: 'warning.main',
+      tooltip: 'Tạo hóa đơn thay thế (không giới hạn số lần)',
     },
     {
       label: 'Hủy',
@@ -412,52 +405,6 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onIssue, onRes
           }
 
           // Nếu là link item
-          if ('isLink' in item && item.isLink) {
-            return (
-              <MenuItem
-                key={item.label}
-                component={Link}
-                to={item.linkTo || '#'}
-                disabled={!item.enabled}
-                sx={{
-                  py: 1.25,
-                  px: 2.5,
-                  gap: 1.5,
-                  textDecoration: 'none',
-                  color: 'inherit',
-                  transition: 'all 0.2s ease',
-                  '&:hover': item.enabled ? {
-                    backgroundColor: 'action.hover',
-                    transform: 'translateX(4px)',
-                  } : {},
-                  '&.Mui-disabled': {
-                    opacity: 0.4,
-                  },
-                  cursor: item.enabled ? 'pointer' : 'not-allowed',
-                }}
-              >
-                <ListItemIcon
-                  sx={{
-                    color: item.enabled ? item.color : 'text.disabled',
-                    minWidth: 28,
-                    transition: 'color 0.2s ease',
-                  }}
-                >
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText
-                  primary={item.label}
-                  primaryTypographyProps={{
-                    fontSize: '0.875rem',
-                    fontWeight: item.enabled ? 500 : 400,
-                    letterSpacing: '0.01em',
-                    color: item.enabled ? 'text.primary' : 'text.disabled',
-                  }}
-                />
-              </MenuItem>
-            )
-          }
-
           return (
             <MenuItem
               key={item.label}
@@ -522,6 +469,7 @@ const InvoiceManagement = () => {
     invoiceNumber: '',
   })
   const [isSigningInvoice, setIsSigningInvoice] = useState(false)
+  const [autoIssueAfterSign, setAutoIssueAfterSign] = useState(false) // ⚡ Tự động phát hành sau khi ký
   const signingInProgress = useRef<Set<number>>(new Set())
   
   // State quản lý preview modal
@@ -589,6 +537,7 @@ const InvoiceManagement = () => {
 
   useEffect(() => {
     loadInvoices()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Handler khi filter thay đổi
@@ -648,6 +597,11 @@ const InvoiceManagement = () => {
   
   // Handler mở dialog ký số
   const handleOpenSignDialog = (invoiceId: string, invoiceNumber: string) => {
+    // ⚡ Check xem có cần tự động phát hành sau khi ký không
+    const invoice = invoices.find(inv => inv.id === invoiceId)
+    const shouldAutoIssue = invoice && (invoice.internalStatusId === INVOICE_INTERNAL_STATUS.APPROVED || invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN)
+    
+    setAutoIssueAfterSign(shouldAutoIssue || false)
     setSignDialog({
       open: true,
       invoiceId,
@@ -720,6 +674,28 @@ const InvoiceManagement = () => {
       
       console.log('Full invoice data:', JSON.stringify(updatedInvoice, null, 2))
       
+      // ⚡ TỰ ĐỘNG PHÁT HÀNH sau khi ký thành công
+      if (autoIssueAfterSign) {
+        if (import.meta.env.DEV) {
+          console.log(`⚡ Auto-issuing invoice ${signDialog.invoiceNumber} after signing...`)
+        }
+        
+        // Gửi CQT và phát hành
+        const taxCode = await invoiceService.submitToTaxAuthority(invoiceId)
+        await invoiceService.issueInvoice(invoiceId, userId)
+        
+        setSnackbar({
+          open: true,
+          message: `✅ Đã ký số và phát hành hóa đơn ${signDialog.invoiceNumber} thành công!\n🏛️ Mã CQT: ${taxCode}`,
+          severity: 'success',
+        })
+        
+        setAutoIssueAfterSign(false) // Reset flag
+        handleCloseSignDialog()
+        await loadInvoices()
+        return
+      }
+      
       // BƯỚC 3: Reload danh sách để hiển thị trạng thái mới
       await loadInvoices()
       
@@ -738,91 +714,19 @@ const InvoiceManagement = () => {
       
     } catch (err) {
       console.error('❌ Sign error:', err)
+      setAutoIssueAfterSign(false) // Reset flag on error
       const errorMsg = err instanceof Error ? err.message : 'Lỗi không xác định'
       
-      // RECOVERY: Check if invoice was actually signed despite error
-      try {
-        const recoveryCheck = await invoiceService.getInvoiceById(invoiceId)
-        console.log('🔄 Recovery check - Status:', recoveryCheck.invoiceStatusID, 'Number:', recoveryCheck.invoiceNumber)
-        
-        // Case 1: Invoice has number now - sign was actually successful!
-        if (recoveryCheck.invoiceNumber && recoveryCheck.invoiceNumber > 0) {
-          console.log('✅ Recovery successful - Invoice was signed despite error')
-          setSnackbar({
-            open: true,
-            message: `✅ Đã ký số thành công!\n📋 Số hóa đơn: ${recoveryCheck.invoiceNumber}\n🔑 Hóa đơn đã có chữ ký số điện tử.\n➡️ Hãy nhấn "Phát hành" để gửi lên CQT.`,
-            severity: 'success',
-          })
-          handleCloseSignDialog()
-          await loadInvoices()
-          return
-        }
-        
-        // Case 2: Status changed to 8 (SIGNED) but no invoice number yet
-        // Backend signed but failed to generate number - retry will work!
-        if (recoveryCheck.invoiceStatusID === 8 && (!recoveryCheck.invoiceNumber || recoveryCheck.invoiceNumber === 0)) {
-          console.log('⚠️ Invoice signed (status=8) but no number generated - backend issue, retry recommended')
-          setSnackbar({
-            open: true,
-            message: `⚠️ Backend đã ký nhưng chưa cấp số!\n🔑 Trạng thái: Đã ký (8)\n📋 Số hóa đơn: 0 (chưa cấp)\n\n🔄 Vui lòng nhấn "Ký số" lại một lần nữa để backend cấp số.`,
-            severity: 'error',
-          })
-          handleCloseSignDialog()
-          await loadInvoices()
-          return
-        }
-      } catch (recoveryErr) {
-        console.error('❌ Recovery check failed:', recoveryErr)
-      }
-      
-      // Show original error
       setSnackbar({
         open: true,
-        message: `❌ Ký số thất bại: ${errorMsg}`,
+        message: autoIssueAfterSign 
+          ? `❌ Ký số và phát hành thất bại: ${errorMsg}`
+          : `❌ Ký số thất bại: ${errorMsg}`,
         severity: 'error',
       })
     } finally {
       setIsSigningInvoice(false)
       signingInProgress.current.delete(invoiceId)
-    }
-  }
-  
-  // Handler phát hành hóa đơn
-  const handleIssueInvoice = async (invoiceId: string) => {
-    try {
-      setSubmittingId(invoiceId)
-      const userId = parseInt(localStorage.getItem('userId') || '1')
-      const id = parseInt(invoiceId)
-      
-      // Verify invoice is signed and has number
-      const currentInvoice = await invoiceService.getInvoiceById(id)
-      
-      if (!currentInvoice.invoiceNumber || currentInvoice.invoiceNumber === 0) {
-        throw new Error('❌ Hóa đơn chưa được ký số và cấp số. Vui lòng ký số trước khi phát hành!')
-      }
-      
-      // Step 1: Submit to tax authority
-      const taxCode = await invoiceService.submitToTaxAuthority(id)
-      
-      // Step 2: Issue invoice (change status to ISSUED)
-      await invoiceService.issueInvoice(id, userId)
-      
-      setSnackbar({
-        open: true,
-        message: `✅ Đã phát hành hóa đơn thành công!\n📋 Số hóa đơn: ${currentInvoice.invoiceNumber}\n🏛️ Mã CQT: ${taxCode}`,
-        severity: 'success',
-      })
-      
-      await loadInvoices()
-      
-    } catch (err) {
-      setSnackbar({
-        open: true,
-        message: `❌ Phát hành thất bại: ${err instanceof Error ? err.message : 'Lỗi không xác định'}`,
-        severity: 'error',
-      })
-    } finally {
-      setSubmittingId(null)
     }
   }
   
@@ -1387,29 +1291,87 @@ const InvoiceManagement = () => {
     {
       field: 'actions',
       headerName: 'Thao tác',
-      width: 80,
+      width: 140,
       sortable: false,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const isSending = submittingId === params.row.id
+        const hasBeenAdjusted = adjustedInvoicesMap.get(params.row.id) || false
+        const invoice = params.row as Invoice
         
         return (
-          <InvoiceActionsMenu
-            invoice={params.row as Invoice}
-            onSendForApproval={handleSendForApproval}
-            onSign={handleOpenSignDialog}
-            onIssue={handleIssueInvoice}
-            onResendToTax={handleResendToTax}
-            onCancel={handleCancelInvoice}
-            onPrintInvoice={handlePrintInvoice}
-            onDownloadPDF={handleDownloadPDF}
-            isSending={isSending}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            {/* Icon 1: Xem chi tiết */}
+            <Tooltip title="Xem chi tiết" arrow placement="top">
+              <IconButton
+                size="small"
+                component={Link}
+                to={`/invoices/${invoice.id}`}
+                sx={{
+                  color: 'primary.main',
+                  '&:hover': {
+                    backgroundColor: 'primary.lighter',
+                    transform: 'scale(1.1)',
+                  },
+                  transition: 'all 0.2s ease-in-out',
+                }}
+              >
+                <VisibilityOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            
+            {/* Icon 2: Tải PDF */}
+            <Tooltip title="Tải PDF" arrow placement="top">
+              <IconButton
+                size="small"
+                onClick={() => handleDownloadPDF(invoice.id, invoice.invoiceNumber)}
+                sx={{
+                  color: 'text.secondary',
+                  '&:hover': {
+                    backgroundColor: 'action.hover',
+                    color: 'error.main',
+                    transform: 'scale(1.1)',
+                  },
+                  transition: 'all 0.2s ease-in-out',
+                }}
+              >
+                <DownloadIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            
+            {/* Icon 3: Menu 3 chấm */}
+            <InvoiceActionsMenu
+              invoice={invoice}
+              onSendForApproval={handleSendForApproval}
+              onSign={handleOpenSignDialog}
+              onResendToTax={handleResendToTax}
+              onCancel={handleCancelInvoice}
+              onPrintInvoice={handlePrintInvoice}
+              isSending={isSending}
+              hasBeenAdjusted={hasBeenAdjusted}
+            />
+          </Box>
         )
       },
     },
   ]
+
+  // 🔍 Tính toán Map các hóa đơn đã bị điều chỉnh (để kiểm tra rule "chỉ điều chỉnh 1 lần")
+  // Key: invoiceID của hóa đơn gốc, Value: true nếu đã có hóa đơn điều chỉnh
+  const adjustedInvoicesMap = useMemo(() => {
+    const map = new Map<string, boolean>()
+    
+    // Duyệt qua tất cả hóa đơn, tìm các hóa đơn điều chỉnh (type = 2)
+    invoices.forEach(inv => {
+      if (inv.invoiceType === 2 && inv.originalInvoiceID) {
+        // Đánh dấu hóa đơn gốc đã bị điều chỉnh
+        map.set(inv.originalInvoiceID.toString(), true)
+      }
+    })
+    
+    return map
+  }, [invoices])
 
   // Logic lọc dữ liệu - tích hợp với InvoiceFilter
   const filteredInvoices = useMemo(() => {
