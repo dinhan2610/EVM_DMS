@@ -34,13 +34,12 @@ import PrintIcon from '@mui/icons-material/Print'
 import RestoreIcon from '@mui/icons-material/Restore'
 import FindReplaceIcon from '@mui/icons-material/FindReplace'
 import CancelIcon from '@mui/icons-material/Cancel'
+import LinkIcon from '@mui/icons-material/Link'
 import { Link, useNavigate } from 'react-router-dom'
 import { Snackbar, Alert } from '@mui/material'
 import InvoiceFilter, { InvoiceFilterState } from '@/components/InvoiceFilter'
 import InvoicePreviewModal from '@/components/invoices/InvoicePreviewModal'
-import InvoiceTypeBadge from '@/components/invoices/InvoiceTypeBadge'
-import OriginalInvoiceLink from '@/components/invoices/OriginalInvoiceLink'
-import invoiceService, { InvoiceListItem, INVOICE_TYPE } from '@/services/invoiceService'
+import invoiceService, { InvoiceListItem, INVOICE_TYPE, getInvoiceTypeLabel, getInvoiceTypeColor } from '@/services/invoiceService'
 import templateService from '@/services/templateService'
 import customerService from '@/services/customerService'
 import Spinner from '@/components/Spinner'
@@ -75,7 +74,12 @@ export interface Invoice {
   invoiceType: number // 1=Gốc, 2=Điều chỉnh, 3=Thay thế, 4=Hủy, 5=Giải trình
   originalInvoiceID: number | null
   originalInvoiceNumber?: number
+  originalInvoiceSignDate?: string | null // Ngày ký HĐ gốc
+  originalInvoiceSymbol?: string | null   // Ký hiệu HĐ gốc
   adjustmentReason?: string | null
+  replacementReason?: string | null
+  cancellationReason?: string | null
+  explanationText?: string | null
 }
 
 // Mapper từ backend response sang UI format
@@ -127,7 +131,12 @@ const mapInvoiceToUI = (
     invoiceType: item.invoiceType || INVOICE_TYPE.ORIGINAL,
     originalInvoiceID: item.originalInvoiceID,
     originalInvoiceNumber: item.originalInvoiceNumber,
+    originalInvoiceSignDate: item.originalInvoiceSignDate, // ✅ Từ backend
+    originalInvoiceSymbol: item.originalInvoiceSymbol,     // ✅ Từ backend
     adjustmentReason: item.adjustmentReason,
+    replacementReason: item.replacementReason,
+    cancellationReason: item.cancellationReason,
+    explanationText: item.explanationText,
   }
 }
 
@@ -925,33 +934,6 @@ const InvoiceManagement = () => {
   // Định nghĩa columns
   const columns: GridColDef[] = [
     {
-      field: 'invoiceNumber',
-      headerName: 'Số hóa đơn',
-      flex: 1,
-      minWidth: 130,
-      sortable: true,
-      align: 'center',
-      headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) => (
-        <Link
-          to={`/invoices/${params.row.id}`}
-          style={{
-            textDecoration: 'none',
-            color: '#1976d2',
-            fontWeight: 600,
-            transition: 'color 0.2s',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100%',
-          }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = '#1565c0')}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = '#1976d2')}>
-          {params.value as string}
-        </Link>
-      ),
-    },
-    {
       field: 'symbol',
       headerName: 'Ký hiệu',
       flex: 0.8,
@@ -1106,7 +1088,7 @@ const InvoiceManagement = () => {
       field: 'invoiceType',
       headerName: 'Loại HĐ',
       flex: 1,
-      minWidth: 140,
+      minWidth: 200,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -1114,18 +1096,280 @@ const InvoiceManagement = () => {
         const invoiceType = params.row.invoiceType as number
         const originalInvoiceID = params.row.originalInvoiceID as number | null
         const originalInvoiceNumber = params.row.originalInvoiceNumber as number | undefined
+        const originalInvoiceSignDate = params.row.originalInvoiceSignDate as string | null | undefined
+        const originalInvoiceSymbol = params.row.originalInvoiceSymbol as string | null | undefined
+        const label = getInvoiceTypeLabel(invoiceType)
+        const color = getInvoiceTypeColor(invoiceType)
         
+        // Badge color mapping
+        const badgeColorMap: Record<string, { bg: string; text: string; border: string }> = {
+          'default': { bg: '#f1f5f9', text: '#64748b', border: '#e2e8f0' },
+          'warning': { bg: '#fef3c7', text: '#f59e0b', border: '#fcd34d' },
+          'info': { bg: '#dbeafe', text: '#3b82f6', border: '#93c5fd' },
+          'error': { bg: '#fee2e2', text: '#ef4444', border: '#fca5a5' },
+          'secondary': { bg: '#f3e8ff', text: '#9c27b0', border: '#d8b4fe' },
+        }
+        
+        const badgeColors = badgeColorMap[color] || badgeColorMap['default']
+        
+        // Format date helper
+        const formatDate = (dateStr?: string | null): string | null => {
+          if (!dateStr) return null
+          try {
+            return dayjs(dateStr).format('DD/MM/YYYY')
+          } catch {
+            return null
+          }
+        }
+        
+        // Build tooltip text for linked invoices (types 2, 3, 4, 5)
+        const isLinkedInvoice = invoiceType === 2 || invoiceType === 3 || invoiceType === 4 || invoiceType === 5
+        
+        let tooltipContent = null
+        if (isLinkedInvoice) {
+          const adjustmentReason = params.row.adjustmentReason as string | null
+          const replacementReason = params.row.replacementReason as string | null
+          const cancellationReason = params.row.cancellationReason as string | null
+          const explanationText = params.row.explanationText as string | null
+          
+          const actionText = 
+            invoiceType === 2 ? '📝 Hóa đơn điều chỉnh' :
+            invoiceType === 3 ? '🔄 Hóa đơn thay thế' :
+            invoiceType === 4 ? '❌ Hóa đơn hủy' :
+            invoiceType === 5 ? '📋 Hóa đơn giải trình' : ''
+          
+          // Get relevant reason based on invoice type
+          const reason = 
+            invoiceType === 2 ? adjustmentReason :
+            invoiceType === 3 ? replacementReason :
+            invoiceType === 4 ? cancellationReason :
+            invoiceType === 5 ? explanationText : null
+          
+          const formattedDate = formatDate(originalInvoiceSignDate)
+          
+          tooltipContent = (
+            <Box sx={{ py: 1, px: 0.5, minWidth: 280, maxWidth: 420 }}>
+              {/* Header */}
+              <Typography 
+                variant="subtitle2" 
+                sx={{ 
+                  fontWeight: 700, 
+                  mb: 1.5, 
+                  pb: 0.75,
+                  borderBottom: '1px solid rgba(255,255,255,0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                }}
+              >
+                {actionText}
+              </Typography>
+              
+              {/* Original Invoice Info - Always show if it's a linked invoice */}
+              <Box sx={{ mb: 1.5 }}>
+                <Typography variant="caption" sx={{ display: 'block', color: 'rgba(255,255,255,0.7)', mb: 0.75 }}>
+                  Liên quan đến hóa đơn:
+                </Typography>
+                {originalInvoiceNumber && originalInvoiceNumber > 0 ? (
+                  <Typography variant="body2" sx={{ fontSize: '13px', mb: 0.4, pl: 1 }}>
+                    • Số HĐ: <strong>{originalInvoiceNumber}</strong>
+                  </Typography>
+                ) : (
+                  <Typography variant="body2" sx={{ fontSize: '13px', mb: 0.4, pl: 1, color: 'rgba(255,255,255,0.6)', fontStyle: 'italic' }}>
+                    • Số HĐ: <em>Chưa cấp số</em>
+                  </Typography>
+                )}
+                {originalInvoiceSymbol && (
+                  <Typography variant="body2" sx={{ fontSize: '13px', mb: 0.4, pl: 1 }}>
+                    • Ký hiệu: <strong>{originalInvoiceSymbol}</strong>
+                  </Typography>
+                )}
+                {formattedDate && (
+                  <Typography variant="body2" sx={{ fontSize: '13px', pl: 1 }}>
+                    • Ngày ký: <strong>{formattedDate}</strong>
+                  </Typography>
+                )}
+              </Box>
+              
+              {/* Reason */}
+              {reason && (
+                <Box sx={{ mb: 1.5 }}>
+                  <Typography variant="caption" sx={{ display: 'block', color: 'rgba(255,255,255,0.7)', mb: 0.75 }}>
+                    Lý do:
+                  </Typography>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      fontSize: '12.5px', 
+                      fontStyle: 'italic',
+                      pl: 1,
+                      color: 'rgba(255,255,255,0.95)',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    "{reason}"
+                  </Typography>
+                </Box>
+              )}
+              
+              {/* Action hint */}
+              <Divider sx={{ my: 0.75, borderColor: 'rgba(255,255,255,0.2)' }} />
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  fontSize: '11px', 
+                  fontStyle: 'italic',
+                  color: 'rgba(255,255,255,0.7)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                }}
+              >
+                {originalInvoiceID ? '💡 Click để xem chi tiết hóa đơn gốc' : 'ℹ️ Chưa liên kết hóa đơn gốc'}
+              </Typography>
+            </Box>
+          )
+        }
+        
+        // If has original invoice ID, make it clickable with icon
+        if (isLinkedInvoice && originalInvoiceID && tooltipContent) {
+          return (
+            <Tooltip 
+              title={tooltipContent}
+              arrow
+              placement="top"
+            >
+              <Box
+                component={Link}
+                to={`/invoices/${originalInvoiceID}`}
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.75,
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  padding: '6px 14px',
+                  borderRadius: '20px', // Bo tròn mượt mà
+                  bgcolor: badgeColors.bg,
+                  border: `1px solid ${badgeColors.border}`,
+                  '&:hover': {
+                    transform: 'translateY(-2px)',
+                    boxShadow: `0 4px 12px ${badgeColors.border}`,
+                    bgcolor: badgeColors.bg,
+                  },
+                }}
+              >
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: badgeColors.text,
+                    fontWeight: 600,
+                    fontSize: '12px',
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {label}
+                </Typography>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    bgcolor: 'rgba(255, 255, 255, 0.95)',
+                    backdropFilter: 'blur(4px)',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  }}
+                >
+                  <LinkIcon 
+                    sx={{ 
+                      fontSize: 16, 
+                      color: '#1976d2',
+                      fontWeight: 'bold',
+                    }} 
+                  />
+                </Box>
+              </Box>
+            </Tooltip>
+          )
+        }
+        
+        // If linked invoice type but NO originalInvoiceID, show badge with disabled icon
+        if (isLinkedInvoice && !originalInvoiceID && tooltipContent) {
+          return (
+            <Tooltip 
+              title={tooltipContent}
+              arrow
+              placement="top"
+            >
+              <Box
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.75,
+                  padding: '6px 14px',
+                  borderRadius: '20px', // Bo tròn mượt mà
+                  bgcolor: badgeColors.bg,
+                  border: `1px solid ${badgeColors.border}`,
+                }}
+              >
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: badgeColors.text,
+                    fontWeight: 600,
+                    fontSize: '12px',
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {label}
+                </Typography>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    bgcolor: 'rgba(200, 200, 200, 0.5)',
+                    backdropFilter: 'blur(4px)',
+                  }}
+                >
+                  <LinkIcon 
+                    sx={{ 
+                      fontSize: 16, 
+                      color: '#9e9e9e',
+                      opacity: 0.6,
+                    }} 
+                  />
+                </Box>
+              </Box>
+            </Tooltip>
+          )
+        }
+        
+        // Normal badge for original invoices (no link)
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'center' }}>
-            <InvoiceTypeBadge invoiceType={invoiceType} size="small" />
-            {originalInvoiceID && (
-              <OriginalInvoiceLink 
-                originalInvoiceID={originalInvoiceID}
-                originalInvoiceNumber={originalInvoiceNumber}
-                variant="compact"
-              />
-            )}
-          </Box>
+          <Chip
+            label={label}
+            size="small"
+            sx={{
+              bgcolor: badgeColors.bg,
+              color: badgeColors.text,
+              border: `1px solid ${badgeColors.border}`,
+              fontWeight: 600,
+              fontSize: '12px',
+              height: 28,
+              borderRadius: '20px', // Bo tròn mượt mà
+              '& .MuiChip-label': {
+                px: 1.5,
+              },
+            }}
+          />
         )
       },
     },

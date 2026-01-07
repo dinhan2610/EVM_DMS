@@ -57,6 +57,8 @@ export interface InvoiceListItem {
   cancellationReason?: string | null;   // Lý do hủy
   explanationText?: string | null;      // Nội dung giải trình
   originalInvoiceNumber?: number;       // Số hóa đơn gốc (để hiển thị)
+  originalInvoiceSignDate?: string | null; // ✅ Ngày ký hóa đơn gốc (từ backend)
+  originalInvoiceSymbol?: string | null;   // ✅ Ký hiệu hóa đơn gốc (template serial)
 }
 
 export interface InvoiceItemResponse {

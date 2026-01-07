@@ -44,7 +44,15 @@ export interface PendingInvoice {
   createdBy: string
   createdDate: Date
   priority: 'low' | 'medium' | 'high'
-  type: 'VAT' | 'Standard' | 'Adjustment'
+  invoiceType: number // 1=Gốc, 2=Điều chỉnh, 3=Thay thế, 4=Hủy, 5=Giải trình
+  originalInvoiceID?: number | null
+  originalInvoiceNumber?: number
+  originalInvoiceSignDate?: string | null
+  originalInvoiceSymbol?: string | null
+  adjustmentReason?: string | null
+  replacementReason?: string | null
+  cancellationReason?: string | null
+  explanationText?: string | null
 }
 
 export interface RevenueChartData {
