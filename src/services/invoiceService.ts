@@ -214,10 +214,13 @@ export const createInvoice = async (data: BackendInvoiceRequest): Promise<Backen
       console.log('[createInvoice] Request JSON:', JSON.stringify(data, null, 2));
     }
     
-    // ⭐ DEBUGGING: Thử với signedBy = null thay vì 0
+    // ⭐ DEBUGGING: Keep original values from adapter
     const debugData = {
       ...data,
-      signedBy: data.signedBy === 0 ? null : data.signedBy,
+      // ✅ GIỮ NGUYÊN signedBy: 0 - backend có thể không chấp nhận null
+      // signedBy: data.signedBy === 0 ? null : data.signedBy,
+      // ✅ GIỮ NGUYÊN empty string - không convert sang null
+      // contactPerson và notes có thể là empty string
       // Thử bỏ companyID nếu backend tự lấy từ token
       // companyID: undefined,
     };
@@ -463,16 +466,16 @@ export const sendForApproval = async (invoiceId: number, note?: string): Promise
 
 /**
  * Kế toán trưởng duyệt hóa đơn
- * Chuyển từ PENDING_APPROVAL (6) → APPROVED (9) ✨ NEW
+ * Chuyển từ PENDING_APPROVAL (6) → PENDING_SIGN (7)
  */
 export const approveInvoice = async (invoiceId: number, approverNote?: string): Promise<void> => {
-  return updateInvoiceStatus(invoiceId, 9, approverNote || 'Kế toán trưởng đã duyệt');
+  return updateInvoiceStatus(invoiceId, 7, approverNote || 'Kế toán trưởng đã duyệt');
 };
 
 /**
  * Chuyển hóa đơn sang trạng thái chờ ký
- * Chuyển từ APPROVED (9) → PENDING_SIGN (7)
- * Thường tự động sau khi duyệt
+ * ⚠️ DEPRECATED: approveInvoice đã chuyển trực tiếp sang status 7
+ * Giữ lại để tương thích ngược nếu cần
  */
 export const markPendingSign = async (invoiceId: number): Promise<void> => {
   return updateInvoiceStatus(invoiceId, 7, 'Chuyển sang chờ ký số');
@@ -480,24 +483,32 @@ export const markPendingSign = async (invoiceId: number): Promise<void> => {
 
 /**
  * Đánh dấu hóa đơn đã ký số thành công
- * Chuyển từ PENDING_SIGN (7) → SIGNED (10) ✨ NEW
+ * Chuyển từ PENDING_SIGN (7) → SIGNED (8)
  */
 export const markSigned = async (invoiceId: number, signerId?: number): Promise<void> => {
   const note = signerId 
     ? `Đã ký số bởi user ${signerId}` 
     : 'Đã ký số thành công';
-  return updateInvoiceStatus(invoiceId, 10, note);
+  return updateInvoiceStatus(invoiceId, 8, note);
 };
 
 /**
  * Kế toán trưởng từ chối hóa đơn
- * Chuyển từ PENDING_APPROVAL (6) → CANCELLED (3)
+ * Chuyển từ PENDING_APPROVAL (6) → REJECTED (16)
  */
 export const rejectInvoice = async (invoiceId: number, reason: string): Promise<void> => {
   if (!reason || !reason.trim()) {
     throw new Error('Vui lòng nhập lý do từ chối');
   }
-  return updateInvoiceStatus(invoiceId, 3, `Từ chối: ${reason}`);
+  return updateInvoiceStatus(invoiceId, 16, `Từ chối: ${reason}`);
+};
+
+/**
+ * ✅ Gửi lại hóa đơn sau khi bị từ chối
+ * Chuyển từ REJECTED (16) → PENDING_APPROVAL (6)
+ */
+export const resubmitForApproval = async (invoiceId: number): Promise<void> => {
+  return updateInvoiceStatus(invoiceId, 6, 'Đã sửa và gửi lại duyệt');
 };
 
 /**
@@ -524,7 +535,7 @@ export const markSendError = async (_invoiceId: number, _errorMessage?: string):
 
 /**
  * Đánh dấu hóa đơn đã phát hành thành công
- * Chuyển từ SIGNED (10) → ISSUED (2)
+ * Chuyển từ SIGNED (8) → ISSUED (2)
  */
 export const markIssued = async (invoiceId: number, taxCode?: string): Promise<void> => {
   const note = taxCode 
@@ -1031,7 +1042,8 @@ const invoiceService = {
   approveInvoice,       // 6 → 9 ✨ NEW
   markPendingSign,      // 9 → 7 ✨ NEW
   markSigned,           // 7 → 10 ✨ NEW
-  rejectInvoice,        // 6 → 3
+  rejectInvoice,        // 6 → 16 ✅ Từ chối duyệt
+  resubmitForApproval,  // ✅ 16 → 6 Gửi lại duyệt
   cancelInvoice,        // 6/7 → 1 ✨ NEW
   markIssued,           // 10 → 2
   

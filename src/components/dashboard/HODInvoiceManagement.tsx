@@ -34,6 +34,7 @@ import {
   DialogActions,
   Snackbar,
   Alert,
+  TextField,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
@@ -87,6 +88,7 @@ export interface Invoice {
   taxStatus: string
   taxStatusCode: string | null
   amount: number
+  notes: string | null // ✅ Ghi chú (chứa lý do từ chối)
   
   // Invoice type fields
   invoiceType: number
@@ -148,6 +150,7 @@ const mapInvoiceToUI = (
     taxStatus: taxStatusLabel,
     taxStatusCode: item.taxStatusCode || null,
     amount: item.totalAmount,
+    notes: item.notes || null,  // ✅ Map notes field
     
     invoiceType: item.invoiceType || INVOICE_TYPE.ORIGINAL,
     originalInvoiceID: item.originalInvoiceID,
@@ -165,6 +168,7 @@ const mapInvoiceToUI = (
 interface InvoiceActionsMenuProps {
   invoice: Invoice
   onApprove: (id: string) => void // KTT duyệt hóa đơn
+  onReject: (id: string) => void  // ✅ KTT từ chối hóa đơn
   onSign: (id: string, invoiceNumber: string) => void
   onResendToTax: (id: string, invoiceNumber: string) => void
   onCancel: (id: string, invoiceNumber: string) => void
@@ -173,7 +177,7 @@ interface InvoiceActionsMenuProps {
   hasBeenAdjusted: boolean // Đã có hóa đơn điều chỉnh từ hóa đơn này chưa
 }
 
-const InvoiceActionsMenu = ({ invoice, onApprove, onSign, onResendToTax, onCancel, onPrintInvoice, isSending, hasBeenAdjusted }: InvoiceActionsMenuProps) => {
+const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTax, onCancel, onPrintInvoice, isSending, hasBeenAdjusted }: InvoiceActionsMenuProps) => {
   const navigate = useNavigate()
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
@@ -189,8 +193,8 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onSign, onResendToTax, onCance
   // Xác định trạng thái hóa đơn theo luồng mới
   const isDraft = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.DRAFT // 1
   const isPendingApproval = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_APPROVAL // 6
-  const isApproved = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.APPROVED // 9
-  const isPendingSign = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN // 7 - Chờ ký
+  const isPendingSign = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN // 7 - Chờ ký (sau khi KTT duyệt)
+  const isSigned = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.SIGNED // 8 - Đã ký
   const isIssued = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.ISSUED // 2 - Đã phát hành
   
   // ⚠️ Kiểm tra lỗi gửi CQT từ Tax Status (không phải Internal Status)
@@ -212,11 +216,11 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onSign, onResendToTax, onCance
   // ✅ Backend đã sửa: /sign API cấp số luôn
   // 
   // - Ký số & Phát hành: Cho phép khi:
-  //   + Status = 7 (PENDING_SIGN) - Chờ ký
-  //   + HOẶC Status = 9 (APPROVED) - Đã duyệt
-  //   + VÀ CHƯƠ CÓ SỐ (chưa ký)
+  //   + Status = 7 (PENDING_SIGN) - Chờ ký (sau khi KTT duyệt)
+  //   + HOẶC Status = 8 (SIGNED) - Đã ký, có thể phát hành lại
+  //   + VÀ CHƯA CÓ SỐ (chưa ký)
   //   ➡️ Sau khi ký xong → TỰ ĐỘNG gửi CQT và phát hành
-  const canSignAndIssue = (isPendingSign || isApproved) && !hasInvoiceNumber // ⚡ Gộp 1 bước
+  const canSignAndIssue = (isPendingSign || isSigned) && !hasInvoiceNumber // ⚡ Gộp 1 bước
   const canCancel = isPendingApproval || isPendingSign // Có thể hủy khi Chờ duyệt HOẶC Chờ ký
   
   // 📋 Logic "Tạo HĐ điều chỉnh"
@@ -248,6 +252,17 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onSign, onResendToTax, onCance
       },
       color: 'success.main',
       tooltip: 'Kế toán trưởng phê duyệt hóa đơn',
+    },
+    {
+      label: 'Từ chối',
+      icon: <CancelIcon fontSize="small" />,
+      enabled: isPendingApproval && !isSending,
+      action: () => {
+        onReject(invoice.id)
+        handleClose()
+      },
+      color: 'error.main',
+      tooltip: 'Từ chối duyệt hóa đơn (bắt buộc nhập lý do)',
     },
     {
       label: '⚡ Ký số & Phát hành',
@@ -473,8 +488,19 @@ const HODInvoiceManagement = () => {
     invoiceNumber: '',
   })
   const [isSigningInvoice, setIsSigningInvoice] = useState(false)
+  const [signingProgress, setSigningProgress] = useState<{
+    step: 'signing' | 'submitting' | 'issuing'
+    message: string
+  } | null>(null)
   const [autoIssueAfterSign, setAutoIssueAfterSign] = useState(false) // ⚡ Tự động phát hành sau khi ký
   const signingInProgress = useRef<Set<number>>(new Set())
+  
+  // ✅ State quản lý dialog từ chối
+  const [rejectDialog, setRejectDialog] = useState({
+    open: false,
+    invoiceId: '',
+    reason: '',
+  })
   
   // State quản lý preview modal
   const [previewModal, setPreviewModal] = useState({
@@ -529,7 +555,34 @@ const HODInvoiceManagement = () => {
         (customersData as Customer[]).map((c: Customer) => [c.customerID, { name: c.customerName, taxCode: c.taxCode }])
       )
       
-      const mappedData = invoicesData.map((item: InvoiceListItem) => mapInvoiceToUI(item, templateMap, customerMap))
+      let mappedData = invoicesData.map((item: InvoiceListItem) => mapInvoiceToUI(item, templateMap, customerMap))
+      
+      // ✅ Preload notes cho các hóa đơn REJECTED (để hiển thị lý do từ chối trong tooltip)
+      const rejectedInvoices = mappedData.filter(inv => inv.internalStatusId === INVOICE_INTERNAL_STATUS.REJECTED)
+      if (rejectedInvoices.length > 0) {
+        // Fetch notes từ detail API cho từng rejected invoice
+        const notesPromises = rejectedInvoices.map(async (inv) => {
+          try {
+            const detail = await invoiceService.getInvoiceById(parseInt(inv.id))
+            return { id: inv.id, notes: detail.notes }
+          } catch (err) {
+            console.error(`[HOD] Failed to load notes for invoice ${inv.id}:`, err)
+            return { id: inv.id, notes: null }
+          }
+        })
+        
+        const notesResults = await Promise.all(notesPromises)
+        const notesMap = new Map(notesResults.map(r => [r.id, r.notes]))
+        
+        // ⚡ Create NEW array với notes merged (để trigger React re-render)
+        mappedData = mappedData.map(inv => {
+          if (notesMap.has(inv.id)) {
+            return { ...inv, notes: notesMap.get(inv.id) || null }
+          }
+          return inv
+        })
+      }
+      
       setInvoices(mappedData)
     } catch (err) {
       console.error('Failed to load HOD invoices:', err)
@@ -672,11 +725,57 @@ const HODInvoiceManagement = () => {
     }
   }
 
+  // ✅ Handler mở dialog từ chối
+  const handleOpenRejectDialog = (invoiceId: string) => {
+    setRejectDialog({
+      open: true,
+      invoiceId,
+      reason: '',
+    })
+  }
+
+  // ✅ Handler từ chối hóa đơn (KTT)
+  const handleReject = async () => {
+    if (!rejectDialog.reason.trim()) {
+      setSnackbar({
+        open: true,
+        message: '❌ Vui lòng nhập lý do từ chối',
+        severity: 'error',
+      })
+      return
+    }
+
+    try {
+      setSubmittingId(rejectDialog.invoiceId)
+      
+      await invoiceService.rejectInvoice(parseInt(rejectDialog.invoiceId), rejectDialog.reason)
+      
+      setSnackbar({
+        open: true,
+        message: `✅ Đã từ chối hóa đơn thành công!`,
+        severity: 'success',
+      })
+      
+      // Đóng dialog và reset
+      setRejectDialog({ open: false, invoiceId: '', reason: '' })
+      
+      await loadInvoices()
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: `❌ Từ chối hóa đơn thất bại: ${err instanceof Error ? err.message : 'Lỗi không xác định'}`,
+        severity: 'error',
+      })
+    } finally {
+      setSubmittingId(null)
+    }
+  }
+
   // Handler ký số (mở dialog)
   const handleOpenSignDialog = (invoiceId: string, invoiceNumber: string) => {
     // ⚡ Check xem có cần tự động phát hành sau khi ký không
     const invoice = invoices.find(inv => inv.id === invoiceId)
-    const shouldAutoIssue = invoice && (invoice.internalStatusId === INVOICE_INTERNAL_STATUS.APPROVED || invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN)
+    const shouldAutoIssue = invoice && (invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN || invoice.internalStatusId === INVOICE_INTERNAL_STATUS.SIGNED)
     
     setAutoIssueAfterSign(shouldAutoIssue || false)
     setSignDialog({
@@ -709,52 +808,87 @@ const HODInvoiceManagement = () => {
       setIsSigningInvoice(true)
       signingInProgress.current.add(invoiceIdNum)
       
-      if (import.meta.env.DEV) {
-        console.log(`✍️ Ký số hóa đơn ${invoiceNumber}...`)
-      }
-      
+      // BƯớc 1: Ký số
+      setSigningProgress({ step: 'signing', message: '🔏 Ký số điện tử...' })
       const userId = authContext?.user?.id || 1
       const userIdNum = typeof userId === 'string' ? parseInt(userId) : userId
       await invoiceService.signInvoice(invoiceIdNum, userIdNum)
       
+      // 🔄 Load ngay sau ký để cập nhật trạng thái
+      await loadInvoices()
+      
       // ⚡ TỰ ĐỘNG PHÁT HÀNH sau khi ký thành công
       if (autoIssueAfterSign) {
+        // Bước 2: Gửi CQT
+        setSigningProgress({ step: 'submitting', message: '🏛️ Gửi lên Cơ quan Thuế...' })
+        const taxCode = await invoiceService.submitToTaxAuthority(invoiceIdNum)
+        
+        // 🔄 Load sau khi gửi CQT
+        await loadInvoices()
+        
+        // Bước 3: Phát hành
+        setSigningProgress({ step: 'issuing', message: '✅ Phát hành hóa đơn...' })
+        
         if (import.meta.env.DEV) {
-          console.log(`⚡ Auto-issuing invoice ${invoiceNumber} after signing...`)
+          console.log(`🔵 [HOD] Starting issueInvoice for invoice ${invoiceIdNum}...`)
         }
         
-        // Gửi CQT và phát hành
-        const taxCode = await invoiceService.submitToTaxAuthority(invoiceIdNum)
-        await invoiceService.issueInvoice(invoiceIdNum, userIdNum)
+        // ⚠️ Timeout protection: Nếu API không response trong 30s, throw error
+        const issuePromise = invoiceService.issueInvoice(invoiceIdNum, userIdNum)
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Phát hành hóa đơn quá lâu (timeout 30s). Vui lòng kiểm tra lại trạng thái hóa đơn.')), 30000)
+        )
         
+        await Promise.race([issuePromise, timeoutPromise])
+        
+        if (import.meta.env.DEV) {
+          console.log(`✅ [HOD] issueInvoice completed successfully`)
+        }
+        
+        // 🔄 Load cuối cùng
+        await loadInvoices()
+        
+        // ✅ Hoàn tất - hiển thị snackbar
         setSnackbar({
           open: true,
           message: `✅ Đã ký số và phát hành hóa đơn ${invoiceNumber} thành công!\n🏛️ Mã CQT: ${taxCode}`,
           severity: 'success',
         })
       } else {
+        // Chỉ ký số, không phát hành
         setSnackbar({
           open: true,
           message: `✅ Đã ký số hóa đơn ${invoiceNumber} thành công! Bây giờ bạn có thể phát hành.`,
           severity: 'success',
         })
       }
-      
-      setAutoIssueAfterSign(false) // Reset flag
-      handleCloseSignDialog()
-      await loadInvoices()
     } catch (err) {
-      setAutoIssueAfterSign(false) // Reset flag on error
+      setAutoIssueAfterSign(false)
+      setSigningProgress(null)
+      
+      // Xác định lỗi ở bước nào
+      const currentStep = signingProgress?.step || 'signing'
+      const stepLabels = {
+        signing: 'ký số',
+        submitting: 'gửi CQT',
+        issuing: 'phát hành',
+      }
+      
       setSnackbar({
         open: true,
-        message: autoIssueAfterSign 
-          ? `❌ Ký số và phát hành thất bại: ${err instanceof Error ? err.message : 'Lỗi không xác định'}`
-          : `❌ Ký số thất bại: ${err instanceof Error ? err.message : 'Lỗi không xác định'}`,
+        message: `❌ Lỗi khi ${stepLabels[currentStep as keyof typeof stepLabels] || 'xử lý'}: ${err instanceof Error ? err.message : 'Lỗi không xác định'}`,
         severity: 'error',
       })
+      
+      // Load lại dữ liệu ngay cả khi lỗi để cập nhật trạng thái mới nhất
+      await loadInvoices()
     } finally {
+      // ✅ Reset TẤT CẢ states đồng thời trong finally để đảm bảo dialog đóng đúng cách
       setIsSigningInvoice(false)
+      setAutoIssueAfterSign(false)
+      setSigningProgress(null)
       signingInProgress.current.delete(invoiceIdNum)
+      handleCloseSignDialog()
     }
   }
 
@@ -963,14 +1097,67 @@ const HODInvoiceManagement = () => {
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const statusId = params.row.internalStatusId
-        return (
+        const isRejected = statusId === INVOICE_INTERNAL_STATUS.REJECTED
+        const notes = params.row.notes as string | null
+        
+        // Extract rejection reason from notes (if available)
+        const rejectionReason = isRejected && notes && notes.includes('Từ chối:') 
+          ? notes.replace('Từ chối: ', '') 
+          : null
+        
+        // Tooltip content - only show when rejection reason exists
+        const tooltipContent = isRejected && rejectionReason ? (
+          <Box sx={{ p: 1 }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+              ❌ Hóa đơn bị từ chối duyệt
+            </Typography>
+            <Typography variant="caption" sx={{ display: 'block', opacity: 0.9, mb: 0.5 }}>
+              <strong>Lý do:</strong> {rejectionReason}
+            </Typography>
+            <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: '#ffeb3b' }}>
+              💡 Kế toán viên cần sửa và gửi lại
+            </Typography>
+          </Box>
+        ) : (params.value as string)
+        
+        const chipElement = (
           <Chip 
             label={params.value as string} 
             color={getInternalStatusColor(statusId)} 
             size="small" 
-            sx={{ fontWeight: 600 }}
+            sx={{ 
+              fontWeight: 600,
+              ...(isRejected && {
+                animation: 'pulse 2s ease-in-out infinite',
+                '@keyframes pulse': {
+                  '0%, 100%': { opacity: 1 },
+                  '50%': { opacity: 0.7 },
+                },
+              }),
+            }}
           />
         )
+        
+        // Wrap with Tooltip ONLY when rejection reason exists
+        return isRejected && rejectionReason ? (
+          <Tooltip 
+            title={tooltipContent} 
+            arrow 
+            placement="top"
+            componentsProps={{
+              tooltip: {
+                sx: {
+                  bgcolor: 'rgba(0, 0, 0, 0.9)',
+                  '& .MuiTooltip-arrow': {
+                    color: 'rgba(0, 0, 0, 0.9)',
+                  },
+                },
+              },
+            }}
+          >
+            <span>{chipElement}</span>
+          </Tooltip>
+        ) : chipElement
       },
     },
     {
@@ -1335,6 +1522,7 @@ const HODInvoiceManagement = () => {
             <InvoiceActionsMenu
               invoice={invoice}
               onApprove={handleApprove}
+              onReject={handleOpenRejectDialog}
               onSign={handleOpenSignDialog}
               onResendToTax={handleResendToTax}
               onCancel={handleCancelInvoice}
@@ -1442,6 +1630,57 @@ const HODInvoiceManagement = () => {
             </Paper>
           )}
 
+          {/* ✅ Reject Invoice Dialog */}
+          <Dialog 
+            open={rejectDialog.open} 
+            onClose={() => setRejectDialog({ open: false, invoiceId: '', reason: '' })} 
+            maxWidth="sm" 
+            fullWidth
+          >
+            <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'error.main' }}>
+              <CancelIcon color="error" />
+              ❌ Từ chối duyệt hóa đơn
+            </DialogTitle>
+            <DialogContent>
+              <Alert severity="warning" sx={{ mb: 3 }}>
+                <strong>⚠️ Bắt buộc nhập lý do từ chối</strong><br />
+                Lý do từ chối sẽ được gửi đến kế toán viên để sửa lại hóa đơn.
+              </Alert>
+              
+              <TextField
+                autoFocus
+                fullWidth
+                multiline
+                rows={4}
+                label="Lý do từ chối"
+                placeholder="Ví dụ: Sai đơn giá mặt hàng số 2, Thiếu mã số thuế khách hàng..."
+                value={rejectDialog.reason}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRejectDialog({ ...rejectDialog, reason: e.target.value })}
+                required
+                error={!rejectDialog.reason.trim()}
+                helperText={!rejectDialog.reason.trim() ? 'Vui lòng nhập lý do từ chối' : ''}
+                sx={{ mt: 2 }}
+              />
+            </DialogContent>
+            <DialogActions sx={{ p: 2, pt: 0 }}>
+              <Button 
+                onClick={() => setRejectDialog({ open: false, invoiceId: '', reason: '' })}
+                disabled={!!submittingId}
+              >
+                Hủy
+              </Button>
+              <Button
+                variant="contained"
+                color="error"
+                onClick={handleReject}
+                disabled={!!submittingId || !rejectDialog.reason.trim()}
+                startIcon={<CancelIcon />}
+              >
+                {submittingId ? 'Đang xử lý...' : 'Xác nhận từ chối'}
+              </Button>
+            </DialogActions>
+          </Dialog>
+
           {/* Sign Invoice Dialog */}
           <Dialog open={signDialog.open} onClose={handleCloseSignDialog} maxWidth="sm" fullWidth>
             <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1449,22 +1688,59 @@ const HODInvoiceManagement = () => {
               ✍️ Ký số hóa đơn
             </DialogTitle>
             <DialogContent>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <strong>Bước 1: Ký số điện tử</strong>
-                <br />
-                Hóa đơn sẽ được ký bằng chữ ký số điện tử. Sau đó bạn cần nhấn <strong>"Phát hành"</strong> để cấp số và gửi lên CQT.
-              </Alert>
-              <Typography variant="body1" sx={{ mb: 1 }}>
-                <strong>Hóa đơn:</strong> {signDialog.invoiceNumber || '<Chưa cấp số>'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Nhấn <strong>"Ký số"</strong> để:
-              </Typography>
-              <Box component="ul" sx={{ pl: 2, mb: 0 }}>
-                <li><Typography variant="body2">✍️ Ký số điện tử vào hóa đơn</Typography></li>
-                <li><Typography variant="body2">📝 Chuyển sang trạng thái "Đã ký"</Typography></li>
-                <li><Typography variant="body2">⏭️ Sau đó bạn cần nhấn "Phát hành" để cấp số và gửi CQT</Typography></li>
-              </Box>
+              {signingProgress ? (
+                <Box sx={{ py: 3, textAlign: 'center' }}>
+                  <Box sx={{ mb: 2 }}>
+                    <Box
+                      sx={{
+                        width: 60,
+                        height: 60,
+                        margin: '0 auto',
+                        borderRadius: '50%',
+                        border: '4px solid',
+                        borderColor: 'primary.main',
+                        borderTopColor: 'transparent',
+                        animation: 'spin 1s linear infinite',
+                        '@keyframes spin': {
+                          '0%': { transform: 'rotate(0deg)' },
+                          '100%': { transform: 'rotate(360deg)' },
+                        },
+                      }}
+                    />
+                  </Box>
+                  <Typography variant="h6" gutterBottom>
+                    {signingProgress.message}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {signingProgress.step === 'signing' && 'Đang ký chữ ký số điện tử...'}
+                    {signingProgress.step === 'submitting' && 'Gửi hóa đơn lên cơ quan thuế...'}
+                    {signingProgress.step === 'issuing' && 'Hoàn tất quá trình phát hành...'}
+                  </Typography>
+                </Box>
+              ) : (
+                <>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    {autoIssueAfterSign ? (
+                      <>
+                        <strong>⚡ Ký số & Phát hành tự động</strong><br />
+                        Hệ thống sẽ tự động thực hiện:<br />
+                        1️⃣ Ký số điện tử<br />
+                        2️⃣ Gửi lên Cơ quan Thuế<br />
+                        3️⃣ Phát hành hóa đơn<br />
+                        <em>(Quá trình có thể mất vài giây)</em>
+                      </>
+                    ) : (
+                      <>
+                        <strong>Bước 1: Ký số điện tử</strong><br />
+                        Hóa đơn sẽ được ký bằng chữ ký số điện tử.
+                      </>
+                    )}
+                  </Alert>
+                  <Typography variant="body1" sx={{ mb: 1 }}>
+                    <strong>Hóa đơn:</strong> {signDialog.invoiceNumber || '<Chưa cấp số>'}
+                  </Typography>
+                </>
+              )}
             </DialogContent>
             <DialogActions sx={{ p: 2, pt: 0 }}>
               <Button onClick={handleCloseSignDialog} disabled={isSigningInvoice}>
@@ -1477,7 +1753,7 @@ const HODInvoiceManagement = () => {
                 disabled={isSigningInvoice}
                 startIcon={<DrawIcon />}
               >
-                {isSigningInvoice ? 'Đang ký số...' : 'Ký số'}
+                {isSigningInvoice ? 'Đang xử lý...' : autoIssueAfterSign ? 'Ký & Phát hành' : 'Ký số'}
               </Button>
             </DialogActions>
           </Dialog>

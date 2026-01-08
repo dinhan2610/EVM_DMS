@@ -338,6 +338,21 @@ const InvoiceDetail: React.FC = () => {
                 </Typography>
               </Alert>
             )}
+            
+            {/* ✅ Display rejection reason if invoice is REJECTED */}
+            {invoice.invoiceStatusID === INVOICE_INTERNAL_STATUS.REJECTED && invoice.notes && invoice.notes.includes('Từ chối:') && (
+              <Alert severity="error" icon={<ErrorIcon />} sx={{ mt: 2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                  ⚠️ Hóa đơn bị từ chối duyệt
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  Lý do: {invoice.notes.replace('Từ chối: ', '')}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  💡 Vui lòng chỉnh sửa hóa đơn theo yêu cầu và gửi lại duyệt
+                </Typography>
+              </Alert>
+            )}
           </Box>
           
           <Stack direction="row" spacing={1.5}>

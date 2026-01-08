@@ -35,8 +35,8 @@ export interface BackendInvoiceRequest {
 
 export interface BackendInvoiceItem {
   productId: number;            // ID sản phẩm (0 nếu không có trong DB)
-  productName: string;          // ✅ Tên sản phẩm (NEW!)
-  unit: string;                 // ✅ Đơn vị tính (NEW!)
+  productName: string;          // Tên sản phẩm
+  unit: string;                 // Đơn vị tính
   quantity: number;             // Số lượng
   amount: number;               // Thành tiền CHƯA VAT
   vatAmount: number;            // Tiền VAT
@@ -185,6 +185,7 @@ export function validateTotals(
  * @param invoiceStatusID - Trạng thái hóa đơn (1=Nháp, 6=Chờ duyệt)
  * @param notes - Ghi chú
  * @param signedBy - UserID người ký (0=chưa ký)
+ * @param salesID - UserID người tạo (0=bỏ trống, backend tự lấy từ token)
  * @returns Backend request object
  */
 export function mapToBackendInvoiceRequest(
@@ -196,7 +197,8 @@ export function mapToBackendInvoiceRequest(
   minRows: number = 5,
   invoiceStatusID: number = 1,          // ⭐ NEW: 1=Nháp, 6=Chờ duyệt
   notes: string = '',                   // ⭐ NEW: Ghi chú
-  signedBy: number = 0                  // ⭐ NEW: UserID người ký (0=chưa ký)
+  signedBy: number = 0,                 // ⭐ NEW: UserID người ký (0=chưa ký)
+  salesID: number = 0                   // ⭐ NEW: UserID salesperson (0=bỏ trống)
 ): BackendInvoiceRequest {
   
   // Validate totals trước khi gửi
@@ -221,9 +223,9 @@ export function mapToBackendInvoiceRequest(
       productId: item.productId || 0,  // ✅ Dùng productId từ item, hoặc 0 nếu nhập tự do
       productName: item.name,          // ✅ Tên sản phẩm
       unit: item.unit,                 // ✅ Đơn vị tính
-      quantity: item.quantity,
-      amount: amount,                  // Tiền chưa VAT (đã trừ chiết khấu)
-      vatAmount: vatAmount             // Tiền VAT tính từ amount × vatRate của sản phẩm
+      quantity: item.quantity,         // ✅ Số lượng
+      amount: amount,                  // ✅ Tiền chưa VAT (đã trừ chiết khấu)
+      vatAmount: vatAmount             // ✅ Tiền VAT tính từ amount × vatRate của sản phẩm
     };
   });
   
@@ -246,9 +248,10 @@ export function mapToBackendInvoiceRequest(
     taxCode: buyerInfo.taxCode || 'N/A',
     invoiceStatusID,                  // ⭐ NEW: 1=Nháp, 6=Chờ duyệt
     companyID: 1,                     // ✅ Backend yêu cầu companyID = 1 (hardcoded)
+    ...(salesID > 0 && { salesID }), // ✅ Chỉ gửi nếu > 0, backend tự lấy từ token nếu không truyền
     customerName: buyerInfo.companyName || 'Khách hàng',
     address: buyerInfo.address || 'Chưa cập nhật',
-    notes,                            // ⭐ NEW: Ghi chú
+    notes: notes || '',               // ✅ Empty string instead of null
     paymentMethod: paymentMethod,     // ✅ Hình thức thanh toán
     items: backendItems,
     amount: totalAmountBeforeVat,     // Tổng tiền chưa VAT

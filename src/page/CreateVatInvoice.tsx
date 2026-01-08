@@ -1394,6 +1394,7 @@ const CreateVatInvoice: React.FC = () => {
       setIsSubmitting(true)
 
       // Map frontend state sang backend request
+      // ⭐ Không truyền salesID (để = 0), backend sẽ tự lấy từ auth token
       const backendRequest = mapToBackendInvoiceRequest(
         selectedTemplate.templateID,
         {
@@ -1412,6 +1413,7 @@ const CreateVatInvoice: React.FC = () => {
         invoiceStatusID, // ⭐ Status: 1=Nháp, 6=Chờ duyệt
         invoiceNotes,   // Ghi chú hóa đơn
         0               // signedBy (0=chưa ký)
+        // salesID không truyền, backend tự lấy từ token
       )
 
       console.log(`📤 Sending invoice request (${statusLabel}):`, backendRequest)
