@@ -1125,6 +1125,63 @@ export const saveInvoicePDF = async (
   }
 };
 
+/**
+ * Tạo hóa đơn thay thế
+ * API: POST /api/Invoice/replacement
+ * 
+ * ⚠️ QUAN TRỌNG - Luồng tự động của Backend:
+ * 1. Tạo hóa đơn mới với invoiceType = 3 (REPLACEMENT)
+ * 2. Set originalInvoiceID = ID hóa đơn gốc
+ * 3. Lưu replacementReason vào hóa đơn mới
+ * 4. ⭐ TỰ ĐỘNG UPDATE hóa đơn gốc: invoiceStatusID = 5 (REPLACED - "Đã thay thế")
+ * 5. Hóa đơn gốc sau khi bị thay thế sẽ không thể:
+ *    - Chỉnh sửa
+ *    - Ký số
+ *    - Gửi CQT
+ *    - Thực hiện bất kỳ thao tác nào
+ * 
+ * @param originalInvoiceId - ID hóa đơn gốc cần thay thế
+ * @param reason - Lý do thay thế (bắt buộc, tối thiểu 10 ký tự)
+ * @param data - Invoice data mới (đã map qua adapter)
+ * @returns Created replacement invoice response
+ */
+export const createReplacementInvoice = async (
+  originalInvoiceId: number,
+  reason: string,
+  data: BackendInvoiceRequest
+): Promise<BackendInvoiceResponse> => {
+  try {
+    const payload = {
+      originalInvoiceId,
+      reason,
+      ...data,
+    };
+    
+    if (import.meta.env.DEV) {
+      console.log('[createReplacementInvoice] Request:', payload);
+    }
+    
+    const response = await axios.post<BackendInvoiceResponse>(
+      `/api/Invoice/replacement`,
+      payload,
+      { headers: getAuthHeaders() }
+    );
+    
+    if (import.meta.env.DEV) {
+      console.log('[createReplacementInvoice] Success:', response.data);
+    }
+    return response.data;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error('[createReplacementInvoice] Error:', error);
+      if (axios.isAxiosError(error) && error.response) {
+        console.error('[createReplacementInvoice] Response:', error.response.data);
+      }
+    }
+    return handleApiError(error, 'Create replacement invoice failed');
+  }
+};
+
 const invoiceService = {
   // Templates
   getAllTemplates,
@@ -1139,6 +1196,9 @@ const invoiceService = {
   
   // Adjustment Invoice ✨ NEW
   createAdjustmentInvoice,
+  
+  // Replacement Invoice ✨ NEW
+  createReplacementInvoice,
   
   // Status Management (New PATCH API)
   updateInvoiceStatus,

@@ -356,6 +356,62 @@ export const getTaxStatusColor = (statusId: number | null | undefined) => {
   return TAX_STATUS_COLORS[statusId] || TAX_AUTHORITY_STATUS_COLORS[statusId] || 'default';
 };
 
+/**
+ * Kiểm tra hóa đơn đã bị thay thế
+ * @param statusId - Invoice status ID
+ * @returns true nếu hóa đơn đã bị thay thế
+ */
+export const isInvoiceReplaced = (statusId: number): boolean => {
+  return statusId === INVOICE_INTERNAL_STATUS.REPLACED;
+};
+
+/**
+ * Kiểm tra hóa đơn đã bị điều chỉnh
+ * @param statusId - Invoice status ID
+ * @returns true nếu hóa đơn đã bị điều chỉnh
+ */
+export const isInvoiceAdjusted = (statusId: number): boolean => {
+  return statusId === INVOICE_INTERNAL_STATUS.ADJUSTED;
+};
+
+/**
+ * Kiểm tra hóa đơn đã bị hủy
+ * @param statusId - Invoice status ID
+ * @returns true nếu hóa đơn đã bị hủy
+ */
+export const isInvoiceCancelled = (statusId: number): boolean => {
+  return statusId === INVOICE_INTERNAL_STATUS.CANCELLED;
+};
+
+/**
+ * Kiểm tra hóa đơn không thể chỉnh sửa (đã bị thay thế/điều chỉnh/hủy)
+ * @param statusId - Invoice status ID
+ * @returns true nếu hóa đơn không thể thao tác
+ */
+export const isInvoiceReadOnly = (statusId: number): boolean => {
+  return isInvoiceReplaced(statusId) || 
+         isInvoiceAdjusted(statusId) || 
+         isInvoiceCancelled(statusId);
+};
+
+/**
+ * Lấy message cảnh báo cho hóa đơn read-only
+ * @param statusId - Invoice status ID
+ * @returns Warning message hoặc null
+ */
+export const getReadOnlyMessage = (statusId: number): string | null => {
+  if (isInvoiceReplaced(statusId)) {
+    return '⚠️ Hóa đơn này đã bị thay thế bởi hóa đơn mới. Không thể thực hiện thao tác.';
+  }
+  if (isInvoiceAdjusted(statusId)) {
+    return '⚠️ Hóa đơn này đã bị điều chỉnh. Không thể thực hiện thao tác.';
+  }
+  if (isInvoiceCancelled(statusId)) {
+    return '⚠️ Hóa đơn này đã bị hủy. Không thể thực hiện thao tác.';
+  }
+  return null;
+};
+
 // ==================== LEGACY MAPPING (DEPRECATED) ====================
 /**
  * @deprecated Use INVOICE_INTERNAL_STATUS_LABELS instead
