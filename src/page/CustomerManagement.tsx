@@ -151,8 +151,6 @@ const CustomerManagement = () => {
         email: customer.email,
         phone: customer.phone,
         address: customer.address,
-        bankAccount: customer.bankAccount || '',
-        bankName: customer.bankName || '',
         status: customer.status,
       })
     } else {
@@ -244,11 +242,12 @@ const CustomerManagement = () => {
       // Refresh customer list
       await fetchCustomers()
       handleCloseModal()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Error saving customer:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Có lỗi xảy ra khi lưu khách hàng!'
       setSnackbar({
         open: true,
-        message: error.message || 'Có lỗi xảy ra khi lưu khách hàng!',
+        message: errorMessage,
         severity: 'error',
       })
     } finally {
@@ -298,11 +297,12 @@ const CustomerManagement = () => {
       // Refresh customer list
       await fetchCustomers()
       handleCloseToggleModal()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Error toggling status:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Có lỗi xảy ra khi thay đổi trạng thái!'
       setSnackbar({
         open: true,
-        message: error.message || 'Có lỗi xảy ra khi thay đổi trạng thái!',
+        message: errorMessage,
         severity: 'error',
       })
       handleCloseToggleModal()
@@ -349,10 +349,11 @@ const CustomerManagement = () => {
       headerName: 'Tên Khách hàng',
       flex: 1,
       minWidth: 200,
+      align: 'left',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<Customer>) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <BusinessOutlinedIcon sx={{ fontSize: 18, color: 'primary.main' }} />
-          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', height: '100%', pl: 2 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.875rem', color: '#2c3e50' }}>
             {params.row.customerName}
           </Typography>
         </Box>
@@ -362,44 +363,60 @@ const CustomerManagement = () => {
       field: 'taxCode',
       headerName: 'Mã số thuế',
       width: 150,
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<Customer>) => (
-        <Typography variant="body2" sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>
-          {params.row.taxCode}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          <Typography variant="body2" sx={{ fontSize: '0.875rem', letterSpacing: '0.02em', fontWeight: 500, color: '#546e7a' }}>
+            {params.row.taxCode}
+          </Typography>
+        </Box>
       ),
     },
     {
       field: 'email',
       headerName: 'Email',
       width: 220,
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<Customer>) => (
-        <Typography variant="body2" color="text.secondary">
-          {params.row.email}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          <Typography variant="body2" sx={{ fontSize: '0.875rem', color: '#546e7a' }}>
+            {params.row.email}
+          </Typography>
+        </Box>
       ),
     },
     {
       field: 'phone',
       headerName: 'Số điện thoại',
       width: 140,
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<Customer>) => (
-        <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-          {params.row.phone}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          <Typography variant="body2" sx={{ fontSize: '0.875rem', letterSpacing: '0.02em', fontWeight: 500, color: '#1976d2' }}>
+            {params.row.phone}
+          </Typography>
+        </Box>
       ),
     },
     {
       field: 'status',
       headerName: 'Trạng thái',
       width: 130,
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<Customer>) => (
-        <Chip
-          label={params.row.status === 'Active' ? 'Hoạt động' : 'Ngừng hoạt động'}
-          color={params.row.status === 'Active' ? 'success' : 'default'}
-          size="small"
-          variant={params.row.status === 'Active' ? 'filled' : 'outlined'}
-          sx={{ fontWeight: 500 }}
-        />
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          <Chip
+            label={params.row.status === 'Active' ? 'Hoạt động' : 'Ngừng hoạt động'}
+            color={params.row.status === 'Active' ? 'success' : 'default'}
+            size="small"
+            variant={params.row.status === 'Active' ? 'filled' : 'outlined'}
+            sx={{ fontWeight: 500, fontSize: '0.8125rem' }}
+          />
+        </Box>
       ),
     },
     {
@@ -407,34 +424,38 @@ const CustomerManagement = () => {
       headerName: 'Hành động',
       type: 'actions',
       width: 120,
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<Customer>) => (
-        <Stack direction="row" spacing={0.5}>
-          {/* Edit Button */}
-          <Tooltip title="Chỉnh sửa">
-            <IconButton
-              size="small"
-              color="primary"
-              onClick={() => handleOpenModal(params.row)}
-            >
-              <EditOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          <Stack direction="row" spacing={0.5}>
+            {/* Edit Button */}
+            <Tooltip title="Chỉnh sửa">
+              <IconButton
+                size="small"
+                color="primary"
+                onClick={() => handleOpenModal(params.row)}
+              >
+                <EditOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
 
-          {/* Toggle Status Button */}
-          <Tooltip title={params.row.status === 'Active' ? 'Vô hiệu hóa' : 'Kích hoạt'}>
-            <IconButton
-              size="small"
-              color={params.row.status === 'Active' ? 'error' : 'success'}
-              onClick={() => handleOpenToggleModal(params.row)}
-            >
-              {params.row.status === 'Active' ? (
-                <LockOutlinedIcon fontSize="small" />
-              ) : (
-                <LockOpenOutlinedIcon fontSize="small" />
-              )}
-            </IconButton>
-          </Tooltip>
-        </Stack>
+            {/* Toggle Status Button */}
+            <Tooltip title={params.row.status === 'Active' ? 'Vô hiệu hóa' : 'Kích hoạt'}>
+              <IconButton
+                size="small"
+                color={params.row.status === 'Active' ? 'error' : 'success'}
+                onClick={() => handleOpenToggleModal(params.row)}
+              >
+                {params.row.status === 'Active' ? (
+                  <LockOutlinedIcon fontSize="small" />
+                ) : (
+                  <LockOpenOutlinedIcon fontSize="small" />
+                )}
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        </Box>
       ),
     },
   ]
@@ -548,6 +569,22 @@ const CustomerManagement = () => {
             },
             '& .MuiDataGrid-row:hover': {
               bgcolor: 'action.hover',
+            },
+            '& .MuiDataGrid-footerContainer': {
+              borderTop: '2px solid',
+              borderColor: 'divider',
+              minHeight: '56px',
+            },
+            '& .MuiTablePagination-root': {
+              overflow: 'visible',
+            },
+            '& .MuiTablePagination-toolbar': {
+              minHeight: '56px',
+              paddingLeft: 2,
+              paddingRight: 2,
+            },
+            '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+              margin: 0,
             },
           }}
         />

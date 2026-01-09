@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Box,
   Paper,
@@ -42,82 +42,21 @@ import ReceiptIcon from '@mui/icons-material/Receipt'
 import PaymentIcon from '@mui/icons-material/Payment'
 import DescriptionIcon from '@mui/icons-material/Description'
 import SettingsIcon from '@mui/icons-material/Settings'
-import type { EmailTemplate } from '@/types/email-template.types'
+import emailTemplateService, { EmailTemplate } from '@/services/emailTemplateService'
 
 // ==================== MOCK DATA ====================
 
-// Danh sách biến động đơn giản (8 biến thiết yếu)
+// Danh sách biến động đơn giản (8 biến thiết yếu) - Dùng {{InvoiceNumber}} như API
 const AVAILABLE_VARIABLES = [
   { key: '{{CustomerName}}', label: 'Tên khách hàng', example: 'Công ty ABC' },
   { key: '{{CustomerEmail}}', label: 'Email KH', example: 'info@abc.com' },
-  { key: '{{InvoiceNo}}', label: 'Số hóa đơn', example: 'C24TAA-001' },
+  { key: '{{InvoiceNumber}}', label: 'Số hóa đơn', example: 'C24TAA-001' },
   { key: '{{InvoiceDate}}', label: 'Ngày HĐ', example: '01/12/2024' },
-  { key: '{{InvoiceAmount}}', label: 'Tổng tiền', example: '30.000.000 đ' },
+  { key: '{{TotalAmount}}', label: 'Tổng tiền', example: '30.000.000' },
   { key: '{{CompanyName}}', label: 'Tên công ty', example: 'Công ty Điện lực' },
   { key: '{{CompanyPhone}}', label: 'SĐT công ty', example: '1900 1234' },
-  { key: '{{DueDate}}', label: 'Hạn thanh toán', example: '31/12/2024' },
-]
-
-const mockTemplates: EmailTemplate[] = [
-  {
-    id: '1',
-    code: 'HD_MOI',
-    name: 'Thông báo Hóa đơn mới',
-    subject: 'Thông báo Hóa đơn số {{InvoiceNo}}',
-    content: `<p>Kính gửi: <strong>{{CustomerName}}</strong></p>
-<p>{{CompanyName}} trân trọng thông báo về việc phát hành hóa đơn điện tử:</p>
-<ul>
-  <li>Số hóa đơn: <strong>{{InvoiceNo}}</strong></li>
-  <li>Ngày lập: {{InvoiceDate}}</li>
-  <li>Tổng tiền: <strong style="color: #d32f2f;">{{InvoiceAmount}}</strong></li>
-</ul>
-<p>Vui lòng thanh toán trước ngày {{DueDate}}.</p>
-<p>Trân trọng,<br>{{CompanyName}}<br>{{CompanyPhone}}</p>`,
-    isActive: true,
-    isSystemTemplate: true, // ⭐ Mẫu hệ thống - không được xóa
-    variables: [],
-    category: 'invoice',
-    createdAt: '2024-12-01',
-    updatedAt: '2024-12-07',
-  },
-  {
-    id: '2',
-    code: 'NHAC_NO',
-    name: 'Nhắc nhở thanh toán',
-    subject: 'Nhắc thanh toán hóa đơn {{InvoiceNo}}',
-    content: `<p>Kính gửi: <strong>{{CustomerName}}</strong></p>
-<p>Chúng tôi nhận thấy hóa đơn <strong>{{InvoiceNo}}</strong> chưa được thanh toán.</p>
-<p>Tổng tiền: <strong style="color: #d32f2f;">{{InvoiceAmount}}</strong></p>
-<p>Hạn thanh toán: <strong>{{DueDate}}</strong></p>
-<p>Vui lòng thanh toán để tránh gián đoạn dịch vụ.</p>
-<p>Liên hệ: {{CompanyPhone}} | {{CustomerEmail}}</p>`,
-    isActive: true,
-    isSystemTemplate: true, // ⭐ Mẫu hệ thống - không được xóa
-    variables: [],
-    category: 'payment',
-    createdAt: '2024-12-01',
-    updatedAt: '2024-12-07',
-  },
-  {
-    id: '3',
-    code: 'CHAO_MUNG',
-    name: 'Email chào mừng khách hàng',
-    subject: 'Chào mừng đến với {{CompanyName}}',
-    content: `<p>Xin chào <strong>{{CustomerName}}</strong>,</p>
-<p>Cảm ơn bạn đã tin tưởng và sử dụng dịch vụ của {{CompanyName}}.</p>
-<p>Mọi thắc mắc vui lòng liên hệ:</p>
-<ul>
-  <li>Hotline: {{CompanyPhone}}</li>
-  <li>Email: {{CustomerEmail}}</li>
-</ul>
-<p>Trân trọng!</p>`,
-    isActive: false,
-    isSystemTemplate: false, // ⭐ Mẫu tùy chỉnh - có thể xóa
-    variables: [],
-    category: 'system',
-    createdAt: '2024-12-05',
-    updatedAt: '2024-12-07',
-  },
+  { key: '{{Message}}', label: 'Lời nhắn', example: 'Vui lòng kiểm tra hóa đơn đính kèm' },
+  { key: '{{AttachmentList}}', label: 'Danh sách file đính kèm', example: '<li>invoice.pdf</li>' },
 ]
 
 // ==================== HELPER FUNCTIONS ====================
@@ -133,7 +72,8 @@ const replaceVariables = (content: string): string => {
 // ==================== MAIN COMPONENT ====================
 
 const EmailTemplateManagement = () => {
-  const [templates, setTemplates] = useState<EmailTemplate[]>(mockTemplates)
+  const [templates, setTemplates] = useState<EmailTemplate[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchText, setSearchText] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'invoice' | 'payment' | 'statement' | 'system'>('all')
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
@@ -145,8 +85,39 @@ const EmailTemplateManagement = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null)
   
   // Form states
-  const [editForm, setEditForm] = useState({ name: '', subject: '', content: '', isActive: true })
+  const [editForm, setEditForm] = useState({ 
+    templateCode: '',
+    languageCode: 'vi',
+    name: '', 
+    subject: '', 
+    bodyContent: '', 
+    category: 'invoice',
+    isActive: true 
+  })
   const quillRef = useRef<ReactQuill>(null)
+
+  // ✅ Load templates on mount
+  useEffect(() => {
+    loadTemplates()
+  }, [])
+
+  const loadTemplates = async () => {
+    try {
+      setLoading(true)
+      const data = await emailTemplateService.getAllEmailTemplates()
+      setTemplates(data)
+      console.log('✅ Loaded templates:', data.length)
+    } catch (error) {
+      console.error('❌ Error loading templates:', error)
+      setSnackbar({ 
+        open: true, 
+        message: 'Lỗi khi tải danh sách mẫu email', 
+        severity: 'error' 
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Filtered templates với category filter
   const filteredTemplates = useMemo(() => {
@@ -163,7 +134,7 @@ const EmailTemplateManagement = () => {
         (t) =>
           t.name.toLowerCase().includes(searchText.toLowerCase()) ||
           t.subject.toLowerCase().includes(searchText.toLowerCase()) ||
-          t.code.toLowerCase().includes(searchText.toLowerCase())
+          t.templateCode.toLowerCase().includes(searchText.toLowerCase())
       )
     }
     
@@ -188,7 +159,15 @@ const EmailTemplateManagement = () => {
   // Handle create new
   const handleCreateNew = () => {
     setSelectedTemplate(null)
-    setEditForm({ name: '', subject: '', content: '', isActive: true })
+    setEditForm({ 
+      templateCode: '',
+      languageCode: 'vi',
+      name: '', 
+      subject: '', 
+      bodyContent: '', 
+      category: 'invoice',
+      isActive: true 
+    })
     setOpenEditModal(true)
   }
 
@@ -196,60 +175,96 @@ const EmailTemplateManagement = () => {
   const handleEdit = (template: EmailTemplate) => {
     setSelectedTemplate(template)
     setEditForm({
+      templateCode: template.templateCode,
+      languageCode: template.languageCode,
       name: template.name,
       subject: template.subject,
-      content: template.content,
+      bodyContent: template.bodyContent,
+      category: template.category,
       isActive: template.isActive,
     })
     setOpenEditModal(true)
   }
 
   // Handle save
-  const handleSave = () => {
-    if (!editForm.name || !editForm.subject || !editForm.content) {
+  const handleSave = async () => {
+    if (!editForm.name || !editForm.subject || !editForm.bodyContent) {
       setSnackbar({ open: true, message: 'Vui lòng điền đầy đủ thông tin!', severity: 'error' })
       return
     }
 
-    if (selectedTemplate) {
-      // Update existing
-      setTemplates((prev) =>
-        prev.map((t) =>
-          t.id === selectedTemplate.id
-            ? { ...t, ...editForm, updatedAt: new Date().toISOString().split('T')[0] }
-            : t
-        )
-      )
-      setSnackbar({ open: true, message: 'Đã cập nhật mẫu email!', severity: 'success' })
-    } else {
-      // Create new
-      const newTemplate: EmailTemplate = {
-        id: String(templates.length + 1),
-        code: `CUSTOM_${templates.length + 1}`,
-        ...editForm,
-        isSystemTemplate: false, // Mẫu tùy chỉnh
-        variables: [],
-        category: 'system',
-        createdAt: new Date().toISOString().split('T')[0],
-        updatedAt: new Date().toISOString().split('T')[0],
+    try {
+      if (selectedTemplate) {
+        // Update existing
+        await emailTemplateService.updateEmailTemplate(selectedTemplate.emailTemplateID, {
+          emailTemplateID: selectedTemplate.emailTemplateID,
+          name: editForm.name,
+          subject: editForm.subject,
+          bodyContent: editForm.bodyContent,
+          category: editForm.category,
+          isActive: editForm.isActive,
+        })
+        setSnackbar({ open: true, message: 'Đã cập nhật mẫu email!', severity: 'success' })
+      } else {
+        // Create new
+        if (!editForm.templateCode) {
+          setSnackbar({ open: true, message: 'Vui lòng nhập mã template!', severity: 'error' })
+          return
+        }
+        
+        await emailTemplateService.createEmailTemplate({
+          templateCode: editForm.templateCode,
+          languageCode: editForm.languageCode,
+          name: editForm.name,
+          subject: editForm.subject,
+          bodyContent: editForm.bodyContent,
+          category: editForm.category,
+          isActive: editForm.isActive,
+        })
+        setSnackbar({ open: true, message: 'Đã tạo mẫu email mới!', severity: 'success' })
       }
-      setTemplates((prev) => [...prev, newTemplate])
-      setSnackbar({ open: true, message: 'Đã tạo mẫu email mới!', severity: 'success' })
+      
+      // Reload templates
+      await loadTemplates()
+      setOpenEditModal(false)
+    } catch (error) {
+      console.error('❌ Error saving template:', error)
+      setSnackbar({ 
+        open: true, 
+        message: 'Lỗi khi lưu mẫu email', 
+        severity: 'error' 
+      })
     }
-    
-    setOpenEditModal(false)
   }
 
   // Handle delete
   const handleDeleteClick = (template: EmailTemplate) => {
+    if (template.isSystemTemplate) {
+      setSnackbar({ 
+        open: true, 
+        message: 'Không thể xóa mẫu hệ thống!', 
+        severity: 'error' 
+      })
+      return
+    }
     setSelectedTemplate(template)
     setOpenDeleteDialog(true)
   }
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (selectedTemplate) {
-      setTemplates((prev) => prev.filter((t) => t.id !== selectedTemplate.id))
-      setSnackbar({ open: true, message: 'Đã xóa mẫu email!', severity: 'success' })
+      try {
+        await emailTemplateService.deleteEmailTemplate(selectedTemplate.emailTemplateID)
+        setSnackbar({ open: true, message: 'Đã xóa mẫu email!', severity: 'success' })
+        await loadTemplates()
+      } catch (error) {
+        console.error('❌ Error deleting template:', error)
+        setSnackbar({ 
+          open: true, 
+          message: 'Lỗi khi xóa mẫu email', 
+          severity: 'error' 
+        })
+      }
     }
     setOpenDeleteDialog(false)
     setSelectedTemplate(null)
@@ -283,7 +298,7 @@ const EmailTemplateManagement = () => {
       headerAlign: 'center',
       sortable: false,
       renderCell: (params: GridRenderCellParams) => {
-        const index = filteredTemplates.findIndex((t) => t.id === params.row.id)
+        const index = filteredTemplates.findIndex((t) => t.emailTemplateID === params.row.emailTemplateID)
         return (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
             <Typography variant="body2" sx={{ fontWeight: 600, color: '#333', fontSize: '0.875rem' }}>
@@ -662,6 +677,8 @@ const EmailTemplateManagement = () => {
           <DataGrid
             rows={filteredTemplates}
             columns={columns}
+            getRowId={(row) => row.emailTemplateID}
+            loading={loading}
             initialState={{
               pagination: {
                 paginationModel: { page: 0, pageSize: 10 },
@@ -714,6 +731,48 @@ const EmailTemplateManagement = () => {
           </DialogTitle>
           <DialogContent sx={{ pt: 3 }}>
             <Stack spacing={2.5}>
+              {/* Mã template (chỉ hiện khi tạo mới) */}
+              {!selectedTemplate && (
+                <TextField
+                  label="Mã template"
+                  fullWidth
+                  value={editForm.templateCode}
+                  onChange={(e) => setEditForm({ ...editForm, templateCode: e.target.value.toUpperCase() })}
+                  placeholder="VD: INVOICE_SEND, PAYMENT_REMINDER"
+                  size="small"
+                  required
+                  helperText="Mã unique để xác định mẫu email (chữ in hoa, không dấu)"
+                />
+              )}
+
+              {/* Ngôn ngữ */}
+              <FormControl size="small" fullWidth>
+                <InputLabel>Ngôn ngữ</InputLabel>
+                <Select
+                  value={editForm.languageCode}
+                  onChange={(e) => setEditForm({ ...editForm, languageCode: e.target.value })}
+                  label="Ngôn ngữ"
+                >
+                  <MenuItem value="vi">Tiếng Việt (vi)</MenuItem>
+                  <MenuItem value="en">English (en)</MenuItem>
+                </Select>
+              </FormControl>
+
+              {/* Danh mục */}
+              <FormControl size="small" fullWidth>
+                <InputLabel>Danh mục</InputLabel>
+                <Select
+                  value={editForm.category}
+                  onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                  label="Danh mục"
+                >
+                  <MenuItem value="invoice">Hóa đơn</MenuItem>
+                  <MenuItem value="payment">Thanh toán</MenuItem>
+                  <MenuItem value="statement">Sao kê</MenuItem>
+                  <MenuItem value="system">Hệ thống</MenuItem>
+                </Select>
+              </FormControl>
+
               {/* Tên mẫu */}
               <TextField
                 label="Tên mẫu email"
@@ -722,6 +781,7 @@ const EmailTemplateManagement = () => {
                 onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                 placeholder="VD: Thông báo hóa đơn mới"
                 size="small"
+                required
               />
 
               {/* Tiêu đề email */}
@@ -730,7 +790,7 @@ const EmailTemplateManagement = () => {
                 fullWidth
                 value={editForm.subject}
                 onChange={(e) => setEditForm({ ...editForm, subject: e.target.value })}
-                placeholder="VD: Hóa đơn {{InvoiceNo}} - {{CompanyName}}"
+                placeholder="VD: Hóa đơn {{InvoiceNumber}} - {{CompanyName}}"
                 size="small"
               />
 
@@ -773,8 +833,8 @@ const EmailTemplateManagement = () => {
                   <ReactQuill
                     ref={quillRef}
                     theme="snow"
-                    value={editForm.content}
-                    onChange={(value) => setEditForm({ ...editForm, content: value })}
+                    value={editForm.bodyContent}
+                    onChange={(value) => setEditForm({ ...editForm, bodyContent: value })}
                     style={{ height: '300px' }}
                     modules={{
                       toolbar: [
@@ -827,14 +887,17 @@ const EmailTemplateManagement = () => {
               onClick={() => {
                 setOpenEditModal(false)
                 setSelectedTemplate({ 
-                  ...editForm, 
-                  id: selectedTemplate?.id || '', 
-                  code: selectedTemplate?.code || '', 
+                  emailTemplateID: selectedTemplate?.emailTemplateID || 0,
+                  templateCode: editForm.templateCode || selectedTemplate?.templateCode || '',
+                  languageCode: editForm.languageCode,
+                  category: editForm.category,
+                  name: editForm.name,
+                  subject: editForm.subject,
+                  bodyContent: editForm.bodyContent,
+                  isActive: editForm.isActive,
                   isSystemTemplate: selectedTemplate?.isSystemTemplate || false,
-                  variables: [], 
-                  category: 'system', 
-                  createdAt: '', 
-                  updatedAt: '' 
+                  createdAt: selectedTemplate?.createdAt || '',
+                  updatedAt: selectedTemplate?.updatedAt || null,
                 } as EmailTemplate)
                 setOpenPreviewModal(true)
               }}
@@ -891,7 +954,7 @@ const EmailTemplateManagement = () => {
                   p: 3,
                   overflow: 'hidden',
                 }}
-                dangerouslySetInnerHTML={{ __html: replaceVariables(selectedTemplate?.content || editForm.content) }}
+                dangerouslySetInnerHTML={{ __html: replaceVariables(selectedTemplate?.bodyContent || editForm.bodyContent) }}
               />
             </Box>
           </DialogContent>
