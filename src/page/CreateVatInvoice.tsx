@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import invoiceService, { Template } from '@/services/invoiceService'
 import customerService from '@/services/customerService'
 import productService, { Product } from '@/services/productService'
@@ -771,7 +771,12 @@ const DiscountAmountEditCell = (params: GridRenderEditCellParams) => {
  */
 const CreateVatInvoice: React.FC = () => {
   const navigate = useNavigate()
-
+  const [searchParams] = useSearchParams()
+  
+  // ✅ Edit mode detection
+  const editMode = searchParams.get('mode') === 'edit'
+  const editInvoiceId = searchParams.get('id')
+  
   // Template states
   const [templates, setTemplates] = useState<Template[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
@@ -853,6 +858,187 @@ const CreateVatInvoice: React.FC = () => {
     loadProducts()
     loadCompany()
   }, [])
+
+  // ✅ Load invoice data when in edit mode
+  useEffect(() => {
+    const loadInvoiceData = async () => {
+      if (!editMode || !editInvoiceId) return
+      
+      try {
+        setIsSubmitting(true)
+        console.log(`📥 Loading invoice data for ID: ${editInvoiceId}`)
+        
+        const invoice = await invoiceService.getInvoiceById(parseInt(editInvoiceId))
+        console.log('✅ Invoice data loaded:', invoice)
+        console.log('💳 Payment method from backend:', invoice.paymentMethod)
+        
+        // Set template
+        const template = templates.find(t => t.templateID === invoice.templateID)
+        if (template) {
+          setSelectedTemplate(template)
+        }
+        
+        // Load customer data if customerID exists but details are missing
+        let customerData = null
+        if (invoice.customerID && !invoice.customerName) {
+          console.log('📥 Fetching customer data for ID:', invoice.customerID)
+          const customers = await customerService.getAllCustomers()
+          customerData = customers.find(c => c.customerID === invoice.customerID)
+          console.log('👤 Customer data:', customerData)
+        }
+        
+        // Set buyer info (prefer invoice fields, fallback to customer data)
+        setBuyerCustomerID(invoice.customerID)
+        setBuyerTaxCode(invoice.taxCode || customerData?.taxCode || '')
+        setBuyerCompanyName(invoice.customerName || customerData?.customerName || '')
+        setBuyerAddress(invoice.customerAddress || customerData?.address || '') // ✅ Fix: customerAddress
+        setBuyerName(invoice.contactPerson || customerData?.contactPerson || '')
+        setBuyerEmail(invoice.contactEmail || customerData?.contactEmail || '')
+        setBuyerPhone(invoice.contactPhone || customerData?.contactPhone || '')
+        
+        // Normalize payment method value (ensure it matches the dropdown options)
+        const validPaymentMethods = ['Tiền mặt', 'Chuyển khoản', 'Đổi trừ công nợ', 'Khác']
+        let normalizedPaymentMethod = 'Tiền mặt' // Default
+        
+        // Check if backend returned valid value (not 'string' literal or null/undefined)
+        if (invoice.paymentMethod && 
+            invoice.paymentMethod !== 'string' && 
+            validPaymentMethods.includes(invoice.paymentMethod)) {
+          normalizedPaymentMethod = invoice.paymentMethod
+        } else if (invoice.paymentMethod && invoice.paymentMethod !== 'string') {
+          console.warn('⚠️ Invalid payment method from backend:', invoice.paymentMethod)
+        }
+        
+        console.log('✅ Normalized payment method:', normalizedPaymentMethod)
+        setPaymentMethod(normalizedPaymentMethod)
+        
+        setInvoiceNotes(invoice.notes || '')
+        
+        // Set items - calculate price and VAT correctly with validation
+        const mappedItems: InvoiceItem[] = invoice.invoiceItems
+          .filter(item => {
+            // Filter out invalid items
+            if (!item.productId || item.quantity <= 0) {
+              console.warn('⚠️ Skipping invalid item:', item)
+              return false
+            }
+            return true
+          })
+          .map((item, index) => {
+            // Validate and calculate with safety checks
+            const quantity = item.quantity || 1
+            const amount = item.amount || 0
+            const vatAmount = item.vatAmount || 0
+            
+            // Calculate price before VAT (avoid division by zero)
+            const priceBeforeVat = quantity > 0 ? amount / quantity : 0
+            
+            // Calculate VAT rate
+            const vatRate = vatAmount > 0 && amount > 0 
+              ? Math.round((vatAmount / amount) * 100) 
+              : 0
+            
+            // Calculate price after VAT
+            const priceAfterVat = priceBeforeVat > 0 
+              ? priceBeforeVat * (1 + vatRate / 100)
+              : 0
+            
+            // Calculate total after VAT
+            const totalAfterVat = amount + vatAmount
+            
+            const isValid = quantity > 0 && (amount > 0 || vatAmount > 0)
+            
+            console.log(`📦 Item ${index + 1}: ${item.productName}`, {
+              amount,
+              vatAmount,
+              quantity,
+              priceBeforeVat: priceBeforeVat.toFixed(2),
+              vatRate,
+              priceAfterVat: priceAfterVat.toFixed(2),
+              totalAfterVat: totalAfterVat.toFixed(2),
+              isValid: isValid ? '✅' : '⚠️'
+            })
+            
+            if (!isValid) {
+              console.warn('⚠️ Item has zero amount and quantity:', item.productName)
+            }
+            
+            return {
+              id: index + 1,
+              stt: index + 1,
+              productId: item.productId,
+              type: item.productName || 'Hàng hóa',
+              code: '', // Backend không trả về code
+              name: item.productName || '',
+              unit: item.unit || '',
+              quantity: quantity,
+              priceAfterTax: priceAfterVat,
+              discountPercent: 0,
+              discountAmount: 0,
+              totalAfterTax: totalAfterVat,
+              vatRate,
+            }
+          })
+        
+        // If no valid items, create one empty row
+        if (mappedItems.length === 0) {
+          console.warn('⚠️ No valid invoice items found, creating empty row')
+          mappedItems.push({
+            id: 1,
+            stt: 1,
+            type: 'Hàng hóa, dịch vụ',
+            code: '',
+            name: '',
+            unit: '',
+            quantity: 1,
+            priceAfterTax: 0,
+            discountPercent: 0,
+            discountAmount: 0,
+            totalAfterTax: 0,
+            vatRate: 0,
+          })
+        }
+        
+        setItems(mappedItems)
+        
+        // Show appropriate message based on data completeness
+        const hasInvalidItems = invoice.invoiceItems.some(item => 
+          item.quantity <= 0 || (item.amount === 0 && item.vatAmount === 0)
+        )
+        const hasInvalidPaymentMethod = !invoice.paymentMethod || 
+          invoice.paymentMethod === 'string'
+        
+        if (hasInvalidItems || hasInvalidPaymentMethod) {
+          setSnackbar({
+            open: true,
+            message: '⚠️ Dữ liệu hóa đơn chưa đầy đủ. Vui lòng kiểm tra và cập nhật.',
+            severity: 'warning',
+          })
+        } else {
+          setSnackbar({
+            open: true,
+            message: '✅ Đã tải dữ liệu hóa đơn',
+            severity: 'success',
+          })
+        }
+        
+      } catch (error) {
+        console.error('❌ Error loading invoice:', error)
+        setSnackbar({
+          open: true,
+          message: `❌ Lỗi tải dữ liệu: ${error instanceof Error ? error.message : 'Vui lòng thử lại'}`,
+          severity: 'error',
+        })
+        
+        // Redirect back on error
+        setTimeout(() => navigate('/invoices'), 2000)
+      } finally {
+        setIsSubmitting(false)
+      }
+    }
+    
+    loadInvoiceData()
+  }, [editMode, editInvoiceId, templates]) // Chờ templates load xong
 
   // State quản lý danh sách hàng hóa
   const [items, setItems] = useState<InvoiceItem[]>([
@@ -1417,14 +1603,48 @@ const CreateVatInvoice: React.FC = () => {
       )
 
       console.log(`📤 Sending invoice request (${statusLabel}):`, backendRequest)
+      
+      // ✅ Validate payload trước khi gửi
+      console.log('🔍 Payload validation:')
+      console.log('  - templateID:', backendRequest.templateID, typeof backendRequest.templateID)
+      console.log('  - customerID:', backendRequest.customerID, typeof backendRequest.customerID)
+      console.log('  - invoiceStatusID:', backendRequest.invoiceStatusID, typeof backendRequest.invoiceStatusID)
+      console.log('  - companyID:', backendRequest.companyID, typeof backendRequest.companyID)
+      console.log('  - items count:', backendRequest.items?.length)
+      console.log('  - amount:', backendRequest.amount, typeof backendRequest.amount)
+      console.log('  - taxAmount:', backendRequest.taxAmount, typeof backendRequest.taxAmount)
+      console.log('  - totalAmount:', backendRequest.totalAmount, typeof backendRequest.totalAmount)
+      console.log('  - paymentMethod:', backendRequest.paymentMethod)
+      console.log('  - signedBy:', backendRequest.signedBy, typeof backendRequest.signedBy)
+      
+      // Validate items
+      backendRequest.items.forEach((item, idx) => {
+        console.log(`  - Item ${idx + 1}:`, {
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          amount: item.amount,
+          vatAmount: item.vatAmount
+        })
+      })
 
-      // Gọi API
-      const response = await invoiceService.createInvoice(backendRequest)
+      // ✅ Gọi API: create hoặc update tùy theo mode
+      let response
+      if (editMode && editInvoiceId) {
+        // Edit mode: call updateInvoice
+        console.log(`🔄 Updating invoice ID: ${editInvoiceId}`)
+        response = await invoiceService.updateInvoice(parseInt(editInvoiceId), backendRequest)
+      } else {
+        // Create mode: call createInvoice
+        response = await invoiceService.createInvoice(backendRequest)
+      }
 
-      console.log('✅ Invoice created:', response)
+      console.log('✅ Invoice saved:', response)
 
-      // ⭐ Hiển thị thông báo chi tiết với invoiceID và hướng dẫn
-      const successMessage = invoiceStatusID === 1
+      // ⭐ Hiển thị thông báo chi tiết
+      const successMessage = editMode
+        ? `✅ Cập nhật hóa đơn thành công! (ID: ${response.invoiceID})`
+        : invoiceStatusID === 1
         ? `✅ Lưu hóa đơn nháp thành công! (ID: ${response.invoiceID})\n💡 Số hóa đơn sẽ được cấp sau khi ký số tại trang danh sách hóa đơn.`
         : `✅ Gửi hóa đơn chờ duyệt thành công! (ID: ${response.invoiceID})\n📋 Hóa đơn đang chờ phê duyệt từ quản lý.`
 
@@ -1729,7 +1949,7 @@ const CreateVatInvoice: React.FC = () => {
       <Box sx={{ px: 2, py: 1.5, maxWidth: '1600px', margin: '0 auto' }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Typography variant="h6" sx={{ fontWeight: 500 }}>
-            Lập hóa đơn
+            {editMode ? '✏️ Chỉnh sửa hóa đơn' : 'Lập hóa đơn'}
           </Typography>
           <FormControlLabel
             control={<Checkbox checked={isPaid} onChange={(e) => setIsPaid(e.target.checked)} size="small" />}
@@ -2553,17 +2773,19 @@ const CreateVatInvoice: React.FC = () => {
                 onClick={handleSaveDraft}
                 disabled={isSubmitting}
                 sx={{ textTransform: 'none', backgroundColor: '#1976d2', fontSize: '0.8125rem', py: 0.5 }}>
-                {isSubmitting ? 'Đang lưu...' : 'Lưu nháp'}
+                {isSubmitting ? (editMode ? 'Đang cập nhật...' : 'Đang lưu...') : (editMode ? 'Cập nhật' : 'Lưu nháp')}
               </Button>
-              <Button
-                size="small"
-                variant="contained"
-                startIcon={<Publish fontSize="small" />}
-                onClick={handleSubmitForApproval}
-                disabled={isSubmitting}
-                sx={{ textTransform: 'none', backgroundColor: '#2e7d32', minWidth: 140, fontSize: '0.8125rem', py: 0.5 }}>
-                Gửi cho KT Trưởng
-              </Button>
+              {!editMode && (
+                <Button
+                  size="small"
+                  variant="contained"
+                  startIcon={<Publish fontSize="small" />}
+                  onClick={handleSubmitForApproval}
+                  disabled={isSubmitting}
+                  sx={{ textTransform: 'none', backgroundColor: '#2e7d32', minWidth: 140, fontSize: '0.8125rem', py: 0.5 }}>
+                  Gửi cho KT Trưởng
+                </Button>
+              )}
             </Stack>
           </Stack>
         </Paper>

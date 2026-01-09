@@ -12,6 +12,10 @@
 
 // ==================== BACKEND TYPES ====================
 
+/**
+ * ⚠️ CREATE Invoice Request - Full fields
+ * Dùng cho POST /api/Invoice
+ */
 export interface BackendInvoiceRequest {
   templateID: number;
   customerID: number;           // Có thể để 0 nếu khách lẻ
@@ -31,6 +35,28 @@ export interface BackendInvoiceRequest {
   contactEmail: string;         // Email liên hệ
   contactPerson: string;        // Người liên hệ
   contactPhone: string;         // SĐT liên hệ
+}
+
+/**
+ * ✅ UPDATE Draft Invoice Request - Simplified
+ * Dùng cho PUT /api/Invoice/draft/{id}
+ */
+export interface BackendDraftInvoiceRequest {
+  customerID: number;           // Có thể để 0 nếu khách lẻ
+  taxCode: string;              // MST khách hàng
+  customerName: string;         // Tên khách hàng
+  address: string;              // Địa chỉ
+  notes: string;                // Ghi chú
+  paymentMethod: string;        // Hình thức thanh toán
+  items: BackendInvoiceItem[];
+  amount: number;               // Tổng tiền hàng (CHƯA VAT)
+  taxAmount: number;            // Tổng tiền VAT
+  totalAmount: number;          // Tổng cộng thanh toán
+  minRows: number;              // Số dòng trống tối thiểu
+  contactEmail: string;         // Email liên hệ
+  contactPerson: string;        // Người liên hệ
+  contactPhone: string;         // SĐT liên hệ
+  signedBy: number;             // UserID người ký (0 nếu chưa ký)
 }
 
 export interface BackendInvoiceItem {

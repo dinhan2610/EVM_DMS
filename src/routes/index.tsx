@@ -219,6 +219,11 @@ const appsRoutes: RoutesProps[] = [
     element: <CreateVatInvoice />,
   },
   {
+    name: 'Create/Edit Invoice',
+    path: '/create-invoice',
+    element: <CreateVatInvoice />,
+  },
+  {
     name: 'Create Invoice Old',
     path: '/newinvoices-old',
     element: <CreateInvoice />,

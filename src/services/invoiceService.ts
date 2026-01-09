@@ -4,7 +4,11 @@
 
 import axios from 'axios';
 import API_CONFIG from '@/config/api.config';
-import type { BackendInvoiceRequest, BackendInvoiceResponse } from '@/utils/invoiceAdapter';
+import type { 
+  BackendInvoiceRequest, 
+  BackendDraftInvoiceRequest,
+  BackendInvoiceResponse 
+} from '@/utils/invoiceAdapter';
 
 // ==================== TYPES ====================
 
@@ -48,6 +52,11 @@ export interface InvoiceListItem {
   contactPerson?: string;        // ✅ Họ tên người mua hàng (buyerName)
   contactEmail?: string;         // Email liên hệ
   contactPhone?: string;         // SĐT liên hệ
+  
+  // Customer fields from backend API response
+  customerName?: string;         // Tên công ty khách hàng
+  customerAddress?: string;      // Địa chỉ khách hàng (backend field name)
+  taxCode?: string;              // Mã số thuế khách hàng
   
   // ==================== INVOICE TYPE FIELDS ====================
   invoiceType: number;                  // ✅ 1=Gốc, 2=Điều chỉnh, 3=Thay thế, 4=Hủy, 5=Giải trình
@@ -271,6 +280,100 @@ export const createInvoice = async (data: BackendInvoiceRequest): Promise<Backen
       }
     }
     return handleApiError(error, 'Create invoice failed');
+  }
+};
+
+/**
+ * Cập nhật hóa đơn đã tạo (Draft hoặc Rejected)
+ * API: PUT /api/Invoice/{id}
+ * 
+ * @param invoiceId - ID hóa đơn cần cập nhật
+ * @param data - Invoice data (đã map qua adapter)
+ * @returns Updated invoice response
+ * 
+ * ⚠️ CHỈ ÁP DỤNG CHO:
+ * - Hóa đơn Nháp (status = 1)
+ * - Hóa đơn Bị từ chối (status = 16)
+ */
+export const updateInvoice = async (
+  invoiceId: number,
+  data: BackendInvoiceRequest
+): Promise<BackendInvoiceResponse> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log(`[updateInvoice] Updating draft invoice ${invoiceId}`);
+      console.log('[updateInvoice] Items count:', data.items?.length);
+      console.log('[updateInvoice] Customer ID:', data.customerID);
+    }
+    
+    // ✅ Convert to draft request (remove fields not needed by /draft endpoint)
+    const draftRequest: BackendDraftInvoiceRequest = {
+      customerID: data.customerID,
+      taxCode: data.taxCode,
+      customerName: data.customerName,
+      address: data.address,
+      notes: data.notes,
+      paymentMethod: data.paymentMethod,
+      items: data.items,
+      amount: data.amount,
+      taxAmount: data.taxAmount,
+      totalAmount: data.totalAmount,
+      minRows: data.minRows,
+      contactEmail: data.contactEmail,
+      contactPerson: data.contactPerson,
+      contactPhone: data.contactPhone,
+      signedBy: data.signedBy
+    };
+    
+    if (import.meta.env.DEV) {
+      console.log('[updateInvoice] Draft request:', JSON.stringify(draftRequest, null, 2));
+    }
+    
+    // ✅ CORRECT ENDPOINT: /api/Invoice/draft/{id}
+    const response = await axios.put<BackendInvoiceResponse>(
+      `/api/Invoice/draft/${invoiceId}`,
+      draftRequest,
+      { headers: getAuthHeaders() }
+    );
+    
+    if (import.meta.env.DEV) {
+      console.log('[updateInvoice] ✅ Success:', response.data);
+    }
+    
+    return response.data;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error('[updateInvoice] Error details:', error);
+      if (axios.isAxiosError(error) && error.response) {
+        console.error('[updateInvoice] Response status:', error.response.status);
+        console.error('[updateInvoice] Response data:', error.response.data);
+      }
+    }
+    
+    // Handle specific errors
+    if (axios.isAxiosError(error) && error.response) {
+      const status = error.response.status;
+      const errorData = error.response.data;
+      
+      if (status === 400) {
+        const message = errorData?.message || errorData?.title || 'Dữ liệu không hợp lệ';
+        throw new Error(message);
+      }
+      
+      if (status === 404) {
+        throw new Error('Không tìm thấy hóa đơn');
+      }
+      
+      if (status === 403) {
+        throw new Error('Không có quyền cập nhật hóa đơn này');
+      }
+      
+      if (status === 409) {
+        throw new Error('Hóa đơn đang ở trạng thái không thể chỉnh sửa');
+      }
+    }
+    
+    return handleApiError(error, 'Cập nhật hóa đơn thất bại');
   }
 };
 
@@ -1029,6 +1132,7 @@ const invoiceService = {
   
   // Invoices
   createInvoice,
+  updateInvoice,        // ✅ Export updateInvoice function
   getAllInvoices,
   getHODInvoices,       // ✅ NEW: API cho role Kế toán trưởng
   getInvoiceById,

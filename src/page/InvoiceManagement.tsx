@@ -229,12 +229,17 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax,
     {
       label: 'Chỉnh sửa',
       icon: <EditOutlinedIcon fontSize="small" />,
-      enabled: isDraft,
+      enabled: isDraft || isRejected, // ✅ Cho phép edit cả Draft và Rejected
       action: () => {
-        console.log('Chỉnh sửa:', invoice.id)
+        console.log('Chỉnh sửa hóa đơn:', invoice.id)
+        // ✅ Navigate đến trang create-invoice với mode edit
+        navigate(`/create-invoice?mode=edit&id=${invoice.id}`)
         handleClose()
       },
       color: 'primary.main',
+      tooltip: isRejected 
+        ? 'Chỉnh sửa hóa đơn bị từ chối theo yêu cầu của KTT'
+        : 'Chỉnh sửa hóa đơn nháp',
     },
     {
       label: isRejected ? '🔄 Gửi lại duyệt' : 'Gửi duyệt',
