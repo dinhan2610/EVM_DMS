@@ -1215,8 +1215,8 @@ const CreateVatInvoice: React.FC = () => {
       setIsSearchingCustomer(true)
       setCustomerNotFound(false)
       
-      const customers = await customerService.getAllCustomers()
-      const foundCustomer = customers.find(c => c.taxCode === taxCode.trim())
+      // ✅ Gọi API findCustomerByTaxCode để tìm kiếm trực tiếp
+      const foundCustomer = await customerService.findCustomerByTaxCode(taxCode.trim())
       
       if (foundCustomer) {
         // Tự động điền thông tin
@@ -1225,7 +1225,7 @@ const CreateVatInvoice: React.FC = () => {
         setBuyerAddress(foundCustomer.address)
         setBuyerEmail(foundCustomer.contactEmail)
         setBuyerPhone(foundCustomer.contactPhone)
-        // buyerName is independent - user can enter manually
+        // buyerName để trống cho người dùng tự nhập
         
         console.log('✅ Found customer:', foundCustomer.customerName)
         setSnackbar({

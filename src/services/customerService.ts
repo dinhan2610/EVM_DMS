@@ -211,6 +211,37 @@ export const setCustomerInactive = async (id: number): Promise<void> => {
   }
 };
 
+/**
+ * Find customer by tax code
+ * GET /api/Customer/find?q={taxCode}
+ * Response: Array with single customer or empty array
+ */
+export const findCustomerByTaxCode = async (taxCode: string): Promise<Customer | null> => {
+  try {
+    console.log('[findCustomerByTaxCode] Searching for tax code:', taxCode);
+    
+    const response = await axios.get<Customer[]>(
+      `/api/Customer/find?q=${taxCode}`,
+      { headers: getAuthHeaders() }
+    );
+    
+    console.log('[findCustomerByTaxCode] Success:', response.data);
+    
+    // API trả về array, lấy phần tử đầu tiên nếu có
+    if (response.data && response.data.length > 0) {
+      return response.data[0];
+    }
+    
+    return null;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      console.log('[findCustomerByTaxCode] Customer not found');
+      return null;
+    }
+    return handleApiError(error, 'findCustomerByTaxCode');
+  }
+};
+
 // ============================
 // EXPORT DEFAULT SERVICE
 // ============================
@@ -221,6 +252,7 @@ const customerService = {
   updateCustomer,
   setCustomerActive,
   setCustomerInactive,
+  findCustomerByTaxCode,
 };
 
 export default customerService;

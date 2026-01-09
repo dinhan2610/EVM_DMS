@@ -185,6 +185,12 @@ export const MENU_ITEMS: MenuItemType[] = [
         parentKey: 'apps-invoices',
       },
       {
+        key: 'tax-error-notifications',
+        label: 'Thông báo sai sót',
+        url: '/tax-error-notifications',
+        parentKey: 'apps-invoices',
+      },
+      {
         key: 'invoices-approval',
         label: 'Duyệt hoá đơn',
         url: '/approval/invoices',

@@ -4,68 +4,37 @@ import {
   Typography,
   Button,
   Stack,
-  Chip,
   Alert,
   CircularProgress,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Divider,
 } from '@mui/material'
 import {
-  
   Print,
   Download,
   ArrowBack,
-  CheckCircle,
-  Warning,
   Error as ErrorIcon,
+  MoreVert as MoreVertIcon,
+  ErrorOutline as ErrorOutlineIcon,
+  Send as SendIcon,
+  Edit as EditIcon,
+  Cancel as CancelIcon,
 } from '@mui/icons-material'
 import { useParams, useNavigate } from 'react-router-dom'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
 import InvoicePreviewModal from '@/components/invoices/InvoicePreviewModal'
-import InvoiceTypeBadge from '@/components/invoices/InvoiceTypeBadge'
-import OriginalInvoiceLink from '@/components/invoices/OriginalInvoiceLink'
+import TaxErrorNotificationModal from '@/components/TaxErrorNotificationModal'
 import Spinner from '@/components/Spinner'
-import invoiceService, { InvoiceListItem, INVOICE_STATUS } from '@/services/invoiceService'
+import invoiceService, { InvoiceListItem } from '@/services/invoiceService'
 import templateService, { TemplateResponse } from '@/services/templateService'
 import { getAllCustomers, Customer } from '@/services/customerService'
 import companyService, { Company } from '@/services/companyService'
 import type { ProductItem, TemplateConfigProps, CustomerInfo } from '@/types/invoiceTemplate'
 import { DEFAULT_TEMPLATE_VISIBILITY, DEFAULT_INVOICE_SYMBOL } from '@/types/invoiceTemplate'
 import { INVOICE_INTERNAL_STATUS } from '@/constants/invoiceStatus'
-
-// Định nghĩa status types
-type InvoiceStatus = 'Nháp' | 'Đã tạo' | 'Đã ký' | 'Đã gửi' | 'Đã hủy'
-type TaxStatus = 'Chờ đồng bộ' | 'Đã đồng bộ' | 'Lỗi'
-
-// Helper functions
-const getStatusColor = (
-  status: InvoiceStatus
-): 'default' | 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success' => {
-  const statusColors: Record<InvoiceStatus, 'default' | 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success'> = {
-    'Nháp': 'default',
-    'Đã tạo': 'info',
-    'Đã ký': 'primary',
-    'Đã gửi': 'secondary',
-    'Đã hủy': 'error',
-  }
-  return statusColors[status] || 'default'
-}
-
-const getTaxStatusColor = (taxStatus: TaxStatus): 'default' | 'success' | 'warning' | 'error' => {
-  const taxColors: Record<TaxStatus, 'default' | 'success' | 'warning' | 'error'> = {
-    'Đã đồng bộ': 'success',
-    'Chờ đồng bộ': 'warning',
-    'Lỗi': 'error',
-  }
-  return taxColors[taxStatus] || 'default'
-}
-
-const getTaxStatusIcon = (taxStatus: TaxStatus) => {
-  const icons: Record<TaxStatus, JSX.Element> = {
-    'Đã đồng bộ': <CheckCircle fontSize="small" />,
-    'Chờ đồng bộ': <Warning fontSize="small" />,
-    'Lỗi': <ErrorIcon fontSize="small" />,
-  }
-  return icons[taxStatus]
-}
 
 /**
  * Map backend invoice data to ProductItem[] for InvoiceTemplatePreview
@@ -134,10 +103,15 @@ const InvoiceDetail: React.FC = () => {
   const [htmlPreview, setHtmlPreview] = useState<string>('')
   const [loadingHtml, setLoadingHtml] = useState(false)
   const [useHtmlView, setUseHtmlView] = useState(true)
+  
+  // State for Actions menu
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+  const openActionsMenu = Boolean(anchorEl)
+  
+  // State for Tax Error Notification Modal
+  const [showTaxErrorModal, setShowTaxErrorModal] = useState(false)
 
   // Derived data
-  const status = invoice ? (INVOICE_STATUS[invoice.invoiceStatusID] as InvoiceStatus) : 'Nháp'
-  const taxStatus: TaxStatus = invoice?.taxAuthorityCode ? 'Đã đồng bộ' : 'Chờ đồng bộ'
   
   // ✨ Xác định xem có nên dùng HTML view không:
   // - Hóa đơn đã phát hành (invoiceNumber > 0): Dùng HTML
@@ -260,6 +234,29 @@ const InvoiceDetail: React.FC = () => {
     }
   }
 
+  // Handle Actions menu
+  const handleOpenActionsMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setAnchorEl(event.currentTarget)
+  }
+
+  const handleCloseActionsMenu = () => {
+    setAnchorEl(null)
+  }
+
+  // Handle open Tax Error Notification Modal
+  const handleOpenTaxErrorModal = () => {
+    setShowTaxErrorModal(true)
+    handleCloseActionsMenu()
+  }
+
+  // Handle Tax Error Notification success
+  const handleTaxErrorSuccess = () => {
+    // Show success message
+    alert('✅ Đã gửi thông báo sai sót thành công!')
+    // Reload invoice data
+    window.location.reload()
+  }
+
   const handleBack = () => {
     navigate('/invoices')
   }
@@ -293,40 +290,55 @@ const InvoiceDetail: React.FC = () => {
           boxSizing: 'border-box',
         }}
       >
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-          <Box>
-            <Typography variant="h4" sx={{ fontWeight: 600, fontSize: '1.75rem', mb: 0.5 }}>
-              Chi tiết Hóa đơn
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              {template?.templateName || 'Hóa đơn'} - Số: {
-                invoice.invoiceNumber && invoice.invoiceNumber !== 0 
-                  ? invoice.invoiceNumber 
-                  : '<Chưa cấp số>'
-              }
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Chip label={status} color={getStatusColor(status)} size="small" />
-              <Chip
-                icon={getTaxStatusIcon(taxStatus)}
-                label={taxStatus}
-                color={getTaxStatusColor(taxStatus)}
-                size="small"
-              />
-              {invoice.invoiceType && <InvoiceTypeBadge invoiceType={invoice.invoiceType} size="small" />}
-            </Stack>
-            
-            {/* Display link to original invoice for adjustment/replacement/cancelled/explanation invoices */}
-            {invoice.originalInvoiceID && (
-              <Box sx={{ mt: 2 }}>
-                <OriginalInvoiceLink 
-                  originalInvoiceID={invoice.originalInvoiceID}
-                  originalInvoiceNumber={invoice.originalInvoiceNumber}
-                  variant="full"
-                />
-              </Box>
-            )}
-            
+        {/* Button Row */}
+        <Stack direction="row" justifyContent="flex-end" spacing={1.5} sx={{ mb: 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={<ArrowBack />}
+            onClick={handleBack}
+            sx={{ textTransform: 'none' }}>
+            Quay lại
+          </Button>
+          
+          {isIssuedInvoice && (
+            <Button
+              variant="outlined"
+              startIcon={<Download />}
+              onClick={async () => {
+                try {
+                  await invoiceService.saveInvoicePDF(invoice.invoiceID, invoice.invoiceNumber)
+                } catch (err) {
+                  alert('Không thể tải PDF: ' + (err instanceof Error ? err.message : 'Unknown'))
+                }
+              }}
+              sx={{ textTransform: 'none' }}>
+              Tải PDF
+            </Button>
+          )}
+          
+          <Button
+            variant="contained"
+            startIcon={<Print />}
+            onClick={handlePrint}
+            sx={{ textTransform: 'none' }}>
+            In hóa đơn
+          </Button>
+          
+          {/* Actions Menu */}
+          {invoice.invoiceNumber > 0 && (
+            <Button
+              variant="outlined"
+              endIcon={<MoreVertIcon />}
+              onClick={handleOpenActionsMenu}
+              sx={{ textTransform: 'none', minWidth: 120 }}>
+              Thao tác
+            </Button>
+          )}
+        </Stack>
+
+        {/* Info Row */}
+        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center', width: '100%' }}>
+          <Box sx={{ maxWidth: '21cm', width: '100%' }}>
             {/* Display adjustment reason if exists */}
             {invoice.adjustmentReason && (
               <Alert severity="info" sx={{ mt: 2 }}>
@@ -354,51 +366,120 @@ const InvoiceDetail: React.FC = () => {
               </Alert>
             )}
           </Box>
-          
-          <Stack direction="row" spacing={1.5}>
-            <Button
-              variant="outlined"
-              startIcon={<ArrowBack />}
-              onClick={handleBack}
-              sx={{ textTransform: 'none' }}>
-              Quay lại
-            </Button>
-            
-            {isIssuedInvoice && htmlPreview && (
-              <Button
-                variant="outlined"
-                onClick={() => setUseHtmlView(!useHtmlView)}
-                sx={{ textTransform: 'none' }}
-                size="small">
-                {useHtmlView ? '📄 Xem React' : '📋 Xem PDF'}
-              </Button>
-            )}
-            
-            {isIssuedInvoice && (
-              <Button
-                variant="outlined"
-                startIcon={<Download />}
-                onClick={async () => {
-                  try {
-                    await invoiceService.saveInvoicePDF(invoice.invoiceID, invoice.invoiceNumber)
-                  } catch (err) {
-                    alert('Không thể tải PDF: ' + (err instanceof Error ? err.message : 'Unknown'))
-                  }
-                }}
-                sx={{ textTransform: 'none' }}>
-                Tải PDF
-              </Button>
-            )}
-            
-            <Button
-              variant="contained"
-              startIcon={<Print />}
-              onClick={handlePrint}
-              sx={{ textTransform: 'none' }}>
-              In hóa đơn
-            </Button>
-          </Stack>
-      </Stack>
+        </Box>
+
+        {/* Actions Menu Dropdown */}
+        <Menu
+                  anchorEl={anchorEl}
+                  open={openActionsMenu}
+                  onClose={handleCloseActionsMenu}
+                  anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'right',
+                  }}
+                  transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'right',
+                  }}
+                  PaperProps={{
+                    sx: {
+                      minWidth: 280,
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                      borderRadius: 1.5,
+                    },
+                  }}>
+                  <MenuItem
+                    onClick={handleOpenTaxErrorModal}
+                    sx={{
+                      py: 1.5,
+                      '&:hover': {
+                        backgroundColor: 'error.lighter',
+                      },
+                    }}>
+                    <ListItemIcon>
+                      <ErrorOutlineIcon fontSize="small" color="error" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Gửi thông báo sai sót (04)"
+                      secondary="Thông báo sai sót đến CQT"
+                      primaryTypographyProps={{
+                        fontWeight: 500,
+                        fontSize: '0.9rem',
+                      }}
+                      secondaryTypographyProps={{
+                        fontSize: '0.75rem',
+                      }}
+                    />
+                  </MenuItem>
+                  
+                  <Divider />
+                  
+                  <MenuItem
+                    onClick={() => {
+                      handleCloseActionsMenu()
+                      // TODO: Implement other actions
+                    }}
+                    disabled
+                    sx={{ py: 1.5 }}>
+                    <ListItemIcon>
+                      <EditIcon fontSize="small" color="action" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Điều chỉnh hóa đơn"
+                      secondary="Tạo hóa đơn điều chỉnh"
+                      primaryTypographyProps={{
+                        fontSize: '0.9rem',
+                      }}
+                      secondaryTypographyProps={{
+                        fontSize: '0.75rem',
+                      }}
+                    />
+                  </MenuItem>
+                  
+                  <MenuItem
+                    onClick={() => {
+                      handleCloseActionsMenu()
+                      // TODO: Implement other actions
+                    }}
+                    disabled
+                    sx={{ py: 1.5 }}>
+                    <ListItemIcon>
+                      <SendIcon fontSize="small" color="action" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Thay thế hóa đơn"
+                      secondary="Tạo hóa đơn thay thế"
+                      primaryTypographyProps={{
+                        fontSize: '0.9rem',
+                      }}
+                      secondaryTypographyProps={{
+                        fontSize: '0.75rem',
+                      }}
+                    />
+                  </MenuItem>
+                  
+                  <MenuItem
+                    onClick={() => {
+                      handleCloseActionsMenu()
+                      // TODO: Implement cancel action
+                    }}
+                    disabled
+                    sx={{ py: 1.5 }}>
+                    <ListItemIcon>
+                      <CancelIcon fontSize="small" color="action" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Hủy hóa đơn"
+                      secondary="Hủy hóa đơn đã phát hành"
+                      primaryTypographyProps={{
+                        fontSize: '0.9rem',
+                      }}
+                      secondaryTypographyProps={{
+                        fontSize: '0.75rem',
+                      }}
+                    />
+                  </MenuItem>
+                </Menu>
 
       <Box 
         sx={{ 
@@ -439,9 +520,7 @@ const InvoiceDetail: React.FC = () => {
                 mb: 2,
               }}
             >
-              <Alert severity="info" sx={{ borderRadius: 0 }}>
-                📋 Đang xem preview chính thức (100% giống PDF). Click "📄 Xem React" để xem giao diện tương tác.
-              </Alert>
+             
               <iframe
                 srcDoc={htmlPreview}
                 style={{
@@ -526,6 +605,15 @@ const InvoiceDetail: React.FC = () => {
           adjustmentReason={invoice.adjustmentReason || undefined}
         />
       )}
+      
+      {/* Tax Error Notification Modal */}
+      <TaxErrorNotificationModal
+        open={showTaxErrorModal}
+        onClose={() => setShowTaxErrorModal(false)}
+        invoice={invoice}
+        company={company}
+        onSuccess={handleTaxErrorSuccess}
+      />
     </>
   )
 }

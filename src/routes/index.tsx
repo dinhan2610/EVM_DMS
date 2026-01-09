@@ -26,6 +26,7 @@ import {
   StatementManagement,
   CreateStatement,
   DebtManagement,
+  TaxErrorNotificationManagement,
   TemplateManagement,
   TemplateSelection,
   TemplateEditor,
@@ -203,6 +204,11 @@ const appsRoutes: RoutesProps[] = [
     name: 'Debt Management',
     path: '/debt',
     element: <DebtManagement />,
+  },
+  {
+    name: 'Tax Error Notification Management',
+    path: '/tax-error-notifications',
+    element: <TaxErrorNotificationManagement />,
   },
   {
     name: 'Invoice Approval',
