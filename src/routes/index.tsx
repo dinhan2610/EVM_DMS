@@ -38,6 +38,7 @@ import {
   AuditLogsPage,
   ReportsPage,
   CustomerManagement,
+  SalesCustomerPage,
   CustomerInvoiceList,
   CustomerPaymentHistory,
   Welcome,
@@ -289,6 +290,11 @@ const appsRoutes: RoutesProps[] = [
     name: 'Customer Management',
     path: '/admin/customers',
     element: <CustomerManagement />,
+  },
+  {
+    name: 'Sales Customers',
+    path: '/sales/customers',
+    element: <SalesCustomerPage />,
   },
 ]
 

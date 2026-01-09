@@ -143,6 +143,19 @@ export const MENU_ITEMS: MenuItemType[] = [
     ],
   },
   {
+    key: 'customers-section',
+    icon: 'iconamoon:profile-circle-duotone',
+    label: 'Khách hàng',
+    children: [
+      {
+        key: 'sales-customers',
+        label: 'Khách hàng của tôi',
+        url: '/sales/customers',
+        parentKey: 'customers-section',
+      },
+    ],
+  },
+  {
     key: 'customer-portal',
     icon: 'iconamoon:profile-circle-duotone',
     label: 'Khách hàng',

@@ -45,6 +45,7 @@ export const SystemConfiguration = lazy(() => import('@/page/SystemConfiguration
 export const AuditLogsPage = lazy(() => import('@/page/AuditLogsPage'))
 export const ReportsPage = lazy(() => import('@/page/ReportsPage'))
 export const CustomerManagement = lazy(() => import('@/page/CustomerManagement'))
+export const SalesCustomerPage = lazy(() => import('@/page/SalesCustomerPage'))
 
 // Customer Portal Routes
 export const CustomerInvoiceList = lazy(() => import('@/page/CustomerInvoiceList'))
