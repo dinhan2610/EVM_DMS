@@ -20,6 +20,7 @@ import {
   CreateVatInvoice,
   CreateAdjustmentInvoice,
   CreateReplacementInvoice,
+  PublicInvoiceLookup,
   RequestManagement,
   ItemsManagement,
   StatementManagement,
@@ -177,6 +178,11 @@ const appsRoutes: RoutesProps[] = [
     name: 'Invoices List',
     path: '/invoices',
     element: <InvoiceManagement />,
+  },
+  {
+    name: 'Public Invoice Lookup',
+    path: '/tra-cuu',
+    element: <PublicInvoiceLookup />,
   },
   {
     name: 'Statement Management',

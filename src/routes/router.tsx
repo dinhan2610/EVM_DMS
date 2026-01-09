@@ -11,6 +11,7 @@ const AppRouter = (props: RouteProps) => {
 
   // Filter routes by path prefix
   const authRoutes = routes.filter(route => route.path?.toString().startsWith('/auth'))
+  const publicRoutes = routes.filter(route => route.path?.toString() === '/tra-cuu')
   const templateEditorRoutes = routes.filter(route => 
     route.path?.toString().includes('/admin/templates/new') || 
     route.path?.toString().includes('/admin/templates/edit') ||
@@ -19,6 +20,7 @@ const AppRouter = (props: RouteProps) => {
   const appRoutes = routes.filter(route => 
     !route.path?.toString().startsWith('/auth') && 
     route.path !== '*' &&
+    route.path?.toString() !== '/tra-cuu' &&
     !route.path?.toString().includes('/admin/templates/new') &&
     !route.path?.toString().includes('/admin/templates/edit') &&
     !route.path?.toString().includes('/admin/templates/select')
@@ -28,6 +30,11 @@ const AppRouter = (props: RouteProps) => {
     <Routes>
       {(authRoutes || []).map((route, idx) => (
         <Route key={idx + route.name} path={route.path} element={<AuthLayout {...props}>{route.element}</AuthLayout>} />
+      ))}
+
+      {/* Public routes - Simple Layout (No Authentication Required) */}
+      {(publicRoutes || []).map((route, idx) => (
+        <Route key={idx + route.name} path={route.path} element={<SimpleLayout>{route.element}</SimpleLayout>} />
       ))}
 
       {/* Template Editor routes - Simple Layout (No Menu) */}
