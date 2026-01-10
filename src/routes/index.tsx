@@ -6,13 +6,6 @@ import {
   StaffDashboard,
   SaleDashboard,
   CustomerDashboard,
-  EcommerceCustomers,
-  EcommerceSellers,
-  Chat,
-  Schedule,
-  Help,
-  Todo,
-  Contacts,
   InvoiceManagement,
   HODInvoiceManagement,
   InvoiceDetail,
@@ -39,21 +32,11 @@ import {
   ReportsPage,
   CustomerManagement,
   SalesCustomerPage,
+  CreateSalesOrder,
   CustomerInvoiceList,
   CustomerPaymentHistory,
-  Welcome,
-  FAQs,
-  ContactUs,
-  AboutUs,
-  OurTeam,
-  TimelinePage,
   UserProfile,
   AllNotifications,
-  Pricing,
-  Area,
-  Bar,
-  Line,
-  Pie,
   AuthSignIn,
   AuthSignUp,
   NotFound,
@@ -110,41 +93,6 @@ const appsRoutes: RoutesProps[] = [
     path: '/customer/payments',
     name: 'Customer Payment History',
     element: <CustomerPaymentHistory />,
-  },
-  {
-    name: 'Customers',
-    path: '/ecommerce/customers',
-    element: <EcommerceCustomers />,
-  },
-  {
-    name: 'Sellers',
-    path: '/ecommerce/sellers',
-    element: <EcommerceSellers />,
-  },
-  {
-    name: 'Chat',
-    path: '/apps/chat',
-    element: <Chat />,
-  },
-  {
-    name: 'Schedule',
-    path: '/calendar/schedule',
-    element: <Schedule />,
-  },
-  {
-    name: 'Help',
-    path: '/calendar/help',
-    element: <Help />,
-  },
-  {
-    name: 'Todo',
-    path: '/apps/todo',
-    element: <Todo />,
-  },
-  {
-    name: 'Contacts',
-    path: '/apps/contacts',
-    element: <Contacts />,
   },
   {
     name: 'Template Management',
@@ -296,19 +244,14 @@ const appsRoutes: RoutesProps[] = [
     path: '/sales/customers',
     element: <SalesCustomerPage />,
   },
+  {
+    name: 'Create Sales Order',
+    path: '/sales/orders/create',
+    element: <CreateSalesOrder />,
+  },
 ]
 
 const customRoutes: RoutesProps[] = [
-  {
-    name: 'Welcome',
-    path: '/pages/welcome',
-    element: <Welcome />,
-  },
-  {
-    name: 'FAQs',
-    path: '/pages/faqs',
-    element: <FAQs />,
-  },
   {
     name: 'Profile',
     path: '/pages/profile',
@@ -318,54 +261,6 @@ const customRoutes: RoutesProps[] = [
     name: 'All Notifications',
     path: '/pages/all-notifications',
     element: <AllNotifications />,
-  },
-  {
-    name: 'Contact Us',
-    path: '/pages/contact-us',
-    element: <ContactUs />,
-  },
-  {
-    name: 'About Us',
-    path: '/pages/about-us',
-    element: <AboutUs />,
-  },
-  {
-    name: 'Our Team',
-    path: '/pages/our-team',
-    element: <OurTeam />,
-  },
-  {
-    name: 'Timeline',
-    path: '/pages/timeline',
-    element: <TimelinePage />,
-  },
-  {
-    name: 'Pricing',
-    path: '/pages/pricing',
-    element: <Pricing />,
-  },
-]
-
-const chartsRoutes: RoutesProps[] = [
-  {
-    name: 'Area Chart',
-    path: '/charts/area',
-    element: <Area />,
-  },
-  {
-    name: 'Bar Chart',
-    path: '/charts/bar',
-    element: <Bar />,
-  },
-  {
-    name: 'Line Chart',
-    path: '/charts/line',
-    element: <Line />,
-  },
-  {
-    name: 'Pie Chart',
-    path: '/charts/pie',
-    element: <Pie />,
   },
 ]
 
@@ -394,7 +289,6 @@ const routes: RoutesProps[] = [
   ...initialRoutes,
   ...appsRoutes,
   ...customRoutes,
-  ...chartsRoutes,
   ...authRoutes,
   ...otherRoutes,
 ]
