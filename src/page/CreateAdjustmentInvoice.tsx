@@ -1107,8 +1107,7 @@ const CreateVatInvoice: React.FC = () => {
   ])
 
   // State cho thông tin người mua
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [buyerCustomerID, setBuyerCustomerID] = useState<number>(0) // ✅ ID customer từ DB (stored but not currently used in adjustment invoice)
+  const [_buyerCustomerID, setBuyerCustomerID] = useState<number>(0) // ✅ ID customer từ DB (used in buyerInfo object)
   const [buyerTaxCode, setBuyerTaxCode] = useState('')
   const [buyerCompanyName, setBuyerCompanyName] = useState('')
   const [buyerAddress, setBuyerAddress] = useState('')
@@ -1643,7 +1642,7 @@ const CreateVatInvoice: React.FC = () => {
       const backendRequest = mapToBackendInvoiceRequest(
         selectedTemplate.templateID,
         {
-          customerID: buyerCustomerID, // ✅ Truyền customer ID
+          customerID: _buyerCustomerID, // ✅ Truyền customer ID
           taxCode: buyerTaxCode,
           companyName: buyerCompanyName,
           address: buyerAddress,

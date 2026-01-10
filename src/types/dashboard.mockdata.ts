@@ -100,7 +100,7 @@ export const mockPendingInvoices: PendingInvoice[] = [
     createdBy: 'Nguyễn Văn A',
     createdDate: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
     priority: 'high',
-    type: 'VAT',
+    invoiceType: 1,
   },
   {
     id: 'inv-002',
@@ -110,7 +110,7 @@ export const mockPendingInvoices: PendingInvoice[] = [
     createdBy: 'Trần Thị B',
     createdDate: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
     priority: 'high',
-    type: 'Standard',
+    invoiceType: 1,
   },
   {
     id: 'inv-003',
@@ -120,7 +120,7 @@ export const mockPendingInvoices: PendingInvoice[] = [
     createdBy: 'Lê Văn C',
     createdDate: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
     priority: 'medium',
-    type: 'VAT',
+    invoiceType: 1,
   },
   {
     id: 'inv-004',
@@ -130,7 +130,7 @@ export const mockPendingInvoices: PendingInvoice[] = [
     createdBy: 'Phạm Thị D',
     createdDate: new Date(Date.now() - 8 * 60 * 60 * 1000), // 8 hours ago
     priority: 'medium',
-    type: 'Adjustment',
+    invoiceType: 2,
   },
   {
     id: 'inv-005',
@@ -140,7 +140,7 @@ export const mockPendingInvoices: PendingInvoice[] = [
     createdBy: 'Hoàng Văn E',
     createdDate: new Date(Date.now() - 10 * 60 * 60 * 1000), // 10 hours ago
     priority: 'low',
-    type: 'Standard',
+    invoiceType: 1,
   },
   {
     id: 'inv-006',
@@ -150,7 +150,7 @@ export const mockPendingInvoices: PendingInvoice[] = [
     createdBy: 'Vũ Thị F',
     createdDate: new Date(Date.now() - 12 * 60 * 60 * 1000), // 12 hours ago
     priority: 'high',
-    type: 'VAT',
+    invoiceType: 1,
   },
   {
     id: 'inv-007',
@@ -160,7 +160,7 @@ export const mockPendingInvoices: PendingInvoice[] = [
     createdBy: 'Đỗ Văn G',
     createdDate: new Date(Date.now() - 14 * 60 * 60 * 1000), // 14 hours ago
     priority: 'low',
-    type: 'Standard',
+    invoiceType: 1,
   },
   {
     id: 'inv-008',
@@ -170,6 +170,6 @@ export const mockPendingInvoices: PendingInvoice[] = [
     createdBy: 'Bùi Thị H',
     createdDate: new Date(Date.now() - 16 * 60 * 60 * 1000), // 16 hours ago
     priority: 'medium',
-    type: 'Adjustment',
+    invoiceType: 2,
   },
 ];

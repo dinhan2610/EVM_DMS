@@ -1,5 +1,3 @@
-import type { ActivityType, SocialEventType } from '@/types/data'
-
 export const getFileExtensionIcon = (fileName: string) => {
   const extension = fileName.split('.').pop()
   if (extension === 'fig') return 'bxl:figma'
@@ -12,13 +10,13 @@ export const getFileExtensionIcon = (fileName: string) => {
   else return 'bxs:file'
 }
 
-export const getActivityIcon = (type: ActivityType['type']) => {
+export const getActivityIcon = (type: 'task' | 'design' | string) => {
   if (type === 'task') return 'iconamoon:folder-check-duotone'
   else if (type === 'design') return 'iconamoon:check-circle-1-duotone'
   else return 'iconamoon:certificate-badge-duotone'
 }
 
-export const getEventIcon = (type: SocialEventType['type']) => {
+export const getEventIcon = (type: 'celebration' | 'togetherness' | string) => {
   if (type === 'celebration') return 'bx:cake'
   else if (type === 'togetherness') return 'bx:heart'
   else return 'bx:bookmark'

@@ -124,8 +124,8 @@ const InvoiceApprovalActionsMenu = ({ invoice, onApprove, onReject, onSign, onIs
   // Xác định trạng thái hóa đơn
   const isPendingApproval = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_APPROVAL // 6 - Chờ duyệt
   const isPendingSign = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN // 7 - Đã duyệt, chờ ký
-  const isSignedPendingIssue = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.SIGNED_PENDING_ISSUE // 8 - Đã ký số, chờ phát hành
-  const isSigned = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.SIGNED // 10 - Đã ký (legacy)
+  const isSignedPendingIssue = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.SIGNED // 8 - Đã ký số, chờ phát hành
+  const isSigned = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.SIGNED // 8 - Đã ký
   const isIssued = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.ISSUED // 2 - Đã phát hành (đã ký + gửi)
   const hasTaxError = isTaxStatusError(invoice.taxStatusId)  // ✨ Check Tax Status error
   

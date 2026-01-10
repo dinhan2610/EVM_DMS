@@ -85,6 +85,7 @@ export const getAllPrefixes = async (): Promise<PrefixApiResponse[]> => {
     return response.data
   } catch (error) {
     handleApiError(error, 'Get Prefixes')
+    return []
   }
 }
 
@@ -101,6 +102,7 @@ export const getAllSerialStatuses = async (): Promise<SerialStatusApiResponse[]>
     return response.data
   } catch (error) {
     handleApiError(error, 'Get Serial Statuses')
+    return []
   }
 }
 
@@ -117,6 +119,7 @@ export const getAllInvoiceTypes = async (): Promise<InvoiceTypeApiResponse[]> =>
     return response.data
   } catch (error) {
     handleApiError(error, 'Get Invoice Types')
+    return []
   }
 }
 

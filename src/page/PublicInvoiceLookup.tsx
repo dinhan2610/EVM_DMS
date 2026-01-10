@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Container,
@@ -50,7 +49,6 @@ interface InvoiceLookupResult {
 const PublicInvoiceLookup: React.FC = () => {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
-  const navigate = useNavigate()
   
   // Form states
   const [lookupCode, setLookupCode] = useState('')
