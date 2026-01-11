@@ -920,6 +920,7 @@ const InvoiceManagement = () => {
     bccEmails: string[]
     attachments: File[]
     includeXml: boolean
+    includePdf: boolean // ✅ Thêm includePdf
     disableSms: boolean
     language: string
   }) => {
@@ -949,8 +950,8 @@ const InvoiceManagement = () => {
           ccEmails: emailData.ccEmails.length > 0 ? emailData.ccEmails : undefined,
           bccEmails: emailData.bccEmails.length > 0 ? emailData.bccEmails : undefined,
           customMessage: undefined,
-          includeXml: emailData.includeXml,
-          includePdf: true, // Luôn gửi PDF
+          includeXml: emailData.includeXml, // ✅ Sử dụng giá trị từ modal
+          includePdf: emailData.includePdf, // ✅ Sử dụng giá trị từ modal
           language: emailData.language || 'vi',
           externalAttachmentUrls: attachmentUrls.length > 0 ? attachmentUrls : undefined,
         }

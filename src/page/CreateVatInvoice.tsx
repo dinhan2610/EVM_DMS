@@ -611,23 +611,41 @@ const PriceEditCell = (params: GridRenderEditCellParams) => {
 // Component riêng cho ô edit Tỷ lệ CK (%)
 const DiscountPercentEditCell = (params: GridRenderEditCellParams) => {
   const [displayValue, setDisplayValue] = useState('')
+  const inputRef = React.useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const num = Number(params.value) || 0
-    setDisplayValue(num.toFixed(2).replace('.', ','))
+    setDisplayValue(num.toString().replace('.', ','))
   }, [params.value])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const input = e.target.value.replace(/\./g, ',')
+    const input = e.target.value
+    const cursorPos = e.target.selectionStart || 0
     
-    // Cho phép nhập số với dấu ,
-    if (input === '' || /^\d*,?\d{0,2}$/.test(input)) {
-      const num = input === '' ? 0 : Number(input.replace(',', '.'))
-      if (num >= 0 && num <= 100) {
+    // Cho phép nhập số với dấu , và tối đa 2 chữ số thập phân
+    // VD: 10, 10,5, 10,50
+    if (input === '' || /^\d{0,3}(,\d{0,2})?$/.test(input)) {
+      const numValue = input === '' ? 0 : Number(input.replace(',', '.'))
+      
+      // Validate 0-100%
+      if (numValue >= 0 && numValue <= 100) {
         setDisplayValue(input)
-        params.api.setEditCellValue({ id: params.id, field: params.field, value: num })
+        params.api.setEditCellValue({ id: params.id, field: params.field, value: numValue })
+        
+        // Restore cursor position
+        setTimeout(() => {
+          if (inputRef.current) {
+            inputRef.current.setSelectionRange(cursorPos, cursorPos)
+          }
+        }, 0)
       }
     }
+  }
+  
+  const handleBlur = () => {
+    // Format to 2 decimals on blur
+    const num = Number(displayValue.replace(',', '.')) || 0
+    setDisplayValue(num.toFixed(2).replace('.', ','))
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -639,10 +657,13 @@ const DiscountPercentEditCell = (params: GridRenderEditCellParams) => {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
       <TextField
+        inputRef={inputRef}
         autoFocus
         value={displayValue}
         onChange={handleChange}
+        onBlur={handleBlur}
         onKeyDown={handleKeyDown}
+        placeholder="0,00"
         variant="outlined"
         size="small"
         inputProps={{
@@ -650,68 +671,6 @@ const DiscountPercentEditCell = (params: GridRenderEditCellParams) => {
         }}
         sx={{
           width: '100px',
-          '& .MuiOutlinedInput-root': {
-            height: '28px',
-            borderRadius: '6px',
-            backgroundColor: '#fff',
-            '& fieldset': { borderColor: '#d0d0d0', borderWidth: '1px' },
-            '&:hover fieldset': { borderColor: '#1976d2' },
-            '&.Mui-focused fieldset': { borderColor: '#1976d2', borderWidth: '2px' },
-          },
-          '& .MuiOutlinedInput-input': {
-            fontSize: '0.8125rem',
-            fontWeight: 500,
-            padding: '4px 8px',
-            height: '28px',
-            boxSizing: 'border-box',
-            textAlign: 'right',
-          },
-        }}
-      />
-    </Box>
-  )
-}
-
-// Component riêng cho ô edit Tiền CK
-const DiscountAmountEditCell = (params: GridRenderEditCellParams) => {
-  const [displayValue, setDisplayValue] = useState('')
-
-  useEffect(() => {
-    const num = Number(params.value) || 0
-    setDisplayValue(num.toLocaleString('vi-VN'))
-  }, [params.value])
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const input = e.target.value
-    const numOnly = input.replace(/\./g, '')
-    
-    if (numOnly === '' || /^\d+$/.test(numOnly)) {
-      const num = numOnly === '' ? 0 : Number(numOnly)
-      setDisplayValue(num.toLocaleString('vi-VN'))
-      params.api.setEditCellValue({ id: params.id, field: params.field, value: num })
-    }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === 'Tab') {
-      params.api.stopCellEditMode({ id: params.id, field: params.field })
-    }
-  }
-
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-      <TextField
-        autoFocus
-        value={displayValue}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        variant="outlined"
-        size="small"
-        inputProps={{
-          style: { textAlign: 'right', padding: '0 8px', height: '28px', fontSize: '0.8125rem' },
-        }}
-        sx={{
-          width: '110px',
           '& .MuiOutlinedInput-root': {
             height: '28px',
             borderRadius: '6px',
@@ -795,6 +754,8 @@ const CreateVatInvoice: React.FC = () => {
   const [invoiceNotes, setInvoiceNotes] = useState<string>('') // Ghi chú chung cho hóa đơn
   const [showInvoiceNotes, setShowInvoiceNotes] = useState(false) // Hiện/ẩn ô ghi chú
   const calculateAfterTax = false // Giá nhập vào là giá CHƯA thuế, VAT tính thêm
+  const [totalDiscountPercent, setTotalDiscountPercent] = useState<number>(0) // Tỷ lệ CK chung cho 'total' mode
+  const prevDiscountType = React.useRef<string>('none') // Track previous discountType
 
   // State cho loading và error
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -1338,6 +1299,51 @@ const CreateVatInvoice: React.FC = () => {
     setItems(updatedItems)
   }
 
+  // ✅ Handle discount type changes - auto-fill for 'total' mode, reset for others
+  useEffect(() => {
+    // Chỉ thực hiện khi discountType thực sự thay đổi (không phải lần render đầu)
+    if (prevDiscountType.current === discountType) {
+      return
+    }
+    
+    console.log('🔄 [Discount] Type changed from', prevDiscountType.current, 'to', discountType)
+    prevDiscountType.current = discountType
+    
+    if (discountType === 'total') {
+      // Khi chuyển sang chế độ "Theo tổng giá trị đơn hàng"
+      // Auto-fill tỷ lệ CK cho TẤT CẢ các dòng với giá trị hiện tại
+      console.log('🔄 [Discount] Switching to TOTAL mode - auto-filling all rows with:', totalDiscountPercent)
+      const updatedItems = items.map(item => {
+        const baseAmount = item.quantity * item.priceAfterTax
+        const discountAmount = Math.round((baseAmount * totalDiscountPercent) / 100)
+        return {
+          ...item,
+          discountPercent: totalDiscountPercent,
+          discountAmount: discountAmount,
+          totalAfterTax: baseAmount - discountAmount
+        }
+      })
+      setItems(updatedItems)
+    } else if (discountType === 'none') {
+      // Reset tất cả chiết khấu về 0 khi chọn "Không có chiết khấu"
+      console.log('🔄 [Discount] Switching to NONE mode - resetting all discounts')
+      const updatedItems = items.map(item => {
+        const baseAmount = item.quantity * item.priceAfterTax
+        return {
+          ...item,
+          discountPercent: 0,
+          discountAmount: 0,
+          totalAfterTax: baseAmount
+        }
+      })
+      setItems(updatedItems)
+      setTotalDiscountPercent(0)
+    } else if (discountType === 'per-item') {
+      // Giữ nguyên giá trị hiện tại của từng dòng khi chuyển sang "Theo mặt hàng"
+      console.log('🔄 [Discount] Switching to PER-ITEM mode - keeping individual values')
+    }
+  }, [discountType, items, totalDiscountPercent]) // Include all dependencies
+
   // Tính toán tổng tiền
   const calculateTotals = (currentItems: InvoiceItem[]) => {
     // ✅ Tính theo TỪNG DÒNG sản phẩm
@@ -1399,6 +1405,32 @@ const CreateVatInvoice: React.FC = () => {
       // Tính toán chiết khấu và thành tiền
       const baseAmount = newRow.quantity * newRow.priceAfterTax
 
+      // ✅ XỬ LÝ ĐẶC BIỆT: Chế độ "Theo tổng giá trị đơn hàng"
+      if (discountType === 'total' && newRow.discountPercent !== oldRow.discountPercent) {
+        // Khi thay đổi tỷ lệ CK ở BẤT KỲ dòng nào → Cập nhật TẤT CẢ dòng khác
+        console.log('🔄 [Discount TOTAL] Syncing discount percent across all rows:', newRow.discountPercent)
+        setTotalDiscountPercent(newRow.discountPercent)
+        
+        const updatedItems = items.map((item) => {
+          const itemBaseAmount = item.quantity * item.priceAfterTax
+          const itemDiscountAmount = Math.round((itemBaseAmount * newRow.discountPercent) / 100)
+          return {
+            ...item,
+            discountPercent: newRow.discountPercent, // ✅ Áp dụng cùng tỷ lệ CK
+            discountAmount: itemDiscountAmount,
+            totalAfterTax: itemBaseAmount - itemDiscountAmount
+          }
+        })
+        setItems(updatedItems)
+        
+        // Return current row với giá trị đã tính
+        updatedRow.discountPercent = newRow.discountPercent
+        updatedRow.discountAmount = Math.round((baseAmount * newRow.discountPercent) / 100)
+        updatedRow.totalAfterTax = baseAmount - updatedRow.discountAmount
+        return updatedRow
+      }
+
+      // ✅ Xử lý bình thường cho chế độ 'per-item' hoặc 'none'
       // Nếu thay đổi tỷ lệ CK -> tính lại tiền CK
       if (newRow.discountPercent !== oldRow.discountPercent) {
         updatedRow.discountAmount = Math.round((baseAmount * newRow.discountPercent) / 100)
@@ -1422,7 +1454,7 @@ const CreateVatInvoice: React.FC = () => {
 
       return updatedRow
     },
-    [items]
+    [items, discountType]
   )
 
   const totals = calculateTotals(items)
@@ -1870,23 +1902,6 @@ const CreateVatInvoice: React.FC = () => {
               </Box>
             ),
             renderEditCell: (params: GridRenderEditCellParams) => <DiscountPercentEditCell {...params} />,
-          },
-          {
-            field: 'discountAmount',
-            headerName: 'Tiền CK',
-            width: 150,
-            type: 'number' as const,
-            editable: true,
-            align: 'center' as const,
-            headerAlign: 'center' as const,
-            renderCell: (params: GridRenderCellParams) => (
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-                <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>
-                  {params.value ? Number(params.value).toLocaleString('vi-VN') : '0'}
-                </Typography>
-              </Box>
-            ),
-            renderEditCell: (params: GridRenderEditCellParams) => <DiscountAmountEditCell {...params} />,
           },
         ]
       : []),

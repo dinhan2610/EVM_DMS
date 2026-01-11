@@ -13,6 +13,8 @@ import {
   Divider,
   Stack,
   Chip,
+  Checkbox,
+  FormControlLabel,
 } from '@mui/material'
 import {
   Close as CloseIcon,
@@ -46,6 +48,7 @@ interface EmailData {
   bccEmails: string[]
   attachments: File[]
   includeXml: boolean
+  includePdf: boolean // ✅ Thêm includePdf option
   disableSms: boolean
   language: string
 }
@@ -68,6 +71,8 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
   const [showCc, setShowCc] = useState(false)
   const [showBcc, setShowBcc] = useState(false)
   const [attachments, setAttachments] = useState<File[]>([])
+  const [includeXml, setIncludeXml] = useState(true) // ✅ Mặc định gửi XML
+  const [includePdf, setIncludePdf] = useState(true) // ✅ Mặc định gửi PDF
   
   // ✅ Auto-fill email và tên khi modal mở hoặc invoiceData thay đổi
   useEffect(() => {
@@ -94,6 +99,8 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
       setAttachments([])
       setShowCc(false)
       setShowBcc(false)
+      setIncludeXml(true)
+      setIncludePdf(true)
     }
   }, [open, invoiceData])
 
@@ -117,10 +124,18 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
       ccEmails: [],
       bccEmails: [],
       attachments,
-      includeXml: false,
+      includeXml: includeXml, // ✅ Sử dụng giá trị từ checkbox
+      includePdf: includePdf, // ✅ Sử dụng giá trị từ checkbox
       disableSms: false,
       language: 'vi',
     }
+    
+    console.log('📤 [SendEmail] Sending with options:', {
+      includeXml,
+      includePdf,
+      recipientEmail: email,
+    })
+    
     onSend(data)
     onClose()
   }
@@ -422,6 +437,51 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
                 ))}
               </Stack>
             )}
+
+            {/* ✅ Checkboxes for XML and PDF */}
+            <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #e0e0e0' }}>
+              <Typography variant="body2" sx={{ mb: 1.5, fontWeight: 600, color: '#444', fontSize: '0.8125rem' }}>
+                Tệp đính kèm tự động:
+              </Typography>
+              <Stack spacing={1}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={includePdf}
+                      onChange={(e) => setIncludePdf(e.target.checked)}
+                      size="small"
+                      sx={{
+                        color: '#1976d2',
+                        '&.Mui-checked': { color: '#1976d2' },
+                      }}
+                    />
+                  }
+                  label={
+                    <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>
+                      Gửi kèm file PDF (Hóa đơn)
+                    </Typography>
+                  }
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={includeXml}
+                      onChange={(e) => setIncludeXml(e.target.checked)}
+                      size="small"
+                      sx={{
+                        color: '#1976d2',
+                        '&.Mui-checked': { color: '#1976d2' },
+                      }}
+                    />
+                  }
+                  label={
+                    <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>
+                      Gửi kèm file XML (Dữ liệu hóa đơn điện tử)
+                    </Typography>
+                  }
+                />
+              </Stack>
+            </Box>
           </Box>
 
           {/* SMS Setup Notification */}
