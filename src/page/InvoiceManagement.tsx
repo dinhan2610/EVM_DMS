@@ -907,15 +907,18 @@ const InvoiceManagement = () => {
   }) => {
     if (!selectedInvoiceForEmail) return
     
+    const invoiceBeforeSend = {
+      id: selectedInvoiceForEmail.id,
+      number: selectedInvoiceForEmail.invoiceNumber,
+      statusId: selectedInvoiceForEmail.internalStatusId,
+    }
+    
     try {
-      console.log('📧 Sending invoice email:', { invoice: selectedInvoiceForEmail.id, emailData })
-      
       setSubmittingId(selectedInvoiceForEmail.id)
       
       // Upload attachments nếu có (cần implement file upload API)
       const attachmentUrls: string[] = []
       if (emailData.attachments.length > 0) {
-        // TODO: Implement file upload to get URLs
         console.log('⚠️ File upload not implemented yet. Attachments:', emailData.attachments)
       }
       
@@ -935,19 +938,52 @@ const InvoiceManagement = () => {
         }
       )
       
+      console.log('✅ Email sent successfully:', {
+        invoiceId: invoiceBeforeSend.id,
+        invoiceNumber: invoiceBeforeSend.number,
+        sentTo: response.sentTo,
+      })
+      
+      // 🔍 MONITORING: Verify status không bị thay đổi (chỉ log warning nếu có)
+      // Backend đã fix bug, nhưng vẫn monitor để phát hiện sớm nếu bug quay lại
+      try {
+        const invoiceDetail = await invoiceService.getInvoiceById(parseInt(invoiceBeforeSend.id))
+        
+        if (invoiceBeforeSend.statusId !== invoiceDetail.invoiceStatusID) {
+          // ⚠️ Backend bug quay lại - chỉ log warning
+          console.warn('⚠️ [WARNING] Invoice status changed after email send (backend bug detected):', {
+            invoiceNumber: invoiceBeforeSend.number,
+            statusBefore: invoiceBeforeSend.statusId,
+            statusAfter: invoiceDetail.invoiceStatusID,
+            note: 'This should NOT happen - backend team needs to investigate',
+          })
+        }
+      } catch (verifyErr) {
+        // Không quan trọng nếu verify fail - chỉ log
+        console.warn('⚠️ Could not verify status after email send:', verifyErr)
+      }
+      
+      // ✅ Reload data và show success
+      await loadInvoices()
+      
       setSnackbar({
         open: true,
-        message: `✅ ${response.message}\nĐã gửi đến: ${response.sentTo}\nThời gian: ${new Date(response.sentAt).toLocaleString('vi-VN')}`,
+        message: `✅ Đã gửi email hóa đơn ${invoiceBeforeSend.number}\nĐến: ${response.sentTo}`,
         severity: 'success',
       })
       
       setSendEmailModalOpen(false)
       setSelectedInvoiceForEmail(null)
+      
     } catch (err) {
-      console.error('❌ Error sending email:', err)
+      console.error('❌ Failed to send email:', {
+        invoiceNumber: invoiceBeforeSend.number,
+        error: err,
+      })
+      
       setSnackbar({
         open: true,
-        message: `❌ Không thể gửi email.\n${err instanceof Error ? err.message : 'Vui lòng thử lại.'}`,
+        message: `❌ Không thể gửi email hóa đơn ${invoiceBeforeSend.number}\n${err instanceof Error ? err.message : 'Vui lòng thử lại'}`,
         severity: 'error',
       })
     } finally {

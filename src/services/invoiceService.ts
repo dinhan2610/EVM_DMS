@@ -525,13 +525,6 @@ export const updateInvoiceStatus = async (
   note?: string
 ): Promise<void> => {
   try {
-    if (import.meta.env.DEV) {
-      console.log(`[updateInvoiceStatus] Updating invoice ${invoiceId} to status ${statusId}`);
-      if (note) {
-        console.log(`[updateInvoiceStatus] Note: ${note}`);
-      }
-    }
-    
     // ✅ Backend API: PATCH /api/Invoice/{id}/status
     // Body: { invoiceId, newStatusId, note? }
     const requestBody: UpdateInvoiceStatusRequest = {
@@ -551,14 +544,11 @@ export const updateInvoiceStatus = async (
     );
     
     if (import.meta.env.DEV) {
-      console.log('[updateInvoiceStatus] ✅ Success - Status updated');
+      console.log(`✅ Updated invoice ${invoiceId} status to ${statusId}`);
     }
   } catch (error) {
     if (import.meta.env.DEV) {
-      console.error('[updateInvoiceStatus] Error:', error);
-      if (axios.isAxiosError(error) && error.response) {
-        console.error('[updateInvoiceStatus] Response data:', error.response.data);
-      }
+      console.error(`❌ Failed to update invoice ${invoiceId} status:`, error);
     }
     if (axios.isAxiosError(error) && error.response) {
       
@@ -962,6 +952,9 @@ export const submitToTaxAuthority = async (invoiceId: number): Promise<string> =
  * Send invoice via email
  * POST /api/Email/{id}/send-email
  * 
+ * ⚠️ QUAN TRỌNG: API này KHÔNG NÊN thay đổi trạng thái hóa đơn
+ * Chỉ gửi email thông báo cho khách hàng, không ảnh hưởng đến invoice status
+ * 
  * @param invoiceId - ID of invoice to send
  * @param request - Email data (recipient, cc, bcc, attachments, etc.)
  * @returns Response with success status and sent info
@@ -971,18 +964,27 @@ export const sendInvoiceEmail = async (
   request: SendInvoiceEmailRequest
 ): Promise<SendInvoiceEmailResponse> => {
   try {
-    console.log(`📧 Sending email for invoice ${invoiceId}:`, request);
-    
     const response = await axios.post<SendInvoiceEmailResponse>(
       API_CONFIG.ENDPOINTS.INVOICE.SEND_EMAIL(invoiceId),
       request,
       { headers: getAuthHeaders() }
     );
     
-    console.log('✅ Email sent successfully:', response.data);
     return response.data;
   } catch (error) {
-    console.error('❌ Error sending email:', error);
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 404) {
+        throw new Error('Không tìm thấy hóa đơn');
+      }
+      if (error.response?.status === 400) {
+        const message = error.response.data?.message || 'Dữ liệu gửi email không hợp lệ';
+        throw new Error(message);
+      }
+      // Network hoặc server errors
+      if (error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK') {
+        throw new Error('Không thể kết nối đến server email');
+      }
+    }
     throw error;
   }
 };
