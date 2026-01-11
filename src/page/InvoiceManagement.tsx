@@ -39,6 +39,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Snackbar, Alert } from '@mui/material'
 import InvoiceFilter, { InvoiceFilterState } from '@/components/InvoiceFilter'
 import InvoicePreviewModal from '@/components/invoices/InvoicePreviewModal'
+import SendInvoiceEmailModal from '@/components/SendInvoiceEmailModal'
 import invoiceService, { InvoiceListItem, INVOICE_TYPE, getInvoiceTypeLabel, getInvoiceTypeColor } from '@/services/invoiceService'
 import templateService from '@/services/templateService'
 import customerService from '@/services/customerService'
@@ -70,6 +71,11 @@ export interface Invoice {
   taxStatusCode: string | null // Mã trạng thái (PENDING, TB01, KQ01, etc.)
   amount: number
   notes: string | null // ✅ Ghi chú (chứa lý do từ chối)
+  
+  // Contact info từ invoice (để gửi email)
+  contactEmail: string | null // Email khách hàng
+  contactPerson: string | null // Tên người liên hệ
+  contactPhone: string | null // SĐT liên hệ
   
   // Invoice type fields
   invoiceType: number // 1=Gốc, 2=Điều chỉnh, 3=Thay thế, 4=Hủy, 5=Giải trình
@@ -124,6 +130,11 @@ const mapInvoiceToUI = (
     })
   }
   
+  // ✅ Safeguard: Đảm bảo invoiceID luôn là số hợp lệ
+  if (!item.invoiceID || isNaN(Number(item.invoiceID))) {
+    throw new Error(`Invalid invoice data: invoiceID is ${item.invoiceID}`)
+  }
+  
   return {
     id: item.invoiceID.toString(),
     invoiceNumber: item.invoiceNumber?.toString() || '0', // ✅ Dùng invoiceNumber từ backend
@@ -139,6 +150,12 @@ const mapInvoiceToUI = (
     taxStatusCode: item.taxStatusCode || null,
     amount: item.totalAmount,
     notes: item.notes || null,  // ✅ Map notes field
+    
+    // Contact info từ invoice (để gửi email)
+    // ✅ Backend trả về customerEmail, không phải contactEmail
+    contactEmail: item.customerEmail || item.contactEmail || null,
+    contactPerson: item.contactPerson || null,
+    contactPhone: item.contactPhone || null,
     
     // Invoice type fields
     invoiceType: item.invoiceType || INVOICE_TYPE.ORIGINAL,
@@ -163,9 +180,11 @@ interface InvoiceActionsMenuProps {
   onPrintInvoice: (id: string, invoiceNumber: string) => void
   isSending: boolean
   hasBeenAdjusted: boolean // Đã có hóa đơn điều chỉnh từ hóa đơn này chưa
+  // Email modal props
+  onOpenEmailModal: (invoice: Invoice) => void
 }
 
-const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax, onCancel, onPrintInvoice, isSending, hasBeenAdjusted }: InvoiceActionsMenuProps) => {
+const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax, onCancel, onPrintInvoice, isSending, hasBeenAdjusted, onOpenEmailModal }: InvoiceActionsMenuProps) => {
   const navigate = useNavigate()
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
@@ -271,7 +290,7 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax,
       icon: <EmailIcon fontSize="small" />,
       enabled: true, // ✅ Luôn dùng được
       action: () => {
-        console.log('Gửi email:', invoice.id)
+        onOpenEmailModal(invoice)
         handleClose()
       },
       color: 'info.main',
@@ -495,6 +514,10 @@ const InvoiceManagement = () => {
     originalInvoiceNumber: undefined as number | undefined,
     adjustmentReason: undefined as string | undefined,
   })
+  
+  // State quản lý send email modal
+  const [sendEmailModalOpen, setSendEmailModalOpen] = useState(false)
+  const [selectedInvoiceForEmail, setSelectedInvoiceForEmail] = useState<Invoice | null>(null)
   
   // State quản lý bộ lọc - sử dụng InvoiceFilterState
   const [filters, setFilters] = useState<InvoiceFilterState>({
@@ -864,6 +887,67 @@ const InvoiceManagement = () => {
       setSnackbar({
         open: true,
         message: `❌ Không thể tải PDF.\n${err instanceof Error ? err.message : 'Vui lòng thử lại.'}`,
+        severity: 'error',
+      })
+    } finally {
+      setSubmittingId(null)
+    }
+  }
+  
+  // 📧 Handler gửi email hóa đơn
+  const handleSendEmail = async (emailData: {
+    recipientName: string
+    email: string
+    ccEmails: string[]
+    bccEmails: string[]
+    attachments: File[]
+    includeXml: boolean
+    disableSms: boolean
+    language: string
+  }) => {
+    if (!selectedInvoiceForEmail) return
+    
+    try {
+      console.log('📧 Sending invoice email:', { invoice: selectedInvoiceForEmail.id, emailData })
+      
+      setSubmittingId(selectedInvoiceForEmail.id)
+      
+      // Upload attachments nếu có (cần implement file upload API)
+      const attachmentUrls: string[] = []
+      if (emailData.attachments.length > 0) {
+        // TODO: Implement file upload to get URLs
+        console.log('⚠️ File upload not implemented yet. Attachments:', emailData.attachments)
+      }
+      
+      // Gọi API gửi email
+      const response = await invoiceService.sendInvoiceEmail(
+        parseInt(selectedInvoiceForEmail.id),
+        {
+          emailTemplateId: 0, // Default template
+          recipientEmail: emailData.email,
+          ccEmails: emailData.ccEmails.length > 0 ? emailData.ccEmails : undefined,
+          bccEmails: emailData.bccEmails.length > 0 ? emailData.bccEmails : undefined,
+          customMessage: undefined,
+          includeXml: emailData.includeXml,
+          includePdf: true, // Luôn gửi PDF
+          language: emailData.language || 'vi',
+          externalAttachmentUrls: attachmentUrls.length > 0 ? attachmentUrls : undefined,
+        }
+      )
+      
+      setSnackbar({
+        open: true,
+        message: `✅ ${response.message}\nĐã gửi đến: ${response.sentTo}\nThời gian: ${new Date(response.sentAt).toLocaleString('vi-VN')}`,
+        severity: 'success',
+      })
+      
+      setSendEmailModalOpen(false)
+      setSelectedInvoiceForEmail(null)
+    } catch (err) {
+      console.error('❌ Error sending email:', err)
+      setSnackbar({
+        open: true,
+        message: `❌ Không thể gửi email.\n${err instanceof Error ? err.message : 'Vui lòng thử lại.'}`,
         severity: 'error',
       })
     } finally {
@@ -1439,6 +1523,10 @@ const InvoiceManagement = () => {
               onPrintInvoice={handlePrintInvoice}
               isSending={isSending}
               hasBeenAdjusted={hasBeenAdjusted}
+              onOpenEmailModal={(inv) => {
+                setSelectedInvoiceForEmail(inv)
+                setSendEmailModalOpen(true)
+              }}
             />
           </Box>
         )
@@ -1751,6 +1839,26 @@ const InvoiceManagement = () => {
           invoiceType={previewModal.invoiceType}
           originalInvoiceNumber={previewModal.originalInvoiceNumber}
           adjustmentReason={previewModal.adjustmentReason}
+        />
+        
+        {/* Send Email Modal */}
+        <SendInvoiceEmailModal
+          open={sendEmailModalOpen}
+          onClose={() => {
+            setSendEmailModalOpen(false)
+            setSelectedInvoiceForEmail(null)
+          }}
+          onSend={handleSendEmail}
+          invoiceData={{
+            invoiceNumber: selectedInvoiceForEmail?.invoiceNumber || '',
+            serialNumber: selectedInvoiceForEmail?.symbol || '',
+            date: selectedInvoiceForEmail?.issueDate ? new Date(selectedInvoiceForEmail.issueDate).toLocaleDateString('vi-VN') : '',
+            customerName: selectedInvoiceForEmail?.customerName || '',
+            totalAmount: selectedInvoiceForEmail?.amount ? selectedInvoiceForEmail.amount.toLocaleString('vi-VN') : '0',
+            // ✅ Auto-fill email và tên người nhận từ thông tin liên hệ trong hóa đơn
+            recipientEmail: selectedInvoiceForEmail?.contactEmail || '',
+            recipientName: selectedInvoiceForEmail?.contactPerson || selectedInvoiceForEmail?.customerName || '',
+          }}
         />
       </Box>
     </Box>

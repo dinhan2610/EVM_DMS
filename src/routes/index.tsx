@@ -213,6 +213,26 @@ const appsRoutes: RoutesProps[] = [
     ),
   },
   {
+    name: 'Invoice Approval Redirect (Old URL)',
+    path: '/invoices/approval',
+    element: <Navigate to="/approval/invoices" replace />,
+  },
+  {
+    name: 'Create Invoice',
+    path: '/invoices/create',
+    element: <Navigate to="/create-invoice" replace />,
+  },
+  {
+    name: 'Create Adjustment Invoice',
+    path: '/invoices/:id/adjust',
+    element: <CreateAdjustmentInvoice />,
+  },
+  {
+    name: 'Create Replacement Invoice',
+    path: '/invoices/:id/replace',
+    element: <CreateReplacementInvoice />,
+  },
+  {
     name: 'Invoice Detail',
     path: '/invoices/:id',
     element: <InvoiceDetail />,
@@ -223,7 +243,7 @@ const appsRoutes: RoutesProps[] = [
     element: <InvoiceDetail />,
   },
   {
-    name: 'Create Invoice',
+    name: 'Create Invoice (New)',
     path: '/newinvoices',
     element: <CreateVatInvoice />,
   },
@@ -236,16 +256,6 @@ const appsRoutes: RoutesProps[] = [
     name: 'Create Invoice Old',
     path: '/newinvoices-old',
     element: <CreateInvoice />,
-  },
-  {
-    name: 'Create Adjustment Invoice',
-    path: '/invoices/:id/adjust',
-    element: <CreateAdjustmentInvoice />,
-  },
-  {
-    name: 'Create Replacement Invoice',
-    path: '/invoices/:id/replace',
-    element: <CreateReplacementInvoice />,
   },
   {
     name: 'Invoice Requests',

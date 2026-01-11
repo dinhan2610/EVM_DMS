@@ -143,7 +143,7 @@ const invoiceMenu: MenuItemType = {
     {
       key: 'invoices-approval',
       label: 'Duyệt hoá đơn',
-      url: '/invoices/approval',
+      url: '/approval/invoices',
       parentKey: 'apps-invoices',
       roles: [USER_ROLES.ADMIN, USER_ROLES.HOD], // ❌ Accountant KHÔNG có (KEY REQUIREMENT)
     },

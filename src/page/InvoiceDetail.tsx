@@ -136,14 +136,26 @@ const InvoiceDetail: React.FC = () => {
 
   useEffect(() => {
     const fetchInvoiceDetail = async () => {
-      if (!id) return
+      // ✅ Validate ID từ URL
+      if (!id) {
+        setError('Không tìm thấy ID hóa đơn trong URL')
+        setLoading(false)
+        return
+      }
+      
+      const invoiceId = Number(id)
+      if (isNaN(invoiceId) || invoiceId <= 0) {
+        setError(`ID hóa đơn không hợp lệ: ${id}`)
+        setLoading(false)
+        return
+      }
       
       try {
         setLoading(true)
         setError(null)
         
         // Load invoice data
-        const invoiceData = await invoiceService.getInvoiceById(Number(id))
+        const invoiceData = await invoiceService.getInvoiceById(invoiceId)
         console.log('🔍 Invoice data loaded:', {
           invoiceID: invoiceData.invoiceID,
           invoiceNumber: invoiceData.invoiceNumber,

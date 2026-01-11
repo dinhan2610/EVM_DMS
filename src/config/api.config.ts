@@ -45,7 +45,7 @@ export const API_CONFIG = {
       UPDATE: (id: number) => `/Invoice/${id}`,
       DELETE: (id: number) => `/Invoice/${id}`,
       SIGN: (id: number) => `/Invoice/${id}/sign`,
-      SEND_EMAIL: (id: number) => `/Invoice/${id}/send-email`,
+      SEND_EMAIL: (id: number) => `/api/Email/${id}/send-email`,
       // Adjustment & Replacement APIs
       ADJUSTMENT: '/Invoice/adjustment',
       REPLACEMENT: '/Invoice/replacement',

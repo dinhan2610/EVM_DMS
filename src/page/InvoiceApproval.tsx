@@ -78,6 +78,11 @@ const mapInvoiceToUI = (
   const template = templateMap.get(item.templateID)
   const customer = customerMap.get(item.customerID)
   
+  // ✅ Validate invoiceID
+  if (!item.invoiceID || isNaN(Number(item.invoiceID))) {
+    throw new Error(`Invalid invoice data: invoiceID is ${item.invoiceID}`)
+  }
+  
   const taxStatusId = item.taxAuthorityCode 
     ? TAX_AUTHORITY_STATUS.ACCEPTED 
     : TAX_AUTHORITY_STATUS.NOT_SENT

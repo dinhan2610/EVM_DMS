@@ -10,6 +10,27 @@ import type {
   BackendInvoiceResponse 
 } from '@/utils/invoiceAdapter';
 
+// ==================== EMAIL TYPES ====================
+
+export interface SendInvoiceEmailRequest {
+  emailTemplateId?: number;
+  recipientEmail: string;
+  ccEmails?: string[];
+  bccEmails?: string[];
+  customMessage?: string;
+  includeXml?: boolean;
+  includePdf?: boolean;
+  language?: string;
+  externalAttachmentUrls?: string[];
+}
+
+export interface SendInvoiceEmailResponse {
+  success: boolean;
+  message: string;
+  sentTo: string;
+  sentAt: string;
+}
+
 // ==================== TYPES ====================
 
 export interface Template {
@@ -50,12 +71,13 @@ export interface InvoiceListItem {
   createdAt: string;
   invoiceItems: InvoiceItemResponse[];
   contactPerson?: string;        // ✅ Họ tên người mua hàng (buyerName)
-  contactEmail?: string;         // Email liên hệ
+  contactEmail?: string;         // Email liên hệ (legacy field, không dùng)
   contactPhone?: string;         // SĐT liên hệ
   
   // Customer fields from backend API response
   customerName?: string;         // Tên công ty khách hàng
   customerAddress?: string;      // Địa chỉ khách hàng (backend field name)
+  customerEmail?: string;        // ✅ Email khách hàng (backend trả về field này)
   taxCode?: string;              // Mã số thuế khách hàng
   
   // ==================== INVOICE TYPE FIELDS ====================
@@ -927,10 +949,41 @@ export const submitToTaxAuthority = async (invoiceId: number): Promise<string> =
         throw new Error(errorMsg);
       }
       if (error.response?.status === 404) {
-        throw new Error('Không tìm thấy hoá đơn.');
+        throw new Error('Không tìm thấy hóa đơn');
       }
     }
-    return handleApiError(error, 'Gửi cơ quan thuế thất bại');
+    throw error;
+  }
+};
+
+// ==================== EMAIL ====================
+
+/**
+ * Send invoice via email
+ * POST /api/Email/{id}/send-email
+ * 
+ * @param invoiceId - ID of invoice to send
+ * @param request - Email data (recipient, cc, bcc, attachments, etc.)
+ * @returns Response with success status and sent info
+ */
+export const sendInvoiceEmail = async (
+  invoiceId: number,
+  request: SendInvoiceEmailRequest
+): Promise<SendInvoiceEmailResponse> => {
+  try {
+    console.log(`📧 Sending email for invoice ${invoiceId}:`, request);
+    
+    const response = await axios.post<SendInvoiceEmailResponse>(
+      API_CONFIG.ENDPOINTS.INVOICE.SEND_EMAIL(invoiceId),
+      request,
+      { headers: getAuthHeaders() }
+    );
+    
+    console.log('✅ Email sent successfully:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error sending email:', error);
+    throw error;
   }
 };
 
@@ -1217,6 +1270,9 @@ const invoiceService = {
   
   // Tax Authority
   submitToTaxAuthority,
+  
+  // Email
+  sendInvoiceEmail,
   
   // Preview & Export
   getInvoiceHTML,

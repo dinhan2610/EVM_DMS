@@ -51,7 +51,7 @@ export const ROLE_PERMISSIONS = {
   // === ADMIN - Full quyền ===
   [USER_ROLES.ADMIN]: {
     canViewInvoiceList: true,          // ✅ Xem /invoices (Danh sách HĐ)
-    canAccessApprovalPage: true,       // ✅ Xem /invoices/approval (Duyệt HĐ)
+    canAccessApprovalPage: true,       // ✅ Xem /approval/invoices (Duyệt HĐ)
     canCreateInvoice: true,
     canEditInvoice: true,
     canDeleteInvoice: true,
@@ -69,7 +69,7 @@ export const ROLE_PERMISSIONS = {
   // === HOD - Kế toán trưởng ===
   [USER_ROLES.HOD]: {
     canViewInvoiceList: false,         // ❌ KHÔNG xem /invoices (KEY REQUIREMENT)
-    canAccessApprovalPage: true,       // ✅ Xem /invoices/approval (KEY REQUIREMENT)
+    canAccessApprovalPage: true,       // ✅ Xem /approval/invoices (KEY REQUIREMENT)
     canCreateInvoice: true,
     canEditInvoice: true,
     canDeleteInvoice: false,
@@ -87,7 +87,7 @@ export const ROLE_PERMISSIONS = {
   // === ACCOUNTANT - Kế toán ===
   [USER_ROLES.ACCOUNTANT]: {
     canViewInvoiceList: true,          // ✅ Xem /invoices (KEY REQUIREMENT)
-    canAccessApprovalPage: false,      // ❌ KHÔNG xem /invoices/approval (KEY REQUIREMENT)
+    canAccessApprovalPage: false,      // ❌ KHÔNG xem /approval/invoices (KEY REQUIREMENT)
     canCreateInvoice: true,
     canEditInvoice: true,
     canDeleteInvoice: false,

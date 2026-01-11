@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogTitle,
@@ -33,6 +33,9 @@ interface SendInvoiceEmailModalProps {
     date?: string
     customerName?: string
     totalAmount?: string
+    // ✅ Auto-fill email và tên người nhận
+    recipientEmail?: string
+    recipientName?: string
   }
 }
 
@@ -60,12 +63,39 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
   },
 }) => {
   // State management
-  const [recipientName, setRecipientName] = useState('Kế toán A')
-  const [email, setEmail] = useState('hoadon@example.com')
+  const [recipientName, setRecipientName] = useState('')
+  const [email, setEmail] = useState('')
   const [showCc, setShowCc] = useState(false)
   const [showBcc, setShowBcc] = useState(false)
   const [attachments, setAttachments] = useState<File[]>([])
   
+  // ✅ Auto-fill email và tên khi modal mở hoặc invoiceData thay đổi
+  useEffect(() => {
+    if (open && invoiceData) {
+      // Auto-fill tên người nhận: Ưu tiên recipientName, fallback về customerName
+      const autoRecipientName = invoiceData.recipientName || invoiceData.customerName || ''
+      setRecipientName(autoRecipientName)
+      
+      // Auto-fill email người nhận
+      const autoEmail = invoiceData.recipientEmail || ''
+      setEmail(autoEmail)
+      
+      console.log('📧 Auto-fill email modal:', {
+        recipientName: autoRecipientName,
+        email: autoEmail,
+        source: invoiceData
+      })
+    }
+    
+    // Reset khi đóng modal
+    if (!open) {
+      setRecipientName('')
+      setEmail('')
+      setAttachments([])
+      setShowCc(false)
+      setShowBcc(false)
+    }
+  }, [open, invoiceData])
 
   // Handlers
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
