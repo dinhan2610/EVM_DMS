@@ -491,6 +491,12 @@ const InvoiceManagement = () => {
   const [submittingId, setSubmittingId] = useState<string | null>(null)
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
   
+  // 📊 Pagination state
+  const [paginationModel, setPaginationModel] = useState({
+    pageSize: 10,
+    page: 0,
+  })
+  
   // State quản lý dialog ký số
   const [signDialog, setSignDialog] = useState({
     open: false,
@@ -552,6 +558,18 @@ const InvoiceManagement = () => {
         templateService.getAllTemplates(),
         customerService.getAllCustomers(),
       ])
+      
+      console.log('📊 [InvoiceManagement] Loaded data:', {
+        totalInvoices: invoicesData.length,
+        totalTemplates: templatesData.length,
+        totalCustomers: customersData.length,
+      })
+      
+      console.log('📊 [InvoiceManagement] Loaded data:', {
+        totalInvoices: invoicesData.length,
+        totalTemplates: templatesData.length,
+        totalCustomers: customersData.length,
+      })
       
       // Create maps for quick lookup
       const templateMap = new Map(
@@ -1588,7 +1606,7 @@ const InvoiceManagement = () => {
 
   // Logic lọc dữ liệu - tích hợp với InvoiceFilter
   const filteredInvoices = useMemo(() => {
-    return invoices.filter((invoice) => {
+    const result = invoices.filter((invoice) => {
       // Lọc theo text search (số HĐ, ký hiệu, tên khách hàng, mã số thuế)
       const matchesSearch =
         !filters.searchText ||
@@ -1625,6 +1643,16 @@ const InvoiceManagement = () => {
         matchesAmountTo
       )
     })
+    
+    if (import.meta.env.DEV) {
+      console.log('📊 [InvoiceManagement] Filter result:', {
+        totalInvoices: invoices.length,
+        filteredInvoices: result.length,
+        hasActiveFilters: Object.values(filters).some(v => v && (Array.isArray(v) ? v.length > 0 : true)),
+      })
+    }
+    
+    return result
   }, [invoices, filters])
 
   return (
@@ -1640,6 +1668,11 @@ const InvoiceManagement = () => {
               <Typography variant="body2" sx={{ color: '#666' }}>
                 Quản lý và theo dõi các hóa đơn điện tử của doanh nghiệp
               </Typography>
+              {filteredInvoices.length > 0 && (
+                <Typography variant="body2" sx={{ color: '#1976d2', fontWeight: 500, mt: 0.5 }}>
+                  📊 Hiển thị {filteredInvoices.length} / {invoices.length} hóa đơn
+                </Typography>
+              )}
             </Box>
             <Button
               variant="contained"
@@ -1694,12 +1727,12 @@ const InvoiceManagement = () => {
               columns={columns}
               checkboxSelection
               disableRowSelectionOnClick
-              initialState={{
-                pagination: {
-                  paginationModel: { pageSize: 10, page: 0 },
-                },
-              }}
-              pageSizeOptions={[5, 10, 25, 50]}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              pageSizeOptions={[5, 10, 25, 50, 100]}
+              autoHeight={false}
+              getRowHeight={() => 'auto'}
+              density="comfortable"
               sx={{
                 border: 'none',
                 '& .MuiDataGrid-cell': {
@@ -1758,7 +1791,6 @@ const InvoiceManagement = () => {
                   },
                 },
               }}
-              autoHeight
             />
           </Paper>
         )}

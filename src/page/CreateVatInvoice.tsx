@@ -788,7 +788,6 @@ const CreateVatInvoice: React.FC = () => {
   // Company states
   const [company, setCompany] = useState<Company | null>(null)
   
-  const [isPaid, setIsPaid] = useState(false)
   const [showTypeColumn, setShowTypeColumn] = useState(true)
   const [discountType, setDiscountType] = useState<string>('none') // 'none' | 'per-item' | 'total'
   const [sendEmailModalOpen, setSendEmailModalOpen] = useState(false)
@@ -1951,10 +1950,6 @@ const CreateVatInvoice: React.FC = () => {
           <Typography variant="h6" sx={{ fontWeight: 500 }}>
             {editMode ? '✏️ Chỉnh sửa hóa đơn' : 'Lập hóa đơn'}
           </Typography>
-          <FormControlLabel
-            control={<Checkbox checked={isPaid} onChange={(e) => setIsPaid(e.target.checked)} size="small" />}
-            label={<Typography variant="body2">Đã thanh toán</Typography>}
-          />
         </Stack>
       </Box>
 

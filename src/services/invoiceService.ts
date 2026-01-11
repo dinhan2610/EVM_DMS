@@ -404,10 +404,32 @@ export const updateInvoice = async (
  */
 export const getAllInvoices = async (): Promise<InvoiceListItem[]> => {
   try {
+    console.log('🔍 [getAllInvoices] Fetching invoices from backend...')
+    
+    // Try with pagination parameters to get all records
     const response = await axios.get<InvoiceListItem[]>(
       `/api/Invoice`,
-      { headers: getAuthHeaders() }
+      { 
+        headers: getAuthHeaders(),
+        params: {
+          // Try common pagination parameters
+          pageSize: 1000, // Request large page size
+          limit: 1000,
+          page: 1,
+          pageNumber: 1,
+          // Some backends use these
+          take: 1000,
+          count: 1000,
+        }
+      }
     );
+    
+    console.log('📦 [getAllInvoices] Raw response:', {
+      status: response.status,
+      dataType: Array.isArray(response.data) ? 'array' : typeof response.data,
+      dataLength: Array.isArray(response.data) ? response.data.length : 'N/A',
+      dataKeys: response.data && typeof response.data === 'object' ? Object.keys(response.data) : [],
+    })
     
     // Backend may wrap response in object { data: [...] } or { items: [...] }
     let invoicesArray = response.data;
@@ -417,15 +439,30 @@ export const getAllInvoices = async (): Promise<InvoiceListItem[]> => {
       if (response.data && typeof response.data === 'object') {
         const dataObj = response.data as unknown as Record<string, unknown>;
         invoicesArray = (dataObj.data || dataObj.invoices || dataObj.items || []) as InvoiceListItem[];
+        
+        // Log pagination info if exists
+        console.log('📊 [getAllInvoices] Pagination info:', {
+          totalCount: dataObj.totalCount || dataObj.total || 'N/A',
+          page: dataObj.page || dataObj.pageNumber || 'N/A',
+          pageSize: dataObj.pageSize || dataObj.limit || 'N/A',
+          totalPages: dataObj.totalPages || 'N/A',
+        })
       } else {
         invoicesArray = [];
       }
     }
     
+    console.log('✅ [getAllInvoices] Returning invoices:', {
+      count: invoicesArray.length,
+      firstInvoice: invoicesArray[0]?.invoiceNumber || 'N/A',
+      lastInvoice: invoicesArray[invoicesArray.length - 1]?.invoiceNumber || 'N/A',
+    })
+    
     return invoicesArray;
   } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error('[getAllInvoices] Error:', error);
+    console.error('❌ [getAllInvoices] Error:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('❌ [getAllInvoices] Response:', error.response?.data);
     }
     return handleApiError(error, 'Get invoices failed');
   }
@@ -439,10 +476,30 @@ export const getAllInvoices = async (): Promise<InvoiceListItem[]> => {
  */
 export const getHODInvoices = async (): Promise<InvoiceListItem[]> => {
   try {
+    console.log('🔍 [getHODInvoices] Fetching HOD invoices from backend...')
+    
+    // Try with pagination parameters to get all records
     const response = await axios.get<{ items: InvoiceListItem[] }>(
       `/api/Invoice/hodInvoices`,
-      { headers: getAuthHeaders() }
+      { 
+        headers: getAuthHeaders(),
+        params: {
+          // Try common pagination parameters
+          pageSize: 1000,
+          limit: 1000,
+          page: 1,
+          pageNumber: 1,
+          take: 1000,
+          count: 1000,
+        }
+      }
     );
+    
+    console.log('📦 [getHODInvoices] Raw response:', {
+      status: response.status,
+      dataType: Array.isArray(response.data) ? 'array' : typeof response.data,
+      dataKeys: response.data && typeof response.data === 'object' ? Object.keys(response.data) : [],
+    })
     
     // Backend trả về format: { items: [...] }
     let invoicesArray: InvoiceListItem[] = [];
@@ -454,20 +511,32 @@ export const getHODInvoices = async (): Promise<InvoiceListItem[]> => {
       } else if ('items' in response.data && Array.isArray(response.data.items)) {
         // Nếu response là { items: [...] }
         invoicesArray = response.data.items;
+        
+        // Log pagination info if exists
+        const dataObj = response.data as Record<string, unknown>;
+        console.log('📊 [getHODInvoices] Pagination info:', {
+          totalCount: dataObj.totalCount || dataObj.total || 'N/A',
+          page: dataObj.page || dataObj.pageNumber || 'N/A',
+          pageSize: dataObj.pageSize || dataObj.limit || 'N/A',
+          totalPages: dataObj.totalPages || 'N/A',
+        })
       } else if ('data' in response.data && Array.isArray((response.data as Record<string, unknown>).data)) {
         // Nếu response là { data: [...] }
         invoicesArray = (response.data as Record<string, unknown>).data as InvoiceListItem[];
       }
     }
     
-    if (import.meta.env.DEV) {
-      console.log(`[getHODInvoices] Loaded ${invoicesArray.length} invoices for HOD role`);
-    }
+    console.log('✅ [getHODInvoices] Returning invoices:', {
+      count: invoicesArray.length,
+      firstInvoice: invoicesArray[0]?.invoiceNumber || 'N/A',
+      lastInvoice: invoicesArray[invoicesArray.length - 1]?.invoiceNumber || 'N/A',
+    })
     
     return invoicesArray;
   } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error('[getHODInvoices] Error:', error);
+    console.error('❌ [getHODInvoices] Error:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('❌ [getHODInvoices] Response:', error.response?.data);
     }
     return handleApiError(error, 'Get HOD invoices failed');
   }

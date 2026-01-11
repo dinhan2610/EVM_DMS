@@ -486,6 +486,12 @@ const HODInvoiceManagement = () => {
   const [submittingId, setSubmittingId] = useState<string | null>(null)
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
   
+  // 📊 Pagination state
+  const [paginationModel, setPaginationModel] = useState({
+    pageSize: 10,
+    page: 0,
+  })
+  
   // State quản lý dialog ký số
   const [signDialog, setSignDialog] = useState({
     open: false,
@@ -549,6 +555,12 @@ const HODInvoiceManagement = () => {
         templateService.getAllTemplates(),
         customerService.getAllCustomers(),
       ])
+      
+      console.log('📊 [HODInvoiceManagement] Loaded data:', {
+        totalInvoices: invoicesData.length,
+        totalTemplates: templatesData.length,
+        totalCustomers: customersData.length,
+      })
       
       interface Template { templateID: number; serial: string }
       interface Customer { customerID: number; customerName: string; taxCode: string }
@@ -691,6 +703,16 @@ const HODInvoiceManagement = () => {
       if (!isNaN(maxAmount)) {
         result = result.filter((inv) => inv.amount <= maxAmount)
       }
+    }
+    
+    if (import.meta.env.DEV) {
+      console.log('📊 [HODInvoiceManagement] Filter result:', {
+        totalInvoices: invoices.length,
+        filteredInvoices: result.length,
+        activeFilters: Object.entries(filters).filter(([, v]) => 
+          v && (Array.isArray(v) ? v.length > 0 : true)
+        ).length,
+      })
     }
 
     return result
@@ -1554,6 +1576,11 @@ const HODInvoiceManagement = () => {
               <Typography variant="body2" sx={{ color: '#666' }}>
                 Danh sách hóa đơn cần xử lý bởi Kế toán trưởng
               </Typography>
+              {filteredInvoices.length > 0 && (
+                <Typography variant="body2" sx={{ color: '#1976d2', fontWeight: 500, mt: 0.5 }}>
+                  📊 Hiển thị {filteredInvoices.length} / {invoices.length} hóa đơn
+                </Typography>
+              )}
             </Box>
             <Button
               variant="contained"
@@ -1606,12 +1633,9 @@ const HODInvoiceManagement = () => {
                 columns={columns}
                 checkboxSelection
                 disableRowSelectionOnClick
-                initialState={{
-                  pagination: {
-                    paginationModel: { pageSize: 10, page: 0 },
-                  },
-                }}
-                pageSizeOptions={[5, 10, 25, 50]}
+                paginationModel={paginationModel}
+                onPaginationModelChange={setPaginationModel}
+                pageSizeOptions={[5, 10, 25, 50, 100]}
                 sx={{
                   border: 'none',
                   '& .MuiDataGrid-cell': {
@@ -1628,6 +1652,46 @@ const HODInvoiceManagement = () => {
                   '& .MuiDataGrid-footerContainer': {
                     borderTop: '2px solid #e0e0e0',
                     backgroundColor: '#fafafa',
+                    minHeight: '56px',
+                    padding: '8px 16px',
+                  },
+                  '& .MuiTablePagination-root': {
+                    overflow: 'visible',
+                  },
+                  '& .MuiTablePagination-toolbar': {
+                    minHeight: '56px',
+                    paddingLeft: '16px',
+                    paddingRight: '8px',
+                  },
+                  '& .MuiTablePagination-selectLabel': {
+                    margin: 0,
+                    fontSize: '0.875rem',
+                    fontWeight: 500,
+                    color: '#666',
+                  },
+                  '& .MuiTablePagination-displayedRows': {
+                    margin: 0,
+                    fontSize: '0.875rem',
+                    fontWeight: 500,
+                    color: '#666',
+                  },
+                  '& .MuiTablePagination-select': {
+                    paddingTop: '8px',
+                    paddingBottom: '8px',
+                    fontSize: '0.875rem',
+                    fontWeight: 500,
+                  },
+                  '& .MuiTablePagination-actions': {
+                    marginLeft: '20px',
+                    '& .MuiIconButton-root': {
+                      padding: '8px',
+                      '&:hover': {
+                        backgroundColor: '#e3f2fd',
+                      },
+                      '&.Mui-disabled': {
+                        opacity: 0.3,
+                      },
+                    },
                   },
                 }}
                 autoHeight
