@@ -949,7 +949,6 @@ const CreateVatInvoice: React.FC = () => {
             const customer = customers.find(c => c.customerID === data.customerID) // ✅ Fix: customerID viết hoa
             if (customer) {
               console.log('✅ Customer found:', customer)
-              setBuyerCustomerID(customer.customerID)
               setBuyerTaxCode(customer.taxCode || '')
               setBuyerCompanyName(customer.customerName || '')
               setBuyerAddress(customer.address || '')
@@ -1106,8 +1105,7 @@ const CreateVatInvoice: React.FC = () => {
     },
   ])
 
-  // State cho thông tin người mua
-  const [_buyerCustomerID, setBuyerCustomerID] = useState<number>(0) // ✅ ID customer từ DB (used in buyerInfo object)
+  // State cho thông tin người mua (Read-only from original invoice, used for preview only)
   const [buyerTaxCode, setBuyerTaxCode] = useState('')
   const [buyerCompanyName, setBuyerCompanyName] = useState('')
   const [buyerAddress, setBuyerAddress] = useState('')
@@ -1642,7 +1640,7 @@ const CreateVatInvoice: React.FC = () => {
       const backendRequest = mapToBackendInvoiceRequest(
         selectedTemplate.templateID,
         {
-          customerID: _buyerCustomerID, // ✅ Truyền customer ID
+          customerID: buyerCustomerID, // ✅ Truyền customer ID
           taxCode: buyerTaxCode,
           companyName: buyerCompanyName,
           address: buyerAddress,

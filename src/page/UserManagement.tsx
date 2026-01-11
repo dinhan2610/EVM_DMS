@@ -81,7 +81,7 @@ const initialFormState: UserFormData = {
   fullName: '',
   email: '',
   phoneNumber: '',
-  role: 'Accountant', // Mặc định: Kế toán (backend role)
+  role: 'Admin', // Mặc định: Admin
   status: 'Active',
 }
 
@@ -187,16 +187,18 @@ const UserManagement = () => {
         (user.fullName?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
         (user.email?.toLowerCase() || '').includes(searchQuery.toLowerCase())
       
-      // Filter by role - sử dụng backend role names
+      // Filter by role - 4 roles nội bộ
       let matchesRole = roleFilter === 'all'
       if (!matchesRole) {
         const userRoleLower = (user.role || '').toLowerCase()
-        if (roleFilter === 'HOD') {
+        if (roleFilter === 'Admin') {
+          matchesRole = userRoleLower === 'admin'
+        } else if (roleFilter === 'HOD') {
           matchesRole = userRoleLower === 'hod'
         } else if (roleFilter === 'Accountant') {
           matchesRole = userRoleLower === 'accountant'
-        } else if (roleFilter === 'Staff') {
-          matchesRole = userRoleLower === 'staff'
+        } else if (roleFilter === 'Sale') {
+          matchesRole = userRoleLower === 'sale'
         }
       }
       
@@ -676,9 +678,10 @@ const UserManagement = () => {
                 sx={{ borderRadius: 2 }}
               >
                 <MenuItem value="all">Tất cả vai trò</MenuItem>
+                <MenuItem value="Admin">Quản trị viên</MenuItem>
                 <MenuItem value="HOD">Kế toán trưởng</MenuItem>
                 <MenuItem value="Accountant">Kế toán</MenuItem>
-                <MenuItem value="Staff">Nhân viên bán hàng</MenuItem>
+                <MenuItem value="Sale">Nhân viên bán hàng</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -798,8 +801,11 @@ const UserManagement = () => {
               {!editingUser && (
                 <Grid size={{ xs: 12 }}>
                   <Alert severity="info" sx={{ borderRadius: 2, mb: 1 }}>
-                    <Typography variant="body2">
-                      Mật khẩu mặc định sẽ được tạo tự động và gửi qua email cho người dùng.
+                    <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
+                      🔐 Cấp tài khoản cho nhân viên nội bộ
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Mật khẩu mặc định sẽ được tạo tự động và gửi qua email cho nhân viên.
                     </Typography>
                   </Alert>
                 </Grid>
@@ -876,13 +882,23 @@ const UserManagement = () => {
                     onChange={(e) => handleFormChange('role', e.target.value)}
                     sx={{ borderRadius: 2 }}
                   >
+                    <MenuItem value="Admin">
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          Quản trị viên
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Full quyền quản trị hệ thống, quản lý người dùng
+                        </Typography>
+                      </Box>
+                    </MenuItem>
                     <MenuItem value="HOD">
                       <Box>
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
                           Kế toán trưởng
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Quản lý toàn bộ hoạt động kế toán và tài chính
+                          Duyệt và ký số hóa đơn, quản lý hoạt động kế toán
                         </Typography>
                       </Box>
                     </MenuItem>
@@ -892,17 +908,17 @@ const UserManagement = () => {
                           Kế toán
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Quản lý và xử lý hoá đơn, chứng từ kế toán
+                          Quản lý danh sách hóa đơn, tạo và xử lý chứng từ
                         </Typography>
                       </Box>
                     </MenuItem>
-                    <MenuItem value="Staff">
+                    <MenuItem value="Sale">
                       <Box>
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
                           Nhân viên bán hàng
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Tạo yêu cầu xuất hoá đơn và theo dõi đơn hàng
+                          Quản lý khách hàng, tạo yêu cầu xuất hóa đơn
                         </Typography>
                       </Box>
                     </MenuItem>

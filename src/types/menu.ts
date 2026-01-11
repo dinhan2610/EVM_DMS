@@ -1,4 +1,5 @@
 import type { HTMLAttributeAnchorTarget, ReactNode } from 'react'
+import type { UserRole } from '@/constants/roles'
 
 export type MenuItemType = {
   key: string
@@ -14,6 +15,7 @@ export type MenuItemType = {
   target?: HTMLAttributeAnchorTarget
   isDisabled?: boolean
   children?: MenuItemType[]
+  roles?: UserRole[]  // ✅ NEW: Danh sách role được phép xem menu này
 }
 
 export type TabMenuItem = {

@@ -1,4 +1,6 @@
 import { Navigate, type RouteProps } from 'react-router-dom'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { USER_ROLES } from '@/constants/roles'
 
 import {
   HODDashboard,
@@ -62,24 +64,49 @@ const initialRoutes: RoutesProps[] = [
     element: <HODDashboard />,
   },
   {
-    path: '/admin-dashboard',
+    path: '/dashboard/admin',
     name: 'Admin Dashboard',
-    element: <AdminDashboard />,
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
+        <AdminDashboard />
+      </ProtectedRoute>
+    ),
   },
   {
-    path: '/staff-dashboard',
+    path: '/dashboard/hod',
+    name: 'HOD Dashboard',
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.HOD]}>
+        <HODDashboard />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/dashboard/staff',
     name: 'Staff Dashboard',
-    element: <StaffDashboard />,
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.ACCOUNTANT]}>
+        <StaffDashboard />
+      </ProtectedRoute>
+    ),
   },
   {
-    path: '/sale-dashboard',
+    path: '/dashboard/sale',
     name: 'Sale Dashboard',
-    element: <SaleDashboard />,
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.SALES]}>
+        <SaleDashboard />
+      </ProtectedRoute>
+    ),
   },
   {
-    path: '/customer-dashboard',
+    path: '/dashboard/customer',
     name: 'Customer Dashboard',
-    element: <CustomerDashboard />,
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.CUSTOMER]}>
+        <CustomerDashboard />
+      </ProtectedRoute>
+    ),
   },
 ]
 
@@ -97,12 +124,20 @@ const appsRoutes: RoutesProps[] = [
   {
     name: 'Template Management',
     path: '/admin/templates',
-    element: <TemplateManagement />,
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT]}>
+        <TemplateManagement />
+      </ProtectedRoute>
+    ),
   },
   {
     name: 'Email Template Management',
     path: '/admin/email-templates',
-    element: <EmailTemplateManagement />,
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
+        <EmailTemplateManagement />
+      </ProtectedRoute>
+    ),
   },
   {
     name: 'Select Template',
@@ -127,12 +162,21 @@ const appsRoutes: RoutesProps[] = [
   {
     name: 'Invoices List',
     path: '/invoices',
-    element: <InvoiceManagement />,
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN, USER_ROLES.ACCOUNTANT]}>
+        <InvoiceManagement />
+      </ProtectedRoute>
+    ),
   },
   {
     name: 'Public Invoice Lookup',
-    path: '/tra-cuu',
+    path: '/public/invoice-lookup',
     element: <PublicInvoiceLookup />,
+  },
+  {
+    name: 'Public Invoice Lookup (Old Path)',
+    path: '/tra-cuu',
+    element: <Navigate to="/public/invoice-lookup" replace />,
   },
   {
     name: 'Statement Management',
@@ -162,7 +206,11 @@ const appsRoutes: RoutesProps[] = [
   {
     name: 'Invoice Approval',
     path: '/approval/invoices',
-    element: <HODInvoiceManagement />,
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN, USER_ROLES.HOD]}>
+        <HODInvoiceManagement />
+      </ProtectedRoute>
+    ),
   },
   {
     name: 'Invoice Detail',
@@ -212,22 +260,38 @@ const appsRoutes: RoutesProps[] = [
   {
     name: 'User Management',
     path: '/admin/usermanager',
-    element: <UserManagement />,
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
+        <UserManagement />
+      </ProtectedRoute>
+    ),
   },
   {
     name: 'Roles & Permissions',
     path: '/admin/roles-permissions',
-    element: <RolesPermissions />,
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
+        <RolesPermissions />
+      </ProtectedRoute>
+    ),
   },
   {
     name: 'System Configuration',
     path: '/admin/settings',
-    element: <SystemConfiguration />,
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
+        <SystemConfiguration />
+      </ProtectedRoute>
+    ),
   },
   {
     name: 'Audit Logs',
     path: '/admin/audit-logs',
-    element: <AuditLogsPage />,
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN, USER_ROLES.HOD]}>
+        <AuditLogsPage />
+      </ProtectedRoute>
+    ),
   },
   {
     name: 'Reports Center',
@@ -242,12 +306,20 @@ const appsRoutes: RoutesProps[] = [
   {
     name: 'Sales Customers',
     path: '/sales/customers',
-    element: <SalesCustomerPage />,
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.SALES]}>
+        <SalesCustomerPage />
+      </ProtectedRoute>
+    ),
   },
   {
     name: 'Create Sales Order',
     path: '/sales/orders/create',
-    element: <CreateSalesOrder />,
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.SALES]}>
+        <CreateSalesOrder />
+      </ProtectedRoute>
+    ),
   },
 ]
 
