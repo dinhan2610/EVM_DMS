@@ -26,7 +26,7 @@ import {
 import { useParams, useNavigate } from 'react-router-dom'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
 import InvoicePreviewModal from '@/components/invoices/InvoicePreviewModal'
-import TaxErrorNotificationModal from '@/components/TaxErrorNotificationModal'
+import TaxErrorNotificationModal from '@/components/TaxErrorNotificationModal_v2'
 import Spinner from '@/components/Spinner'
 import invoiceService, { InvoiceListItem } from '@/services/invoiceService'
 import templateService, { TemplateResponse } from '@/services/templateService'

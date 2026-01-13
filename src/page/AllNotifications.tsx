@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   Box,
   Typography,
@@ -17,10 +17,11 @@ import {
   Chip,
   Tooltip,
   alpha,
+  CircularProgress,
+  Alert,
 } from '@mui/material'
 import {
   MarkEmailReadOutlined,
-  DeleteOutline,
   ErrorOutline,
   PlaylistAddCheck,
   InfoOutlined,
@@ -30,9 +31,41 @@ import {
 } from '@mui/icons-material'
 import PageBreadcrumb from '@/components/layout/PageBreadcrumb'
 import PageMetaData from '@/components/PageTitle'
+import notificationService from '@/services/notificationService'
+import { Notification, NotificationType } from '@/services/notificationService'
 
-// Interface
-interface Notification {
+// Map backend NotificationType to UI type
+const mapNotificationType = (type: NotificationType): 'error' | 'new_request' | 'info' | 'success' | 'warning' => {
+  switch (type) {
+    case NotificationType.ERROR:
+      return 'error'
+    case NotificationType.NEW_REQUEST:
+      return 'new_request'
+    case NotificationType.SUCCESS:
+      return 'success'
+    case NotificationType.WARNING:
+      return 'warning'
+    case NotificationType.INFO:
+    default:
+      return 'info'
+  }
+}
+
+const NOTIFICATIONS_PER_PAGE = 10
+
+// Format date to Vietnamese format
+const formatDate = (dateString: string): string => {
+  const date = new Date(dateString)
+  const day = date.getDate().toString().padStart(2, '0')
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const year = date.getFullYear()
+  const hours = date.getHours().toString().padStart(2, '0')
+  const minutes = date.getMinutes().toString().padStart(2, '0')
+  return `${day}/${month}/${year} ${hours}:${minutes}`
+}
+
+// UI Notification interface (mapped from backend Notification)
+interface UINotification {
   id: string
   message: string
   timestamp: string
@@ -40,46 +73,74 @@ interface Notification {
   type: 'error' | 'new_request' | 'info' | 'success' | 'warning'
 }
 
-// Mock Data - 30 notifications
-const mockAllNotifications: Notification[] = [
-  { id: '1', message: 'Yêu cầu hóa đơn #INV-2024-001 đã được phê duyệt', timestamp: '24/10/2025 14:30', read: false, type: 'success' },
-  { id: '2', message: 'Có 3 hóa đơn mới chờ xử lý', timestamp: '24/10/2025 14:25', read: false, type: 'new_request' },
-  { id: '3', message: 'Lỗi khi xuất báo cáo doanh thu tháng 10', timestamp: '24/10/2025 14:15', read: false, type: 'error' },
-  { id: '4', message: 'Hệ thống sẽ bảo trì vào 2h sáng ngày mai', timestamp: '24/10/2025 13:00', read: true, type: 'warning' },
-  { id: '5', message: 'Cập nhật phiên bản mới 2.5.0 đã có sẵn', timestamp: '24/10/2025 11:00', read: true, type: 'info' },
-  { id: '6', message: 'Yêu cầu #REQ-2024-045 cần phê duyệt khẩn cấp', timestamp: '24/10/2025 10:45', read: false, type: 'new_request' },
-  { id: '7', message: 'Lỗi kết nối cơ sở dữ liệu', timestamp: '24/10/2025 10:30', read: false, type: 'error' },
-  { id: '8', message: 'Hóa đơn #INV-2024-002 đã được thanh toán', timestamp: '24/10/2025 09:15', read: true, type: 'success' },
-  { id: '9', message: 'Bạn có 5 tin nhắn mới từ nhóm Kế toán', timestamp: '24/10/2025 08:00', read: true, type: 'info' },
-  { id: '10', message: 'Cảnh báo: Dung lượng ổ đĩa sắp đầy', timestamp: '23/10/2025 18:30', read: false, type: 'warning' },
-  { id: '11', message: 'Yêu cầu nghỉ phép của Nguyễn Văn A cần duyệt', timestamp: '23/10/2025 16:00', read: false, type: 'new_request' },
-  { id: '12', message: 'Lỗi khi gửi email thông báo', timestamp: '23/10/2025 15:45', read: true, type: 'error' },
-  { id: '13', message: 'Báo cáo tài chính Q3 đã được hoàn thành', timestamp: '23/10/2025 14:00', read: true, type: 'success' },
-  { id: '14', message: 'Cập nhật chính sách bảo mật mới', timestamp: '23/10/2025 11:30', read: true, type: 'info' },
-  { id: '15', message: 'Cảnh báo: Mật khẩu của bạn sẽ hết hạn sau 7 ngày', timestamp: '23/10/2025 09:00', read: false, type: 'warning' },
-  { id: '16', message: 'Yêu cầu mua sắm #PO-2024-123 cần phê duyệt', timestamp: '22/10/2025 17:30', read: false, type: 'new_request' },
-  { id: '17', message: 'Lỗi khi đồng bộ dữ liệu với Azure', timestamp: '22/10/2025 16:15', read: true, type: 'error' },
-  { id: '18', message: 'Dự án Website ABC đã hoàn thành 80%', timestamp: '22/10/2025 14:45', read: true, type: 'success' },
-  { id: '19', message: 'Thông báo họp team vào 15h chiều nay', timestamp: '22/10/2025 13:00', read: true, type: 'info' },
-  { id: '20', message: 'Cảnh báo: Số lượng API calls gần đạt giới hạn', timestamp: '22/10/2025 11:00', read: false, type: 'warning' },
-  { id: '21', message: 'Yêu cầu tạo tài khoản mới cho nhân viên', timestamp: '21/10/2025 16:00', read: false, type: 'new_request' },
-  { id: '22', message: 'Lỗi timeout khi xử lý thanh toán', timestamp: '21/10/2025 15:30', read: true, type: 'error' },
-  { id: '23', message: 'Backup dữ liệu đã hoàn tất thành công', timestamp: '21/10/2025 03:00', read: true, type: 'success' },
-  { id: '24', message: 'Hướng dẫn sử dụng tính năng mới', timestamp: '20/10/2025 14:00', read: true, type: 'info' },
-  { id: '25', message: 'Cảnh báo: Phát hiện hoạt động bất thường', timestamp: '20/10/2025 11:00', read: false, type: 'warning' },
-  { id: '26', message: 'Yêu cầu cấp quyền truy cập module Finance', timestamp: '20/10/2025 09:30', read: false, type: 'new_request' },
-  { id: '27', message: 'Lỗi khi tạo báo cáo Excel', timestamp: '19/10/2025 16:45', read: true, type: 'error' },
-  { id: '28', message: 'Tất cả hóa đơn tháng 9 đã được đối soát', timestamp: '19/10/2025 14:00', read: true, type: 'success' },
-  { id: '29', message: 'Thông báo nâng cấp hệ thống vào cuối tuần', timestamp: '18/10/2025 10:00', read: true, type: 'info' },
-  { id: '30', message: 'Cảnh báo: SSL certificate sẽ hết hạn sau 30 ngày', timestamp: '17/10/2025 09:00', read: false, type: 'warning' },
-]
-
-const NOTIFICATIONS_PER_PAGE = 10
-
 const AllNotifications = () => {
-  const [notifications, setNotifications] = useState<Notification[]>(mockAllNotifications)
+  // State
+  const [notifications, setNotifications] = useState<UINotification[]>([])
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
   const [currentFilter, setCurrentFilter] = useState<string>('all')
   const [currentPage, setCurrentPage] = useState<number>(1)
+  const [totalPages, setTotalPages] = useState<number>(0)
+  const [totalCount, setTotalCount] = useState<number>(0)
+  const [unreadCount, setUnreadCount] = useState<number>(0)
+
+  // Fetch notifications from API
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      // Determine isRead filter based on current filter
+      let isReadFilter: boolean | undefined
+      if (currentFilter === 'unread') {
+        isReadFilter = false
+      }
+      // Note: Backend doesn't support filtering by notification type via query params
+      // We'll filter by type on the frontend if needed
+
+      const response = await notificationService.getNotifications({
+        pageIndex: currentPage,
+        pageSize: NOTIFICATIONS_PER_PAGE,
+        isRead: isReadFilter,
+      })
+
+      // Map backend notifications to UI format
+      const mappedNotifications: UINotification[] = response.items.map((item: Notification) => ({
+        id: item.notificationID.toString(),
+        message: item.message,
+        timestamp: formatDate(item.createdAt),
+        read: item.isRead,
+        type: mapNotificationType(item.notificationType),
+      }))
+
+      setNotifications(mappedNotifications)
+      setTotalPages(response.totalPages)
+      setTotalCount(response.totalCount)
+    } catch (err) {
+      // Show user-friendly error without spamming console
+      setError('Không thể tải thông báo. Backend API có thể chưa sẵn sàng hoặc bạn chưa đăng nhập.')
+      setNotifications([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Fetch unread count
+  const fetchUnreadCount = async () => {
+    try {
+      const count = await notificationService.getUnreadCount()
+      setUnreadCount(count)
+    } catch (err) {
+      // Silently fail - just set to 0
+      setUnreadCount(0)
+    }
+  }
+
+  // Initial load and when filter/page changes
+  useEffect(() => {
+    fetchNotifications()
+    fetchUnreadCount()
+  }, [currentFilter, currentPage])
 
   // Handlers
   const handleFilterChange = (_event: React.SyntheticEvent, newValue: string) => {
@@ -91,29 +152,32 @@ const AllNotifications = () => {
     setCurrentPage(value)
   }
 
-  const handleMarkAsRead = (id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
-  }
-
-  const handleDelete = (id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id))
-    // Reset to page 1 if current page becomes empty
-    const newFilteredLength = notifications.filter((n) => n.id !== id).length
-    const newPageCount = Math.ceil(newFilteredLength / NOTIFICATIONS_PER_PAGE)
-    if (currentPage > newPageCount && newPageCount > 0) {
-      setCurrentPage(newPageCount)
+  const handleMarkAsRead = async (id: string) => {
+    try {
+      await notificationService.markAsRead(Number(id))
+      // Update UI optimistically
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
+      // Refresh unread count
+      await fetchUnreadCount()
+    } catch (err) {
+      // Silently fail - optimistic update already applied
     }
   }
 
-  const handleMarkAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+  const handleMarkAllAsRead = async () => {
+    try {
+      await notificationService.markAllAsRead()
+      // Refresh notifications and unread count
+      await fetchNotifications()
+      await fetchUnreadCount()
+    } catch (err) {
+      // Silently fail - user can retry manually
+    }
   }
 
-  // Computed values using useMemo
+  // Computed values using useMemo - Frontend filtering for type filters
   const filteredNotifications = useMemo(() => {
     switch (currentFilter) {
-      case 'unread':
-        return notifications.filter((n) => !n.read)
       case 'error':
         return notifications.filter((n) => n.type === 'error')
       case 'new_request':
@@ -125,26 +189,33 @@ const AllNotifications = () => {
       case 'info':
         return notifications.filter((n) => n.type === 'info')
       default:
+        // For 'all' and 'unread', backend already filtered
         return notifications
     }
   }, [notifications, currentFilter])
 
   const paginatedNotifications = useMemo(() => {
-    const startIndex = (currentPage - 1) * NOTIFICATIONS_PER_PAGE
-    const endIndex = startIndex + NOTIFICATIONS_PER_PAGE
-    return filteredNotifications.slice(startIndex, endIndex)
-  }, [filteredNotifications, currentPage])
+    // If filtering by type on frontend, need to paginate manually
+    if (['error', 'new_request', 'success', 'warning', 'info'].includes(currentFilter)) {
+      const startIndex = (currentPage - 1) * NOTIFICATIONS_PER_PAGE
+      const endIndex = startIndex + NOTIFICATIONS_PER_PAGE
+      return filteredNotifications.slice(startIndex, endIndex)
+    }
+    // For 'all' and 'unread', backend already paginated
+    return filteredNotifications
+  }, [filteredNotifications, currentPage, currentFilter])
 
   const pageCount = useMemo(() => {
-    return Math.ceil(filteredNotifications.length / NOTIFICATIONS_PER_PAGE)
-  }, [filteredNotifications.length])
-
-  const unreadCount = useMemo(() => {
-    return notifications.filter((n) => !n.read).length
-  }, [notifications])
+    // If filtering by type on frontend, calculate page count manually
+    if (['error', 'new_request', 'success', 'warning', 'info'].includes(currentFilter)) {
+      return Math.ceil(filteredNotifications.length / NOTIFICATIONS_PER_PAGE)
+    }
+    // For 'all' and 'unread', use backend totalPages
+    return totalPages
+  }, [filteredNotifications.length, currentFilter, totalPages])
 
   // Get icon based on notification type
-  const getNotificationIcon = (type: Notification['type']) => {
+  const getNotificationIcon = (type: UINotification['type']) => {
     switch (type) {
       case 'error':
         return <ErrorOutline color="error" />
@@ -161,6 +232,39 @@ const AllNotifications = () => {
     }
   }
 
+  // Show loading state
+  if (loading) {
+    return (
+      <>
+        <PageBreadcrumb title="Tất cả Thông báo" subName="Thông báo" />
+        <PageMetaData title="Tất cả Thông báo" />
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+          <CircularProgress size={60} />
+        </Box>
+      </>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <>
+        <PageBreadcrumb title="Tất cả Thông báo" subName="Thông báo" />
+        <PageMetaData title="Tất cả Thông báo" />
+        <Box sx={{ maxWidth: 1200, mx: 'auto', mt: 3 }}>
+          <Alert severity="error" onClose={() => setError(null)}>
+            {error}
+          </Alert>
+          <Box sx={{ mt: 2, textAlign: 'center' }}>
+            <Button variant="contained" onClick={fetchNotifications}>
+              Thử lại
+            </Button>
+          </Box>
+        </Box>
+      </>
+    )
+  }
+
   return (
     <>
       <PageBreadcrumb title="Tất cả Thông báo" subName="Thông báo" />
@@ -172,7 +276,7 @@ const AllNotifications = () => {
           <Typography variant="h4" sx={{ fontWeight: 600, flex: 1 }}>
             Tất cả Thông báo
           </Typography>
-          <Chip label={`${notifications.length} tổng`} color="primary" variant="outlined" />
+          <Chip label={`${totalCount} tổng`} color="primary" variant="outlined" />
           {unreadCount > 0 && <Chip label={`${unreadCount} chưa đọc`} color="error" />}
         </Box>
 
@@ -289,16 +393,7 @@ const AllNotifications = () => {
                             </IconButton>
                           </Tooltip>
                         )}
-                        <Tooltip title="Xóa">
-                          <IconButton
-                            edge="end"
-                            size="small"
-                            onClick={() => handleDelete(notification.id)}
-                            sx={{ color: 'error.main' }}
-                          >
-                            <DeleteOutline fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        {/* Delete functionality removed as backend API doesn't support it */}
                       </Box>
                     </ListItemSecondaryAction>
                   </ListItem>

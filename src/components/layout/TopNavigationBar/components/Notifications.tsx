@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {Box,  IconButton, Badge,  Popover,  Typography, List,ListItem,ListItemText,ListItemIcon, Divider, Button, Tooltip,} from '@mui/material'
+import {Box,  IconButton, Badge,  Popover,  Typography, List,ListItem,ListItemText,ListItemIcon, Divider, Button, Tooltip, CircularProgress} from '@mui/material'
 import {
   NotificationsNoneOutlined,
   ErrorOutline,
@@ -9,8 +9,10 @@ import {
   CheckCircleOutline,
   WarningAmberOutlined,
 } from '@mui/icons-material'
+import notificationService from '@/services/notificationService'
+import { Notification as BackendNotification, NotificationType } from '@/services/notificationService'
 
-// Interface
+// UI Notification interface
 interface Notification {
   id: string
   message: string
@@ -19,54 +21,104 @@ interface Notification {
   type: 'error' | 'new_request' | 'info' | 'success' | 'warning'
 }
 
-// Mock Data
-const mockNotifications: Notification[] = [
-  {
-    id: '1',
-    message: 'Yêu cầu hóa đơn #INV-2024-001 đã được phê duyệt',
-    timestamp: '2 phút trước',
-    read: false,
-    type: 'success',
-  },
-  {
-    id: '2',
-    message: 'Có 3 hóa đơn mới chờ xử lý',
-    timestamp: '5 phút trước',
-    read: false,
-    type: 'new_request',
-  },
-  {
-    id: '3',
-    message: 'Lỗi khi xuất báo cáo doanh thu tháng 10',
-    timestamp: '15 phút trước',
-    read: false,
-    type: 'error',
-  },
-  {
-    id: '4',
-    message: 'Hệ thống sẽ bảo trì vào 2h sáng ngày mai',
-    timestamp: '1 giờ trước',
-    read: true,
-    type: 'warning',
-  },
-  {
-    id: '5',
-    message: 'Cập nhật phiên bản mới 2.5.0 đã có sẵn',
-    timestamp: '3 giờ trước',
-    read: true,
-    type: 'info',
-  },
-]
+// Format relative time in Vietnamese
+const formatRelativeTime = (dateString: string): string => {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMins < 1) return 'Vừa xong'
+  if (diffMins < 60) return `${diffMins} phút trước`
+  if (diffHours < 24) return `${diffHours} giờ trước`
+  if (diffDays < 7) return `${diffDays} ngày trước`
+  
+  // Format as dd/mm/yyyy if older than a week
+  const day = date.getDate().toString().padStart(2, '0')
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const year = date.getFullYear()
+  return `${day}/${month}/${year}`
+}
+
+// Map backend NotificationType to UI type
+const mapNotificationType = (type: NotificationType): 'error' | 'new_request' | 'info' | 'success' | 'warning' => {
+  switch (type) {
+    case NotificationType.ERROR:
+      return 'error'
+    case NotificationType.NEW_REQUEST:
+      return 'new_request'
+    case NotificationType.SUCCESS:
+      return 'success'
+    case NotificationType.WARNING:
+      return 'warning'
+    case NotificationType.INFO:
+    default:
+      return 'info'
+  }
+}
 
 const NotificationsDropdown = () => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications)
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [loading, setLoading] = useState<boolean>(false)
+  const [unreadCount, setUnreadCount] = useState<number>(0)
   const navigate = useNavigate()
 
-  // Calculate unread count using useMemo
-  const unreadCount = useMemo(() => {
-    return notifications.filter((n) => !n.read).length
-  }, [notifications])
+  // Fetch recent notifications (top 5)
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true)
+      const response = await notificationService.getNotifications({
+        pageIndex: 1,
+        pageSize: 5, // Only show 5 most recent in dropdown
+      })
+
+      // Map backend notifications to UI format
+      const mappedNotifications: Notification[] = response.items.map((item: BackendNotification) => ({
+        id: item.notificationID.toString(),
+        message: item.message,
+        timestamp: formatRelativeTime(item.createdAt),
+        read: item.isRead,
+        type: mapNotificationType(item.notificationType),
+      }))
+
+      setNotifications(mappedNotifications)
+    } catch (error) {
+      // Silently fail - backend may not be ready or user not authenticated
+      setNotifications([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Fetch unread count
+  const fetchUnreadCount = async () => {
+    try {
+      const count = await notificationService.getUnreadCount()
+      setUnreadCount(count)
+    } catch (error) {
+      // Silently fail - backend may not be ready or user not authenticated
+      // Just set count to 0 and don't spam console
+      setUnreadCount(0)
+    }
+  }
+
+  // Load notifications when component mounts and when dropdown opens
+  useEffect(() => {
+    fetchUnreadCount()
+    // Refresh unread count every 60 seconds
+    const interval = setInterval(fetchUnreadCount, 60000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Fetch notifications when dropdown opens
+  useEffect(() => {
+    if (anchorEl) {
+      fetchNotifications()
+    }
+  }, [anchorEl])
 
   const handleOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget)
@@ -76,8 +128,15 @@ const NotificationsDropdown = () => {
     setAnchorEl(null)
   }
 
-  const handleMarkAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+  const handleMarkAllAsRead = async () => {
+    try {
+      await notificationService.markAllAsRead()
+      // Refresh notifications and unread count
+      await fetchNotifications()
+      await fetchUnreadCount()
+    } catch (error) {
+      console.error('Error marking all as read:', error)
+    }
   }
 
   const handleViewAll = () => {
@@ -85,9 +144,17 @@ const NotificationsDropdown = () => {
     handleClose()
   }
 
-  const handleNotificationClick = (id: string) => {
-    // Mark as read when clicked
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
+  const handleNotificationClick = async (id: string) => {
+    try {
+      // Mark as read when clicked
+      await notificationService.markAsRead(Number(id))
+      // Update UI optimistically
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
+      // Refresh unread count
+      await fetchUnreadCount()
+    } catch (error) {
+      console.error('Error marking notification as read:', error)
+    }
   }
 
   // Get icon based on notification type
@@ -144,7 +211,7 @@ const NotificationsDropdown = () => {
         PaperProps={{
           sx: {
             width: 380,
-            maxHeight: 500,
+            maxHeight: 'calc(100vh - 100px)', // Dynamic max height based on viewport
             mt: 1.5,
             overflow: 'hidden',
             boxShadow: 3,
@@ -167,7 +234,11 @@ const NotificationsDropdown = () => {
 
         {/* Notifications List */}
         <List sx={{ py: 0, overflow: 'auto', maxHeight: 360 }}>
-          {notifications.length === 0 ? (
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
+              <CircularProgress size={30} />
+            </Box>
+          ) : notifications.length === 0 ? (
             <ListItem>
               <ListItemText
                 primary="Không có thông báo"
