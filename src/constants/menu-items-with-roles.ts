@@ -2,252 +2,182 @@ import type { MenuItemType } from '@/types/menu'
 import { USER_ROLES, type UserRole } from '@/constants/roles'
 
 /**
- * 🎯 MENU ITEMS WITH ROLE-BASED ACCESS
- * Mỗi menu item có thể có thuộc tính `roles` để chỉ định role nào được xem
+ * 🎯 FLAT MENU ITEMS - NO DROPDOWNS
+ * Tất cả menu items hiển thị trực tiếp, không có parent/children hierarchy
  */
 
-// === DASHBOARD MENUS ===
+// === DASHBOARD ===
 const dashboardMenu: MenuItemType = {
-  key: 'general',
-  label: 'TỔNG QUAN',
-  isTitle: true,
-  children: [
-    {
-      key: 'dashboards',
-      icon: 'iconamoon:home-duotone',
-      label: 'Bảng điều khiển',
-      roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES, USER_ROLES.CUSTOMER],
-      children: [
-        {
-          key: 'dashboard-admin',
-          label: 'Tổng quan',
-          url: '/dashboard/admin',
-          parentKey: 'dashboards',
-          roles: [USER_ROLES.ADMIN],
-        },
-        {
-          key: 'dashboard-hod',
-          label: 'Tổng quan',
-          url: '/dashboard/hod',
-          parentKey: 'dashboards',
-          roles: [USER_ROLES.HOD],
-        },
-        {
-          key: 'dashboard-accountant',
-          label: 'Tổng quan',
-          url: '/dashboard/staff',
-          parentKey: 'dashboards',
-          roles: [USER_ROLES.ACCOUNTANT],
-        },
-        {
-          key: 'dashboard-sale',
-          label: 'Tổng quan',
-          url: '/dashboard/sale',
-          parentKey: 'dashboards',
-          roles: [USER_ROLES.SALES],
-        },
-        {
-          key: 'dashboard-customer',
-          label: 'Tổng quan',
-          url: '/dashboard/customer',
-          parentKey: 'dashboards',
-          roles: [USER_ROLES.CUSTOMER],
-        },
-      ],
-    },
-  ],
+  key: 'dashboard',
+  icon: 'iconamoon:home-duotone',
+  label: 'Dashboard',
+  url: '/dashboard',
+  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES],
 }
 
-// === ADMIN MENU (Chỉ Admin) ===
-const adminMenu: MenuItemType = {
-  key: 'apps-admin',
-  icon: 'iconamoon:settings-duotone',
-  label: 'Quản trị hệ thống',
+// === ADMIN MENUS (Flattened) ===
+const adminTemplates: MenuItemType = {
+  key: 'admin-templates',
+  icon: 'iconamoon:file-document-duotone',
+  label: 'Mẫu hoá đơn',
+  url: '/admin/templates',
   roles: [USER_ROLES.ADMIN],
-  children: [
-    {
-      key: 'admin-templates',
-      label: 'Mẫu hoá đơn',
-      url: '/admin/templates',
-      parentKey: 'apps-admin',
-      roles: [USER_ROLES.ADMIN],
-    },
-    {
-      key: 'admin-email-templates',
-      label: 'Mẫu Email',
-      url: '/admin/email-templates',
-      parentKey: 'apps-admin',
-      roles: [USER_ROLES.ADMIN],
-    },
-    {
-      key: 'admin-users',
-      label: 'Người dùng',
-      url: '/admin/usermanager',
-      parentKey: 'apps-admin',
-      roles: [USER_ROLES.ADMIN],
-    },
-    {
-      key: 'admin-roles-permissions',
-      label: 'Vai trò & Phân quyền',
-      url: '/admin/roles-permissions',
-      parentKey: 'apps-admin',
-      roles: [USER_ROLES.ADMIN],
-    },
-    {
-      key: 'admin-settings',
-      label: 'Cấu hình hệ thống',
-      url: '/admin/settings',
-      parentKey: 'apps-admin',
-      roles: [USER_ROLES.ADMIN],
-    },
-    {
-      key: 'admin-audit-logs',
-      label: 'Nhật ký hệ thống',
-      url: '/admin/audit-logs',
-      parentKey: 'apps-admin',
-      roles: [USER_ROLES.ADMIN],
-    },
-    {
-      key: 'admin-reports',
-      label: 'Trung tâm Báo cáo',
-      url: '/admin/reports',
-      parentKey: 'apps-admin',
-      roles: [USER_ROLES.ADMIN, USER_ROLES.HOD],
-    },
-    {
-      key: 'admin-customers',
-      label: 'Quản lý Khách hàng',
-      url: '/admin/customers',
-      parentKey: 'apps-admin',
-      roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
-    },
-  ],
 }
 
-// === INVOICE MENU (Admin, HOD, Accountant) ===
-const invoiceMenu: MenuItemType = {
-  key: 'apps-invoices',
-  icon: 'iconamoon:invoice-duotone',
-  label: 'Quản lý Hoá đơn',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
-  children: [
-    // === Danh sách HĐ - CHỈ Admin và Accountant ===
-    {
-      key: 'invoices',
-      label: 'Danh sách hoá đơn',
-      url: '/invoices',
-      parentKey: 'apps-invoices',
-      roles: [USER_ROLES.ADMIN, USER_ROLES.ACCOUNTANT], // ❌ HOD KHÔNG có (KEY REQUIREMENT)
-    },
-    // === Duyệt HĐ - CHỈ Admin và HOD ===
-    {
-      key: 'invoices-approval',
-      label: 'Duyệt hoá đơn',
-      url: '/approval/invoices',
-      parentKey: 'apps-invoices',
-      roles: [USER_ROLES.ADMIN, USER_ROLES.HOD], // ❌ Accountant KHÔNG có (KEY REQUIREMENT)
-    },
-    {
-      key: 'invoices-create',
-      label: 'Tạo hoá đơn',
-      url: '/invoices/create',
-      parentKey: 'apps-invoices',
-      roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
-    },
-    {
-      key: 'statements',
-      label: 'Bảng kê',
-      url: '/statements',
-      parentKey: 'apps-invoices',
-      roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
-    },
-    {
-      key: 'debt',
-      label: 'Công nợ',
-      url: '/debt',
-      parentKey: 'apps-invoices',
-      roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
-    },
-    {
-      key: 'items',
-      label: 'Danh mục hàng hoá',
-      url: '/items',
-      parentKey: 'apps-invoices',
-      roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
-    },
-    {
-      key: 'tax-error-notifications',
-      label: 'Thông báo sai sót',
-      url: '/tax-error-notifications',
-      parentKey: 'apps-invoices',
-      roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
-    },
-  ],
+const adminEmailTemplates: MenuItemType = {
+  key: 'admin-email-templates',
+  icon: 'iconamoon:send-duotone',
+  label: 'Mẫu Email',
+  url: '/admin/email-templates',
+  roles: [USER_ROLES.ADMIN],
 }
 
-// === SALES MENU (Chỉ Sales role) ===
-const salesMenu: MenuItemType = {
-  key: 'sales-section',
+const adminUsers: MenuItemType = {
+  key: 'admin-users',
   icon: 'iconamoon:profile-circle-duotone',
-  label: 'Kinh doanh',
+  label: 'Người dùng',
+  url: '/admin/usermanager',
+  roles: [USER_ROLES.ADMIN],
+}
+
+const adminRolesPermissions: MenuItemType = {
+  key: 'admin-roles-permissions',
+  icon: 'iconamoon:shield-yes-duotone',
+  label: 'Vai trò & Phân quyền',
+  url: '/admin/roles-permissions',
+  roles: [USER_ROLES.ADMIN],
+}
+
+const adminSettings: MenuItemType = {
+  key: 'admin-settings',
+  icon: 'iconamoon:settings-duotone',
+  label: 'Cấu hình hệ thống',
+  url: '/admin/settings',
+  roles: [USER_ROLES.ADMIN],
+}
+
+const adminAuditLogs: MenuItemType = {
+  key: 'admin-audit-logs',
+  icon: 'iconamoon:file-duotone',
+  label: 'Nhật ký hệ thống',
+  url: '/admin/audit-logs',
+  roles: [USER_ROLES.ADMIN],
+}
+
+const adminReports: MenuItemType = {
+  key: 'admin-reports',
+  icon: 'iconamoon:lightning-2-duotone',
+  label: 'Trung tâm Báo cáo',
+  url: '/admin/reports',
+  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD],
+}
+
+const adminCustomers: MenuItemType = {
+  key: 'admin-customers',
+  icon: 'iconamoon:profile-circle-duotone',
+  label: 'Quản lý Khách hàng',
+  url: '/admin/customers',
+  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
+}
+
+// === INVOICE MENUS (Flattened) ===
+const invoicesList: MenuItemType = {
+  key: 'invoices',
+  icon: 'iconamoon:invoice-duotone',
+  label: 'Danh sách hoá đơn',
+  url: '/invoices',
+  roles: [USER_ROLES.ADMIN, USER_ROLES.ACCOUNTANT], // ❌ HOD KHÔNG có
+}
+
+const invoicesApproval: MenuItemType = {
+  key: 'invoices-approval',
+  icon: 'iconamoon:certificate-badge-duotone',
+  label: 'Duyệt hoá đơn',
+  url: '/approval/invoices',
+  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD], // ❌ Accountant KHÔNG có
+}
+
+const invoicesCreate: MenuItemType = {
+  key: 'invoices-create',
+  icon: 'iconamoon:file-add-duotone',
+  label: 'Tạo hoá đơn',
+  url: '/invoices/create',
+  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
+}
+
+const statements: MenuItemType = {
+  key: 'statements',
+  icon: 'iconamoon:folder-duotone',
+  label: 'Bảng kê',
+  url: '/statements',
+  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
+}
+
+const debt: MenuItemType = {
+  key: 'debt',
+  icon: 'iconamoon:card-duotone',
+  label: 'Công nợ',
+  url: '/debt',
+  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
+}
+
+const items: MenuItemType = {
+  key: 'items',
+  icon: 'iconamoon:category-duotone',
+  label: 'Danh mục hàng hoá',
+  url: '/items',
+  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
+}
+
+const taxErrorNotifications: MenuItemType = {
+  key: 'tax-error-notifications',
+  icon: 'iconamoon:sign-times-duotone',
+  label: 'Thông báo sai sót',
+  url: '/tax-error-notifications',
+  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
+}
+
+// === SALES MENUS (Flattened) ===
+const salesCustomers: MenuItemType = {
+  key: 'sales-customers',
+  icon: 'iconamoon:profile-circle-duotone',
+  label: 'Khách hàng của tôi',
+  url: '/sales/customers',
   roles: [USER_ROLES.SALES],
-  children: [
-    {
-      key: 'sales-customers',
-      label: 'Khách hàng của tôi',
-      url: '/sales/customers',
-      parentKey: 'sales-section',
-      roles: [USER_ROLES.SALES],
-    },
-    {
-      key: 'sales-create-order',
-      label: 'Tạo Yêu cầu Xuất HĐ',
-      url: '/sales/orders/create',
-      parentKey: 'sales-section',
-      roles: [USER_ROLES.SALES],
-    },
-  ],
 }
 
-// === CUSTOMER PORTAL MENU (Chỉ Customer role) ===
-const customerPortalMenu: MenuItemType = {
-  key: 'customer-portal',
+const salesCreateOrder: MenuItemType = {
+  key: 'sales-create-order',
+  icon: 'iconamoon:file-add-duotone',
+  label: 'Tạo Yêu cầu Xuất HĐ',
+  url: '/sales/orders/create',
+  roles: [USER_ROLES.SALES],
+}
+
+// === CUSTOMER PORTAL (Flattened) ===
+const customerInvoiceLookup: MenuItemType = {
+  key: 'customer-invoice-lookup',
   icon: 'iconamoon:search-duotone',
-  label: 'Tra cứu',
+  label: 'Tra cứu hóa đơn',
+  url: '/public/invoice-lookup',
   roles: [USER_ROLES.CUSTOMER],
-  children: [
-    {
-      key: 'customer-invoice-lookup',
-      label: 'Tra cứu hóa đơn',
-      url: '/public/invoice-lookup',
-      parentKey: 'customer-portal',
-      roles: [USER_ROLES.CUSTOMER],
-    },
-  ],
 }
 
-// === USER MENU (Tất cả roles) ===
-const userMenu: MenuItemType = {
-  key: 'pages',
+// === USER MENUS (Flattened) ===
+const userProfile: MenuItemType = {
+  key: 'user-profile',
   icon: 'iconamoon:profile-duotone',
-  label: 'Tài khoản',
+  label: 'Hồ sơ cá nhân',
+  url: '/user/profile',
   roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES, USER_ROLES.CUSTOMER],
-  children: [
-    {
-      key: 'user-profile',
-      label: 'Hồ sơ cá nhân',
-      url: '/user/profile',
-      parentKey: 'pages',
-      roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES, USER_ROLES.CUSTOMER],
-    },
-    {
-      key: 'user-notifications',
-      label: 'Thông báo',
-      url: '/user/notifications',
-      parentKey: 'pages',
-      roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES, USER_ROLES.CUSTOMER],
-    },
-  ],
+}
+
+const userNotifications: MenuItemType = {
+  key: 'user-notifications',
+  icon: 'iconamoon:notification-duotone',
+  label: 'Thông báo',
+  url: '/user/notifications',
+  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES, USER_ROLES.CUSTOMER],
 }
 
 /**
@@ -257,47 +187,50 @@ const userMenu: MenuItemType = {
 export const getMenuItemsByRole = (userRole?: string): MenuItemType[] => {
   if (!userRole) return []
 
+  // ✅ All menu items flattened - no hierarchy
   const allMenus = [
     dashboardMenu,
-    adminMenu,
-    invoiceMenu,
-    salesMenu,
-    customerPortalMenu,
-    userMenu,
+    // Admin menus
+    adminTemplates,
+    adminEmailTemplates,
+    adminUsers,
+    adminRolesPermissions,
+    adminSettings,
+    adminAuditLogs,
+    adminReports,
+    adminCustomers,
+    // Invoice menus
+    invoicesList,
+    invoicesApproval,
+    invoicesCreate,
+    statements,
+    debt,
+    items,
+    taxErrorNotifications,
+    // Sales menus
+    salesCustomers,
+    salesCreateOrder,
+    // Customer portal
+    customerInvoiceLookup,
+    // User menus
+    userProfile,
+    userNotifications,
   ]
 
   return filterMenuByRole(allMenus, userRole as UserRole)
 }
 
 /**
- * Helper function: Filter menu recursively based on role
+ * Helper function: Filter menu based on role (simplified for flat structure)
  */
 const filterMenuByRole = (items: MenuItemType[], userRole: UserRole): MenuItemType[] => {
-  return items
-    .filter(item => {
-      // Nếu item có roles, check xem user có role đó không
-      if (item.roles && !item.roles.includes(userRole)) {
-        return false
-      }
-      return true
-    })
-    .map(item => {
-      // Nếu có children, filter children recursively
-      if (item.children) {
-        return {
-          ...item,
-          children: filterMenuByRole(item.children, userRole),
-        }
-      }
-      return item
-    })
-    .filter(item => {
-      // Loại bỏ parent nếu không còn children nào
-      if (item.children && item.children.length === 0) {
-        return false
-      }
-      return true
-    })
+  return items.filter(item => {
+    // Nếu item có roles, check xem user có role đó không
+    if (item.roles && !item.roles.includes(userRole)) {
+      return false
+    }
+    return true
+  })
 }
 
 /**
@@ -305,9 +238,29 @@ const filterMenuByRole = (items: MenuItemType[], userRole: UserRole): MenuItemTy
  */
 export const MENU_ITEMS: MenuItemType[] = [
   dashboardMenu,
-  adminMenu,
-  invoiceMenu,
-  salesMenu,
-  customerPortalMenu,
-  userMenu,
+  // Admin menus
+  adminTemplates,
+  adminEmailTemplates,
+  adminUsers,
+  adminRolesPermissions,
+  adminSettings,
+  adminAuditLogs,
+  adminReports,
+  adminCustomers,
+  // Invoice menus
+  invoicesList,
+  invoicesApproval,
+  invoicesCreate,
+  statements,
+  debt,
+  items,
+  taxErrorNotifications,
+  // Sales menus
+  salesCustomers,
+  salesCreateOrder,
+  // Customer portal
+  customerInvoiceLookup,
+  // User menus
+  userProfile,
+  userNotifications,
 ]

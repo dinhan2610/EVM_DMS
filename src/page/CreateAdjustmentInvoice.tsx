@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import invoiceService, { 
   Template, 
@@ -961,16 +961,13 @@ const CreateVatInvoice: React.FC = () => {
         
         // ✅ Load items GỐC từ hóa đơn vào DataGrid
         if (data.invoiceItems && data.invoiceItems.length > 0) {
-          // Fetch products để lấy code (nếu chưa có)
-          let productsList = products
-          if (productsList.length === 0) {
-            try {
-              productsList = await productService.getProducts()
-              setProducts(productsList)
-              console.log('📦 Loaded products for code mapping:', productsList.length)
-            } catch (error) {
-              console.warn('⚠️ Could not load products:', error)
-            }
+          // ✅ Fetch products để lấy code - Always fetch fresh to avoid race conditions
+          let productsList: Product[] = []
+          try {
+            productsList = await productService.getProducts()
+            console.log('📦 Loaded products for code mapping:', productsList.length)
+          } catch (error) {
+            console.warn('⚠️ Could not load products:', error)
           }
           
           const mappedItems: InvoiceItem[] = data.invoiceItems.map((item, index) => {
@@ -1080,7 +1077,7 @@ const CreateVatInvoice: React.FC = () => {
     loadTemplates()
     loadProducts()
     loadCompany()
-  }, [originalInvoiceId, products])
+  }, [originalInvoiceId]) // ✅ Fixed: Removed products from deps to prevent infinite loop
 
   // State quản lý danh sách hàng hóa
   const [items, setItems] = useState<InvoiceItem[]>([
@@ -1480,15 +1477,17 @@ const CreateVatInvoice: React.FC = () => {
     [items]
   )
 
-  const totals = calculateTotals(items)
+  // ✅ Memoize totals calculation to prevent recalculation on every render
+  const totals = useMemo(() => calculateTotals(items), [items])
 
   // ==================== PREVIEW MODAL - DATA MAPPING ====================
   
   /**
    * Map InvoiceItem[] → ProductItem[] cho InvoiceTemplatePreview
    * ✅ Truyền ĐẦY ĐỦ thông tin: VAT rate, discount, VAT amount
+   * ✅ Memoized to prevent recalculation on every render
    */
-  const mapItemsToProducts = (): ProductItem[] => {
+  const mapItemsToProducts = useMemo((): ProductItem[] => {
     return items
       .filter(item => item.name && item.name.trim() !== '') // Chỉ lấy dòng có tên sản phẩm
       .map((item, index) => {
@@ -1509,13 +1508,14 @@ const CreateVatInvoice: React.FC = () => {
           vatAmount: itemVatAmount, // Tiền thuế GTGT
         }
       })
-  }
+  }, [items])
 
   /**
    * Map buyer info → CustomerInfo cho InvoiceTemplatePreview
    * ✅ LUÔN return object để preview hiển thị đầy đủ template
+   * ✅ Memoized to prevent object recreation on every render
    */
-  const mapBuyerToCustomerInfo = (): CustomerInfo => {
+  const mapBuyerToCustomerInfo = useMemo((): CustomerInfo => {
     return {
       name: buyerCompanyName || '', // Để trống nếu chưa nhập
       email: buyerEmail || '',
@@ -1524,12 +1524,13 @@ const CreateVatInvoice: React.FC = () => {
       phone: buyerPhone || '',
       buyerName: buyerName || '', // Họ tên người mua
     }
-  }
+  }, [buyerCompanyName, buyerEmail, buyerTaxCode, buyerAddress, buyerPhone, buyerName])
 
   /**
    * Map template + company → TemplateConfigProps
+   * ✅ Memoized to prevent object recreation on every render
    */
-  const mapTemplateToConfig = (): TemplateConfigProps | null => {
+  const mapTemplateToConfig = useMemo((): TemplateConfigProps | null => {
     if (!selectedTemplate || !company) return null
 
     return {
@@ -1541,7 +1542,7 @@ const CreateVatInvoice: React.FC = () => {
       modelCode: selectedTemplate.serial,
       templateCode: selectedTemplate.templateName,
     }
-  }
+  }, [selectedTemplate, company])
 
   // ==================== HANDLERS ====================
 
@@ -3102,7 +3103,7 @@ const CreateVatInvoice: React.FC = () => {
                     backgroundColor: '#ccc'
                   }
                 }}>
-                {isSubmitting ? 'Đang xử lý...' : '✅ Tạo hóa đơn điều chỉnh'}
+                {isSubmitting ? 'Đang xử lý...' : ' Tạo hóa đơn điều chỉnh'}
               </Button>
             </Stack>
           </Stack>
@@ -3177,8 +3178,8 @@ const CreateVatInvoice: React.FC = () => {
                 }
               }}>
                 <InvoiceTemplatePreview
-                  config={mapTemplateToConfig()!}
-                  products={mapItemsToProducts()}
+                  config={mapTemplateToConfig!}
+                  products={mapItemsToProducts}
                   totals={totals} // ✅ Truyền totals đã tính sẵn từ form
                   blankRows={5}
                   visibility={DEFAULT_TEMPLATE_VISIBILITY}
@@ -3194,7 +3195,7 @@ const CreateVatInvoice: React.FC = () => {
                     customerEmail: true,
                     paymentMethod: true,
                   }}
-                  customerInfo={mapBuyerToCustomerInfo()}
+                  customerInfo={mapBuyerToCustomerInfo}
                   paymentMethod={paymentMethod}
                   invoiceNumber={undefined} // ⚠️ KHÔNG CÓ MÃ HÓA ĐƠN - chưa tạo
                   taxAuthorityCode={null} // ⚠️ KHÔNG CÓ MÃ CQT - chưa đồng bộ

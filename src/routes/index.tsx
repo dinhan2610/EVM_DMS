@@ -1,5 +1,6 @@
 import { Navigate, type RouteProps } from 'react-router-dom'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
+import DashboardRouter from '@/components/DashboardRouter'
 import { USER_ROLES } from '@/constants/roles'
 
 import {
@@ -61,7 +62,7 @@ const initialRoutes: RoutesProps[] = [
   {
     path: '/dashboard',
     name: 'Dashboard',
-    element: <HODDashboard />,
+    element: <DashboardRouter />, // ✅ Smart routing based on user role
   },
   {
     path: '/dashboard/admin',

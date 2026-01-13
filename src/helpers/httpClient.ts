@@ -22,6 +22,7 @@ class HttpClient {
   }
 
   private setupInterceptors() {
+    // Request interceptor - Add access token to all requests
     this.axiosInstance.interceptors.request.use(
       (config) => {
         const token = localStorage.getItem(API_CONFIG.TOKEN_KEY)
@@ -50,32 +51,52 @@ class HttpClient {
 
           try {
             const refreshToken = localStorage.getItem(API_CONFIG.REFRESH_TOKEN_KEY)
-            if (!refreshToken) throw new Error('No refresh token available')
+            if (!refreshToken) {
+              throw new Error('No refresh token available')
+            }
 
+            // Call refresh token API with refreshToken in Authorization header
             const { data } = await axios.post(
               `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.REFRESH}`,
-              {},
-              { headers: { Authorization: `Bearer ${refreshToken}`, accept: '*/*' } }
+              {}, // Empty body - backend expects no body
+              { 
+                headers: { 
+                  Authorization: `Bearer ${refreshToken}`, 
+                  accept: '*/*',
+                  'Content-Type': 'application/json'
+                } 
+              }
             )
 
-            localStorage.setItem(API_CONFIG.TOKEN_KEY, data.accessToken)
+            // Save new tokens
+            if (data.accessToken) {
+              localStorage.setItem(API_CONFIG.TOKEN_KEY, data.accessToken)
+            }
             if (data.refreshToken) {
               localStorage.setItem(API_CONFIG.REFRESH_TOKEN_KEY, data.refreshToken)
             }
 
+            // Retry all queued requests with new token
             this.failedQueue.forEach((promise) => promise.resolve())
             this.failedQueue = []
 
+            // Retry original request with new access token
             if (originalRequest.headers) {
               originalRequest.headers.Authorization = `Bearer ${data.accessToken}`
             }
             return this.axiosInstance(originalRequest)
-          } catch {
-            this.failedQueue.forEach((promise) => promise.reject())
+            
+          } catch (refreshError) {
+            // Refresh token expired or invalid - logout user
+            this.failedQueue.forEach((promise) => promise.reject(refreshError))
             this.failedQueue = []
             this.removeTokens()
-            window.location.href = '/auth/sign-in'
-            return Promise.reject(error)
+            
+            // Redirect to login page
+            if (window.location.pathname !== '/auth/sign-in') {
+              window.location.href = '/auth/sign-in'
+            }
+            return Promise.reject(refreshError)
           } finally {
             this.isRefreshing = false
           }
@@ -88,6 +109,8 @@ class HttpClient {
   public setAccessToken(token: string): void {
     localStorage.setItem(API_CONFIG.TOKEN_KEY, token)
   }
+
+
 
   public removeTokens(): void {
     localStorage.removeItem(API_CONFIG.TOKEN_KEY)

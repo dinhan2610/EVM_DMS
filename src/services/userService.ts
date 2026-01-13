@@ -1,20 +1,5 @@
-import axios, { AxiosError } from 'axios'
+import httpClient from '@/helpers/httpClient'
 import API_CONFIG from '@/config/api.config'
-
-// Get token from localStorage
-const getAuthHeaders = () => {
-  const token = localStorage.getItem(API_CONFIG.TOKEN_KEY)
-  
-  if (!token) {
-    throw new Error('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại')
-  }
-  
-  return {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json',
-    'accept': '*/*'
-  }
-}
 
 // API Response Interface
 export interface UserApiResponse {
@@ -49,6 +34,25 @@ export interface DeactivateUserRequest {
   adminNotes: string
 }
 
+// Profile Interfaces
+export interface UserProfile {
+  userID: number
+  fullName: string
+  email: string
+  phoneNumber: string
+  roleName: string
+  isActive: boolean
+  status: number
+  evidenceStoragePath: string | null
+  createdAt: string
+}
+
+export interface UpdateProfileRequest {
+  fullName: string
+  phoneNumber: string
+  evidenceStoragePath?: string | null
+}
+
 // Error Response Interface
 export interface ApiErrorResponse {
   message?: string
@@ -57,59 +61,45 @@ export interface ApiErrorResponse {
 }
 
 // Handle API errors
-const handleApiError = (error: unknown): string => {
-  if (axios.isAxiosError(error)) {
-    const axiosError = error as AxiosError<ApiErrorResponse>
-    
-    if (axiosError.response) {
-      const { status, data } = axiosError.response
-      
-      // Handle specific status codes
-      switch (status) {
-        case 400:
-          if (data?.errors) {
-            // Validation errors
-            const errorMessages = Object.values(data.errors).flat()
-            return errorMessages.join(', ')
-          }
-          return data?.message || data?.error || 'Dữ liệu không hợp lệ'
-        case 401:
-          // Clear invalid token and redirect to login
-          localStorage.removeItem(API_CONFIG.TOKEN_KEY)
-          localStorage.removeItem(API_CONFIG.REFRESH_TOKEN_KEY)
-          
-          // Redirect to login after a short delay
-          setTimeout(() => {
-            window.location.href = '/auth/sign-in'
-          }, 1500)
-          
-          return 'Phiên đăng nhập hết hạn. Đang chuyển về trang đăng nhập...'
-        case 403:
-          return 'Bạn không có quyền thực hiện thao tác này'
-        case 404:
-          return 'Không tìm thấy người dùng'
-        case 409:
-          return 'Email đã tồn tại trong hệ thống'
-        case 500:
-          return 'Lỗi hệ thống. Vui lòng thử lại sau'
-        default:
-          return data?.message || data?.error || 'Đã có lỗi xảy ra'
-      }
-    } else if (axiosError.request) {
-      return 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng'
+const handleApiError = (error: any): string => {
+  if (error.response) {
+    const { status, data } = error.response
+
+    // Handle specific status codes
+    switch (status) {
+      case 400:
+        if (data?.errors) {
+          // Validation errors
+          const errorMessages = Object.values(data.errors).flat()
+          return errorMessages.join(', ')
+        }
+        return data?.message || data?.error || 'Dữ liệu không hợp lệ'
+      case 401:
+        return 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại'
+      case 403:
+        return 'Bạn không có quyền thực hiện thao tác này'
+      case 404:
+        return 'Không tìm thấy người dùng'
+      case 409:
+        return 'Email đã tồn tại trong hệ thống'
+      case 500:
+        return data?.message || 'Lỗi hệ thống. Vui lòng thử lại sau'
+      default:
+        return data?.message || data?.error || 'Đã có lỗi xảy ra'
     }
+  } else if (error.request) {
+    return 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng'
   }
-  
-  return 'Lỗi không xác định'
+
+  return error.message || 'Lỗi không xác định'
 }
 
 const userService = {
   // Get all users
   async getUsers(pageNumber = 1, pageSize = 100): Promise<UsersListResponse> {
     try {
-      const response = await axios.get(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.USER.USERS}`, {
-        params: { PageNumber: pageNumber, PageSize: pageSize },
-        headers: getAuthHeaders()
+      const response = await httpClient.get(API_CONFIG.ENDPOINTS.USER.USERS, {
+        params: { PageNumber: pageNumber, PageSize: pageSize }
       })
       return response.data
     } catch (error) {
@@ -120,9 +110,8 @@ const userService = {
   // Get active users only
   async getActiveUsers(pageNumber = 1, pageSize = 100): Promise<UsersListResponse> {
     try {
-      const response = await axios.get(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.USER.ACTIVE_USERS}`, {
-        params: { pageNumber, pageSize },
-        headers: getAuthHeaders()
+      const response = await httpClient.get(API_CONFIG.ENDPOINTS.USER.ACTIVE_USERS, {
+        params: { pageNumber, pageSize }
       })
       return response.data
     } catch (error) {
@@ -133,9 +122,8 @@ const userService = {
   // Get inactive users only
   async getInactiveUsers(pageNumber = 1, pageSize = 100): Promise<UsersListResponse> {
     try {
-      const response = await axios.get(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.USER.INACTIVE_USERS}`, {
-        params: { pageNumber, pageSize },
-        headers: getAuthHeaders()
+      const response = await httpClient.get(API_CONFIG.ENDPOINTS.USER.INACTIVE_USERS, {
+        params: { pageNumber, pageSize }
       })
       return response.data
     } catch (error) {
@@ -146,10 +134,7 @@ const userService = {
   // Get user detail by ID
   async getUserDetail(userId: number): Promise<UserApiResponse> {
     try {
-      const response = await axios.get(
-        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.USER.USER_DETAIL(userId)}`,
-        { headers: getAuthHeaders() }
-      )
+      const response = await httpClient.get(API_CONFIG.ENDPOINTS.USER.USER_DETAIL(userId))
       return response.data
     } catch (error) {
       throw new Error(handleApiError(error))
@@ -159,11 +144,7 @@ const userService = {
   // Create new user
   async createUser(data: CreateUserRequest): Promise<UserApiResponse> {
     try {
-      const response = await axios.post(
-        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.REGISTER}`,
-        data,
-        { headers: getAuthHeaders() }
-      )
+      const response = await httpClient.post(API_CONFIG.ENDPOINTS.AUTH.REGISTER, data)
       return response.data
     } catch (error) {
       throw new Error(handleApiError(error))
@@ -173,11 +154,7 @@ const userService = {
   // Activate user
   async activateUser(userId: number): Promise<void> {
     try {
-      await axios.put(
-        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.USER.ACTIVATE(userId)}`,
-        {},
-        { headers: getAuthHeaders() }
-      )
+      await httpClient.put(API_CONFIG.ENDPOINTS.USER.ACTIVATE(userId), {})
     } catch (error) {
       throw new Error(handleApiError(error))
     }
@@ -186,11 +163,39 @@ const userService = {
   // Deactivate user
   async deactivateUser(userId: number, adminNotes: string): Promise<void> {
     try {
-      await axios.put(
-        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.USER.DEACTIVATE(userId)}`,
-        { adminNotes },
-        { headers: getAuthHeaders() }
-      )
+      await httpClient.put(API_CONFIG.ENDPOINTS.USER.DEACTIVATE(userId), { adminNotes })
+    } catch (error) {
+      throw new Error(handleApiError(error))
+    }
+  },
+
+  /**
+   * Get current user's profile
+   * GET /api/User/profile
+   * Headers: Authorization Bearer token (auto-added by httpClient)
+   * Response: UserProfile
+   */
+  async getProfile(): Promise<UserProfile> {
+    try {
+      const response = await httpClient.get(API_CONFIG.ENDPOINTS.USER.PROFILE)
+      return response.data
+    } catch (error: unknown) {
+      throw new Error(handleApiError(error))
+    }
+  },
+
+  /**
+   * Update current user's profile
+   * PUT /api/User/profile
+   * Headers: Authorization Bearer token (auto-added by httpClient)
+   * Body: {fullName, phoneNumber, evidenceStoragePath?}
+   * 
+   * Note: Email, role, and other fields are READ-ONLY and managed by admin
+   */
+  async updateProfile(data: UpdateProfileRequest): Promise<UserProfile> {
+    try {
+      const response = await httpClient.put(API_CONFIG.ENDPOINTS.USER.PROFILE, data)
+      return response.data
     } catch (error) {
       throw new Error(handleApiError(error))
     }

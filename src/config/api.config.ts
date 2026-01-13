@@ -6,10 +6,11 @@ export const API_CONFIG = {
   
   ENDPOINTS: {
     AUTH: {
-      LOGIN: '/Auth/login',
-      LOGOUT: '/Auth/logout',
-      REFRESH: '/Auth/refresh',
-      REGISTER: '/Auth/register',
+      LOGIN: '/Auth/login',      // ✅ No /api prefix (proxy handles it)
+      LOGOUT: '/Auth/logout',    // ✅ No /api prefix (proxy handles it)
+      REFRESH: '/Auth/refresh',  // ✅ No /api prefix (proxy handles it)
+      REGISTER: '/Auth/register',// ✅ No /api prefix (proxy handles it)
+      CHANGE_PASSWORD: '/Auth/change-password', // ✅ POST - Change password (action)
     },
     USER: {
       USERS: '/User/users',
@@ -18,6 +19,7 @@ export const API_CONFIG = {
       USER_DETAIL: (userId: number) => `/User/${userId}`,
       ACTIVATE: (userId: number) => `/User/admin/${userId}/active`,
       DEACTIVATE: (userId: number) => `/User/admin/${userId}/inactive`,
+      PROFILE: '/User/profile', // GET - Get current user profile, PUT - Update profile
     },
     TEMPLATE_FRAME: {
       GET_ALL: '/TemplateFrame',

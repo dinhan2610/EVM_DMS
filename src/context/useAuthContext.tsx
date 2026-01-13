@@ -36,10 +36,21 @@ export function AuthProvider({ children }: ChildrenType) {
   const [user, setUser] = useState<UserType | undefined>(getSession())
 
   const saveSession = (user: UserType) => {
-    setCookie(authSessionKey, JSON.stringify(user))
-    setUser(user)
-    if (user.token) {
-      localStorage.setItem('eims_access_token', user.token)
+    // Use accessToken if available, fallback to token for backward compatibility
+    const tokenToSave = user.accessToken || user.token
+    
+    // Update user object to ensure token and accessToken are in sync
+    const syncedUser = {
+      ...user,
+      token: tokenToSave,
+      accessToken: tokenToSave
+    }
+    
+    setCookie(authSessionKey, JSON.stringify(syncedUser))
+    setUser(syncedUser)
+    
+    if (tokenToSave) {
+      localStorage.setItem('eims_access_token', tokenToSave)
       if (user.refreshToken) {
         localStorage.setItem('eims_refresh_token', user.refreshToken)
       }
