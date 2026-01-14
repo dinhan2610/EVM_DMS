@@ -107,10 +107,10 @@ const AllNotifications = () => {
       // Map backend notifications to UI format
       const mappedNotifications: UINotification[] = response.items.map((item: Notification) => ({
         id: item.notificationID.toString(),
-        message: item.message,
-        timestamp: formatDate(item.createdAt),
+        message: item.content || item.message || 'Thông báo mới',  // Use 'content' from backend
+        timestamp: formatDate(item.time || item.createdAt || new Date().toISOString()),  // Use 'time' from backend
         read: item.isRead,
-        type: mapNotificationType(item.notificationType),
+        type: item.notificationType ? mapNotificationType(item.notificationType) : 'info',  // Fallback to 'info'
       }))
 
       setNotifications(mappedNotifications)
@@ -140,6 +140,7 @@ const AllNotifications = () => {
   useEffect(() => {
     fetchNotifications()
     fetchUnreadCount()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentFilter, currentPage])
 
   // Handlers

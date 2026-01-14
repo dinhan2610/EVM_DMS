@@ -62,6 +62,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/Notification': {
+        target: 'http://159.223.64.31',
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
 })

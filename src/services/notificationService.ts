@@ -12,6 +12,7 @@
  */
 
 import httpClient from '@/helpers/httpClient'
+import API_CONFIG from '@/config/api.config'
 
 /**
  * Notification Type Enum
@@ -25,15 +26,22 @@ export enum NotificationType {
 }
 
 /**
- * Notification Interface
+ * Notification Interface (Backend Response)
+ * Matches actual API response structure
  */
 export interface Notification {
   notificationID: number
-  userID: number
-  message: string
-  notificationType: NotificationType
+  content: string              // Backend uses 'content', not 'message'
+  statusName: string           // Backend returns 'statusName' (e.g., "Chưa đọc")
   isRead: boolean
-  createdAt: string
+  typeName: string             // Backend returns 'typeName' (e.g., "Hóa đơn")
+  time: string                 // Backend uses 'time', not 'createdAt'
+  
+  // Legacy fields (kept for backward compatibility)
+  userID?: number
+  message?: string
+  notificationType?: NotificationType
+  createdAt?: string
   relatedEntityType?: string | null
   relatedEntityID?: number | null
 }
@@ -56,21 +64,31 @@ export interface GetNotificationsResponse {
   pageIndex: number
   pageSize: number
   totalPages: number
+  hasPreviousPage: boolean  // Backend field
+  hasNextPage: boolean       // Backend field
 }
 
 /**
  * Unread Count Response
  */
 export interface UnreadCountResponse {
-  unreadCount: number
+  count: number  // Backend returns 'count', not 'unreadCount'
 }
 
 /**
  * Mark as Read Response
+ * Backend trả về: {"message": "Đã đánh dấu đã đọc."}
  */
 export interface MarkAsReadResponse {
-  success: boolean
-  message?: string
+  message: string
+}
+
+/**
+ * Helper: Check if user is authenticated
+ */
+const isAuthenticated = (): boolean => {
+  const token = localStorage.getItem(API_CONFIG.TOKEN_KEY)
+  return !!token && token.length > 0
 }
 
 /**
@@ -92,20 +110,71 @@ const notificationService = {
    * const unread = await notificationService.getNotifications({ pageIndex: 1, pageSize: 10, isRead: false })
    */
   async getNotifications(params: GetNotificationsRequest = {}): Promise<GetNotificationsResponse> {
-    const { pageIndex = 1, pageSize = 10, isRead = null } = params
-    
-    const queryParams = new URLSearchParams({
-      pageIndex: pageIndex.toString(),
-      pageSize: pageSize.toString(),
-    })
-    
-    // Add isRead filter if specified
-    if (isRead !== null) {
-      queryParams.append('isRead', isRead.toString())
+    // Check authentication first
+    if (!isAuthenticated()) {
+      console.warn('[Notification] User not authenticated, skipping API call')
+      // Return empty result if not authenticated (avoid unnecessary API call)
+      return {
+        items: [],
+        totalCount: 0,
+        pageIndex: params.pageIndex || 1,
+        pageSize: params.pageSize || 10,
+        totalPages: 0,
+        hasPreviousPage: false,
+        hasNextPage: false,
+      }
     }
-    
-    const response = await httpClient.get(`/Notification?${queryParams.toString()}`)
-    return response.data
+
+    try {
+      const { pageIndex = 1, pageSize = 10, isRead = null } = params
+      
+      const queryParams = new URLSearchParams({
+        pageIndex: pageIndex.toString(),
+        pageSize: pageSize.toString(),
+      })
+      
+      // Add isRead filter if specified
+      if (isRead !== null) {
+        queryParams.append('isRead', isRead.toString())
+      }
+      
+      const url = `/Notification?${queryParams.toString()}`
+      console.log('[Notification] Fetching:', { 
+        url, 
+        params: { pageIndex, pageSize, isRead },
+        token: localStorage.getItem(API_CONFIG.TOKEN_KEY)?.substring(0, 50) + '...',
+      })
+      
+      const response = await httpClient.get(url)
+      
+      console.log('[Notification] Response:', {
+        totalCount: response.data.totalCount,
+        itemsCount: response.data.items?.length || 0,
+        pageIndex: response.data.pageIndex,
+        sample: response.data.items?.[0],
+      })
+      
+      return response.data
+    } catch (error) {
+      const axiosError = error as { message?: string; response?: { status?: number; statusText?: string; data?: unknown }; config?: { url?: string } }
+      console.error('[Notification] API call failed:', {
+        error: axiosError.message,
+        status: axiosError.response?.status,
+        statusText: axiosError.response?.statusText,
+        data: axiosError.response?.data,
+        url: axiosError.config?.url,
+      })
+      // Return empty result on error (e.g., 401, 500)
+      return {
+        items: [],
+        totalCount: 0,
+        pageIndex: params.pageIndex || 1,
+        pageSize: params.pageSize || 10,
+        totalPages: 0,
+        hasPreviousPage: false,
+        hasNextPage: false,
+      }
+    }
   },
 
   /**
@@ -119,8 +188,35 @@ const notificationService = {
    * console.log(`You have ${count} unread notifications`)
    */
   async getUnreadCount(): Promise<number> {
-    const response = await httpClient.get<UnreadCountResponse>('/Notification/unread-count')
-    return response.data.unreadCount
+    // Check authentication first
+    if (!isAuthenticated()) {
+      console.warn('[Notification] User not authenticated, skipping unread count')
+      return 0
+    }
+
+    try {
+      console.log('[Notification] Fetching unread count')
+      console.log('[Notification] Token:', localStorage.getItem(API_CONFIG.TOKEN_KEY)?.substring(0, 50) + '...')
+      console.log('[Notification] Full token:', localStorage.getItem(API_CONFIG.TOKEN_KEY))
+      
+      const response = await httpClient.get<UnreadCountResponse>('/Notification/unread-count')
+      
+      console.log('[Notification] Unread count response:', response.data)
+      return response.data.count  // Backend returns 'count'
+    } catch (error) {
+      const axiosError = error as { message?: string; response?: { status?: number; statusText?: string; data?: unknown }; config?: { url?: string } }
+      console.error('[Notification] Failed to get unread count:', {
+        error: axiosError.message,
+        status: axiosError.response?.status,
+        statusText: axiosError.response?.statusText,
+        data: axiosError.response?.data,
+        dataStringified: JSON.stringify(axiosError.response?.data, null, 2),
+        url: axiosError.config?.url,
+      })
+      
+      // Return 0 on error
+      return 0
+    }
   },
 
   /**
@@ -134,10 +230,29 @@ const notificationService = {
    * await notificationService.markAsRead(123)
    */
   async markAsRead(notificationId: number): Promise<MarkAsReadResponse> {
-    const response = await httpClient.put<MarkAsReadResponse>(
-      `/Notification/${notificationId}/read`
-    )
-    return response.data
+    // Check authentication first
+    if (!isAuthenticated()) {
+      console.warn('[Notification] User not authenticated')
+      throw new Error('Not authenticated')
+    }
+
+    try {
+      console.log(`[Notification] Marking notification ${notificationId} as read`)
+      const response = await httpClient.put<MarkAsReadResponse>(
+        `/Notification/${notificationId}/read`
+      )
+      console.log('[Notification] Mark as read response:', response.data)
+      return response.data
+    } catch (error) {
+      const axiosError = error as { message?: string; response?: { status?: number; data?: unknown } }
+      console.error('[Notification] Failed to mark as read:', {
+        notificationId,
+        error: axiosError.message,
+        status: axiosError.response?.status,
+        data: axiosError.response?.data,
+      })
+      throw error
+    }
   },
 
   /**
@@ -150,8 +265,26 @@ const notificationService = {
    * await notificationService.markAllAsRead()
    */
   async markAllAsRead(): Promise<MarkAsReadResponse> {
-    const response = await httpClient.put<MarkAsReadResponse>('/Notification/read-all')
-    return response.data
+    // Check authentication first
+    if (!isAuthenticated()) {
+      console.warn('[Notification] User not authenticated')
+      throw new Error('Not authenticated')
+    }
+
+    try {
+      console.log('[Notification] Marking all notifications as read')
+      const response = await httpClient.put<MarkAsReadResponse>('/Notification/read-all')
+      console.log('[Notification] Mark all as read response:', response.data)
+      return response.data
+    } catch (error) {
+      const axiosError = error as { message?: string; response?: { status?: number; data?: unknown } }
+      console.error('[Notification] Failed to mark all as read:', {
+        error: axiosError.message,
+        status: axiosError.response?.status,
+        data: axiosError.response?.data,
+      })
+      throw error
+    }
   },
 }
 
