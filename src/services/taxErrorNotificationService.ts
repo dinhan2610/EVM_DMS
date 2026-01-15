@@ -33,18 +33,21 @@ export enum ErrorNotificationType {
 
 /**
  * Request payload cho Create Draft
+ * Backend API schema: POST /Tax/Create-Form04SS-Draft
  */
 export interface CreateDraftRequest {
-  notificationType: number  // 1-4: CANCEL, ADJUST, REPLACE, EXPLAIN
+  notificationTypeCode: number  // 0-4: 0=Unknown, 1=Cancel, 2=Adjust, 3=Replace, 4=Explain
   notificationNumber: string
-  taxAuthority: string
-  taxCode: string  // Mã số thuế người nộp thuế (required at top level)
-  createdDate: string
-  place: string
+  taxAuthority: string          // Tên cơ quan thuế (hiển thị)
+  taxAuthorityCode: string      // Mã cơ quan thuế (6 digits: 100394, 100395)
+  taxpayerName: string          // Tên người nộp thuế
+  taxCode: string               // Mã số thuế người nộp thuế
+  createdDate: string           // ISO date string
+  place: string                 // Nơi lập (Hà Nội, Hồ Chí Minh, etc.)
   errorItems: Array<{
     invoiceId: number
-    errorType: number
-    reason: string
+    errorType: number           // 1-4: Cancel/Adjust/Replace/Explain
+    reason: string              // Lý do sai sót (min 10 chars)
     taxpayerName: string
     taxCode: string
   }>

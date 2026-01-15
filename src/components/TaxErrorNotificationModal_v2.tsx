@@ -327,10 +327,12 @@ const TaxErrorNotificationModal: React.FC<TaxErrorNotificationModalProps> = ({
       }))
       
       const response = await taxErrorNotificationService.createDraft({
-        notificationType: headerData.notificationType,
+        notificationTypeCode: headerData.notificationType,  // Backend expects 'notificationTypeCode'
         notificationNumber,
-        taxAuthority: headerData.taxAuthority || '100395',
-        taxCode: headerData.taxCode,  // Top-level tax code (required by backend)
+        taxAuthority: getTaxAuthorityName(headerData.taxAuthority || '100395'),  // Tên CQT
+        taxAuthorityCode: headerData.taxAuthority || '100395',  // Mã CQT (6 digits)
+        taxpayerName: headerData.taxpayerName,
+        taxCode: headerData.taxCode,
         createdDate: headerData.createdDate.toISOString(),
         place: headerData.place,
         errorItems,
