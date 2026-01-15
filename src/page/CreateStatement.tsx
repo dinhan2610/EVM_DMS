@@ -15,14 +15,13 @@ import {
   CircularProgress,
   Stack,
   alpha,
-  Card,
-  CardContent,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import dayjs, { Dayjs } from 'dayjs'
+import 'dayjs/locale/vi'
 import { useNavigate, useParams } from 'react-router-dom'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
 import PublishOutlinedIcon from '@mui/icons-material/PublishOutlined'
@@ -30,7 +29,6 @@ import AddIcon from '@mui/icons-material/Add'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import AutorenewIcon from '@mui/icons-material/Autorenew'
-import CalculateOutlinedIcon from '@mui/icons-material/CalculateOutlined'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import AttachFileIcon from '@mui/icons-material/AttachFile'
 
@@ -574,7 +572,7 @@ const CreateStatement = () => {
 
   // ==================== RENDER ====================
   return (
-    <LocalizationProvider dateAdapter={AdapterDayjs}>
+    <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="vi">
       <Box sx={{ width: '100%', backgroundColor: '#f5f5f5', minHeight: '100vh', py: 4 }}>
         <Box sx={{ width: '100%', px: { xs: 2, sm: 3, md: 4 } }}>
           {/* Header */}
@@ -591,108 +589,120 @@ const CreateStatement = () => {
           <Paper
             elevation={0}
             sx={{
+              mb: 3,
               border: '1px solid #e0e0e0',
-              borderRadius: 2,
+              borderRadius: 0,
               backgroundColor: '#fff',
               boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-              p: 3,
-              mb: 3,
             }}
           >
-            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#1a1a1a' }}>
-              Thông tin cơ bản
-            </Typography>
-            <Stack spacing={2}>
-              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                <Box sx={{ flex: '1 1 45%' }}>
+            <Box sx={{ p: 3, backgroundColor: '#fafafa', borderBottom: '1px solid #e0e0e0' }}>
+              <Typography variant="h6" sx={{ fontWeight: 600, color: '#1976d2' }}>
+                Thông tin cơ bản
+              </Typography>
+            </Box>
+            <Box sx={{ p: 3 }}>
+              <Stack spacing={3}>
+                <Box>
                   <Autocomplete
-                  fullWidth
-                  options={mockCustomers}
-                  getOptionLabel={(option) => option.name}
-                  value={selectedCustomer}
-                  onChange={handleCustomerChange}
-                  renderInput={(params) => (
-                    <TextField {...params} label="Khách hàng" required placeholder="Tìm kiếm khách hàng..." />
-                  )}
-                  renderOption={(props, option) => (
-                    <li {...props}>
-                      <Box>
-                        <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                          {option.name}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: '#666' }}>
-                          MST: {option.taxCode} • {option.address}
-                        </Typography>
-                      </Box>
-                    </li>
-                  )}
-                />
+                    fullWidth
+                    options={mockCustomers}
+                    getOptionLabel={(option) => option.name}
+                    value={selectedCustomer}
+                    onChange={handleCustomerChange}
+                    renderInput={(params) => (
+                      <TextField 
+                        {...params} 
+                        label="Khách hàng" 
+                        required 
+                        placeholder="Tìm kiếm khách hàng..." 
+                      />
+                    )}
+                    renderOption={(props, option) => (
+                      <li {...props}>
+                        <Box>
+                          <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                            {option.name}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: '#666' }}>
+                            MST: {option.taxCode} • {option.address}
+                          </Typography>
+                        </Box>
+                      </li>
+                    )}
+                  />
                 </Box>
-                <Box sx={{ flex: '1 1 25%' }}>
-                  <DatePicker
-                  label="Kỳ cước"
-                  views={['month', 'year']}
-                  value={formData.period}
-                  onChange={handlePeriodChange}
-                  slotProps={{
-                    textField: {
-                      fullWidth: true,
-                      required: true,
-                    },
-                  }}
-                />
-                </Box>
-                <Box sx={{ flex: '1 1 30%' }}>
-                  <TextField
-                  fullWidth
-                  label="Nợ kỳ trước"
-                  type="number"
-                  value={formData.previousDebt}
-                  onChange={handlePreviousDebtChange}
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <Tooltip title="Tự động lấy nợ từ hóa đơn cũ chưa thanh toán">
-                          <IconButton
-                            size="small"
-                            color="primary"
-                            onClick={handleAutoFetchDebt}
-                            disabled={isLoadingDebt}
-                            sx={{
-                              '&:hover': {
-                                backgroundColor: alpha('#1976d2', 0.1),
-                              },
-                            }}
-                          >
-                            {isLoadingDebt ? <CircularProgress size={20} /> : <AutorenewIcon />}
-                          </IconButton>
-                        </Tooltip>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-                </Box>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                  <Box sx={{ flex: 1 }}>
+                    <DatePicker
+                      label="Tháng/Năm"
+                      views={['month', 'year']}
+                      value={formData.period}
+                      onChange={handlePeriodChange}
+                      slotProps={{
+                        textField: {
+                          fullWidth: true,
+                          required: true,
+                          helperText: 'Chọn kỳ báo cáo bảng kê',
+                        },
+                      }}
+                    />
+                  </Box>
+                  <Box sx={{ flex: 1 }}>
+                    <TextField
+                      fullWidth
+                      label="Nợ kỳ trước"
+                      type="number"
+                      value={formData.previousDebt}
+                      onChange={handlePreviousDebtChange}
+                      helperText="Số tiền nợ chưa thanh toán từ kỳ trước"
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <Tooltip title="Tự động lấy nợ từ hóa đơn cũ chưa thanh toán">
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={handleAutoFetchDebt}
+                                disabled={isLoadingDebt}
+                                sx={{
+                                  '&:hover': {
+                                    backgroundColor: alpha('#1976d2', 0.1),
+                                  },
+                                }}
+                              >
+                                {isLoadingDebt ? <CircularProgress size={20} /> : <AutorenewIcon />}
+                              </IconButton>
+                            </Tooltip>
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Box>
+                </Stack>
               </Stack>
-            </Stack>
+            </Box>
           </Paper>
 
           {/* Section B: Body - Smart Grid with Excel Import */}
           <Paper
             elevation={0}
             sx={{
+              mb: 3,
               border: '1px solid #e0e0e0',
-              borderRadius: 2,
+              borderRadius: 0,
               backgroundColor: '#fff',
               boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-              p: 3,
-              mb: 3,
             }}
           >
-            {/* Toolbar */}
-            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h6" sx={{ fontWeight: 600, color: '#1a1a1a' }}>
+            <Box sx={{ p: 3, backgroundColor: '#fafafa', borderBottom: '1px solid #e0e0e0' }}>
+              <Typography variant="h6" sx={{ fontWeight: 600, color: '#1976d2' }}>
                 Chi tiết hàng hóa/dịch vụ
               </Typography>
+            </Box>
+            <Box sx={{ p: 3 }}>
+            {/* Toolbar */}
+            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Stack direction="row" spacing={1.5}>
                 <Button
                   component="label"
@@ -701,28 +711,20 @@ const CreateStatement = () => {
                   startIcon={<CloudUploadIcon />}
                   sx={{
                     textTransform: 'none',
-                    borderColor: '#1976d2',
-                    color: '#1976d2',
-                    '&:hover': {
-                      borderColor: '#1565c0',
-                      backgroundColor: alpha('#1976d2', 0.04),
-                    },
+                    fontWeight: 500,
                   }}
                 >
                   Import Excel
                   <input type="file" hidden accept=".xlsx,.xls" onChange={handleFileInputChange} />
                 </Button>
                 <Button
-                  variant="contained"
+                  variant="outlined"
                   size="small"
                   startIcon={<AddIcon />}
                   onClick={handleAddRow}
                   sx={{
                     textTransform: 'none',
-                    boxShadow: '0 2px 8px rgba(25, 118, 210, 0.24)',
-                    '&:hover': {
-                      boxShadow: '0 4px 12px rgba(25, 118, 210, 0.32)',
-                    },
+                    fontWeight: 500,
                   }}
                 >
                   Thêm dòng
@@ -806,109 +808,115 @@ const CreateStatement = () => {
                 }}
               />
             </Box>
+            </Box>
           </Paper>
 
-          {/* Section C: Footer - Sticky Summary */}
-          <Card
+          {/* Section C: Footer - Summary */}
+          <Paper
             elevation={0}
             sx={{
-              border: '2px solid #e3f2fd',
-              borderRadius: 2,
-              backgroundColor: alpha('#1976d2', 0.02),
-              boxShadow: '0 4px 12px rgba(25, 118, 210, 0.08)',
               mb: 3,
+              border: '1px solid #e0e0e0',
+              borderRadius: 0,
+              backgroundColor: '#fff',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
             }}
           >
-            <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, color: '#1a1a1a' }}>
+            <Box sx={{ p: 3 }}>
+              <Typography variant="h6" sx={{ fontWeight: 600, color: '#1976d2', mb: 3 }}>
                 Tổng kết
               </Typography>
-              <Stack spacing={1.5}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Typography variant="body1" sx={{ color: '#666' }}>
-                    Tổng tiền hàng (Total Goods):
+              <Stack spacing={2}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body1" color="text.secondary">
+                    Tổng tiền hàng:
                   </Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 600, fontSize: '1rem' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 500 }}>
                     {formatCurrency(calculations.totalGoods)}
                   </Typography>
-                </Stack>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Typography variant="body1" sx={{ color: '#666' }}>
-                    Tổng tiền thuế (Total VAT):
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body1" color="text.secondary">
+                    Tổng tiền thuế GTGT:
                   </Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 600, fontSize: '1rem' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 500 }}>
                     {formatCurrency(calculations.totalVAT)}
                   </Typography>
-                </Stack>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Typography variant="body1" sx={{ color: '#f57c00', fontWeight: 500 }}>
-                    Nợ kỳ trước (Previous Debt):
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body1" color="text.secondary">
+                    Nợ kỳ trước:
                   </Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 600, fontSize: '1rem', color: '#f57c00' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 500, color: '#f57c00' }}>
                     {formatCurrency(formData.previousDebt)}
                   </Typography>
-                </Stack>
-                <Divider sx={{ my: 1, borderStyle: 'dashed' }} />
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <CalculateOutlinedIcon sx={{ color: '#1976d2', fontSize: 24 }} />
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#1976d2' }}>
-                      TỔNG THANH TOÁN (Grand Total):
-                    </Typography>
-                  </Box>
+                </Box>
+                <Divider sx={{ my: 1 }} />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    Tổng thanh toán:
+                  </Typography>
                   <Typography variant="h5" sx={{ fontWeight: 700, color: '#1976d2' }}>
                     {formatCurrency(calculations.grandTotal)}
                   </Typography>
-                </Stack>
+                </Box>
               </Stack>
-            </CardContent>
-          </Card>
+            </Box>
+          </Paper>
 
           {/* Action Buttons */}
-          <Stack direction="row" spacing={2} justifyContent="flex-end">
-            <Button
-              variant="outlined"
-              onClick={() => navigate('/statements')}
-              sx={{
-                textTransform: 'none',
-                minWidth: 120,
-              }}
-            >
-              Hủy
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<SaveOutlinedIcon />}
-              onClick={handleSaveDraft}
-              sx={{
-                textTransform: 'none',
-                minWidth: 140,
-                borderColor: '#1976d2',
-                color: '#1976d2',
-                '&:hover': {
-                  borderColor: '#1565c0',
-                  backgroundColor: alpha('#1976d2', 0.04),
-                },
-              }}
-            >
-              Lưu nháp
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<PublishOutlinedIcon />}
-              onClick={handleSaveAndExport}
-              sx={{
-                textTransform: 'none',
-                minWidth: 160,
-                boxShadow: '0 2px 8px rgba(25, 118, 210, 0.24)',
-                '&:hover': {
-                  boxShadow: '0 4px 12px rgba(25, 118, 210, 0.32)',
-                },
-              }}
-            >
-              Lưu & Kết xuất
-            </Button>
-          </Stack>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              border: '1px solid #e0e0e0',
+              borderRadius: 0,
+              backgroundColor: '#fff',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            }}
+          >
+            <Stack direction="row" spacing={2} justifyContent="flex-end">
+              <Button
+                variant="outlined"
+                onClick={() => navigate('/statements')}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 500,
+                  minWidth: 120,
+                }}
+              >
+                Hủy
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<SaveOutlinedIcon />}
+                onClick={handleSaveDraft}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 500,
+                  minWidth: 140,
+                }}
+              >
+                Lưu nháp
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<PublishOutlinedIcon />}
+                onClick={handleSaveAndExport}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 500,
+                  minWidth: 160,
+                  boxShadow: 'none',
+                  '&:hover': {
+                    boxShadow: '0 2px 8px rgba(25,118,210,0.3)',
+                  },
+                }}
+              >
+                Lưu & Kết xuất
+              </Button>
+            </Stack>
+          </Paper>
         </Box>
 
         {/* Snackbar Notifications */}
