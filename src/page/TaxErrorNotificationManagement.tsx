@@ -23,141 +23,24 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import SendIcon from '@mui/icons-material/Send'
 import DownloadIcon from '@mui/icons-material/Download'
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty'
-import CancelIcon from '@mui/icons-material/Cancel'
 import { Link, useNavigate } from 'react-router-dom'
 import Spinner from '@/components/Spinner'
 import TaxErrorNotificationFilter, { TaxErrorNotificationFilterState } from '../components/TaxErrorNotificationFilter'
+import taxErrorNotificationService from '@/services/taxErrorNotificationService'
+import { adaptNotificationList } from '@/adapters/taxErrorNotificationAdapter'
 import {
   ITaxErrorNotification,
   NotificationType,
   NotificationStatus,
   getNotificationTypeLabel,
   getNotificationTypeColor,
+  getNotificationTypeCustomColor,
   getNotificationStatusLabel,
   getNotificationStatusColor,
   needsAttention,
   formatCurrency,
   formatDate,
 } from '@/types/taxErrorNotification'
-
-// ============================================================================
-// MOCK DATA
-// ============================================================================
-
-const generateMockData = (): ITaxErrorNotification[] => {
-  return [
-    {
-      id: 1,
-      sentDate: new Date('2026-01-08T10:30:00'),
-      messageId: 'TB04-20260108-001',
-      invoiceRef: '00000045',
-      invoiceId: 131,
-      invoiceSymbol: 'C25TAA',
-      invoiceDate: '2026-01-07',
-      taxAuthority: 'Cục Thuế TP. Hà Nội',
-      type: NotificationType.CANCEL,
-      reason: 'Khách hàng yêu cầu hủy do phát sinh sai sót trong nội dung hóa đơn',
-      status: NotificationStatus.ACCEPTED,
-      cqtResponse: 'Đã tiếp nhận thông báo. Mã xác nhận: ACK-20260108-001',
-      notificationCode: 'TB04/001/2026',
-      xmlPath: '/uploads/notifications/TB04_001_2026.xml',
-      customerName: 'Công ty TNHH ABC Technology',
-      totalAmount: 121000000,
-    },
-    {
-      id: 2,
-      sentDate: new Date('2026-01-08T14:15:00'),
-      messageId: 'TB04-20260108-002',
-      invoiceRef: '00000042',
-      invoiceId: 128,
-      invoiceSymbol: 'C25TAA',
-      invoiceDate: '2026-01-06',
-      taxAuthority: 'Cục Thuế TP. Hồ Chí Minh',
-      type: NotificationType.ADJUST,
-      reason: 'Điều chỉnh giá trị hóa đơn do sai sót nhập liệu',
-      status: NotificationStatus.REJECTED,
-      cqtResponse: 'Từ chối tiếp nhận: Thiếu chữ ký số hợp lệ trên file XML. Vui lòng ký lại và gửi lại.',
-      notificationCode: 'TB04/002/2026',
-      xmlPath: '/uploads/notifications/TB04_002_2026.xml',
-      customerName: 'Công ty CP XYZ Solutions',
-      totalAmount: 85000000,
-    },
-    {
-      id: 3,
-      sentDate: new Date('2026-01-09T09:45:00'),
-      messageId: 'TB04-20260109-003',
-      invoiceRef: '00000043',
-      invoiceId: 129,
-      invoiceSymbol: 'C25TAA',
-      invoiceDate: '2026-01-08',
-      taxAuthority: 'Cục Thuế TP. Đà Nẵng',
-      type: NotificationType.REPLACE,
-      reason: 'Thay thế hóa đơn do phát sinh sai sót về thông tin người mua',
-      status: NotificationStatus.SENDING,
-      cqtResponse: null,
-      notificationCode: 'TB04/003/2026',
-      xmlPath: '/uploads/notifications/TB04_003_2026.xml',
-      customerName: 'Doanh nghiệp Tư nhân DEF',
-      totalAmount: 54000000,
-    },
-    {
-      id: 4,
-      sentDate: new Date('2026-01-09T11:20:00'),
-      messageId: 'TB04-20260109-004',
-      invoiceRef: '00000044',
-      invoiceId: 130,
-      invoiceSymbol: 'C25TAA',
-      invoiceDate: '2026-01-08',
-      taxAuthority: 'Cục Thuế TP. Hà Nội',
-      type: NotificationType.EXPLAIN,
-      reason: 'Giải trình về việc hóa đơn được ký sau thời hạn quy định do sự cố hệ thống',
-      status: NotificationStatus.PENDING,
-      cqtResponse: null,
-      notificationCode: 'TB04/004/2026',
-      xmlPath: null,
-      customerName: 'Công ty TNHH GHI Logistics',
-      totalAmount: 96000000,
-    },
-    {
-      id: 5,
-      sentDate: new Date('2026-01-09T15:00:00'),
-      messageId: 'TB04-20260109-005',
-      invoiceRef: '00000041',
-      invoiceId: 127,
-      invoiceSymbol: 'C25TAA',
-      invoiceDate: '2026-01-05',
-      taxAuthority: 'Cục Thuế TP. Hồ Chí Minh',
-      type: NotificationType.CANCEL,
-      reason: 'Hủy hóa đơn do giao dịch không phát sinh',
-      status: NotificationStatus.ERROR,
-      cqtResponse: 'Lỗi kết nối đến máy chủ CQT. Mã lỗi: ERR_CONNECTION_TIMEOUT',
-      notificationCode: 'TB04/005/2026',
-      xmlPath: '/uploads/notifications/TB04_005_2026.xml',
-      customerName: 'Tập đoàn JKL Group',
-      totalAmount: 230000000,
-    },
-    {
-      id: 6,
-      sentDate: new Date('2026-01-07T08:30:00'),
-      messageId: 'TB04-20260107-001',
-      invoiceRef: '00000038',
-      invoiceId: 124,
-      invoiceSymbol: 'C25TAA',
-      invoiceDate: '2026-01-04',
-      taxAuthority: 'Cục Thuế TP. Hà Nội',
-      type: NotificationType.ADJUST,
-      reason: 'Điều chỉnh thuế suất VAT từ 8% lên 10%',
-      status: NotificationStatus.ACCEPTED,
-      cqtResponse: 'Đã tiếp nhận thông báo. Mã xác nhận: ACK-20260107-001',
-      notificationCode: 'TB04/006/2026',
-      xmlPath: '/uploads/notifications/TB04_006_2026.xml',
-      customerName: 'Công ty CP MNO Trading',
-      totalAmount: 145000000,
-    },
-  ]
-}
 
 // ============================================================================
 // ACTIONS MENU COMPONENT
@@ -369,6 +252,13 @@ const TaxErrorNotificationManagement = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
+  // 📊 Pagination state (controlled model)
+  const [paginationModel, setPaginationModel] = useState({
+    page: 0,
+    pageSize: 10,
+  })
+  const [totalCount, setTotalCount] = useState(0)
+  
   // Filter state
   const [filters, setFilters] = useState<TaxErrorNotificationFilterState>({
     searchText: '',
@@ -379,28 +269,36 @@ const TaxErrorNotificationManagement = () => {
     taxAuthority: '',
   })
 
-  // Load notifications (mock data)
+  // Load notifications from REAL API
   useEffect(() => {
     const loadNotifications = async () => {
       try {
         setLoading(true)
         setError(null)
         
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 800))
+        // ✅ REAL API CALL - Convert 0-based page to 1-based for API
+        const response = await taxErrorNotificationService.getNotifications(
+          paginationModel.page + 1,
+          paginationModel.pageSize
+        )
         
-        const mockData = generateMockData()
-        setNotifications(mockData)
+        // ✅ MAP backend response to UI format using adapter
+        const adaptedNotifications = adaptNotificationList(response.items)
+        
+        setNotifications(adaptedNotifications)
+        setTotalCount(response.totalCount)
+        
+        console.log('✅ Loaded notifications:', adaptedNotifications.length, 'of', response.totalCount)
       } catch (err) {
-        console.error('Failed to load notifications:', err)
-        setError('Không thể tải danh sách thông báo sai sót')
+        console.error('❌ Failed to load notifications:', err)
+        setError(err instanceof Error ? err.message : 'Không thể tải danh sách thông báo sai sót')
       } finally {
         setLoading(false)
       }
     }
 
     loadNotifications()
-  }, [])
+  }, [paginationModel.page, paginationModel.pageSize])
 
   // Filter logic
   const filteredNotifications = useMemo(() => {
@@ -430,11 +328,11 @@ const TaxErrorNotificationManagement = () => {
     if (filters.status.length > 0) {
       const statusIds = filters.status.map((s: string) => {
         const statusMap: Record<string, NotificationStatus> = {
-          'Chờ gửi': NotificationStatus.PENDING,
-          'Đang gửi': NotificationStatus.SENDING,
+          'Nháp': NotificationStatus.DRAFT,
+          'Đã ký': NotificationStatus.SIGNED,
+          'Đã gửi': NotificationStatus.SENT,
           'CQT Tiếp nhận': NotificationStatus.ACCEPTED,
           'CQT Từ chối': NotificationStatus.REJECTED,
-          'Lỗi': NotificationStatus.ERROR,
         }
         return statusMap[s]
       })
@@ -639,7 +537,7 @@ const TaxErrorNotificationManagement = () => {
       field: 'type',
       headerName: 'Loại TB',
       flex: 1,
-      minWidth: 160,
+      minWidth: 140,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -647,26 +545,27 @@ const TaxErrorNotificationManagement = () => {
         const type = params.value as NotificationType
         const label = getNotificationTypeLabel(type)
         const color = getNotificationTypeColor(type)
-        
-        const iconMap = {
-          [NotificationType.CANCEL]: '❌',
-          [NotificationType.ADJUST]: '📝',
-          [NotificationType.REPLACE]: '🔄',
-          [NotificationType.EXPLAIN]: '📋',
-        }
+        const customColor = getNotificationTypeCustomColor(type)
         
         return (
           <Chip
-            icon={<span style={{ fontSize: '1rem' }}>{iconMap[type]}</span>}
             label={label}
-            color={color}
+            color={customColor ? undefined : color}
             size="small"
+            variant="filled"
             sx={{
               fontWeight: 600,
-              fontSize: '0.8rem',
+              fontSize: '0.75rem',
               height: 28,
-              '& .MuiChip-icon': {
-                marginLeft: '8px',
+              borderRadius: '20px',  // ✅ Bo tròn mượt mà - đồng bộ với Invoice Management
+              minWidth: 100,
+              ...(customColor && {
+                bgcolor: customColor.bgcolor,
+                color: customColor.color,
+                border: `1px solid ${customColor.borderColor}`,
+              }),
+              '& .MuiChip-label': {
+                px: 1.5,
               },
             }}
           />
@@ -677,7 +576,7 @@ const TaxErrorNotificationManagement = () => {
       field: 'status',
       headerName: 'Trạng thái',
       flex: 1,
-      minWidth: 150,
+      minWidth: 130,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -688,64 +587,58 @@ const TaxErrorNotificationManagement = () => {
         const cqtResponse = params.row.cqtResponse as string | null
         const hasError = needsAttention(status)
         
-        const iconMap = {
-          [NotificationStatus.PENDING]: <HourglassEmptyIcon fontSize="small" />,
-          [NotificationStatus.SENDING]: <SendIcon fontSize="small" />,
-          [NotificationStatus.ACCEPTED]: <CheckCircleOutlineIcon fontSize="small" />,
-          [NotificationStatus.REJECTED]: <CancelIcon fontSize="small" />,
-          [NotificationStatus.ERROR]: <ErrorOutlineIcon fontSize="small" />,
-        }
-        
-        const tooltipContent = (
+        const tooltipContent = cqtResponse ? (
           <Box sx={{ maxWidth: 400 }}>
             <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
               Trạng thái: {label}
             </Typography>
-            {cqtResponse && (
-              <>
-                <Divider sx={{ my: 0.5, borderColor: 'rgba(255,255,255,0.2)' }} />
-                <Typography variant="caption" sx={{ display: 'block', color: 'rgba(255,255,255,0.9)' }}>
-                  {hasError ? '⚠️ Chi tiết lỗi:' : '✅ Phản hồi CQT:'}
-                </Typography>
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
-                    display: 'block', 
-                    mt: 0.5,
-                    fontStyle: 'italic',
-                    lineHeight: 1.4,
-                    color: hasError ? '#ffeb3b' : 'rgba(255,255,255,0.95)',
-                  }}
-                >
-                  {cqtResponse}
-                </Typography>
-              </>
-            )}
+            <Divider sx={{ my: 0.5, borderColor: 'rgba(255,255,255,0.2)' }} />
+            <Typography variant="caption" sx={{ display: 'block', color: 'rgba(255,255,255,0.9)' }}>
+              {hasError ? '⚠️ Chi tiết lỗi:' : '✅ Phản hồi CQT:'}
+            </Typography>
+            <Typography 
+              variant="caption" 
+              sx={{ 
+                display: 'block', 
+                mt: 0.5,
+                fontStyle: 'italic',
+                lineHeight: 1.4,
+                color: hasError ? '#ffeb3b' : 'rgba(255,255,255,0.95)',
+              }}
+            >
+              {cqtResponse}
+            </Typography>
           </Box>
-        )
+        ) : null
         
         const chipElement = (
           <Chip
-            icon={iconMap[status]}
             label={label}
             color={color}
             size="small"
+            variant="filled"
             sx={{
               fontWeight: 600,
-              fontSize: '0.8rem',
+              fontSize: '0.75rem',
+              height: 28,
+              borderRadius: '20px',  // ✅ Bo tròn mượt mà - đồng bộ với Invoice Management
+              minWidth: 95,
               cursor: cqtResponse ? 'help' : 'default',
+              '& .MuiChip-label': {
+                px: 1.5,
+              },
               ...(hasError && {
                 animation: 'pulse 2s ease-in-out infinite',
                 '@keyframes pulse': {
                   '0%, 100%': { opacity: 1 },
-                  '50%': { opacity: 0.8 },
+                  '50%': { opacity: 0.85 },
                 },
               }),
             }}
           />
         )
         
-        return cqtResponse ? (
+        return tooltipContent ? (
           <Tooltip 
             title={tooltipContent} 
             arrow 
@@ -899,17 +792,18 @@ const TaxErrorNotificationManagement = () => {
           <DataGrid
             rows={filteredNotifications}
             columns={columns}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            pageSizeOptions={[10, 25, 50]}
+            rowCount={totalCount}
+            paginationMode="server"
+            disableRowSelectionOnClick
+            autoHeight
             initialState={{
-              pagination: {
-                paginationModel: { page: 0, pageSize: 10 },
-              },
               sorting: {
                 sortModel: [{ field: 'sentDate', sort: 'desc' }],
               },
             }}
-            pageSizeOptions={[10, 25, 50]}
-            disableRowSelectionOnClick
-            autoHeight
             sx={{
               border: 'none',
               '& .MuiDataGrid-columnHeaders': {
@@ -930,6 +824,46 @@ const TaxErrorNotificationManagement = () => {
               '& .MuiDataGrid-footerContainer': {
                 borderTop: '2px solid #e0e0e0',
                 backgroundColor: '#fafafa',
+                minHeight: '56px',
+                padding: '8px 16px',
+              },
+              '& .MuiTablePagination-root': {
+                overflow: 'visible',
+              },
+              '& .MuiTablePagination-toolbar': {
+                minHeight: '56px',
+                paddingLeft: '16px',
+                paddingRight: '8px',
+              },
+              '& .MuiTablePagination-selectLabel': {
+                margin: 0,
+                fontSize: '0.875rem',
+                fontWeight: 500,
+                color: '#666',
+              },
+              '& .MuiTablePagination-displayedRows': {
+                margin: 0,
+                fontSize: '0.875rem',
+                fontWeight: 500,
+                color: '#666',
+              },
+              '& .MuiTablePagination-select': {
+                paddingTop: '8px',
+                paddingBottom: '8px',
+                fontSize: '0.875rem',
+                fontWeight: 500,
+              },
+              '& .MuiTablePagination-actions': {
+                marginLeft: '20px',
+                '& .MuiIconButton-root': {
+                  padding: '8px',
+                  '&:hover': {
+                    backgroundColor: '#e3f2fd',
+                  },
+                  '&.Mui-disabled': {
+                    opacity: 0.3,
+                  },
+                },
               },
             }}
           />

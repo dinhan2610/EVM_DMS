@@ -10,19 +10,14 @@ import {
   InputLabel,
   FormControl,
   IconButton,
-  Tooltip,
   Chip,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Grid,
-  Divider,
-  Stack,
-  Alert,
-  CircularProgress,
   Tabs,
   Tab,
+  Grid,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams, GridPaginationModel } from '@mui/x-data-grid'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
@@ -427,22 +422,38 @@ const AuditLogsPage = () => {
     },
     {
       field: 'userId',
-      headerName: 'User ID',
-      width: 120,
+      headerName: 'Vai trò',
+      width: 150,
       align: 'center',
       headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams<ActivityLog>) => (
-        <Chip 
-          label={params.row.userId} 
-          size="small" 
-          variant="outlined"
-          sx={{ 
-            fontWeight: 500,
-            fontFamily: 'monospace',
-            fontSize: '0.8125rem',
-          }}
-        />
-      ),
+      renderCell: (params: GridRenderCellParams<ActivityLog>) => {
+        const userId = params.row.userId
+        const label = auditService.getUserIdLabel(userId)
+        
+        // Determine color based on role
+        const getChipColor = (id: string): 'default' | 'primary' | 'secondary' | 'success' | 'info' => {
+          const lower = id.toLowerCase()
+          if (lower === 'system') return 'default'
+          if (lower === 'admin') return 'primary'
+          if (lower === 'hod') return 'secondary'
+          if (lower === 'accountant') return 'success'
+          if (lower === 'sale') return 'info'
+          return 'default'
+        }
+
+        return (
+          <Chip 
+            label={label}
+            size="small" 
+            color={getChipColor(userId)}
+            sx={{ 
+              fontWeight: 600,
+              fontSize: '0.8125rem',
+              minWidth: 120,
+            }}
+          />
+        )
+      },
     },
     {
       field: 'actionName',
@@ -595,7 +606,7 @@ const AuditLogsPage = () => {
           <Paper sx={{ p: 3, mb: 3 }}>
             <Grid container spacing={2} alignItems="center">
               {/* Date Range */}
-              <Grid item xs={12} md={3}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <DatePicker
                   label="Từ ngày"
                   value={fromDate}
@@ -603,7 +614,7 @@ const AuditLogsPage = () => {
                   slotProps={{ textField: { fullWidth: true, size: 'small' } }}
                 />
               </Grid>
-              <Grid item xs={12} md={3}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <DatePicker
                   label="Đến ngày"
                   value={toDate}
@@ -615,7 +626,7 @@ const AuditLogsPage = () => {
               {/* Tab-specific filters */}
               {currentTab === 'data' && (
                 <>
-                  <Grid item xs={12} md={2}>
+                  <Grid size={{ xs: 12, md: 2 }}>
                     <FormControl fullWidth size="small">
                       <InputLabel>Bảng dữ liệu</InputLabel>
                       <Select
@@ -632,7 +643,7 @@ const AuditLogsPage = () => {
                       </Select>
                     </FormControl>
                   </Grid>
-                  <Grid item xs={12} md={2}>
+                  <Grid size={{ xs: 12, md: 2 }}>
                     <FormControl fullWidth size="small">
                       <InputLabel>Hành động</InputLabel>
                       <Select
@@ -651,7 +662,7 @@ const AuditLogsPage = () => {
               )}
 
               {currentTab === 'activity' && (
-                <Grid item xs={12} md={2}>
+                <Grid size={{ xs: 12, md: 2 }}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Trạng thái</InputLabel>
                     <Select
@@ -668,7 +679,7 @@ const AuditLogsPage = () => {
               )}
 
               {/* Search */}
-              <Grid item xs={12} md={2}>
+              <Grid size={{ xs: 12, md: 2 }}>
                 <TextField
                   fullWidth
                   size="small"
@@ -865,7 +876,7 @@ const AuditLogsPage = () => {
             </DialogTitle>
             <DialogContent dividers>
               <Grid container spacing={2}>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Typography variant="caption" color="text.secondary">
                     Audit ID
                   </Typography>
@@ -873,7 +884,7 @@ const AuditLogsPage = () => {
                     #{viewingDataLog.auditID}
                   </Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Typography variant="caption" color="text.secondary">
                     Trace ID
                   </Typography>
@@ -881,7 +892,7 @@ const AuditLogsPage = () => {
                     {viewingDataLog.traceId}
                   </Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Typography variant="caption" color="text.secondary">
                     Người thực hiện
                   </Typography>
@@ -889,7 +900,7 @@ const AuditLogsPage = () => {
                     {viewingDataLog.userName} (ID: {viewingDataLog.userID})
                   </Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Typography variant="caption" color="text.secondary">
                     Thời gian
                   </Typography>
@@ -897,7 +908,7 @@ const AuditLogsPage = () => {
                     {dayjs(viewingDataLog.timestamp).format('DD/MM/YYYY HH:mm:ss')}
                   </Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Typography variant="caption" color="text.secondary">
                     Bảng dữ liệu
                   </Typography>
@@ -906,7 +917,7 @@ const AuditLogsPage = () => {
                     size="small"
                   />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Typography variant="caption" color="text.secondary">
                     Hành động
                   </Typography>
@@ -917,7 +928,7 @@ const AuditLogsPage = () => {
                   />
                 </Grid>
                 {viewingDataLog.recordId && (
-                  <Grid item xs={12}>
+                  <Grid size={{ xs: 12 }}>
                     <Typography variant="caption" color="text.secondary">
                       Record ID
                     </Typography>
@@ -925,7 +936,7 @@ const AuditLogsPage = () => {
                   </Grid>
                 )}
                 {viewingDataLog.oldValues && (
-                  <Grid item xs={12}>
+                  <Grid size={{ xs: 12 }}>
                     <Typography variant="caption" color="text.secondary" gutterBottom>
                       Giá trị cũ
                     </Typography>
@@ -944,7 +955,7 @@ const AuditLogsPage = () => {
                   </Grid>
                 )}
                 {viewingDataLog.newValues && (
-                  <Grid item xs={12}>
+                  <Grid size={{ xs: 12 }}>
                     <Typography variant="caption" color="text.secondary" gutterBottom>
                       Giá trị mới
                     </Typography>
@@ -986,7 +997,7 @@ const AuditLogsPage = () => {
             </DialogTitle>
             <DialogContent dividers>
               <Grid container spacing={2}>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Typography variant="caption" color="text.secondary">
                     Log ID
                   </Typography>
@@ -994,13 +1005,13 @@ const AuditLogsPage = () => {
                     #{viewingActivityLog.logId}
                   </Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Typography variant="caption" color="text.secondary">
-                    User ID
+                    Vai trò
                   </Typography>
-                  <Chip label={viewingActivityLog.userId} size="small" />
+                  <Chip label={auditService.getUserIdLabel(viewingActivityLog.userId)} size="small" />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Typography variant="caption" color="text.secondary">
                     Hành động
                   </Typography>
@@ -1011,7 +1022,7 @@ const AuditLogsPage = () => {
                     ({viewingActivityLog.actionName})
                   </Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Typography variant="caption" color="text.secondary">
                     Trạng thái
                   </Typography>
@@ -1021,7 +1032,7 @@ const AuditLogsPage = () => {
                     size="small"
                   />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Typography variant="caption" color="text.secondary">
                     IP Address
                   </Typography>
@@ -1029,7 +1040,7 @@ const AuditLogsPage = () => {
                     {viewingActivityLog.ipAddress}
                   </Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Typography variant="caption" color="text.secondary">
                     Thời gian
                   </Typography>
@@ -1037,7 +1048,7 @@ const AuditLogsPage = () => {
                     {dayjs(viewingActivityLog.timestamp).format('DD/MM/YYYY HH:mm:ss')}
                   </Typography>
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <Typography variant="caption" color="text.secondary">
                     Mô tả
                   </Typography>

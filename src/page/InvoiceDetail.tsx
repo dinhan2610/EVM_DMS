@@ -263,10 +263,11 @@ const InvoiceDetail: React.FC = () => {
 
   // Handle Tax Error Notification success
   const handleTaxErrorSuccess = () => {
+    // Close modal
+    setShowTaxErrorModal(false)
     // Show success message
-    alert('✅ Đã gửi thông báo sai sót thành công!')
-    // Reload invoice data
-    window.location.reload()
+    console.log('✅ Đã gửi thông báo sai sót thành công!')
+    // Note: List page sẽ tự động refresh khi navigate đến /tax-error-notifications
   }
 
   const handleBack = () => {

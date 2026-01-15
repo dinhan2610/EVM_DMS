@@ -21,13 +21,14 @@ export enum NotificationType {
 /**
  * Notification Status Enum
  * Tracks the lifecycle of a notification
+ * ⚠️ MUST MATCH backend statusCode (1-5)
  */
 export enum NotificationStatus {
-  PENDING = 0,         // Chờ gửi
-  SENDING = 1,         // Đang gửi
-  ACCEPTED = 2,        // CQT Tiếp nhận
-  REJECTED = 3,        // CQT Từ chối
-  ERROR = 4,           // Lỗi kỹ thuật
+  DRAFT = 1,           // Nháp (chưa ký)
+  SIGNED = 2,          // Đã ký (chưa gửi CQT)
+  SENT = 3,            // Đã gửi T-VAN
+  ACCEPTED = 4,        // CQT Tiếp nhận
+  REJECTED = 5,        // CQT Từ chối
 }
 
 /**
@@ -63,59 +64,81 @@ export interface ITaxErrorNotification {
 export const getNotificationTypeLabel = (type: NotificationType): string => {
   const labels = {
     [NotificationType.CANCEL]: 'Hủy hóa đơn',
-    [NotificationType.ADJUST]: 'Điều chỉnh hóa đơn',
-    [NotificationType.REPLACE]: 'Thay thế hóa đơn',
-    [NotificationType.EXPLAIN]: 'Giải trình hóa đơn',
+    [NotificationType.ADJUST]: 'Điều chỉnh',
+    [NotificationType.REPLACE]: 'Thay thế',
+    [NotificationType.EXPLAIN]: 'Giải trình',
   }
   return labels[type] || 'Không xác định'
 }
 
 /**
- * Get notification type color
+ * Get notification type color - Professional color scheme
+ * Hủy = Red (critical), Điều chỉnh = Yellow (moderate), Thay thế = Purple (info), Giải trình = Grey (review)
  */
-export const getNotificationTypeColor = (type: NotificationType): 'error' | 'warning' | 'info' | 'secondary' => {
+export const getNotificationTypeColor = (
+  type: NotificationType
+): 'error' | 'warning' | 'info' | 'secondary' | 'success' => {
   const colors = {
-    [NotificationType.CANCEL]: 'error' as const,
-    [NotificationType.ADJUST]: 'warning' as const,
-    [NotificationType.REPLACE]: 'info' as const,
-    [NotificationType.EXPLAIN]: 'secondary' as const,
+    [NotificationType.CANCEL]: 'error' as const,      // 🔴 Red - Critical action
+    [NotificationType.ADJUST]: 'warning' as const,    // 🟡 Yellow - Needs attention  
+    [NotificationType.REPLACE]: 'secondary' as const, // 🟪 Purple/Light purple - Informational
+    [NotificationType.EXPLAIN]: 'secondary' as const, // ⚫ Grey - Explanation/documentation
   }
   return colors[type] || 'secondary'
 }
 
 /**
+ * Get custom background color for notification type (for purple variant)
+ */
+export const getNotificationTypeCustomColor = (type: NotificationType) => {
+  if (type === NotificationType.REPLACE) {
+    // Tím nhạt (Light Purple) - Custom color
+    return {
+      bgcolor: '#f3e5f5',      // Light purple background
+      color: '#6a1b9a',        // Dark purple text
+      borderColor: '#ce93d8',  // Medium purple border
+    }
+  }
+  return null
+}
+
+/**
  * Get notification status label in Vietnamese
+ * Short, professional labels for better UI display
  */
 export const getNotificationStatusLabel = (status: NotificationStatus): string => {
   const labels = {
-    [NotificationStatus.PENDING]: 'Chờ gửi',
-    [NotificationStatus.SENDING]: 'Đang gửi',
-    [NotificationStatus.ACCEPTED]: 'CQT Tiếp nhận',
-    [NotificationStatus.REJECTED]: 'CQT Từ chối',
-    [NotificationStatus.ERROR]: 'Lỗi',
+    [NotificationStatus.DRAFT]: 'Nháp',
+    [NotificationStatus.SIGNED]: 'Đã ký',
+    [NotificationStatus.SENT]: 'Đã gửi',
+    [NotificationStatus.ACCEPTED]: 'Đã tiếp nhận',
+    [NotificationStatus.REJECTED]: 'Bị từ chối',
   }
   return labels[status] || 'Không xác định'
 }
 
 /**
- * Get notification status color for badge
+ * Get notification status color - Professional color scheme
+ * Nháp = Grey (draft), Đã ký = Blue (ready), Đã gửi = Cyan (processing), Đã tiếp nhận = Green (success), Bị từ chối = Red (error)
  */
-export const getNotificationStatusColor = (status: NotificationStatus): 'success' | 'error' | 'warning' | 'info' | 'default' => {
+export const getNotificationStatusColor = (
+  status: NotificationStatus
+): 'success' | 'error' | 'warning' | 'info' | 'default' => {
   const colors = {
-    [NotificationStatus.PENDING]: 'default' as const,
-    [NotificationStatus.SENDING]: 'info' as const,
-    [NotificationStatus.ACCEPTED]: 'success' as const,
-    [NotificationStatus.REJECTED]: 'error' as const,
-    [NotificationStatus.ERROR]: 'error' as const,
+    [NotificationStatus.DRAFT]: 'default' as const,   // Grey - Draft state
+    [NotificationStatus.SIGNED]: 'info' as const,     // Blue - Signed & ready
+    [NotificationStatus.SENT]: 'warning' as const,    // Orange - Processing/Pending
+    [NotificationStatus.ACCEPTED]: 'success' as const, // Green - Accepted
+    [NotificationStatus.REJECTED]: 'error' as const,  // Red - Rejected
   }
   return colors[status] || 'default'
 }
 
 /**
- * Check if notification needs attention (rejected or error)
+ * Check if notification needs attention (rejected)
  */
 export const needsAttention = (status: NotificationStatus): boolean => {
-  return status === NotificationStatus.REJECTED || status === NotificationStatus.ERROR
+  return status === NotificationStatus.REJECTED
 }
 
 /**

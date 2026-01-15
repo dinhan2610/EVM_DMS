@@ -142,7 +142,11 @@ const auditService = {
         pageIndex: response.data.pageIndex,
         totalPages: response.data.totalPages,
       })
-
+      // Debug: Log unique userId values to verify mapping
+      if (response.data.items.length > 0) {
+        const uniqueUserIds = [...new Set(response.data.items.map(log => log.userID))]
+        console.log('[AuditService] Unique userId values found:', uniqueUserIds)
+      }
       return response.data
     } catch (error) {
       const axiosError = error as { 
@@ -222,6 +226,12 @@ const auditService = {
         pageIndex: response.data.pageIndex,
         totalPages: response.data.totalPages,
       })
+
+      // Debug: Log unique userId values to verify mapping
+      if (response.data.items.length > 0) {
+        const uniqueUserIds = [...new Set(response.data.items.map(log => log.userId))]
+        console.log('[AuditService] Unique userId values found:', uniqueUserIds)
+      }
 
       return response.data
     } catch (error) {
@@ -393,6 +403,28 @@ const auditService = {
    */
   getStatusLabel(status: ActivityLog['status']): string {
     return status === 'Success' ? 'Thành công' : 'Thất bại'
+  },
+
+  /**
+   * 🛠️ HELPER: Map userId/role to Vietnamese label
+   * Supports: System, Admin, HOD, Accountant, Sale (case-insensitive)
+   * Falls back to original value if not found (e.g., numeric user IDs)
+   */
+  getUserIdLabel(userId: string): string {
+    const mapping: Record<string, string> = {
+      'System': 'Hệ thống',
+      'system': 'Hệ thống',
+      'Admin': 'Quản trị viên',
+      'admin': 'Quản trị viên',
+      'HOD': 'Kế toán trưởng',
+      'hod': 'Kế toán trưởng',
+      'Accountant': 'Kế toán',
+      'accountant': 'Kế toán',
+      'Sale': 'Nhân viên bán hàng',
+      'sale': 'Nhân viên bán hàng',
+    }
+
+    return mapping[userId] || userId // Fallback to original (numeric IDs or unknown values)
   },
 
   /**

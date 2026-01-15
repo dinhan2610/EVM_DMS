@@ -47,6 +47,7 @@ import 'dayjs/locale/vi'
 import type { InvoiceListItem } from '@/services/invoiceService'
 import { INVOICE_TYPE_LABELS } from '@/services/invoiceService'
 import type { Company } from '@/services/companyService'
+import taxErrorNotificationService from '@/services/taxErrorNotificationService'
 
 // ==================== INTERFACES ====================
 
@@ -54,7 +55,7 @@ import type { Company } from '@/services/companyService'
  * General Information (Section A)
  */
 interface ITaxErrorHeader {
-  notificationType: string
+  notificationType: number  // 1-4: Hủy/Điều chỉnh/Thay thế/Giải trình
   notificationNumber: string
   taxAuthority: string
   taxpayerName: string
@@ -78,6 +79,7 @@ enum ErrorType {
  */
 interface ITaxErrorDetail {
   stt: number
+  invoiceId: number           // ID hóa đơn (cần cho API)
   templateCode: string        // Mẫu số
   serial: string              // Ký hiệu
   invoiceNumber: string       // Số hóa đơn
@@ -113,12 +115,24 @@ const ERROR_TYPE_OPTIONS = [
 
 /**
  * Notification Type Options
+ * Backend expects numeric codes: 1=Cancel, 2=Adjust, 3=Replace, 4=Explain
  */
 const NOTIFICATION_TYPE_OPTIONS = [
-  'Thông báo hủy/giải trình của Người nộp thuế',
-  'Thông báo điều chỉnh của Người bán',
-  'Thông báo thay thế của Người bán',
+  { value: 1, label: 'Thông báo hủy/giải trình của Người nộp thuế' },
+  { value: 2, label: 'Thông báo điều chỉnh của Người bán' },
+  { value: 3, label: 'Thông báo thay thế của Người bán' },
 ]
+
+/**
+ * Tax Authority Code to Name mapping
+ */
+const getTaxAuthorityName = (code: string): string => {
+  const mapping: Record<string, string> = {
+    '100394': 'Cục Thuế TP. Hà Nội',
+    '100395': 'Cục Thuế TP. Hồ Chí Minh',
+  }
+  return mapping[code] || `Cơ quan thuế (${code})`
+}
 
 // ==================== COMPONENT ====================
 
@@ -132,7 +146,7 @@ const TaxErrorNotificationModal: React.FC<TaxErrorNotificationModalProps> = ({
   // ==================== STATE ====================
 
   const [headerData, setHeaderData] = useState<ITaxErrorHeader>({
-    notificationType: NOTIFICATION_TYPE_OPTIONS[0],
+    notificationType: NOTIFICATION_TYPE_OPTIONS[0].value,  // Default: 1 (Hủy/Giải trình)
     notificationNumber: '',
     taxAuthority: '',
     taxpayerName: '',
@@ -160,16 +174,19 @@ const TaxErrorNotificationModal: React.FC<TaxErrorNotificationModalProps> = ({
       const cityMatch = company.address.match(/,\s*([^,]+)$/i)
       const defaultCity = cityMatch ? cityMatch[1].trim() : 'Hà Nội'
 
-      // Determine tax authority based on city
-      const taxAuthority = defaultCity.includes('Hà Nội') || defaultCity.includes('Hanoi')
-        ? 'Cục Thuế TP. Hà Nội'
-        : `Cục Thuế ${defaultCity}`
+      // Determine tax authority CODE based on city (MST của Cơ quan thuế)
+      // Backend API expect mã số CQT (6 digits), NOT tên CQT
+      const taxAuthorityCode = defaultCity.includes('Hà Nội') || defaultCity.includes('Hanoi')
+        ? '100394'  // Cục Thuế TP. Hà Nội
+        : defaultCity.includes('Hồ Chí Minh') || defaultCity.includes('Ho Chi Minh')
+        ? '100395'  // Cục Thuế TP. Hồ Chí Minh
+        : '100395'  // Default to HCM
 
       // Set header data
       setHeaderData({
-        notificationType: NOTIFICATION_TYPE_OPTIONS[0],
+        notificationType: NOTIFICATION_TYPE_OPTIONS[0].value,  // ✅ Use numeric value (1)
         notificationNumber,
-        taxAuthority,
+        taxAuthority: taxAuthorityCode,  // ✅ Gửi mã số, không gửi text
         taxpayerName: company.companyName,
         taxCode: company.taxCode,
         createdDate: dayjs(),
@@ -199,6 +216,7 @@ const TaxErrorNotificationModal: React.FC<TaxErrorNotificationModalProps> = ({
       // Pre-fill invoice data into table
       const invoiceDetail: ITaxErrorDetail = {
         stt: 1,
+        invoiceId: invoice.invoiceID,  // ✅ Add invoiceId for API
         templateCode: invoice.templateID?.toString() || '---',
         serial: invoice.originalInvoiceSymbol || '---',
         invoiceNumber: formattedInvoiceNumber,
@@ -227,7 +245,7 @@ const TaxErrorNotificationModal: React.FC<TaxErrorNotificationModalProps> = ({
   /**
    * Handle header field change
    */
-  const handleHeaderChange = (field: keyof ITaxErrorHeader, value: string | Dayjs | null) => {
+  const handleHeaderChange = (field: keyof ITaxErrorHeader, value: string | number | Dayjs | null) => {
     setHeaderData((prev) => ({
       ...prev,
       [field]: value,
@@ -293,14 +311,33 @@ const TaxErrorNotificationModal: React.FC<TaxErrorNotificationModalProps> = ({
     setError(null)
 
     try {
-      // TODO: Call API to save notification
-      // await taxErrorNotificationService.createNotification({
-      //   header: headerData,
-      //   details: detailData,
-      // })
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      // ✅ CALL REAL API - Create Draft Notification
+      console.log('[Modal_v2] Creating draft notification...')
+      
+      // Generate notification number
+      const notificationNumber = `TB-${dayjs().format('DDMMYYYY_HHmm')}`
+      
+      // Build errorItems array from detailData
+      const errorItems = detailData.map(detail => ({
+        invoiceId: detail.invoiceId,
+        errorType: detail.errorType as number,
+        reason: detail.reason,
+        taxpayerName: headerData.taxpayerName,
+        taxCode: headerData.taxCode,
+      }))
+      
+      const response = await taxErrorNotificationService.createDraft({
+        notificationType: headerData.notificationType,
+        notificationNumber,
+        taxAuthority: headerData.taxAuthority || '100395',
+        taxCode: headerData.taxCode,  // Top-level tax code (required by backend)
+        createdDate: headerData.createdDate.toISOString(),
+        place: headerData.place,
+        errorItems,
+      })
+      
+      const notificationId = response.data?.notificationId || response.notificationId || response.id
+      console.log('[Modal_v2] ✅ Draft created successfully, ID:', notificationId)
 
       // Show success
       if (onSuccess) {
@@ -310,6 +347,7 @@ const TaxErrorNotificationModal: React.FC<TaxErrorNotificationModalProps> = ({
       // Close modal
       onClose()
     } catch (err) {
+      console.error('[Modal_v2] ❌ Create draft error:', err)
       setError(err instanceof Error ? err.message : 'Lỗi khi lưu thông báo sai sót')
     } finally {
       setLoading(false)
@@ -397,13 +435,13 @@ const TaxErrorNotificationModal: React.FC<TaxErrorNotificationModalProps> = ({
                 fullWidth
                 label="Loại thông báo"
                 value={headerData.notificationType}
-                onChange={(e) => handleHeaderChange('notificationType', e.target.value)}
+                onChange={(e) => handleHeaderChange('notificationType', Number(e.target.value))}
                 size="small"
                 sx={{ flex: 2 }}
               >
                 {NOTIFICATION_TYPE_OPTIONS.map((option) => (
-                  <MenuItem key={option} value={option}>
-                    {option}
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
                   </MenuItem>
                 ))}
               </TextField>
@@ -429,7 +467,7 @@ const TaxErrorNotificationModal: React.FC<TaxErrorNotificationModalProps> = ({
               <TextField
                 fullWidth
                 label="Cơ quan thuế tiếp nhận"
-                value={headerData.taxAuthority}
+                value={getTaxAuthorityName(headerData.taxAuthority)}
                 InputProps={{
                   readOnly: true,
                 }}
