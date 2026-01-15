@@ -26,6 +26,7 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import { Link, useNavigate } from 'react-router-dom'
 import Spinner from '@/components/Spinner'
 import TaxErrorNotificationFilter, { TaxErrorNotificationFilterState } from '../components/TaxErrorNotificationFilter'
+import TaxErrorNotificationDetailModal from '@/components/TaxErrorNotificationDetailModal'
 import taxErrorNotificationService from '@/services/taxErrorNotificationService'
 import { adaptNotificationList } from '@/adapters/taxErrorNotificationAdapter'
 import {
@@ -252,6 +253,10 @@ const TaxErrorNotificationManagement = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
+  // Detail modal state
+  const [detailModalOpen, setDetailModalOpen] = useState(false)
+  const [selectedNotificationId, setSelectedNotificationId] = useState<number | null>(null)
+  
   // 📊 Pagination state (controlled model)
   const [paginationModel, setPaginationModel] = useState({
     page: 0,
@@ -364,8 +369,8 @@ const TaxErrorNotificationManagement = () => {
   // Action handlers
   const handleView = (id: string | number) => {
     console.log('View notification:', id)
-    // Navigate to detail page
-    navigate(`/tax-error-notifications/${id}`)
+    setSelectedNotificationId(Number(id))
+    setDetailModalOpen(true)
   }
 
   const handleEdit = (id: string | number) => {
@@ -546,8 +551,34 @@ const TaxErrorNotificationManagement = () => {
         const label = getNotificationTypeLabel(type)
         const color = getNotificationTypeColor(type)
         const customColor = getNotificationTypeCustomColor(type)
+        const reason = params.row.reason as string
         
-        return (
+        // Tooltip content với reason
+        const tooltipContent = reason ? (
+          <Box sx={{ maxWidth: 400 }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+              {label}
+            </Typography>
+            <Divider sx={{ my: 0.5, borderColor: 'rgba(255,255,255,0.2)' }} />
+            <Typography variant="caption" sx={{ display: 'block', color: 'rgba(255,255,255,0.9)' }}>
+              📝 Lý do:
+            </Typography>
+            <Typography 
+              variant="caption" 
+              sx={{ 
+                display: 'block', 
+                mt: 0.5,
+                fontStyle: 'italic',
+                lineHeight: 1.4,
+                color: 'rgba(255,255,255,0.95)',
+              }}
+            >
+              {reason}
+            </Typography>
+          </Box>
+        ) : null
+        
+        const chipElement = (
           <Chip
             label={label}
             color={customColor ? undefined : color}
@@ -557,8 +588,9 @@ const TaxErrorNotificationManagement = () => {
               fontWeight: 600,
               fontSize: '0.75rem',
               height: 28,
-              borderRadius: '20px',  // ✅ Bo tròn mượt mà - đồng bộ với Invoice Management
+              borderRadius: '20px',
               minWidth: 100,
+              cursor: reason ? 'help' : 'default',
               ...(customColor && {
                 bgcolor: customColor.bgcolor,
                 color: customColor.color,
@@ -570,6 +602,26 @@ const TaxErrorNotificationManagement = () => {
             }}
           />
         )
+        
+        return tooltipContent ? (
+          <Tooltip 
+            title={tooltipContent} 
+            arrow 
+            placement="top"
+            componentsProps={{
+              tooltip: {
+                sx: {
+                  bgcolor: 'rgba(0, 0, 0, 0.9)',
+                  '& .MuiTooltip-arrow': {
+                    color: 'rgba(0, 0, 0, 0.9)',
+                  },
+                },
+              },
+            }}
+          >
+            <span>{chipElement}</span>
+          </Tooltip>
+        ) : chipElement
       },
     },
     {
@@ -868,6 +920,16 @@ const TaxErrorNotificationManagement = () => {
             }}
           />
         </Paper>
+
+        {/* Detail Modal */}
+        <TaxErrorNotificationDetailModal
+          open={detailModalOpen}
+          notificationId={selectedNotificationId}
+          onClose={() => {
+            setDetailModalOpen(false)
+            setSelectedNotificationId(null)
+          }}
+        />
       </Box>
     </LocalizationProvider>
   )

@@ -121,6 +121,7 @@ export interface NotificationListItem {
   invoiceDate: string
   customerName: string
   totalAmount: number
+  reason?: string  // Optional: Lý do sai sót (nếu backend populate)
   details: null  // Không có trong list response (set null for performance)
 }
 
@@ -131,7 +132,6 @@ export interface NotificationListItem {
 export interface NotificationDetail {
   id: number
   notificationNumber: string
-  notificationType: string
   notificationTypeCode: number  // 0-4: Should be populated from details[0].errorType
   taxAuthorityName: string
   createdDate: string
@@ -139,7 +139,8 @@ export interface NotificationDetail {
   statusCode: number
   mtDiep: string
   xmlPath: string | null
-  place: string | null
+  taxResponsePath: string | null  // Response từ CQT (nếu có)
+  place: string
   details: Array<{
     invoiceId: number
     invoiceSerial: string

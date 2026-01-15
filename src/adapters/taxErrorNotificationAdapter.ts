@@ -103,7 +103,7 @@ export const adaptNotificationListItem = (
     status: mapStatusCode(backendItem.statusCode),
     
     // Additional info
-    reason: 'N/A',  // Backend doesn't provide in list API
+    reason: backendItem.reason || '',  // Reason từ backend (có thể empty nếu chưa populate)
     cqtResponse: backendItem.taxResponsePath,
     xmlPath: backendItem.xmlPath,
   }
