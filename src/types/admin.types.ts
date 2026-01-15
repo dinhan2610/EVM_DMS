@@ -28,6 +28,7 @@ export interface UserDistribution {
   percentage?: number;
 }
 
+// Legacy AuditLog interface (for AdminDashboard component)
 export interface AuditLog {
   id: string;
   timestamp: Date;
@@ -39,6 +40,51 @@ export interface AuditLog {
   action: string;
   ip: string;
   status: 'success' | 'failed';
+}
+
+// NEW: Backend Audit Log Types
+
+/**
+ * DATA LOG - Track database changes (CRUD operations)
+ * Backend: GET /api/Audit/data-logs
+ */
+export interface DataLog {
+  auditID: number
+  traceId: string              // Request trace ID
+  userID: number               // 0 = System, >0 = User ID
+  userName: string             // "System" or user name
+  action: 'Added' | 'Modified' | 'Deleted'
+  tableName: string            // "Invoice", "User", "InvoiceItem", etc.
+  recordId: string | null      // ID of affected record
+  oldValues: string | null     // JSON string of old data
+  newValues: string | null     // JSON string of new data
+  timestamp: string            // ISO date string
+}
+
+/**
+ * ACTIVITY LOG - Track user actions & system events
+ * Backend: GET /api/Audit/activity-logs
+ */
+export interface ActivityLog {
+  logId: number
+  userId: string               // User ID or "System"
+  actionName: string           // "Login", "Logout", "MarkNotificationRead", etc.
+  description: string          // Success message or error details
+  ipAddress: string            // Client IP address
+  status: 'Success' | 'Failed'
+  timestamp: string            // ISO date string
+}
+
+/**
+ * Paginated response for audit logs
+ */
+export interface PaginatedAuditResponse<T> {
+  items: T[]
+  pageIndex: number
+  totalPages: number
+  totalCount: number
+  hasPreviousPage: boolean
+  hasNextPage: boolean
 }
 
 // Chart Tooltip Types

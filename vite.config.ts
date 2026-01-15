@@ -67,6 +67,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/Audit': {
+        target: 'http://159.223.64.31',
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
 })

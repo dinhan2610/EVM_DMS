@@ -1,20 +1,56 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Box, Typography } from '@mui/material';
 import SystemKPIs from '../components/admindashboard/SystemKPIs';
 import TrafficChart from '../components/admindashboard/TrafficChart';
 import UserDistributionChart from '../components/admindashboard/UserDistributionChart';
 import AuditLogTable from '../components/admindashboard/AuditLogTable';
+import auditService from '@/services/auditService';
 import {
   mockKPIData,
   mockTrafficData,
   mockUserDistribution,
-  mockAuditLogs,
 } from '../types/admin.mockdata';
+import type { AuditLog } from '../types/admin.types';
 
 const AdminDashboard: React.FC = () => {
+  const navigate = useNavigate();
+  const [activityLogs, setActivityLogs] = useState<AuditLog[]>([]);
+
+  // Fetch recent activity logs (10 latest)
+  useEffect(() => {
+    const fetchActivityLogs = async () => {
+      try {
+        const response = await auditService.getActivityLogs({
+          pageIndex: 1,
+          pageSize: 10, // Show 10 most recent
+        });
+
+        // Map ActivityLog to AuditLog format for AuditLogTable component
+        const mappedLogs: AuditLog[] = response.items.map((log) => ({
+          id: log.logId.toString(),
+          timestamp: new Date(log.timestamp),
+          actor: {
+            name: log.userId === 'System' ? 'System' : `User ${log.userId}`,
+          },
+          role: log.userId === 'System' ? 'Admin' : 'Staff', // Default mapping
+          action: `${auditService.getActionNameLabel(log.actionName)}: ${log.description}`,
+          ip: log.ipAddress,
+          status: log.status === 'Success' ? 'success' : 'failed',
+        }));
+
+        setActivityLogs(mappedLogs);
+      } catch (error) {
+        console.error('Failed to fetch activity logs:', error);
+        setActivityLogs([]);
+      }
+    };
+
+    fetchActivityLogs();
+  }, []);
+
   const handleViewAllLogs = () => {
-    // Navigate to detailed audit logs page
-    console.log('Navigate to /admin/audit-logs');
+    navigate('/admin/audit-logs');
   };
 
   return (
@@ -50,7 +86,7 @@ const AdminDashboard: React.FC = () => {
 
       {/* Row 3: Audit Logs Table (Full Width) */}
       <Box sx={{ mt: 3 }}>
-        <AuditLogTable logs={mockAuditLogs} onViewAll={handleViewAllLogs} />
+        <AuditLogTable logs={activityLogs} onViewAll={handleViewAllLogs} />
       </Box>
     </Box>
   );
