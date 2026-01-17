@@ -1,5 +1,5 @@
 import { yupResolver } from '@hookform/resolvers/yup'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import * as yup from 'yup'
@@ -8,9 +8,12 @@ import { useNotificationContext } from '@/context/useNotificationContext'
 import authService, { type LoginRequest } from '@/services/authService'
 import type { UserType } from '@/types/auth'
 
+const REMEMBER_ME_KEY = 'eims_remember_me'
+
 const loginFormSchema = yup.object({
   email: yup.string().email('Please enter a valid email').required('Please enter your email'),
   password: yup.string().required('Please enter your password'),
+  rememberMe: yup.boolean(),
 })
 
 type LoginFormFields = yup.InferType<typeof loginFormSchema>
@@ -22,17 +25,44 @@ const useSignIn = () => {
   const [searchParams] = useSearchParams()
   const { showNotification } = useNotificationContext()
 
-  const { control, handleSubmit } = useForm({
+  const { control, handleSubmit, setValue } = useForm({
     resolver: yupResolver(loginFormSchema),
     defaultValues: {
       email: 'admin@eims.local',
       password: 'P3ssword!',
+      rememberMe: false,
     },
   })
+
+  // Load saved credentials on mount
+  useEffect(() => {
+    const savedCredentials = localStorage.getItem(REMEMBER_ME_KEY)
+    if (savedCredentials) {
+      try {
+        const { email, password } = JSON.parse(savedCredentials)
+        setValue('email', email)
+        setValue('password', password)
+        setValue('rememberMe', true)
+      } catch (error) {
+        console.error('Failed to load saved credentials:', error)
+        localStorage.removeItem(REMEMBER_ME_KEY)
+      }
+    }
+  }, [setValue])
 
   const login = handleSubmit(async (values: LoginFormFields) => {
     setLoading(true)
     try {
+      // Handle Remember Me
+      if (values.rememberMe) {
+        localStorage.setItem(REMEMBER_ME_KEY, JSON.stringify({
+          email: values.email,
+          password: values.password,
+        }))
+      } else {
+        localStorage.removeItem(REMEMBER_ME_KEY)
+      }
+
       const response = await authService.login(values as LoginRequest)
 
       const user: UserType = {

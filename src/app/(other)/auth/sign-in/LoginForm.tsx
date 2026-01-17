@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import * as yup from 'yup'
+import { Controller } from 'react-hook-form'
 
 import PasswordFormInput from '@/components/form/PasswordFormInput'
 import TextFormInput from '@/components/form/TextFormInput'
@@ -9,6 +10,7 @@ import useSignIn from './useSignIn'
 export const loginSchema = yup.object({
   email: yup.string().email('Vui lòng nhập email hợp lệ').required('Vui lòng nhập email'),
   password: yup.string().required('Vui lòng nhập mật khẩu'),
+  rememberMe: yup.boolean(),
 })
 
 const LoginForm = () => {
@@ -37,12 +39,24 @@ const LoginForm = () => {
       />
 
       <div className="mb-3">
-        <div className="form-check">
-          <input type="checkbox" className="form-check-input" id="checkbox-signin" />
-          <label className="form-check-label" htmlFor="checkbox-signin">
-            Ghi nhớ đăng nhập
-          </label>
-        </div>
+        <Controller
+          name="rememberMe"
+          control={control}
+          render={({ field }) => (
+            <div className="form-check">
+              <input 
+                type="checkbox" 
+                className="form-check-input" 
+                id="checkbox-signin" 
+                checked={field.value}
+                onChange={(e) => field.onChange(e.target.checked)}
+              />
+              <label className="form-check-label" htmlFor="checkbox-signin">
+                Ghi nhớ đăng nhập
+              </label>
+            </div>
+          )}
+        />
       </div>
       <div className="mb-1 text-center d-grid">
         <Button variant="primary" type="submit" disabled={loading}>

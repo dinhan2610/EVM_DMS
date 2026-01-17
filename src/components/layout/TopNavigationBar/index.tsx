@@ -3,11 +3,7 @@ import { Suspense } from 'react'
 
 import ActivityStreamToggle from './components/ActivityStreamToggle'
 import ProfileDropdown from './components/ProfileDropdown'
-import SearchBox from './components/SearchBox'
-import ThemeCustomizerToggle from './components/ThemeCustomizerToggle'
-import ThemeModeToggle from './components/ThemeModeToggle'
 
-const AppsDropdown = lazy(() => import('./components/AppsDropdown'))
 const Notifications = lazy(() => import('./components/Notifications'))
 
 const TopNavigationBar = () => {
@@ -15,25 +11,11 @@ const TopNavigationBar = () => {
     <header className="topbar">
       <div className="container-xxl">
         <div className="navbar-header">
-          <div className="d-flex align-items-center gap-2">
-            <SearchBox />
-          </div>
-          <div className="d-flex align-items-center gap-1">
-            {/* Toggle Theme Mode */}
-            <ThemeModeToggle />
-
-            {/* Apps Dropdown */}
-            <Suspense>
-              <AppsDropdown />
-            </Suspense>
-
+          <div className="d-flex align-items-center gap-1 ms-auto">
             {/* Notification Dropdown */}
             <Suspense>
               <Notifications />
             </Suspense>
-
-            {/* Toggle for Theme Customizer */}
-            <ThemeCustomizerToggle />
 
             {/* Toggle for Activity Stream */}
             <ActivityStreamToggle />

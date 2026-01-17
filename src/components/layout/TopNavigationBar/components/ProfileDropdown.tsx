@@ -14,10 +14,7 @@ import {
 import {
   PersonOutline,
   Logout,
-  MessageOutlined,
-  AccountBalanceWalletOutlined,
   HelpOutline,
-  LockOutlined,
   SettingsOutlined,
 } from '@mui/icons-material'
 import { useAuthContext } from '@/context/useAuthContext'
@@ -53,23 +50,8 @@ const ProfileDropdown = () => {
     handleClose()
   }
 
-  const handleMessages = () => {
-    navigate('/apps/chat')
-    handleClose()
-  }
-
-  const handlePricing = () => {
-    navigate('/pages/pricing')
-    handleClose()
-  }
-
   const handleHelp = () => {
     navigate('/pages/faqs')
-    handleClose()
-  }
-
-  const handleLockScreen = () => {
-    navigate('/auth/lock-screen')
     handleClose()
   }
 
@@ -161,20 +143,6 @@ const ProfileDropdown = () => {
           <ListItemText>Trang cá nhân</ListItemText>
         </MenuItem>
 
-        <MenuItem onClick={handleMessages} sx={{ py: 1.5 }}>
-          <ListItemIcon>
-            <MessageOutlined fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Tin nhắn</ListItemText>
-        </MenuItem>
-
-        <MenuItem onClick={handlePricing} sx={{ py: 1.5 }}>
-          <ListItemIcon>
-            <AccountBalanceWalletOutlined fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Bảng giá</ListItemText>
-        </MenuItem>
-
         <MenuItem onClick={handleHelp} sx={{ py: 1.5 }}>
           <ListItemIcon>
             <HelpOutline fontSize="small" />
@@ -187,13 +155,6 @@ const ProfileDropdown = () => {
             <SettingsOutlined fontSize="small" />
           </ListItemIcon>
           <ListItemText>Cài đặt</ListItemText>
-        </MenuItem>
-
-        <MenuItem onClick={handleLockScreen} sx={{ py: 1.5 }}>
-          <ListItemIcon>
-            <LockOutlined fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Khóa màn hình</ListItemText>
         </MenuItem>
 
         <Divider />
