@@ -28,6 +28,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVert'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import EmailIcon from '@mui/icons-material/Email'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
 import SendIcon from '@mui/icons-material/Send'
@@ -360,6 +361,8 @@ const StatementActionsMenu = ({ statement, onDelete }: StatementActionsMenuProps
 // ==================== MAIN COMPONENT ====================
 
 const StatementManagement = () => {
+  usePageTitle('Quản lý bảng kê')
+  
   // Hooks
   const navigate = useNavigate()
 

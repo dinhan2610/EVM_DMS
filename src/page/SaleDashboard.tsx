@@ -5,6 +5,7 @@ import TargetProgressChart from '../components/salesdashboard/TargetProgressChar
 import SalesTrendChart from '../components/salesdashboard/SalesTrendChart';
 import DebtWatchlist from '../components/salesdashboard/DebtWatchlist';
 import MyRecentInvoices from '../components/salesdashboard/MyRecentInvoices';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import {
   currentSalesUser,
   mockSalesKPI,
@@ -16,6 +17,8 @@ import {
 import type { DebtCustomer } from '../types/sales.types';
 
 const SaleDashboard: React.FC = () => {
+  usePageTitle('Tổng quan - Sales')
+  
   // Event Handlers
   const handleCall = (customer: DebtCustomer) => {
     console.log('Call customer:', customer.name, customer.phone);

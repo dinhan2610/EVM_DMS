@@ -8,10 +8,12 @@ import RecentInvoicesTable from '../components/admindashboard/RecentInvoicesTabl
 import AuditLogTable from '../components/admindashboard/AuditLogTable'
 import auditService from '@/services/auditService'
 import dashboardService from '@/services/dashboardService'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import type { AuditLog } from '../types/admin.types'
 import type { AdminDashboardData } from '../types/dashboard.types'
 
 const AdminDashboard: React.FC = () => {
+  usePageTitle('Tổng quan - Admin')
   const navigate = useNavigate()
   const [activityLogs, setActivityLogs] = useState<AuditLog[]>([])
   const [dashboardData, setDashboardData] = useState<AdminDashboardData | null>(null)

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Typography,
@@ -58,6 +59,8 @@ const calculatePasswordStrength = (password: string): { strength: number; label:
 }
 
 const UserProfile = () => {
+  usePageTitle('Hồ sơ cá nhân')
+  
   // Profile state
   const [profile, setProfile] = useState<UserProfileData | null>(null)
   const [profileForm, setProfileForm] = useState<ProfileForm>({

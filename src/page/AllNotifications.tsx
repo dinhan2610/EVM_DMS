@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Typography,
@@ -83,6 +84,9 @@ const AllNotifications = () => {
   const [totalPages, setTotalPages] = useState<number>(0)
   const [totalCount, setTotalCount] = useState<number>(0)
   const [unreadCount, setUnreadCount] = useState<number>(0)
+  
+  // Set title with unread count
+  usePageTitle('Thông báo', unreadCount)
 
   // Fetch notifications from API
   const fetchNotifications = async () => {

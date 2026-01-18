@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Grid,
@@ -73,6 +74,8 @@ const mockContracts = [
 ]
 
 const CreateInvoice = () => {
+  usePageTitle('Lập hóa đơn')
+  
   const navigate = useNavigate()
   const [creationMode, setCreationMode] = useState<'manual' | 'auto'>('manual')
   const [selectedContract, setSelectedContract] = useState<{ id: number; label: string; value: string } | null>(null)

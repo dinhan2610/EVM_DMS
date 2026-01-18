@@ -8,51 +8,81 @@ export interface DashboardKPI {
   pendingSignatures: number // Số hóa đơn chờ ký
 }
 
+// =====================================================
+// HOD DASHBOARD API TYPES
+// API: GET /api/Dashboard/hod
+// =====================================================
+
 // NEW: Advanced Financial KPIs for HOD
 export interface FinancialHealthKPI {
   netRevenue: number // Doanh thu thuần (Total invoiced this month)
   cashCollected: number // Thực thu (Total payments received)
   collectionRate: number // % of revenue collected
   estimatedVAT: number // VAT phải nộp (Output - Input)
-  criticalDebt: number // Nợ quá hạn >90 days
+  criticalDebt: number // Nợ quá hạn >60 days
   criticalDebtCount: number // Số lượng nợ nguy hiểm
+  outstanding: number // ✅ NEW: Còn phải thu
+  outstandingRate: number // ✅ NEW: % còn phải thu
+  vatRate: number // ✅ NEW: Thuế suất VAT (%)
+  totalDebt: number // ✅ NEW: Tổng công nợ
+  totalDebtCount: number // ✅ NEW: Tổng số công nợ
 }
 
 // NEW: Cash Flow Data
 export interface CashFlowData {
-  month: string
+  month: string // "T12/2025", "T01/2026"
+  monthNumber: number // ✅ NEW: 12, 1
+  year: number // ✅ NEW: 2025, 2026
   invoiced: number // Total invoiced
   collected: number // Total collected
-  outstanding: number // Invoiced - Collected
+  outstanding: number // ✅ NEW: Invoiced - Collected
   collectionRate: number // (Collected/Invoiced) * 100
+}
+
+// NEW: Debt Aging Category
+export interface DebtAgingCategory {
+  amount: number
+  count: number
+  label: string
+  percentage: number // ✅ NEW: % of total debt
 }
 
 // NEW: Debt Aging Data
 export interface DebtAgingData {
-  category: string
-  amount: number
-  count: number
-  color: string
+  withinDue: DebtAgingCategory // ✅ NEW: Trong hạn
+  overdue1To30: DebtAgingCategory // ✅ NEW: 1-30 ngày
+  overdue31To60: DebtAgingCategory // ✅ NEW: 31-60 ngày
+  criticalOverdue60Plus: DebtAgingCategory // ✅ NEW: 60+ ngày
 }
 
 // NEW: Invoice for Approval Queue
 export interface PendingInvoice {
-  id: string
+  invoiceId: number // ✅ CHANGED: number instead of string
   invoiceNumber: string
-  customer: string
-  amount: number
-  createdBy: string
-  createdDate: Date
-  priority: 'low' | 'medium' | 'high'
+  customerName: string // ✅ CHANGED: customerName instead of customer
+  totalAmount: number // ✅ CHANGED: totalAmount instead of amount
+  createdDate: string // ✅ CHANGED: ISO string instead of Date
+  priority: 'Critical' | 'High' | 'Medium' | 'Low' | 'Normal' // ✅ UPDATED: Match API values
+  hoursWaiting: number // ✅ NEW: Số giờ chờ duyệt
+  daysWaiting: number // ✅ NEW: Số ngày chờ duyệt
   invoiceType: number // 1=Gốc, 2=Điều chỉnh, 3=Thay thế, 4=Hủy, 5=Giải trình
-  originalInvoiceID?: number | null
-  originalInvoiceNumber?: number
-  originalInvoiceSignDate?: string | null
-  originalInvoiceSymbol?: string | null
-  adjustmentReason?: string | null
-  replacementReason?: string | null
-  cancellationReason?: string | null
-  explanationText?: string | null
+  typeName: string // ✅ NEW: "Gốc", "Điều chỉnh", "Thay thế", "Hủy", "Giải trình"
+  typeColor: string // ✅ NEW: "#2196f3", "#ed6c02", etc.
+  typeIcon: string // ✅ NEW: "description", "edit", "swap_horiz", etc.
+  typeBackgroundColor: string // ✅ NEW: "#e3f2fd", "#fff4e6", etc.
+  reason: string | null // ✅ NEW: Merged reason field
+  reasonType: 'general' | 'adjustment' | 'replacement' | 'cancellation' | 'explanation' // ✅ NEW
+  originalInvoiceNumber: string // ✅ CHANGED: string instead of number
+}
+
+// HOD Dashboard API Response
+export interface HODDashboardData {
+  financials: FinancialHealthKPI
+  cashFlow: CashFlowData[]
+  debtAging: DebtAgingData
+  pendingInvoices: PendingInvoice[]
+  generatedAt: string // ISO timestamp
+  fiscalMonth: string // "2026-01"
 }
 
 export interface RevenueChartData {

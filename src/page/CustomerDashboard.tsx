@@ -1,4 +1,5 @@
 import React from 'react';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { Box, Container, Typography } from '@mui/material';
 import DebtHeroCard from '../components/customerdashboard/DebtHeroCard';
 import SupportContact from '../components/customerdashboard/SupportContact';
@@ -14,6 +15,8 @@ import {
 } from '../types/customer.mockdata';
 
 const CustomerDashboard: React.FC = () => {
+  usePageTitle('Tổng quan - Khách hàng');
+  
   // Handler for downloading invoice PDF
   const handleDownloadInvoice = (invoiceId: string) => {
     console.log('Downloading invoice:', invoiceId);

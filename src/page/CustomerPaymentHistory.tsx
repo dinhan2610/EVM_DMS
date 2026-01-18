@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Typography,
@@ -228,6 +229,8 @@ const ExpandableRow = ({ transaction, isExpanded }: ExpandableRowProps) => {
 // ==================== MAIN COMPONENT ====================
 
 const CustomerPaymentHistory = () => {
+  usePageTitle('Lịch sử thanh toán')
+  
   // State
   const [transactions] = useState<PaymentTransaction[]>(generateMockTransactions())
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())

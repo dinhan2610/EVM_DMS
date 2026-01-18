@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Typography,
@@ -29,6 +30,8 @@ import templateFrameService, { TemplateFrame } from '@/services/templateFrameSer
 import API_CONFIG from '@/config/api.config'
 
 const TemplateSelection: React.FC = () => {
+  usePageTitle('Chọn mẫu hóa đơn')
+  
   const navigate = useNavigate()
   
   // ============================================================================

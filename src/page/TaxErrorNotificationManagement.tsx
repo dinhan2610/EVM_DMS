@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Typography,
@@ -252,6 +253,17 @@ const TaxErrorNotificationManagement = () => {
   const [notifications, setNotifications] = useState<ITaxErrorNotification[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  
+  // Calculate pending notifications count (DRAFT or SENT)
+  const pendingCount = useMemo(() => {
+    return notifications.filter(n => 
+      n.status === NotificationStatus.DRAFT || 
+      n.status === NotificationStatus.SENT
+    ).length
+  }, [notifications])
+  
+  // Set title with pending count
+  usePageTitle('Thông báo sai sót CQT', pendingCount)
   
   // Detail modal state
   const [detailModalOpen, setDetailModalOpen] = useState(false)

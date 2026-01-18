@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Container,
@@ -47,6 +48,8 @@ interface InvoiceLookupResult {
 }
 
 const PublicInvoiceLookup: React.FC = () => {
+  usePageTitle('Tra cứu hóa đơn', 0, false)
+  
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   

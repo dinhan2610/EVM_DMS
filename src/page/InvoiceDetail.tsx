@@ -35,6 +35,7 @@ import companyService, { Company } from '@/services/companyService'
 import type { ProductItem, TemplateConfigProps, CustomerInfo } from '@/types/invoiceTemplate'
 import { DEFAULT_TEMPLATE_VISIBILITY, DEFAULT_INVOICE_SYMBOL } from '@/types/invoiceTemplate'
 import { INVOICE_INTERNAL_STATUS } from '@/constants/invoiceStatus'
+import { usePageTitle } from '@/hooks/usePageTitle'
 
 /**
  * Map backend invoice data to ProductItem[] for InvoiceTemplatePreview
@@ -90,6 +91,9 @@ const mapCustomerToCustomerInfo = (customer: Customer, invoice?: InvoiceListItem
 const InvoiceDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  
+  // Set initial title, will update dynamically when invoice loads
+  const { setTitle } = usePageTitle('Chi tiết hóa đơn')
   
   // States
   const [invoice, setInvoice] = useState<InvoiceListItem | null>(null)
@@ -228,6 +232,13 @@ const InvoiceDetail: React.FC = () => {
 
     fetchInvoiceDetail()
   }, [id, useHtmlView])
+
+  // Update title when invoice data loads
+  useEffect(() => {
+    if (invoice?.invoiceNumber) {
+      setTitle(`${invoice.invoiceNumber} - Chi tiết hóa đơn`)
+    }
+  }, [invoice?.invoiceNumber, setTitle])
 
   const handlePrint = () => {
     if (isIssuedInvoice && useHtmlView && htmlPreview) {

@@ -1,11 +1,13 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import invoiceService, { Template } from '@/services/invoiceService'
+import { usePageTitle } from '@/hooks/usePageTitle'
+import invoiceService, { Template, createInvoiceRequest, type BackendInvoiceRequestPayload } from '@/services/invoiceService'
 import customerService from '@/services/customerService'
 import productService, { Product } from '@/services/productService'
 import companyService, { Company } from '@/services/companyService'
 import { mapToBackendInvoiceRequest } from '@/utils/invoiceAdapter'
 import { numberToWords } from '@/utils/numberToWords'
+import { getUserIdFromToken } from '@/utils/tokenUtils'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
 import type { ProductItem, CustomerInfo, TemplateConfigProps} from '@/types/invoiceTemplate'
 import { DEFAULT_TEMPLATE_VISIBILITY, DEFAULT_INVOICE_SYMBOL } from '@/types/invoiceTemplate'
@@ -39,7 +41,6 @@ import {
   ExpandMore,
   Visibility,
   Close,
-  Save,
   Publish,
   Print,
   KeyboardArrowUp,
@@ -774,6 +775,9 @@ function CreateSalesOrder() {
   // ✅ Edit mode detection
   const editMode = searchParams.get('mode') === 'edit'
   const editInvoiceId = searchParams.get('id')
+  
+  // Set title based on mode
+  usePageTitle(editMode ? 'Chỉnh sửa yêu cầu' : 'Tạo yêu cầu xuất hóa đơn')
   
   // Template states
   const [templates, setTemplates] = useState<Template[]>([])
@@ -1546,7 +1550,10 @@ function CreateSalesOrder() {
       const templateID = templates.length > 0 ? templates[0].templateID : 1
 
       // Map frontend state sang backend request
-      // ⭐ Không truyền salesID (để = 0), backend sẽ tự lấy từ auth token
+      // ✅ Lấy userId từ token cho performedBy
+      const currentUserId = getUserIdFromToken() || 0;
+      console.log('👤 Current userId from token:', currentUserId);
+      
       const backendRequest = mapToBackendInvoiceRequest(
         templateID,
         {
@@ -1564,8 +1571,9 @@ function CreateSalesOrder() {
         5,              // minRows
         invoiceStatusID, // ⭐ Status: 1=Nháp, 6=Chờ duyệt
         invoiceNotes,   // Ghi chú hóa đơn
-        0               // signedBy (0=chưa ký)
-        // salesID không truyền, backend tự lấy từ token
+        currentUserId,  // ✅ performedBy = userId từ token
+        undefined,      // ✅ salesID không truyền (Sales Order không có salesID)
+        null            // ✅ requestID = null (không link với request)
       )
 
       console.log(`📤 Sending invoice request (${statusLabel}):`, backendRequest)
@@ -1581,7 +1589,9 @@ function CreateSalesOrder() {
       console.log('  - taxAmount:', backendRequest.taxAmount, typeof backendRequest.taxAmount)
       console.log('  - totalAmount:', backendRequest.totalAmount, typeof backendRequest.totalAmount)
       console.log('  - paymentMethod:', backendRequest.paymentMethod)
-      console.log('  - signedBy:', backendRequest.signedBy, typeof backendRequest.signedBy)
+      console.log('  - performedBy:', backendRequest.performedBy, typeof backendRequest.performedBy)
+      console.log('  - salesID:', backendRequest.salesID, typeof backendRequest.salesID)
+      console.log('  - requestID:', backendRequest.requestID, typeof backendRequest.requestID)
       
       // Validate items
       backendRequest.items.forEach((item, idx) => {
@@ -1594,25 +1604,52 @@ function CreateSalesOrder() {
         })
       })
 
-      // ✅ Gọi API: create hoặc update tùy theo mode
+      // ✅ Gọi API: Tạo yêu cầu xuất hóa đơn (POST /api/InvoiceRequest)
       let response
       if (editMode && editInvoiceId) {
         // Edit mode: call updateInvoice
         console.log(`🔄 Updating invoice ID: ${editInvoiceId}`)
         response = await invoiceService.updateInvoice(parseInt(editInvoiceId), backendRequest)
       } else {
-        // Create mode: call createInvoice
-        response = await invoiceService.createInvoice(backendRequest)
+        // Create mode: call createInvoiceRequest
+        // ⚠️ Map to InvoiceRequest payload (16 fields - salesID auto from token)
+        const requestPayload: BackendInvoiceRequestPayload = {
+          accountantId: null,
+          // ❌ REMOVED: salesID - Backend tự lấy từ JWT token
+          customerID: backendRequest.customerID,
+          taxCode: backendRequest.taxCode,
+          customerName: backendRequest.customerName,
+          address: backendRequest.address,
+          notes: backendRequest.notes || '',
+          paymentMethod: backendRequest.paymentMethod,
+          items: backendRequest.items.map(item => ({
+            productId: item.productId || 0,
+            productName: item.productName,
+            unit: item.unit,
+            quantity: item.quantity,
+            amount: item.amount,
+            vatAmount: item.vatAmount,
+          })),
+          amount: backendRequest.amount,
+          taxAmount: backendRequest.taxAmount,
+          totalAmount: backendRequest.totalAmount,
+          minRows: backendRequest.minRows || 5,
+          contactEmail: backendRequest.contactEmail || '',
+          contactPerson: backendRequest.contactPerson || '',
+          contactPhone: backendRequest.contactPhone || '',
+          companyID: backendRequest.companyID || 1,
+        }
+        
+        console.log('📤 Sending InvoiceRequest payload:', requestPayload)
+        response = await createInvoiceRequest(requestPayload)
       }
 
       console.log('✅ Invoice saved:', response)
 
-      // ⭐ Hiển thị thông báo chi tiết
+      const responseId = ('requestID' in response ? response.requestID : response.invoiceID) || 0
       const successMessage = editMode
-        ? `✅ Cập nhật hóa đơn thành công! (ID: ${response.invoiceID})`
-        : invoiceStatusID === 1
-        ? `✅ Lưu hóa đơn nháp thành công! (ID: ${response.invoiceID})\n💡 Số hóa đơn sẽ được cấp sau khi ký số tại trang danh sách hóa đơn.`
-        : `✅ Gửi hóa đơn chờ duyệt thành công! (ID: ${response.invoiceID})\n📋 Hóa đơn đang chờ phê duyệt từ quản lý.`
+        ? `✅ Cập nhật hóa đơn thành công! (ID: ${responseId})`
+        : `✅ Tạo yêu cầu xuất hóa đơn thành công! (ID: ${responseId})\n📋 Yêu cầu đang chờ kế toán xử lý.`
 
       setSnackbar({
         open: true,
@@ -1629,7 +1666,7 @@ function CreateSalesOrder() {
       console.error('❌ Error creating invoice:', error)
       
       // Parse error message từ nhiều nguồn
-      let errorMessage = 'Lỗi khi tạo hóa đơn'
+      let errorMessage = 'Lỗi khi tạo yêu cầu xuất hóa đơn'
       
       if (error instanceof Error) {
         errorMessage = error.message
@@ -1670,14 +1707,9 @@ function CreateSalesOrder() {
     }
   }
 
-  // ⭐ Lưu nháp (invoiceStatusID = 1)
-  const handleSaveDraft = async () => {
-    await handleSubmitInvoice(1, 'Lưu hóa đơn nháp')
-  }
-
-  // ⭐ Gửi duyệt (invoiceStatusID = 6)
-  const handleSubmitForApproval = async () => {
-    await handleSubmitInvoice(6, 'Gửi hóa đơn chờ duyệt')
+  // ⭐ Gửi yêu cầu xuất hóa đơn (invoiceStatusID = 1 cho request)
+  const handleSubmitRequest = async () => {
+    await handleSubmitInvoice(1, 'Gửi yêu cầu xuất hóa đơn')
   }
 
   // Đóng snackbar
@@ -2622,29 +2654,19 @@ function CreateSalesOrder() {
                 size="small"
                 variant="outlined"
                 startIcon={<Close fontSize="small" />}
+                onClick={() => navigate('/invoices')}
                 sx={{ textTransform: 'none', color: '#666', borderColor: '#ccc', fontSize: '0.8125rem', py: 0.5 }}>
                 Hủy bỏ
               </Button>
               <Button
                 size="small"
                 variant="contained"
-                startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Save fontSize="small" />}
-                onClick={handleSaveDraft}
+                startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Publish fontSize="small" />}
+                onClick={handleSubmitRequest}
                 disabled={isSubmitting}
-                sx={{ textTransform: 'none', backgroundColor: '#1976d2', fontSize: '0.8125rem', py: 0.5 }}>
-                {isSubmitting ? (editMode ? 'Đang cập nhật...' : 'Đang lưu...') : (editMode ? 'Cập nhật' : 'Lưu nháp')}
+                sx={{ textTransform: 'none', backgroundColor: '#2e7d32', minWidth: 180, fontSize: '0.8125rem', py: 0.5 }}>
+                {isSubmitting ? 'Đang gửi yêu cầu...' : '📋 Gửi yêu cầu xuất hóa đơn'}
               </Button>
-              {!editMode && (
-                <Button
-                  size="small"
-                  variant="contained"
-                  startIcon={<Publish fontSize="small" />}
-                  onClick={handleSubmitForApproval}
-                  disabled={isSubmitting}
-                  sx={{ textTransform: 'none', backgroundColor: '#2e7d32', minWidth: 140, fontSize: '0.8125rem', py: 0.5 }}>
-                  Gửi yêu cầu
-                </Button>
-              )}
             </Stack>
           </Stack>
         </Paper>

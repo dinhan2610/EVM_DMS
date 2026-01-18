@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Typography,
@@ -168,6 +169,8 @@ const ReportCard: React.FC<ReportCardProps> = ({ icon, color, title, description
 }
 
 const ReportsPage = () => {
+  usePageTitle('Báo cáo')
+  
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 

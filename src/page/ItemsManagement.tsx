@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Paper,
@@ -47,6 +48,8 @@ export interface Item extends ItemFormData {
 }
 
 const ItemsManagement = () => {
+  usePageTitle('Quản lý hàng hóa')
+  
   const { products, loading, error } = useProducts()
   const { categories } = useCategories()
   const [isModalOpen, setIsModalOpen] = useState(false)

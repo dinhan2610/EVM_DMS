@@ -2,6 +2,7 @@ import { Box, Typography } from '@mui/material';
 import StaffKPIs from '../components/staffdashboard/StaffKPIs';
 import TaskQueue from '../components/staffdashboard/TaskQueue';
 import MyRecentInvoices from '../components/staffdashboard/MyRecentInvoices';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import {
   mockStaffKPI,
   mockTaskQueue,
@@ -10,6 +11,7 @@ import {
 } from '../types/staff.mockdata';
 
 const StaffDashboard = () => {
+  usePageTitle('Không gian làm việc')
   // Event Handlers
   const handleFixNow = (taskId: string, actionUrl: string) => {
     console.log('Fix task:', taskId, '→', actionUrl);

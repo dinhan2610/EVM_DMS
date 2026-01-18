@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Typography,
@@ -81,6 +82,8 @@ const initialEmailConfig: EmailConfig = {
 }
 
 const SystemConfiguration = () => {
+  usePageTitle('Cấu hình hệ thống')
+  
   // State: Current Tab
   const [currentTab, setCurrentTab] = useState<'company' | 'integrations' | 'notifications'>('company')
 

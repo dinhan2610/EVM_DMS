@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Typography,
@@ -41,6 +42,8 @@ interface InvoiceTemplate {
 }
 
 const TemplateManagement = () => {
+  usePageTitle('Quản lý mẫu')
+  
   const navigate = useNavigate()
   const [searchText, setSearchText] = useState('')
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false)

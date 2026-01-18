@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Typography,
@@ -365,6 +366,8 @@ const permissionGroups: PermissionGroup[] = [
 ]
 
 const RolesPermissions: React.FC = () => {
+  usePageTitle('Phân quyền')
+  
   const [selectedRole, setSelectedRole] = useState<Role>('Ketoantruong')
   const [permissions, setPermissions] = useState<Record<PermissionKey, boolean>>(
     mockPermissions[selectedRole]

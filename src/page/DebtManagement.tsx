@@ -28,6 +28,7 @@ import {
   alpha,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
@@ -150,6 +151,8 @@ const getPaymentStatusLabel = (status: DebtInvoice['paymentStatus']): string => 
 // ==================== MAIN COMPONENT ====================
 
 const DebtManagement = () => {
+  usePageTitle('Quản lý công nợ')
+  
   // Auth context
   const { user } = useAuthContext()
   

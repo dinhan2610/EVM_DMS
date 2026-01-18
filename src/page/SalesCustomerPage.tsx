@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Typography,
@@ -121,6 +122,8 @@ const MOCK_CUSTOMERS: ISalesCustomer[] = [
 // ==================== MAIN COMPONENT ====================
 
 const SalesCustomerPage = () => {
+  usePageTitle('Khách hàng của tôi')
+  
   const navigate = useNavigate()
   
   // State

@@ -10,6 +10,95 @@ import type {
   BackendInvoiceResponse 
 } from '@/utils/invoiceAdapter';
 
+// ==================== INVOICE REQUEST TYPES ====================
+
+/**
+ * Backend Invoice Request Payload - POST /api/InvoiceRequest
+ * ✅ 17 fields - GIỮ NGUYÊN API hiện tại
+ * ⚠️ salesID: Frontend gửi 0, backend OVERRIDE từ JWT
+ * ⚠️ accountantId: Frontend gửi null, backend set null
+ */
+export interface BackendInvoiceRequestPayload {
+  accountantId: number | null;     // NULL = chưa assign accountant
+  salesID?: number;                // 🆕 Optional - Backend tự thêm từ JWT token
+  customerID: number;              // ID khách hàng
+  taxCode: string;                 // MST khách hàng
+  customerName: string;            // Tên công ty
+  address: string;                 // Địa chỉ
+  notes: string;                   // Ghi chú
+  paymentMethod: string;           // "Tiền mặt" | "Chuyển khoản"
+  items: BackendInvoiceRequestItem[];
+  amount: number;                  // Tổng chưa VAT
+  taxAmount: number;               // Tổng VAT
+  totalAmount: number;             // Tổng thanh toán
+  minRows: number;                 // Số dòng trống (mặc định 5)
+  contactEmail: string;            // Email
+  contactPerson: string;           // Người liên hệ
+  contactPhone: string;            // SĐT
+  companyID: number;               // Mặc định 1
+}
+
+export interface BackendInvoiceRequestItem {
+  productId: number;
+  productName: string;
+  unit: string;
+  quantity: number;
+  unitPrice?: number;
+  amount: number;
+  vatAmount: number;
+}
+
+/**
+ * Backend Invoice Request Response - GET /api/InvoiceRequest
+ */
+export interface BackendInvoiceRequestResponse {
+  requestID: number;
+  requestCode?: string;
+  statusID?: number;
+  statusId?: number;
+  statusName?: string;
+  customerID?: number;
+  customerName: string;
+  taxCode?: string;
+  address?: string;
+  salesID?: number;
+  salesName?: string;
+  saleName?: string;
+  accountantId?: number | null;
+  accountantName?: string;
+  items?: BackendInvoiceRequestItem[];
+  amount?: number;
+  taxAmount?: number;
+  totalAmount: number;
+  totalAmountInWords?: string;
+  notes?: string;
+  paymentMethod?: string;
+  contactEmail?: string;
+  contactPerson?: string;
+  contactPhone?: string;
+  requestDate?: string;
+  approvedDate?: string;
+  completedDate?: string;
+  rejectionReason?: string;
+  rejectReason?: string;
+  invoiceID?: number;
+  createdInvoiceId?: number | null;
+  invoiceNumber?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Request để update trạng thái
+ */
+export interface UpdateInvoiceRequestStatusPayload {
+  requestID: number;
+  statusID: number;                // New status
+  notes?: string;                  // Optional notes/reason
+  invoiceID?: number;              // For completed status
+  invoiceNumber?: number;          // For completed status
+}
+
 // ==================== EMAIL TYPES ====================
 
 export interface SendInvoiceEmailRequest {
@@ -231,6 +320,509 @@ export const getActiveTemplates = async (): Promise<Template[]> => {
   }
 };
 
+// ==================== INVOICE REQUEST APIs ====================
+
+/**
+ * Tạo yêu cầu xuất hóa đơn mới (từ Sales)
+ * @param payload - Invoice request data (17 fields)
+ * @returns Created request response
+ */
+export const createInvoiceRequest = async (
+  payload: BackendInvoiceRequestPayload
+): Promise<BackendInvoiceRequestResponse> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log('[createInvoiceRequest] Request payload:', payload);
+      console.log('[createInvoiceRequest] JSON:', JSON.stringify(payload, null, 2));
+    }
+
+    // ⚠️ TEMPORARY WORKAROUND: Hardcode salesID = 49 vì backend chưa extract từ token
+    // TODO: Remove khi backend đã fix
+    const requestData = {
+      ...payload,
+      salesID: 49,             // ⚠️ TEMP: Hardcode userId từ token
+      accountantId: null,
+      companyID: payload.companyID || 1,
+      minRows: payload.minRows || 5,
+    };
+
+    if (import.meta.env.DEV) {
+      console.log('[createInvoiceRequest] Sending data:', requestData);
+    }
+
+    const response = await axios.post<BackendInvoiceRequestResponse>(
+      `/api/InvoiceRequest`,
+      requestData,
+      { headers: getAuthHeaders() }
+    );
+
+    if (import.meta.env.DEV) {
+      console.log('[createInvoiceRequest] Success:', response.data);
+      console.log('[createInvoiceRequest] 🔍 CHECK SALES:', {
+        requestCreated: response.data,
+        expectedSalesID: 49,  // từ token claim "sub"
+        actualSalesID: response.data.salesID,
+        saleName: response.data.saleName || 'N/A'
+      });
+    }
+
+    return response.data;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error('[createInvoiceRequest] Error:', error);
+      if (axios.isAxiosError(error) && error.response) {
+        console.error('[createInvoiceRequest] Status:', error.response.status);
+        console.error('[createInvoiceRequest] Data:', error.response.data);
+      }
+    }
+    return handleApiError(error, 'Tạo yêu cầu xuất HĐ thất bại');
+  }
+};
+
+/**
+ * Lấy danh sách tất cả yêu cầu xuất hóa đơn
+ * @returns List of invoice requests
+ */
+export const getAllInvoiceRequests = async (): Promise<BackendInvoiceRequestResponse[]> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log('[getAllInvoiceRequests] Fetching all requests...');
+    }
+
+    const response = await axios.get<unknown>(
+      `/api/InvoiceRequest`,
+      {
+        headers: getAuthHeaders(),
+        params: {
+          pageSize: 1000,
+          page: 1,
+        }
+      }
+    );
+
+    if (import.meta.env.DEV) {
+      console.log('[getAllInvoiceRequests] Raw response:', response.data);
+      
+      // 🔍 DEBUG: Check xem backend có trả salesID không
+      const responseData = response.data as unknown as { value?: { items?: unknown[] }; valueOrDefault?: { items?: unknown[] } };
+      const firstItem = responseData?.value?.items?.[0] || responseData?.valueOrDefault?.items?.[0];
+      if (firstItem) {
+        console.log('[getAllInvoiceRequests] 🔍 RAW FIRST ITEM:', firstItem);
+        console.log('[getAllInvoiceRequests] 🔍 ALL KEYS:', Object.keys(firstItem as object));
+      }
+    }
+
+    // Backend returns: { value: { items: [...], pageIndex, totalPages, ... }, valueOrDefault: {...}, isFailed, isSuccess }
+    const data = response.data as Record<string, unknown>;
+    const actualData = (data.value || data.valueOrDefault || data) as { 
+      items?: BackendInvoiceRequestResponse[];
+      totalPages?: number;
+      totalCount?: number;
+    } | BackendInvoiceRequestResponse[];
+    
+    // Extract items array from pagination wrapper
+    let requestsArray: BackendInvoiceRequestResponse[] = [];
+    
+    if (!Array.isArray(actualData) && actualData.items && Array.isArray(actualData.items)) {
+      // Pagination format: { items: [...], pageIndex, totalPages, totalCount }
+      requestsArray = actualData.items;
+      if (import.meta.env.DEV) {
+        console.log('[getAllInvoiceRequests] Extracted from pagination:', {
+          count: requestsArray.length,
+          totalPages: actualData.totalPages,
+          totalCount: actualData.totalCount,
+        });
+        
+        // 🔍 DEBUG: Check salesID và saleName của từng request
+        console.log('[getAllInvoiceRequests] 🔍 CHECK SALES IN LIST:');
+        requestsArray.forEach((req, idx) => {
+          console.log(`  Request ${idx + 1}:`, {
+            requestID: req.requestID,
+            customerName: req.customerName,
+            salesID: req.salesID,
+            saleName: req.saleName,
+            statusName: req.statusName
+          });
+        });
+      }
+    } else if (Array.isArray(actualData)) {
+      // Direct array
+      requestsArray = actualData;
+    } else {
+      console.warn('[getAllInvoiceRequests] Unexpected format:', actualData);
+    }
+
+    return requestsArray;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error('[getAllInvoiceRequests] Error:', error);
+    }
+    return handleApiError(error, 'Lấy danh sách yêu cầu thất bại');
+  }
+};
+
+/**
+ * Lấy chi tiết một yêu cầu xuất hóa đơn
+ * @param requestID - ID của yêu cầu
+ * @returns Invoice request detail
+ */
+export const getInvoiceRequestDetail = async (
+  requestID: number
+): Promise<BackendInvoiceRequestResponse> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log(`[getInvoiceRequestDetail] Fetching request ${requestID}...`);
+    }
+
+    const response = await axios.get<unknown>(
+      `/api/InvoiceRequest/${requestID}`,
+      { headers: getAuthHeaders() }
+    );
+
+    if (import.meta.env.DEV) {
+      console.log('[getInvoiceRequestDetail] Raw response:', response.data);
+    }
+
+    // Backend returns: { value: {...}, valueOrDefault: {...}, isFailed, isSuccess }
+    const data = response.data as Record<string, unknown>;
+    const actualData = (data.value || data.valueOrDefault || data) as BackendInvoiceRequestResponse;
+
+    return actualData;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error('[getInvoiceRequestDetail] Error:', error);
+    }
+    return handleApiError(error, `Lấy chi tiết yêu cầu ${requestID} thất bại`);
+  }
+};
+
+/**
+ * Phê duyệt yêu cầu xuất hóa đơn (HOD/Accountant)
+ * @param requestID - ID của yêu cầu
+ * @param notes - Ghi chú (optional)
+ * @returns Updated request
+ */
+export const approveInvoiceRequest = async (
+  requestID: number,
+  notes?: string
+): Promise<BackendInvoiceRequestResponse> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log(`[approveInvoiceRequest] Approving request ${requestID}...`);
+    }
+
+    const response = await axios.post<BackendInvoiceRequestResponse>(
+      `/api/InvoiceRequest/${requestID}/approve`,
+      { notes },
+      { headers: getAuthHeaders() }
+    );
+
+    if (import.meta.env.DEV) {
+      console.log('[approveInvoiceRequest] Success:', response.data);
+    }
+
+    return response.data;
+  } catch (error) {
+    return handleApiError(error, `Phê duyệt yêu cầu ${requestID} thất bại`);
+  }
+};
+
+/**
+ * Từ chối yêu cầu xuất hóa đơn (HOD/Accountant)
+ * @param requestID - ID của yêu cầu
+ * @param reason - Lý do từ chối (required)
+ * @returns Request ID
+ */
+export const rejectInvoiceRequest = async (
+  requestID: number,
+  reason: string
+): Promise<number> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log(`[rejectInvoiceRequest] Rejecting request ${requestID}...`);
+      console.log('[rejectInvoiceRequest] Reason:', reason);
+    }
+
+    // ⚠️ API mới: POST /api/InvoiceRequest/reject
+    // Payload: { requestId, rejectReason }
+    const response = await axios.post<{
+      value: number;
+      valueOrDefault: number;
+      isSuccess: boolean;
+      isFailed: boolean;
+    }>(
+      `/api/InvoiceRequest/reject`,
+      { 
+        requestId: requestID,
+        rejectReason: reason 
+      },
+      { headers: getAuthHeaders() }
+    );
+
+    if (import.meta.env.DEV) {
+      console.log('[rejectInvoiceRequest] Success:', response.data);
+    }
+
+    return response.data.value || response.data.valueOrDefault;
+  } catch (error) {
+    return handleApiError(error, `Từ chối yêu cầu ${requestID} thất bại`);
+  }
+};
+
+/**
+ * Bắt đầu xử lý yêu cầu (Accountant)
+ * @param requestID - ID của yêu cầu
+ * @returns Updated request
+ */
+export const processInvoiceRequest = async (
+  requestID: number
+): Promise<BackendInvoiceRequestResponse> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log(`[processInvoiceRequest] Processing request ${requestID}...`);
+    }
+
+    const response = await axios.post<BackendInvoiceRequestResponse>(
+      `/api/InvoiceRequest/${requestID}/process`,
+      {},
+      { headers: getAuthHeaders() }
+    );
+
+    if (import.meta.env.DEV) {
+      console.log('[processInvoiceRequest] Success:', response.data);
+    }
+
+    return response.data;
+  } catch (error) {
+    return handleApiError(error, `Bắt đầu xử lý yêu cầu ${requestID} thất bại`);
+  }
+};
+
+/**
+ * Hoàn thành yêu cầu và liên kết hóa đơn (Accountant)
+ * @param requestID - ID của yêu cầu
+ * @param invoiceID - ID hóa đơn đã tạo
+ * @param invoiceNumber - Số hóa đơn đã tạo
+ * @returns Updated request
+ */
+export const completeInvoiceRequest = async (
+  requestID: number,
+  invoiceID: number,
+  invoiceNumber: number
+): Promise<BackendInvoiceRequestResponse> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log(`[completeInvoiceRequest] Completing request ${requestID}...`);
+    }
+
+    const response = await axios.post<BackendInvoiceRequestResponse>(
+      `/api/InvoiceRequest/${requestID}/complete`,
+      { invoiceID, invoiceNumber },
+      { headers: getAuthHeaders() }
+    );
+
+    if (import.meta.env.DEV) {
+      console.log('[completeInvoiceRequest] Success:', response.data);
+    }
+
+    return response.data;
+  } catch (error) {
+    return handleApiError(error, `Hoàn thành yêu cầu ${requestID} thất bại`);
+  }
+};
+
+/**
+ * Hủy yêu cầu (Sales)
+ * @param requestID - ID của yêu cầu
+ * @returns Updated request
+ */
+export const cancelInvoiceRequest = async (
+  requestID: number
+): Promise<BackendInvoiceRequestResponse> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log(`[cancelInvoiceRequest] Cancelling request ${requestID}...`);
+    }
+
+    const response = await axios.put<BackendInvoiceRequestResponse>(
+      `/api/InvoiceRequest/${requestID}/cancel`,
+      {},
+      { headers: getAuthHeaders() }
+    );
+
+    if (import.meta.env.DEV) {
+      console.log('[cancelInvoiceRequest] Success:', response.data);
+    }
+
+    return response.data;
+  } catch (error) {
+    return handleApiError(error, `Hủy yêu cầu ${requestID} thất bại`);
+  }
+};
+
+/**
+ * Xem PDF preview của invoice request
+ * @param requestID - ID của request
+ * @returns PDF blob
+ */
+export const previewInvoiceRequestPDF = async (requestID: number): Promise<Blob> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log(`[previewInvoiceRequestPDF] Fetching PDF for request ${requestID}...`);
+    }
+
+    const response = await axios.post(
+      `/api/InvoiceRequest/preview-pdf`,
+      null,
+      {
+        params: { id: requestID },
+        headers: getAuthHeaders(),
+        responseType: 'blob',
+      }
+    );
+
+    if (import.meta.env.DEV) {
+      console.log('[previewInvoiceRequestPDF] PDF fetched:', {
+        size: response.data.size,
+        type: response.data.type,
+      });
+    }
+
+    return response.data;
+  } catch (error) {
+    return handleApiError(error, `Không thể tải PDF yêu cầu ${requestID}`);
+  }
+};
+
+/**
+ * Interface cho Invoice Preview Payload
+ * API: POST /api/Invoice/preview
+ * Dùng để xem preview HTML của hóa đơn từ invoice request
+ */
+export interface InvoicePreviewPayload {
+  templateID: number;           // Cố định -1 (chỉ để xem, không phải hóa đơn thật)
+  customerID: number;
+  taxCode: string;
+  invoiceStatusID: number;      // 0 = draft
+  companyID: number;
+  salesID: number;
+  customerName: string;
+  address: string;
+  notes: string;
+  paymentMethod: string;
+  items: {
+    productId: number;
+    productName: string;
+    unit: string;
+    quantity: number;
+    amount: number;
+    vatAmount: number;
+  }[];
+  amount: number;
+  taxAmount: number;
+  totalAmount: number;
+  performedBy: number | null;   // null = auto
+  minRows: number;
+  contactEmail: string;
+  contactPerson: string;
+  contactPhone: string;
+}
+
+/**
+ * Interface cho Prefill Invoice Response
+ * API: GET /api/InvoiceRequest/{id}/prefill_invoice
+ * Trả về data đầy đủ để tạo hóa đơn từ request
+ */
+export interface PrefillInvoiceResponse {
+  invoiceData: InvoicePreviewPayload;
+  requestId: number;
+}
+
+/**
+ * Lấy dữ liệu prefill cho tạo hóa đơn từ Invoice Request
+ * @param requestID - ID của request
+ * @returns Prefill invoice data
+ */
+export const getPrefillInvoiceData = async (requestID: number): Promise<PrefillInvoiceResponse> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log(`[getPrefillInvoiceData] Fetching prefill data for request ${requestID}...`);
+    }
+
+    const response = await axios.get<PrefillInvoiceResponse>(
+      `/api/InvoiceRequest/${requestID}/prefill_invoice`,
+      { headers: getAuthHeaders() }
+    );
+
+    if (import.meta.env.DEV) {
+      console.log('[getPrefillInvoiceData] Prefill data:', response.data);
+    }
+
+    return response.data;
+  } catch (error) {
+    return handleApiError(error, `Lấy dữ liệu prefill cho yêu cầu ${requestID} thất bại`);
+  }
+};
+
+/**
+ * Xem HTML preview của invoice request
+ * @param requestID - ID của request
+ * @returns HTML string
+ */
+export const previewInvoiceRequestHTML = async (requestID: number): Promise<string> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log(`[previewInvoiceRequestHTML] Fetching prefill data for request ${requestID}...`);
+    }
+
+    // 1. Gọi API prefill_invoice - Trả về ĐẦY ĐỦ data cho invoice preview
+    const prefillResponse = await axios.get<PrefillInvoiceResponse>(
+      `/api/InvoiceRequest/${requestID}/prefill_invoice`,
+      { headers: getAuthHeaders() }
+    );
+
+    const { invoiceData } = prefillResponse.data;
+
+    if (import.meta.env.DEV) {
+      console.log('[previewInvoiceRequestHTML] Prefill invoice data:', invoiceData);
+    }
+
+    // 2. Set templateID = -1 để preview (backend trả về -1 rồi nhưng đảm bảo)
+    const previewPayload: InvoicePreviewPayload = {
+      ...invoiceData,
+      templateID: -1,  // Force preview mode
+    };
+
+    if (import.meta.env.DEV) {
+      console.log('[previewInvoiceRequestHTML] Preview payload:', previewPayload);
+    }
+
+    // 3. Gọi API Invoice preview
+    const response = await axios.post<string>(
+      `/api/Invoice/preview`,
+      previewPayload,
+      {
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json',
+        },
+        responseType: 'text',
+      }
+    );
+
+    if (import.meta.env.DEV) {
+      console.log('[previewInvoiceRequestHTML] HTML preview fetched:', {
+        length: response.data.length,
+        type: typeof response.data,
+      });
+    }
+
+    return response.data;
+  } catch (error) {
+    return handleApiError(error, `Không thể tải preview hóa đơn ${requestID}`);
+  }
+};
+
 // ==================== INVOICE APIs ====================
 
 /**
@@ -330,7 +922,7 @@ export const updateInvoice = async (
     
     // ✅ Convert to draft request (remove fields not needed by /draft endpoint)
     const draftRequest: BackendDraftInvoiceRequest = {
-      customerID: data.customerID,
+      CustomerID: data.customerID,
       taxCode: data.taxCode,
       customerName: data.customerName,
       address: data.address,
@@ -344,7 +936,7 @@ export const updateInvoice = async (
       contactEmail: data.contactEmail,
       contactPerson: data.contactPerson,
       contactPhone: data.contactPhone,
-      signedBy: data.signedBy
+      signedBy: data.performedBy || 0
     };
     
     if (import.meta.env.DEV) {
@@ -1350,6 +1942,9 @@ const invoiceService = {
   downloadInvoicePDF,
   printInvoiceHTML,
   saveInvoicePDF,
+  
+  // Invoice Request Prefill
+  getPrefillInvoiceData,
 };
 
 export default invoiceService;

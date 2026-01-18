@@ -5,7 +5,7 @@ import type { ApexOptions } from 'apexcharts';
 import type { DebtAgingData } from '../../types/dashboard.types';
 
 interface DebtAgingChartProps {
-  data: DebtAgingData[];
+  data: DebtAgingData;
 }
 
 const DebtAgingChart: React.FC<DebtAgingChartProps> = ({ data }) => {
@@ -18,6 +18,14 @@ const DebtAgingChart: React.FC<DebtAgingChartProps> = ({ data }) => {
     }
     return value.toLocaleString('vi-VN') + ' VNĐ';
   };
+
+  // Convert API structure to chart data
+  const categories = [
+    { ...data.withinDue, color: '#10b981' },
+    { ...data.overdue1To30, color: '#f59e0b' },
+    { ...data.overdue31To60, color: '#f97316' },
+    { ...data.criticalOverdue60Plus, color: '#ef4444' },
+  ];
 
   const chartOptions: ApexOptions = {
     chart: {
@@ -32,9 +40,9 @@ const DebtAgingChart: React.FC<DebtAgingChartProps> = ({ data }) => {
         show: false,
       },
     },
-    series: data.map((d) => d.amount),
-    labels: data.map((d) => d.category),
-    colors: data.map((d) => d.color),
+    series: categories.map((d) => d.amount),
+    labels: categories.map((d) => d.label),
+    colors: categories.map((d) => d.color),
     
     // Simple Donut Configuration (Following Template)
     plotOptions: {
@@ -129,7 +137,7 @@ const DebtAgingChart: React.FC<DebtAgingChartProps> = ({ data }) => {
       },
       y: {
         formatter: function (val: number, opts: { seriesIndex: number }) {
-          const count = data[opts.seriesIndex].count;
+          const count = categories[opts.seriesIndex].count;
           return `${formatCurrency(val)} • ${count} khách hàng`;
         },
       },
@@ -183,8 +191,8 @@ const DebtAgingChart: React.FC<DebtAgingChartProps> = ({ data }) => {
   };
 
   // Calculate risk metrics
-  const totalDebt = data.reduce((sum, d) => sum + d.amount, 0);
-  const criticalDebt = data.slice(-1)[0]?.amount || 0; // Last segment (>60 days)
+  const totalDebt = categories.reduce((sum, d) => sum + d.amount, 0);
+  const criticalDebt = data.criticalOverdue60Plus.amount;
   const riskPercentage = (criticalDebt / totalDebt) * 100;
 
   return (
@@ -244,9 +252,9 @@ const DebtAgingChart: React.FC<DebtAgingChartProps> = ({ data }) => {
               gap: 2,
             }}
           >
-            {data.map((item) => (
+            {categories.map((item) => (
               <Box 
-                key={item.category} 
+                key={item.label} 
                 sx={{
                   textAlign: 'center',
                   p: 1.5,
@@ -282,7 +290,7 @@ const DebtAgingChart: React.FC<DebtAgingChartProps> = ({ data }) => {
                     mb: 0.5,
                   }}
                 >
-                  {item.category}
+                  {item.label}
                 </Typography>
                 <Typography 
                   variant="body2" 
@@ -295,16 +303,29 @@ const DebtAgingChart: React.FC<DebtAgingChartProps> = ({ data }) => {
                 >
                   {formatCurrency(item.amount)}
                 </Typography>
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
-                    color: '#94a3b8', 
-                    fontSize: '10px',
-                    fontWeight: 500,
-                  }}
-                >
-                  {item.count} khách hàng
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: '#94a3b8', 
+                      fontSize: '10px',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {item.count} KH
+                  </Typography>
+                  <Chip
+                    label={`${item.percentage.toFixed(2)}%`}
+                    size="small"
+                    sx={{
+                      bgcolor: `${item.color}20`,
+                      color: item.color,
+                      fontWeight: 700,
+                      fontSize: '9px',
+                      height: 18,
+                    }}
+                  />
+                </Box>
               </Box>
             ))}
           </Box>

@@ -89,6 +89,14 @@ const invoicesList: MenuItemType = {
   roles: [USER_ROLES.ADMIN, USER_ROLES.ACCOUNTANT], // ❌ HOD KHÔNG có
 }
 
+const invoiceRequests: MenuItemType = {
+  key: 'invoice-requests',
+  icon: 'iconamoon:folder-check-duotone',
+  label: 'Yêu cầu xuất HĐ',
+  url: '/invoice-requests',
+  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES],
+}
+
 const invoicesApproval: MenuItemType = {
   key: 'invoices-approval',
   icon: 'iconamoon:certificate-badge-duotone',
@@ -201,6 +209,7 @@ export const getMenuItemsByRole = (userRole?: string): MenuItemType[] => {
     adminCustomers,
     // Invoice menus
     invoicesList,
+    invoiceRequests,
     invoicesApproval,
     invoicesCreate,
     statements,
@@ -249,6 +258,7 @@ export const MENU_ITEMS: MenuItemType[] = [
   adminCustomers,
   // Invoice menus
   invoicesList,
+  invoiceRequests,
   invoicesApproval,
   invoicesCreate,
   statements,

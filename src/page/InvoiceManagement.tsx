@@ -28,6 +28,7 @@ import AddIcon from '@mui/icons-material/Add'
 import SendIcon from '@mui/icons-material/Send'
 import DrawIcon from '@mui/icons-material/Draw'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import DownloadIcon from '@mui/icons-material/Download'
 import EmailIcon from '@mui/icons-material/Email'
 import PrintIcon from '@mui/icons-material/Print'
@@ -481,6 +482,7 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax,
 }
 
 const InvoiceManagement = () => {
+  usePageTitle('Quản lý hóa đơn')
   const navigate = useNavigate()
   const authContext = useAuthContext()
   

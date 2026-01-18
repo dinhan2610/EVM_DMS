@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Stack,
@@ -93,6 +94,10 @@ const TemplateEditor: React.FC = () => {
   const navigate = useNavigate()
   
   const templateId = urlTemplateId || searchParams.get('templateId')
+  const isEditMode = !!templateId
+  
+  // Set title based on mode
+  usePageTitle(isEditMode ? 'Chỉnh sửa mẫu' : 'Tạo mẫu mới')
   
   // ✅ Ref cho input file để reset sau khi xóa
   const logoInputRef = React.useRef<HTMLInputElement>(null)

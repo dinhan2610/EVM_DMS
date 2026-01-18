@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Typography,
@@ -446,6 +447,8 @@ const InvoiceApprovalActionsMenu = ({ invoice, onApprove, onReject, onSign, onIs
 }
 
 const InvoiceApproval = () => {
+  usePageTitle('Duyệt hóa đơn')
+  
   // State quản lý data
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)

@@ -28,6 +28,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import SearchIcon from '@mui/icons-material/Search'
 import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined'
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import PhoneOutlinedIcon from '@mui/icons-material/PhoneOutlined'
 import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined'
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined'
@@ -59,6 +60,8 @@ const initialFormState: Omit<Customer, 'id'> = {
 }
 
 const CustomerManagement = () => {
+  usePageTitle('Quản lý khách hàng')
+  
   // Theme & Responsive
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))

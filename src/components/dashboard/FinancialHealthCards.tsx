@@ -35,7 +35,7 @@ const FinancialHealthCards: React.FC<FinancialHealthCardsProps> = ({ data }) => 
     {
       id: 'cash-collected',
       title: 'Thực thu',
-      subtitle: `${data.collectionRate.toFixed(1)}% của doanh thu`,
+      subtitle: `${data.collectionRate.toFixed(2)}% của doanh thu`,
       value: formatCurrency(data.cashCollected),
       icon: PaymentIcon,
       color: '#10b981', // Emerald
@@ -44,26 +44,48 @@ const FinancialHealthCards: React.FC<FinancialHealthCardsProps> = ({ data }) => 
       progressLabel: 'Tỷ lệ thu',
     },
     {
-      id: 'vat-payable',
-      title: 'Thuế GTGT phải nộp',
-      subtitle: 'Ước tính tháng này',
-      value: formatCurrency(data.estimatedVAT),
+      id: 'outstanding',
+      title: 'Còn phải thu',
+      subtitle: `${data.outstandingRate.toFixed(2)}% chưa thu`,
+      value: formatCurrency(data.outstanding),
       icon: ReceiptIcon,
       color: '#f59e0b', // Amber
       bgColor: '#fffbeb',
+      progress: data.outstandingRate,
+      progressLabel: 'Tỷ lệ chưa thu',
+      badge: 'Theo dõi',
+    },
+    {
+      id: 'vat-payable',
+      title: 'Thuế GTGT phải nộp',
+      subtitle: `Thuế suất ${data.vatRate}%`,
+      value: formatCurrency(data.estimatedVAT),
+      icon: ReceiptIcon,
+      color: '#8b5cf6', // Violet
+      bgColor: '#faf5ff',
       progress: null,
       badge: 'Quan trọng',
     },
     {
+      id: 'total-debt',
+      title: 'Tổng công nợ',
+      subtitle: `${data.totalDebtCount} công nợ`,
+      value: formatCurrency(data.totalDebt),
+      icon: DangerousIcon,
+      color: '#3b82f6', // Blue
+      bgColor: '#eff6ff',
+      progress: null,
+    },
+    {
       id: 'critical-debt',
-      title: 'Nợ quá hạn >90 ngày',
-      subtitle: `${data.criticalDebtCount} khách hàng`,
+      title: 'Nợ quá hạn >60 ngày',
+      subtitle: data.criticalDebtCount > 0 ? `${data.criticalDebtCount} khách hàng` : 'Không có nợ nguy hiểm',
       value: formatCurrency(data.criticalDebt),
       icon: DangerousIcon,
-      color: '#dc2626', // Red
-      bgColor: '#fef2f2',
+      color: data.criticalDebt > 0 ? '#dc2626' : '#10b981', // Red if has debt, Green if 0
+      bgColor: data.criticalDebt > 0 ? '#fef2f2' : '#ecfdf5',
       progress: null,
-      urgent: true,
+      urgent: data.criticalDebt > 0,
     },
   ];
 

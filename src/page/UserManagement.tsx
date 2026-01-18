@@ -28,6 +28,7 @@ import {
   useMediaQuery,
   CircularProgress,
 } from '@mui/material'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import AddIcon from '@mui/icons-material/Add'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
@@ -86,6 +87,8 @@ const initialFormState: UserFormData = {
 }
 
 const UserManagement = () => {
+  usePageTitle('Quản lý người dùng')
+  
   // Theme & Responsive
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))

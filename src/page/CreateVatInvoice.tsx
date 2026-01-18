@@ -6,9 +6,11 @@ import productService, { Product } from '@/services/productService'
 import companyService, { Company } from '@/services/companyService'
 import { mapToBackendInvoiceRequest } from '@/utils/invoiceAdapter'
 import { numberToWords } from '@/utils/numberToWords'
+import { getUserIdFromToken } from '@/utils/tokenUtils'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
 import type { ProductItem, CustomerInfo, TemplateConfigProps} from '@/types/invoiceTemplate'
 import { DEFAULT_TEMPLATE_VISIBILITY, DEFAULT_INVOICE_SYMBOL } from '@/types/invoiceTemplate'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Paper,
@@ -736,6 +738,24 @@ const CreateVatInvoice: React.FC = () => {
   const editMode = searchParams.get('mode') === 'edit'
   const editInvoiceId = searchParams.get('id')
   
+  // ✅ Prefill mode detection (from Invoice Request)
+  const prefillRequestId = searchParams.get('requestId')
+  const isPrefillMode = !!prefillRequestId
+  
+  console.log('🔍 CreateVatInvoice params:', {
+    editMode,
+    editInvoiceId,
+    prefillRequestId,
+    isPrefillMode,
+  })
+  
+  // Set title based on mode
+  usePageTitle(
+    editMode ? 'Chỉnh sửa hóa đơn' : 
+    isPrefillMode ? 'Tạo hóa đơn từ yêu cầu' :
+    'Lập hóa đơn mới'
+  )
+  
   // Template states
   const [templates, setTemplates] = useState<Template[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
@@ -756,6 +776,9 @@ const CreateVatInvoice: React.FC = () => {
   const calculateAfterTax = false // Giá nhập vào là giá CHƯA thuế, VAT tính thêm
   const [totalDiscountPercent, setTotalDiscountPercent] = useState<number>(0) // Tỷ lệ CK chung cho 'total' mode
   const prevDiscountType = React.useRef<string>('none') // Track previous discountType
+
+  // ✅ State để lưu salesID từ prefill (default 0 cho normal create)
+  const [prefillSalesID, setPrefillSalesID] = useState<number>(0)
 
   // State cho loading và error
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -998,7 +1021,98 @@ const CreateVatInvoice: React.FC = () => {
     }
     
     loadInvoiceData()
-  }, [editMode, editInvoiceId, templates]) // Chờ templates load xong
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editMode, editInvoiceId, templates]) // navigate is stable, không cần thêm vào deps
+
+  // ✅ Load prefill data from Invoice Request
+  useEffect(() => {
+    console.log('🚀 Prefill useEffect triggered:', { isPrefillMode, prefillRequestId })
+    
+    const loadPrefillData = async () => {
+      if (!isPrefillMode || !prefillRequestId) {
+        console.log('⏭️ Skipping prefill - not in prefill mode')
+        return
+      }
+      
+      try {
+        setIsSubmitting(true)
+        console.log(`📥 Loading prefill data for request ID: ${prefillRequestId}`)
+        
+        const prefillResponse = await invoiceService.getPrefillInvoiceData(parseInt(prefillRequestId))
+        const { invoiceData } = prefillResponse
+        console.log('✅ Prefill data loaded:', invoiceData)
+        
+        // Auto-fill customer info
+        setBuyerCustomerID(invoiceData.customerID || 0)
+        setBuyerTaxCode(invoiceData.taxCode || '')
+        setBuyerCompanyName(invoiceData.customerName || '')
+        setBuyerAddress(invoiceData.address || '')
+        setBuyerEmail(invoiceData.contactEmail || '')
+        setBuyerPhone(invoiceData.contactPhone || '')
+        setBuyerName(invoiceData.contactPerson || '')
+        // ✅ Map payment method từ English sang Vietnamese
+        const mappedPaymentMethod = invoiceData.paymentMethod 
+          ? (['Banking', 'Cash', 'DebtOffset', 'Other'].includes(invoiceData.paymentMethod)
+              ? { 'Banking': 'Chuyển khoản', 'Cash': 'Tiền mặt', 'DebtOffset': 'Đổi trừ công nợ', 'Other': 'Khác' }[invoiceData.paymentMethod]
+              : invoiceData.paymentMethod)
+          : 'Tiền mặt'
+        setPaymentMethod(mappedPaymentMethod || 'Tiền mặt')
+        console.log('💳 Payment method mapped:', invoiceData.paymentMethod, '→', mappedPaymentMethod)
+        setInvoiceNotes(invoiceData.notes || '')
+        if (invoiceData.notes) {
+          setShowInvoiceNotes(true)
+        }
+        
+        // ✅ Lưu salesID từ prefill (nếu có)
+        if (invoiceData.salesID !== undefined && invoiceData.salesID !== null) {
+          setPrefillSalesID(invoiceData.salesID)
+          console.log('✅ Saved salesID from prefill:', invoiceData.salesID)
+          console.log('✅ Will use salesID as performedBy:', invoiceData.salesID)
+        }
+        
+        // Auto-fill items
+        if (invoiceData.items && invoiceData.items.length > 0) {
+          const mappedItems: InvoiceItem[] = invoiceData.items.map((item, index) => ({
+            id: index + 1,
+            stt: index + 1,
+            productId: item.productId,
+            type: 'Hàng hóa, dịch vụ',
+            code: '',
+            name: item.productName || '',
+            unit: item.unit || '',
+            quantity: item.quantity || 0,
+            priceAfterTax: item.amount / (item.quantity || 1), // Đơn giá chưa thuế
+            discountPercent: 0,
+            discountAmount: 0,
+            totalAfterTax: item.amount,
+            vatRate: item.vatAmount > 0 && item.amount > 0 
+              ? Math.round((item.vatAmount / item.amount) * 100)
+              : 0,
+            vatTax: item.vatAmount,
+          }))
+          setItems(mappedItems)
+        }
+        
+        setSnackbar({
+          open: true,
+          message: '✅ Đã tải dữ liệu từ yêu cầu. Vui lòng chọn mẫu và kiểm tra thông tin.',
+          severity: 'success',
+        })
+        
+      } catch (error) {
+        console.error('❌ Error loading prefill data:', error)
+        setSnackbar({
+          open: true,
+          message: `❌ Lỗi tải dữ liệu: ${error instanceof Error ? error.message : 'Vui lòng thử lại'}`,
+          severity: 'error',
+        })
+      } finally {
+        setIsSubmitting(false)
+      }
+    }
+    
+    loadPrefillData()
+  }, [isPrefillMode, prefillRequestId])
 
   // State quản lý danh sách hàng hóa
   const [items, setItems] = useState<InvoiceItem[]>([
@@ -1611,7 +1725,14 @@ const CreateVatInvoice: React.FC = () => {
       setIsSubmitting(true)
 
       // Map frontend state sang backend request
-      // ⭐ Không truyền salesID (để = 0), backend sẽ tự lấy từ auth token
+      // ⭐ Phân biệt 2 trường hợp:
+      // - Tạo từ prefill (isPrefillMode): truyền salesID từ prefill
+      // - Tạo thông thường: KHÔNG truyền salesID, backend tự extract từ token
+      
+      // ✅ Lấy userId từ token cho performedBy
+      const currentUserId = getUserIdFromToken() || 0;
+      console.log('👤 Current userId from token:', currentUserId);
+      
       const backendRequest = mapToBackendInvoiceRequest(
         selectedTemplate.templateID,
         {
@@ -1629,16 +1750,26 @@ const CreateVatInvoice: React.FC = () => {
         5,              // minRows
         invoiceStatusID, // ⭐ Status: 1=Nháp, 6=Chờ duyệt
         invoiceNotes,   // Ghi chú hóa đơn
-        0               // signedBy (0=chưa ký)
-        // salesID không truyền, backend tự lấy từ token
+        isPrefillMode ? (prefillSalesID || currentUserId) : currentUserId,  // ✅ performedBy: prefill dùng salesID, normal dùng currentUserId
+        isPrefillMode ? prefillSalesID : undefined, // ✅ salesID: CHỈ gửi khi prefill mode
+        prefillRequestId ? parseInt(prefillRequestId) : null  // ✅ requestID từ prefill hoặc null
       )
 
       console.log(`📤 Sending invoice request (${statusLabel}):`, backendRequest)
+      
+      // ✅ Log logic phân biệt prefill vs normal
+      console.log('🔍 Mode detection:', {
+        isPrefillMode,
+        salesIDSent: backendRequest.salesID !== undefined ? backendRequest.salesID : 'NOT_SENT',
+        performedBy: backendRequest.performedBy,
+        requestID: backendRequest.requestID
+      })
       
       // ✅ Validate payload trước khi gửi
       console.log('🔍 Payload validation:')
       console.log('  - templateID:', backendRequest.templateID, typeof backendRequest.templateID)
       console.log('  - customerID:', backendRequest.customerID, typeof backendRequest.customerID)
+      console.log('  - taxCode:', backendRequest.taxCode)
       console.log('  - invoiceStatusID:', backendRequest.invoiceStatusID, typeof backendRequest.invoiceStatusID)
       console.log('  - companyID:', backendRequest.companyID, typeof backendRequest.companyID)
       console.log('  - items count:', backendRequest.items?.length)
@@ -1646,7 +1777,9 @@ const CreateVatInvoice: React.FC = () => {
       console.log('  - taxAmount:', backendRequest.taxAmount, typeof backendRequest.taxAmount)
       console.log('  - totalAmount:', backendRequest.totalAmount, typeof backendRequest.totalAmount)
       console.log('  - paymentMethod:', backendRequest.paymentMethod)
-      console.log('  - signedBy:', backendRequest.signedBy, typeof backendRequest.signedBy)
+      console.log('  - performedBy:', backendRequest.performedBy, typeof backendRequest.performedBy)
+      console.log('  - salesID:', backendRequest.salesID, typeof backendRequest.salesID)
+      console.log('  - requestID:', backendRequest.requestID, typeof backendRequest.requestID)
       
       // Validate items
       backendRequest.items.forEach((item, idx) => {

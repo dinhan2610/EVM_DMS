@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Typography,
@@ -404,6 +405,8 @@ const RequestActionsMenu = ({ request, onViewDetails, onAccept, onReject }: Requ
 }
 
 const RequestManagement = () => {
+  usePageTitle('Quản lý yêu cầu')
+  
   const navigate = useNavigate()
   const [requests, setRequests] = useState<InvoiceRequest[]>(mockRequests)
   const [rejectionModalOpen, setRejectionModalOpen] = useState(false)

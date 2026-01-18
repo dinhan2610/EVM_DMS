@@ -1,25 +1,75 @@
-import { Box, Typography } from '@mui/material'
+import { useState, useEffect } from 'react'
+import { Box, Typography, Alert, CircularProgress } from '@mui/material'
 import FinancialHealthCards from '../components/dashboard/FinancialHealthCards'
 import CashFlowChart from '../components/dashboard/CashFlowChart'
 import DebtAgingChart from '../components/dashboard/DebtAgingChart'
 import ApprovalQueue from '../components/dashboard/ApprovalQueue'
-import {
-  mockFinancialHealthKPI,
-  mockCashFlowData,
-  mockDebtAgingData,
-  mockPendingInvoices,
-} from '../types/dashboard.mockdata'
+import { usePageTitle } from '@/hooks/usePageTitle'
+import dashboardService from '@/services/dashboardService'
+import type { HODDashboardData, PendingInvoice } from '@/types/dashboard.types'
 
 const HODDashboard = () => {
+  usePageTitle('Tổng quan - Kế toán trưởng')
+  
+  const [data, setData] = useState<HODDashboardData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Fetch HOD Dashboard data
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await dashboardService.getHODDashboard()
+        setData(response)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Không thể tải dữ liệu dashboard')
+        console.error('❌ Failed to fetch HOD dashboard:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDashboardData()
+  }, [])
+
   // Event Handlers
   const handleBulkApprove = (invoiceIds: string[]) => {
     console.log('Bulk approve invoices:', invoiceIds)
     // TODO: Implement API call for bulk approval
   }
 
-  const handleQuickView = (invoice: { id: string }) => {
-    console.log('Quick view invoice:', invoice.id)
+  const handleQuickView = (invoice: PendingInvoice) => {
+    console.log('Quick view invoice:', invoice.invoiceId)
     // TODO: Open invoice detail modal
+  }
+
+  // Loading state
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <Box sx={{ p: 4 }}>
+        <Alert severity="error">{error}</Alert>
+      </Box>
+    )
+  }
+
+  // No data state
+  if (!data) {
+    return (
+      <Box sx={{ p: 4 }}>
+        <Alert severity="info">Không có dữ liệu</Alert>
+      </Box>
+    )
   }
 
   return (
@@ -33,11 +83,14 @@ const HODDashboard = () => {
           <Typography variant="body2" sx={{ color: '#64748b' }}>
             Phân tích tài chính nâng cao & Quản lý dòng tiền
           </Typography>
+          <Typography variant="caption" sx={{ color: '#94a3b8', mt: 0.5, display: 'block' }}>
+            Cập nhật: {new Date(data.generatedAt).toLocaleString('vi-VN')} • Kỳ: {data.fiscalMonth}
+          </Typography>
         </Box>
 
         {/* Row 1: Financial Health KPIs */}
         <Box sx={{ mb: 3 }}>
-          <FinancialHealthCards data={mockFinancialHealthKPI} />
+          <FinancialHealthCards data={data.financials} />
         </Box>
 
         {/* Row 2: Deep Dive Charts (60% + 40%) */}
@@ -49,14 +102,14 @@ const HODDashboard = () => {
             mb: 3,
           }}
         >
-          <CashFlowChart data={mockCashFlowData} />
-          <DebtAgingChart data={mockDebtAgingData} />
+          <CashFlowChart data={data.cashFlow} />
+          <DebtAgingChart data={data.debtAging} />
         </Box>
 
         {/* Row 3: Approval Queue - Action Center */}
         <Box>
           <ApprovalQueue
-            invoices={mockPendingInvoices}
+            invoices={data.pendingInvoices}
             onBulkApprove={handleBulkApprove}
             onQuickView={handleQuickView}
           />

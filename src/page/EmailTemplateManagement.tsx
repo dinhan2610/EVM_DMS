@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Paper,
@@ -72,6 +73,8 @@ const replaceVariables = (content: string): string => {
 // ==================== MAIN COMPONENT ====================
 
 const EmailTemplateManagement = () => {
+  usePageTitle('Quản lý mẫu email')
+  
   const [templates, setTemplates] = useState<EmailTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [searchText, setSearchText] = useState('')

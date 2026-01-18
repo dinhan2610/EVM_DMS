@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Typography,
@@ -106,6 +107,8 @@ const generateMockInvoices = (): CustomerInvoice[] => {
 // ==================== MAIN COMPONENT ====================
 
 const CustomerInvoiceList = () => {
+  usePageTitle('Hóa đơn của tôi')
+  
   const navigate = useNavigate()
 
   // State - Data

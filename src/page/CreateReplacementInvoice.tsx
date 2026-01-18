@@ -6,6 +6,7 @@ import productService, { Product } from '@/services/productService'
 import companyService, { Company } from '@/services/companyService'
 import { mapToBackendInvoiceRequest } from '@/utils/invoiceAdapter'
 import { numberToWords } from '@/utils/numberToWords'
+import { getUserIdFromToken } from '@/utils/tokenUtils'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
 import type { ProductItem, CustomerInfo, TemplateConfigProps} from '@/types/invoiceTemplate'
 import { DEFAULT_TEMPLATE_VISIBILITY, DEFAULT_INVOICE_SYMBOL } from '@/types/invoiceTemplate'
@@ -1722,7 +1723,10 @@ const CreateVatInvoice: React.FC = () => {
       setIsSubmitting(true)
 
       // Map frontend state sang backend request
-      // ⭐ Không truyền salesID (để = 0), backend sẽ tự lấy từ auth token
+      // ✅ Lấy userId từ token cho performedBy
+      const currentUserId = getUserIdFromToken() || 0;
+      console.log('👤 Current userId from token:', currentUserId);
+      
       const backendRequest = mapToBackendInvoiceRequest(
         selectedTemplate.templateID,
         {
@@ -1740,8 +1744,9 @@ const CreateVatInvoice: React.FC = () => {
         5,              // minRows
         invoiceStatusID, // ⭐ Status: 1=Nháp, 6=Chờ duyệt
         invoiceNotes,   // Ghi chú hóa đơn
-        0               // signedBy (0=chưa ký)
-        // salesID không truyền, backend tự lấy từ token
+        currentUserId,  // ✅ performedBy = userId từ token
+        undefined,      // ✅ salesID không truyền (tạo thay thế không có salesID)
+        null            // ✅ requestID = null (không link với request)
       )
 
       console.log(`📤 Sending invoice request (${statusLabel}):`, backendRequest)
@@ -1757,7 +1762,9 @@ const CreateVatInvoice: React.FC = () => {
       console.log('  - taxAmount:', backendRequest.taxAmount, typeof backendRequest.taxAmount)
       console.log('  - totalAmount:', backendRequest.totalAmount, typeof backendRequest.totalAmount)
       console.log('  - paymentMethod:', backendRequest.paymentMethod)
-      console.log('  - signedBy:', backendRequest.signedBy, typeof backendRequest.signedBy)
+      console.log('  - performedBy:', backendRequest.performedBy, typeof backendRequest.performedBy)
+      console.log('  - salesID:', backendRequest.salesID, typeof backendRequest.salesID)
+      console.log('  - requestID:', backendRequest.requestID, typeof backendRequest.requestID)
       
       // Validate items
       backendRequest.items.forEach((item, idx) => {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Typography,
@@ -38,6 +39,8 @@ import auditService, { DataLog, ActivityLog } from '@/services/auditService'
 type TabValue = 'data' | 'activity'
 
 const AuditLogsPage = () => {
+  usePageTitle('Nhật ký hệ thống')
+  
   // State: Tab
   const [currentTab, setCurrentTab] = useState<TabValue>('activity')
 

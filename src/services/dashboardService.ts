@@ -1,8 +1,8 @@
 import httpClient from '@/helpers/httpClient'
-import type { AdminDashboardData } from '@/types/dashboard.types'
+import type { AdminDashboardData, HODDashboardData } from '@/types/dashboard.types'
 
 /**
- * Dashboard Service - Admin Dashboard APIs
+ * Dashboard Service - Admin & HOD Dashboard APIs
  */
 
 /**
@@ -14,6 +14,16 @@ const getAdminDashboard = async (): Promise<AdminDashboardData> => {
   return response.data
 }
 
+/**
+ * Get HOD Dashboard Data
+ * @returns HOD dashboard data including financials, cash flow, debt aging, and pending invoices
+ */
+const getHODDashboard = async (): Promise<HODDashboardData> => {
+  const response = await httpClient.get<HODDashboardData>('/Dashboard/hod')
+  return response.data
+}
+
 export default {
   getAdminDashboard,
+  getHODDashboard,
 }

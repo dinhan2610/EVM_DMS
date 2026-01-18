@@ -10,6 +10,38 @@
  * - Cần tính amount (chưa VAT) từ totalAfterTax (đã VAT)
  */
 
+// ==================== HELPER FUNCTIONS ====================
+
+/**
+ * ✅ Map payment method giữa English (backend) và Vietnamese (frontend)
+ */
+const PAYMENT_METHOD_MAP: Record<string, string> = {
+  // Backend English → Frontend Vietnamese
+  'Cash': 'Tiền mặt',
+  'Banking': 'Chuyển khoản',
+  'DebtOffset': 'Đổi trừ công nợ',
+  'Other': 'Khác',
+  // Frontend Vietnamese → Backend English (reverse)
+  'Tiền mặt': 'Cash',
+  'Chuyển khoản': 'Banking',
+  'Đổi trừ công nợ': 'DebtOffset',
+  'Khác': 'Other'
+};
+
+/**
+ * Map payment method từ bất kỳ format nào sang Vietnamese (frontend)
+ */
+export function mapPaymentMethodToVietnamese(method: string): string {
+  return PAYMENT_METHOD_MAP[method] || method || 'Tiền mặt';
+}
+
+/**
+ * Map payment method từ Vietnamese (frontend) sang English (backend)
+ */
+export function mapPaymentMethodToEnglish(method: string): string {
+  return PAYMENT_METHOD_MAP[method] || method || 'Cash';
+}
+
 // ==================== BACKEND TYPES ====================
 
 /**
@@ -18,23 +50,25 @@
  */
 export interface BackendInvoiceRequest {
   templateID: number;
-  customerID: number;           // Có thể để 0 nếu khách lẻ
+  customerID: number;           // ✅ PascalCase (backend đã fix collision)
   taxCode: string;              // MST khách hàng
-  invoiceStatusID: number;      // ⭐ NEW: 1=Nháp, 6=Chờ duyệt
-  companyID: number;            // Có thể để 0
+  invoiceStatusID: number;      // 1=Nháp, 6=Chờ duyệt
+  companyID: number;            // ID công ty
+  salesID?: number;             // ✅ Optional: ID sales (chỉ gửi khi tạo từ prefill)
   customerName: string;         // Tên khách hàng
   address: string;              // Địa chỉ
-  notes: string;                // ⭐ NEW: Ghi chú
-  paymentMethod: string;        // ✅ Hình thức thanh toán (VD: "Tiền mặt", "Chuyển khoản")
+  notes: string;                // Ghi chú
+  paymentMethod: string;        // Hình thức thanh toán
   items: BackendInvoiceItem[];
   amount: number;               // Tổng tiền hàng (CHƯA VAT)
   taxAmount: number;            // Tổng tiền VAT
   totalAmount: number;          // Tổng cộng thanh toán
-  signedBy: number;             // ⭐ NEW: UserID người ký (0 nếu chưa ký)
+  performedBy: number;          // 🆕 UserID người thực hiện (thay signedBy)
   minRows: number;              // Số dòng trống tối thiểu
   contactEmail: string;         // Email liên hệ
   contactPerson: string;        // Người liên hệ
   contactPhone: string;         // SĐT liên hệ
+  requestID?: number;           // 🆕 Optional: Link với Invoice Request
 }
 
 /**
@@ -42,7 +76,7 @@ export interface BackendInvoiceRequest {
  * Dùng cho PUT /api/Invoice/draft/{id}
  */
 export interface BackendDraftInvoiceRequest {
-  customerID: number;           // Có thể để 0 nếu khách lẻ
+  CustomerID: number;           // ✅ C# backend property (uppercase 'ID')
   taxCode: string;              // MST khách hàng
   customerName: string;         // Tên khách hàng
   address: string;              // Địa chỉ
@@ -224,7 +258,8 @@ export function mapToBackendInvoiceRequest(
   invoiceStatusID: number = 1,          // ⭐ NEW: 1=Nháp, 6=Chờ duyệt
   notes: string = '',                   // ⭐ NEW: Ghi chú
   signedBy: number = 0,                 // ⭐ NEW: UserID người ký (0=chưa ký)
-  salesID: number = 0                   // ⭐ NEW: UserID salesperson (0=bỏ trống)
+  salesID?: number,                     // ⭐ NEW: Optional - chỉ gửi khi có giá trị (prefill mode)
+  requestID: number | null = null       // ⭐ NEW: Invoice Request ID (null=không link)
 ): BackendInvoiceRequest {
   
   // Validate totals trước khi gửi
@@ -270,24 +305,25 @@ export function mapToBackendInvoiceRequest(
   
   return {
     templateID,
-    customerID: buyerInfo.customerID || 0,  // ✅ Dùng customer ID từ DB, hoặc 0 nếu khách lẻ
+    customerID: buyerInfo.customerID || 0,  // ✅ Backend đã fix collision
     taxCode: buyerInfo.taxCode || 'N/A',
-    invoiceStatusID,                  // ⭐ NEW: 1=Nháp, 6=Chờ duyệt
-    companyID: 1,                     // ✅ Backend yêu cầu companyID = 1 (hardcoded)
-    ...(salesID > 0 && { salesID }), // ✅ Chỉ gửi nếu > 0, backend tự lấy từ token nếu không truyền
+    invoiceStatusID,                  // 1=Nháp, 6=Chờ duyệt
+    companyID: 1,                     // Backend yêu cầu companyID = 1
+    ...(salesID !== undefined && { salesID }),  // ✅ CHỈ gửi nếu không phải undefined
     customerName: buyerInfo.companyName || 'Khách hàng',
     address: buyerInfo.address || 'Chưa cập nhật',
-    notes: notes || '',               // ✅ Empty string instead of null
-    paymentMethod: paymentMethod,     // ✅ Hình thức thanh toán
+    notes: notes || '',
+    paymentMethod: paymentMethod,
     items: backendItems,
     amount: totalAmountBeforeVat,     // Tổng tiền chưa VAT
     taxAmount: totalVatAmount,        // Tổng tiền VAT
-    totalAmount: totals.total,        // ✅ Tổng thanh toán cuối cùng (đã bao gồm VAT)
-    signedBy,                         // ⭐ NEW: UserID người ký (0=chưa ký)
+    totalAmount: totals.total,        // Tổng thanh toán cuối cùng
+    performedBy: signedBy,            // 🆕 Đổi tên từ signedBy → performedBy
     minRows: minRows,
     contactEmail: buyerInfo.email || 'noreply@company.com',
-    contactPerson: buyerInfo.buyerName || '',  // ✅ Để trống nếu không nhập
-    contactPhone: buyerInfo.phone || '0000000000'
+    contactPerson: buyerInfo.buyerName || '',
+    contactPhone: buyerInfo.phone || '0000000000',
+    ...(requestID !== null && requestID > 0 && { requestID })  // ✅ Chỉ gửi nếu có requestID thực
   };
 }
 

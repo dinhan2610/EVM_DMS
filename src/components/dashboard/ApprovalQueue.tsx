@@ -21,11 +21,6 @@ import {
   Visibility as VisibilityIcon,
 } from '@mui/icons-material';
 import LinkIcon from '@mui/icons-material/Link';
-import { formatDistanceToNow } from 'date-fns';
-import { vi } from 'date-fns/locale';
-import { Link } from 'react-router-dom';
-import dayjs from 'dayjs';
-import { getInvoiceTypeLabel, getInvoiceTypeColor } from '../../services/invoiceService';
 import type { PendingInvoice } from '../../types/dashboard.types';
 
 interface ApprovalQueueProps {
@@ -39,7 +34,7 @@ const ApprovalQueue: React.FC<ApprovalQueueProps> = ({ invoices, onBulkApprove, 
 
   const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.checked) {
-      setSelected(invoices.map((inv) => inv.id));
+      setSelected(invoices.map((inv) => String(inv.invoiceId)));
     } else {
       setSelected([]);
     }
@@ -142,10 +137,10 @@ const ApprovalQueue: React.FC<ApprovalQueueProps> = ({ invoices, onBulkApprove, 
                   Số tiền
                 </TableCell>
                 <TableCell sx={{ bgcolor: '#f8fafc', borderBottom: '1px solid #f1f5f9', fontWeight: 600, fontSize: '12px', color: '#64748b' }}>
-                  Người tạo
+                  Thời gian chờ
                 </TableCell>
                 <TableCell sx={{ bgcolor: '#f8fafc', borderBottom: '1px solid #f1f5f9', fontWeight: 600, fontSize: '12px', color: '#64748b' }}>
-                  Thời gian
+                  Ưu tiên
                 </TableCell>
                 <TableCell sx={{ bgcolor: '#f8fafc', borderBottom: '1px solid #f1f5f9', fontWeight: 600, fontSize: '12px', color: '#64748b' }}>
                   Loại
@@ -156,9 +151,11 @@ const ApprovalQueue: React.FC<ApprovalQueueProps> = ({ invoices, onBulkApprove, 
               </TableRow>
             </TableHead>
             <TableBody>
-              {invoices.map((invoice) => (
+              {invoices.map((invoice) => {
+                const invoiceIdStr = String(invoice.invoiceId);
+                return (
                 <TableRow
-                  key={invoice.id}
+                  key={invoice.invoiceId}
                   hover
                   sx={{
                     cursor: 'pointer',
@@ -169,169 +166,108 @@ const ApprovalQueue: React.FC<ApprovalQueueProps> = ({ invoices, onBulkApprove, 
                 >
                   <TableCell padding="checkbox">
                     <Checkbox
-                      checked={selected.includes(invoice.id)}
-                      onChange={() => handleSelect(invoice.id)}
+                      checked={selected.includes(invoiceIdStr)}
+                      onChange={() => handleSelect(invoiceIdStr)}
                       size="small"
                     />
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" sx={{ color: '#1e293b', fontSize: '13px' }}>
-                      {invoice.customer}
+                      {invoice.customerName}
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
                     <Typography variant="body2" fontWeight={600} sx={{ color: '#1e293b', fontSize: '13px' }}>
-                      {formatCurrency(invoice.amount)}
+                      {formatCurrency(invoice.totalAmount)}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" sx={{ color: '#64748b', fontSize: '13px' }}>
-                      {invoice.createdBy}
-                    </Typography>
+                    <Box>
+                      <Typography variant="body2" sx={{ color: '#64748b', fontSize: '13px', mb: 0.25 }}>
+                        {invoice.daysWaiting} ngày
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#94a3b8', fontSize: '11px' }}>
+                        ({invoice.hoursWaiting.toFixed(1)}h)
+                      </Typography>
+                    </Box>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" sx={{ color: '#64748b', fontSize: '12px' }}>
-                      {formatDistanceToNow(invoice.createdDate, {
-                        addSuffix: true,
-                        locale: vi,
-                      })}
-                    </Typography>
+                    <Chip
+                      label={invoice.priority}
+                      size="small"
+                      sx={{
+                        bgcolor: invoice.priority === 'Critical' ? '#fee2e2' : 
+                                 invoice.priority === 'High' ? '#fef3c7' : '#e0f2fe',
+                        color: invoice.priority === 'Critical' ? '#dc2626' : 
+                               invoice.priority === 'High' ? '#f59e0b' : '#0284c7',
+                        fontWeight: 700,
+                        fontSize: '11px',
+                      }}
+                    />
                   </TableCell>
                   <TableCell>
                     {(() => {
-                      const invoiceType = invoice.invoiceType
-                      const originalInvoiceID = invoice.originalInvoiceID
-                      const originalInvoiceNumber = invoice.originalInvoiceNumber
-                      const originalInvoiceSignDate = invoice.originalInvoiceSignDate
-                      const originalInvoiceSymbol = invoice.originalInvoiceSymbol
-                      const adjustmentReason = invoice.adjustmentReason
-                      const replacementReason = invoice.replacementReason
-                      const cancellationReason = invoice.cancellationReason
-                      const explanationText = invoice.explanationText
-                      const label = getInvoiceTypeLabel(invoiceType)
-                      const color = getInvoiceTypeColor(invoiceType)
+                      const { invoiceType, typeName, typeColor, typeBackgroundColor, reason, reasonType, originalInvoiceNumber } = invoice
                       
-                      // Badge color mapping
-                      const badgeColorMap: Record<string, { bg: string; text: string; border: string }> = {
-                        'default': { bg: '#f1f5f9', text: '#64748b', border: '#e2e8f0' },
-                        'warning': { bg: '#fef3c7', text: '#f59e0b', border: '#fcd34d' },
-                        'info': { bg: '#dbeafe', text: '#3b82f6', border: '#93c5fd' },
-                        'error': { bg: '#fee2e2', text: '#ef4444', border: '#fca5a5' },
-                        'secondary': { bg: '#f3e8ff', text: '#9c27b0', border: '#d8b4fe' },
-                      }
-                      const badgeColors = badgeColorMap[color] || badgeColorMap['default']
+                      // Build tooltip for linked invoices
+                      const isLinkedInvoice = invoiceType !== 1
                       
-                      // Format date helper
-                      const formatDate = (dateStr?: string | null): string | null => {
-                        if (!dateStr) return null
-                        try {
-                          return dayjs(dateStr).format('DD/MM/YYYY')
-                        } catch {
-                          return null
-                        }
-                      }
-                      
-                      // Build tooltip for adjustment/replacement invoices
-                      const isLinkedInvoice = invoiceType === 2 || invoiceType === 3 || invoiceType === 4 || invoiceType === 5
                       
                       let tooltipContent: React.ReactNode = null
                       if (isLinkedInvoice) {
-                        const actionText = 
-                          invoiceType === 2 ? '📝 Hóa đơn điều chỉnh' :
-                          invoiceType === 3 ? '🔄 Hóa đơn thay thế' :
-                          invoiceType === 4 ? '❌ Hóa đơn hủy' :
-                          invoiceType === 5 ? '📋 Hóa đơn giải trình' : ''
-                        
-                        // Get relevant reason based on invoice type
-                        const reason = 
-                          invoiceType === 2 ? adjustmentReason :
-                          invoiceType === 3 ? replacementReason :
-                          invoiceType === 4 ? cancellationReason :
-                          invoiceType === 5 ? explanationText : null
-                        
-                        const formattedDate = formatDate(originalInvoiceSignDate)
+                        const iconMap: Record<string, string> = {
+                          'adjustment': '📝',
+                          'replacement': '🔄',
+                          'cancellation': '❌',
+                          'explanation': '📋',
+                          'general': '📄',
+                        }
+                        const icon = iconMap[reasonType] || '📄'
                         
                         tooltipContent = (
-                          <Box sx={{ py: 1, px: 0.5, minWidth: 280, maxWidth: 420 }}>
-                            {/* Header */}
+                          <Box sx={{ py: 1, px: 0.5, minWidth: 240, maxWidth: 380 }}>
                             <Typography 
                               variant="subtitle2" 
                               sx={{ 
                                 fontWeight: 700, 
-                                mb: 1.5, 
-                                pb: 0.75,
-                                borderBottom: '1px solid rgba(255,255,255,0.2)',
+                                mb: 1,
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: 0.5,
                               }}
                             >
-                              {actionText}
+                              {icon} {typeName}
                             </Typography>
                             
-                            {/* Original Invoice Info - Always show if it's a linked invoice */}
-                            <Box sx={{ mb: 1.5 }}>
-                              <Typography variant="caption" sx={{ display: 'block', color: 'rgba(255,255,255,0.7)', mb: 0.75 }}>
-                                Liên quan đến hóa đơn:
-                              </Typography>
-                              {originalInvoiceNumber && originalInvoiceNumber > 0 ? (
-                                <Typography variant="body2" sx={{ fontSize: '13px', mb: 0.4, pl: 1 }}>
-                                  • Số HĐ: <strong>{originalInvoiceNumber}</strong>
-                                </Typography>
-                              ) : (
-                                <Typography variant="body2" sx={{ fontSize: '13px', mb: 0.4, pl: 1, color: 'rgba(255,255,255,0.6)', fontStyle: 'italic' }}>
-                                  • Số HĐ: <em>Chưa cấp số</em>
-                                </Typography>
-                              )}
-                              {originalInvoiceSymbol && (
-                                <Typography variant="body2" sx={{ fontSize: '13px', mb: 0.4, pl: 1 }}>
-                                  • Ký hiệu: <strong>{originalInvoiceSymbol}</strong>
-                                </Typography>
-                              )}
-                              {formattedDate && (
-                                <Typography variant="body2" sx={{ fontSize: '13px', pl: 1 }}>
-                                  • Ngày ký: <strong>{formattedDate}</strong>
-                                </Typography>
-                              )}
-                            </Box>
-                            
-                            {/* Reason */}
                             {reason && (
-                              <Box sx={{ mb: 1.5 }}>
-                                <Typography variant="caption" sx={{ display: 'block', color: 'rgba(255,255,255,0.7)', mb: 0.75 }}>
-                                  Lý do:
-                                </Typography>
-                                <Typography 
-                                  variant="body2" 
-                                  sx={{ 
-                                    fontSize: '12.5px', 
-                                    fontStyle: 'italic',
-                                    pl: 1,
-                                    color: 'rgba(255,255,255,0.95)',
-                                    lineHeight: 1.5,
-                                  }}
-                                >
-                                  "{reason}"
-                                </Typography>
-                              </Box>
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  fontSize: '12px', 
+                                  fontStyle: 'italic',
+                                  color: 'rgba(255,255,255,0.9)',
+                                  lineHeight: 1.5,
+                                }}
+                              >
+                                {reason}
+                              </Typography>
                             )}
                             
-                            {/* Action hint */}
-                            <Box sx={{ mt: 0.75, pt: 0.75, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+                            {originalInvoiceNumber && (
                               <Typography 
                                 variant="caption" 
                                 sx={{ 
+                                  display: 'block',
+                                  mt: 1,
+                                  pt: 0.75,
+                                  borderTop: '1px solid rgba(255,255,255,0.2)',
                                   fontSize: '11px', 
-                                  fontStyle: 'italic',
                                   color: 'rgba(255,255,255,0.7)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 0.5,
                                 }}
                               >
-                                {originalInvoiceID ? '💡 Click để xem chi tiết hóa đơn gốc' : 'ℹ️ Chưa liên kết hóa đơn gốc'}
+                                Liên quan: HĐ số {originalInvoiceNumber}
                               </Typography>
-                            </Box>
+                            )}
                           </Box>
                         )
                       }
@@ -340,87 +276,22 @@ const ApprovalQueue: React.FC<ApprovalQueueProps> = ({ invoices, onBulkApprove, 
                       if (!isLinkedInvoice) {
                         return (
                           <Chip
-                            label={label}
+                            label={typeName}
                             size="small"
                             sx={{
-                              bgcolor: badgeColors.bg,
-                              color: badgeColors.text,
+                              bgcolor: typeBackgroundColor,
+                              color: typeColor,
                               fontWeight: 600,
                               fontSize: '11px',
                               height: 24,
                               borderRadius: '16px',
-                              border: `1px solid ${badgeColors.border}`,
+                              border: `1px solid ${typeColor}30`,
                             }}
                           />
                         )
                       }
                       
-                      // If has original invoice, make it clickable with icon
-                      if (originalInvoiceID && tooltipContent) {
-                        return (
-                          <Tooltip 
-                            title={tooltipContent}
-                            arrow
-                            placement="top"
-                          >
-                            <Box
-                              component={Link}
-                              to={`/invoices/${originalInvoiceID}`}
-                              sx={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 0.75,
-                                textDecoration: 'none',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                padding: '5px 12px',
-                                borderRadius: '16px',
-                                bgcolor: badgeColors.bg,
-                                border: `1px solid ${badgeColors.border}`,
-                                '&:hover': {
-                                  transform: 'translateY(-2px)',
-                                  boxShadow: `0 4px 12px ${badgeColors.border}`,
-                                  bgcolor: badgeColors.bg,
-                                },
-                              }}
-                            >
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  color: badgeColors.text,
-                                  fontWeight: 600,
-                                  fontSize: '11px',
-                                  lineHeight: 1.2,
-                                }}
-                              >
-                                {label}
-                              </Typography>
-                              <Box
-                                sx={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: 20,
-                                  height: 20,
-                                  borderRadius: '50%',
-                                  bgcolor: 'rgba(255, 255, 255, 0.95)',
-                                  backdropFilter: 'blur(4px)',
-                                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                }}
-                              >
-                                <LinkIcon 
-                                  sx={{ 
-                                    fontSize: 14, 
-                                    color: '#1976d2',
-                                  }} 
-                                />
-                              </Box>
-                            </Box>
-                          </Tooltip>
-                        )
-                      }
-                      
-                      // Show badge with disabled icon if no originalInvoiceID
+                      // Linked invoice: show tooltip and link icon
                       return (
                         <Tooltip 
                           title={tooltipContent}
@@ -434,41 +305,47 @@ const ApprovalQueue: React.FC<ApprovalQueueProps> = ({ invoices, onBulkApprove, 
                               gap: 0.75,
                               padding: '5px 12px',
                               borderRadius: '16px',
-                              bgcolor: badgeColors.bg,
-                              border: `1px solid ${badgeColors.border}`,
+                              bgcolor: typeBackgroundColor,
+                              border: `1px solid ${typeColor}30`,
+                              cursor: originalInvoiceNumber ? 'pointer' : 'default',
+                              transition: 'all 0.2s ease',
+                              '&:hover': originalInvoiceNumber ? {
+                                transform: 'translateY(-2px)',
+                                boxShadow: `0 4px 12px ${typeColor}30`,
+                              } : {},
                             }}
                           >
                             <Typography
                               variant="body2"
                               sx={{
-                                color: badgeColors.text,
+                                color: typeColor,
                                 fontWeight: 600,
                                 fontSize: '11px',
                                 lineHeight: 1.2,
                               }}
                             >
-                              {label}
+                              {typeName}
                             </Typography>
-                            <Box
-                              sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: 20,
-                                height: 20,
-                                borderRadius: '50%',
-                                bgcolor: 'rgba(200, 200, 200, 0.5)',
-                                backdropFilter: 'blur(4px)',
-                              }}
-                            >
-                              <LinkIcon 
-                                sx={{ 
-                                  fontSize: 14, 
-                                  color: '#9e9e9e',
-                                  opacity: 0.6,
-                                }} 
-                              />
-                            </Box>
+                            {originalInvoiceNumber && (
+                              <Box
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: 20,
+                                  height: 20,
+                                  borderRadius: '50%',
+                                  bgcolor: `${typeColor}20`,
+                                }}
+                              >
+                                <LinkIcon 
+                                  sx={{ 
+                                    fontSize: 14, 
+                                    color: typeColor,
+                                  }} 
+                                />
+                              </Box>
+                            )}
                           </Box>
                         </Tooltip>
                       )
@@ -492,7 +369,7 @@ const ApprovalQueue: React.FC<ApprovalQueueProps> = ({ invoices, onBulkApprove, 
                     </Tooltip>
                   </TableCell>
                 </TableRow>
-              ))}
+              )})}
             </TableBody>
           </Table>
         </TableContainer>

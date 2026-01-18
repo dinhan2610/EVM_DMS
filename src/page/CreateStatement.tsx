@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Paper,
@@ -153,6 +154,9 @@ const CreateStatement = () => {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const isEditMode = !!id
+  
+  // Set title based on mode
+  usePageTitle(isEditMode ? 'Chỉnh sửa bảng kê' : 'Tạo bảng kê mới')
 
   // ==================== STATE ====================
   const [formData, setFormData] = useState<StatementForm>({

@@ -14,6 +14,8 @@ export const buyLink = ''
 
 export const basePath = ''
 
-export const DEFAULT_PAGE_TITLE = 'Reback React | Responsive Admin Dashboard Template'
+export const APP_NAME = 'EIMS'
+export const APP_FULL_NAME = 'Hệ thống Hóa đơn điện tử KNS'
+export const DEFAULT_PAGE_TITLE = `${APP_NAME} - ${APP_FULL_NAME}`
 
 export const colorVariants = ['primary', 'secondary', 'success', 'danger', 'warning', 'info', 'dark', 'purple', 'pink', 'orange', 'light', 'link']
