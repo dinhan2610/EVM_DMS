@@ -9,6 +9,7 @@ export const CustomerDashboard = lazy(() => import('@/page/CustomerDashboard'))
 
 // Invoice Management Routes
 export const InvoiceManagement = lazy(() => import('@/page/InvoiceManagement'))
+export const SaleInvoiceManagement = lazy(() => import('@/page/SaleInvoiceManagement'))
 export const InvoiceRequestManagement = lazy(() => import('@/page/InvoiceRequestManagement'))
 export const InvoiceApproval = lazy(() => import('@/page/InvoiceApproval'))
 export const HODInvoiceManagement = lazy(() => import('@/components/dashboard/HODInvoiceManagement'))

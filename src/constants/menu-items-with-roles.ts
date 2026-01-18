@@ -89,6 +89,14 @@ const invoicesList: MenuItemType = {
   roles: [USER_ROLES.ADMIN, USER_ROLES.ACCOUNTANT], // ❌ HOD KHÔNG có
 }
 
+const saleInvoicesList: MenuItemType = {
+  key: 'sale-invoices',
+  icon: 'iconamoon:invoice-duotone',
+  label: 'Danh sách hoá đơn',
+  url: '/sales/invoices',
+  roles: [USER_ROLES.SALES], // ✅ Chỉ dành cho Sale
+}
+
 const invoiceRequests: MenuItemType = {
   key: 'invoice-requests',
   icon: 'iconamoon:folder-check-duotone',
@@ -123,7 +131,7 @@ const statements: MenuItemType = {
 
 const debt: MenuItemType = {
   key: 'debt',
-  icon: 'iconamoon:card-duotone',
+  icon: 'mdi:account-cash',
   label: 'Công nợ',
   url: '/debt',
   roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
@@ -139,7 +147,7 @@ const items: MenuItemType = {
 
 const taxErrorNotifications: MenuItemType = {
   key: 'tax-error-notifications',
-  icon: 'iconamoon:sign-times-duotone',
+  icon: 'mdi:bell-alert',
   label: 'Thông báo sai sót',
   url: '/tax-error-notifications',
   roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
@@ -177,7 +185,7 @@ const userProfile: MenuItemType = {
   icon: 'iconamoon:profile-duotone',
   label: 'Hồ sơ cá nhân',
   url: '/user/profile',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES, USER_ROLES.CUSTOMER],
+  roles: [USER_ROLES.CUSTOMER], // ❌ Removed ADMIN, HOD, ACCOUNTANT, SALES
 }
 
 const userNotifications: MenuItemType = {
@@ -185,7 +193,7 @@ const userNotifications: MenuItemType = {
   icon: 'iconamoon:notification-duotone',
   label: 'Thông báo',
   url: '/user/notifications',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES, USER_ROLES.CUSTOMER],
+  roles: [USER_ROLES.CUSTOMER], // ❌ Removed ADMIN, HOD, ACCOUNTANT, SALES
 }
 
 /**
@@ -209,6 +217,7 @@ export const getMenuItemsByRole = (userRole?: string): MenuItemType[] => {
     adminCustomers,
     // Invoice menus
     invoicesList,
+    saleInvoicesList, // ✅ Added for Sale role
     invoiceRequests,
     invoicesApproval,
     invoicesCreate,
@@ -258,6 +267,7 @@ export const MENU_ITEMS: MenuItemType[] = [
   adminCustomers,
   // Invoice menus
   invoicesList,
+  saleInvoicesList, // ✅ Added for Sale role
   invoiceRequests,
   invoicesApproval,
   invoicesCreate,

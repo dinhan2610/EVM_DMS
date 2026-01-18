@@ -169,6 +169,9 @@ export interface InvoiceListItem {
   customerEmail?: string;        // ✅ Email khách hàng (backend trả về field này)
   taxCode?: string;              // Mã số thuế khách hàng
   
+  // ==================== SALE INFO ====================
+  salesID?: number;              // 🆕 ID nhân viên kinh doanh (để filter cho Sale role)
+  
   // ==================== INVOICE TYPE FIELDS ====================
   invoiceType: number;                  // ✅ 1=Gốc, 2=Điều chỉnh, 3=Thay thế, 4=Hủy, 5=Giải trình
   originalInvoiceID: number | null;     // ✅ ID hóa đơn gốc (cho HĐ điều chỉnh/thay thế/hủy/giải trình)

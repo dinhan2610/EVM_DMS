@@ -67,6 +67,7 @@ interface RequestActionsMenuProps {
   onCancel: (id: number) => void
   onViewDetail: (id: number) => void
   onDownloadPDF: (id: number) => void
+  onViewCreatedInvoice: (invoiceID: number) => void
 }
 
 const RequestActionsMenu = ({
@@ -77,6 +78,7 @@ const RequestActionsMenu = ({
   onCancel,
   onViewDetail,
   onDownloadPDF,
+  onViewCreatedInvoice,
 }: RequestActionsMenuProps) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
@@ -91,7 +93,7 @@ const RequestActionsMenu = ({
 
   // Xác định trạng thái
   const isPending = request.statusID === InvoiceRequestStatus.PENDING
-  const isCompleted = request.statusID === InvoiceRequestStatus.COMPLETED
+  const hasInvoice = !!request.invoiceID  // Có invoice ID = đã tạo hóa đơn rồi
   // Note: isApproved, isRejecting, isCancelled không sử dụng trong code hiện tại
 
   // 🔒 Phân quyền: Sale KHÔNG thấy các chức năng quản trị
@@ -100,29 +102,6 @@ const RequestActionsMenu = ({
   const canReject = !isSale && isPending         // KTT/Accountant/Admin mới từ chối được
 
   const menuItems = [
-    {
-      label: '�️ Xem chi tiết hoá đơn',
-      icon: <VisibilityOutlinedIcon fontSize="small" />,
-      enabled: true,
-      action: () => {
-        onViewDetail(request.requestID)
-        handleClose()
-      },
-      color: 'primary.main',
-      tooltip: 'Xem chi tiết hoá đơn dạng HTML',
-    },
-    {
-      label: '📥 Tải PDF',
-      icon: <PictureAsPdfIcon fontSize="small" />,
-      enabled: true,
-      action: () => {
-        onDownloadPDF(request.requestID)
-        handleClose()
-      },
-      color: 'secondary.main',
-      tooltip: 'Tải file PDF hoá đơn (13MB)',
-    },
-    { divider: true },
     // 🔒 KTT/Admin actions - ẨN với Sale
     ...(!isSale ? [
       {
@@ -149,37 +128,74 @@ const RequestActionsMenu = ({
       },
       { divider: true },
     ] : []),
-    // Sale actions
-    {
-      label: '🚫 Hủy yêu cầu',
-      icon: <CancelOutlinedIcon fontSize="small" />,
-      enabled: isPending,
-      action: () => {
-        onCancel(request.requestID)
-        handleClose()
+    // 🔒 Sale-only action - CHỈ Sale mới có Hủy yêu cầu
+    ...(isSale ? [
+      {
+        label: '🚫 Hủy yêu cầu',
+        icon: <CancelOutlinedIcon fontSize="small" />,
+        enabled: isPending,
+        action: () => {
+          onCancel(request.requestID)
+          handleClose()
+        },
+        color: 'warning.main',
+        tooltip: 'Hủy yêu cầu (chỉ Sale)',
       },
-      color: 'warning.main',
-      tooltip: 'Hủy yêu cầu (chỉ Sale)',
-    },
-    { divider: true },
+    ] : []),
+    // Common action - Xem hóa đơn đã tạo (tất cả roles)
     {
       label: '🔗 Xem hóa đơn đã tạo',
       icon: <VisibilityOutlinedIcon fontSize="small" />,
-      enabled: isCompleted && !!request.invoiceID,
+      enabled: hasInvoice,  // Chỉ cần có invoiceID là được, không cần check COMPLETED
       action: () => {
         if (request.invoiceID) {
-          window.location.href = `/invoices/${request.invoiceID}`
+          onViewCreatedInvoice(request.invoiceID)
         }
         handleClose()
       },
       color: 'secondary.main',
-      tooltip: 'Xem hóa đơn đã được tạo từ yêu cầu này',
+      tooltip: `Xem hóa đơn đã được tạo${request.invoiceNumber ? ` (Số HĐ: ${request.invoiceNumber})` : ''}`,
     },
   ]
 
   return (
-    <>
-      <Tooltip title="Thao tác" arrow>
+    <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', justifyContent: 'center' }}>
+      {/* Icon Xem chi tiết */}
+      <Tooltip title="Xem chi tiết" arrow>
+        <IconButton
+          onClick={() => onViewDetail(request.requestID)}
+          size="small"
+          sx={{
+            color: 'primary.main',
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              backgroundColor: 'primary.light',
+              transform: 'scale(1.15)',
+            },
+          }}>
+          <VisibilityOutlinedIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+
+      {/* Icon Tải PDF */}
+      <Tooltip title="Tải PDF" arrow>
+        <IconButton
+          onClick={() => onDownloadPDF(request.requestID)}
+          size="small"
+          sx={{
+            color: 'error.main',
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              backgroundColor: 'error.light',
+              transform: 'scale(1.15)',
+            },
+          }}>
+          <PictureAsPdfIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+
+      {/* Menu dropdown (Hủy, Xem HĐ đã tạo) */}
+      <Tooltip title="Thêm" arrow>
         <IconButton
           onClick={handleClick}
           size="small"
@@ -188,11 +204,11 @@ const RequestActionsMenu = ({
             transition: 'all 0.2s ease',
             '&:hover': {
               color: 'primary.main',
-              backgroundColor: 'primary.light',
-              transform: 'scale(1.1)',
+              backgroundColor: 'action.hover',
+              transform: 'scale(1.15)',
             },
           }}>
-          <MoreVertIcon />
+          <MoreVertIcon fontSize="small" />
         </IconButton>
       </Tooltip>
       <Menu
@@ -286,7 +302,7 @@ const RequestActionsMenu = ({
           )
         })}
       </Menu>
-    </>
+    </Box>
   )
 }
 
@@ -631,6 +647,32 @@ const InvoiceRequestManagement = () => {
     }
   }
 
+  /**
+   * Xem hóa đơn đã được tạo từ yêu cầu
+   */
+  const handleViewCreatedInvoice = (invoiceID: number) => {
+    try {
+      console.log('🔗 Xem hóa đơn đã tạo, ID:', invoiceID)
+      
+      setSnackbar({
+        open: true,
+        message: '⏳ Đang chuyển đến trang hóa đơn...',
+        severity: 'info',
+      })
+
+      // Navigate đến trang chi tiết hóa đơn
+      navigate(`/invoices/${invoiceID}`)
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Không thể mở hóa đơn'
+      setSnackbar({
+        open: true,
+        message: `❌ Lỗi: ${errorMsg}`,
+        severity: 'error',
+      })
+      console.error('[handleViewCreatedInvoice] Error:', err)
+    }
+  }
+
   // ==================== DATA GRID COLUMNS ====================
 
   const columns: GridColDef[] = [
@@ -640,6 +682,8 @@ const InvoiceRequestManagement = () => {
       flex: 1,
       minWidth: 140,
       sortable: true,
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
         <Typography
           variant="body2"
@@ -704,10 +748,12 @@ const InvoiceRequestManagement = () => {
       flex: 1.5,
       minWidth: 200,
       sortable: true,
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const request = params.row as InvoiceRequest
         return (
-          <Box>
+          <Box sx={{ textAlign: 'center', py: 1 }}>
             <Typography variant="body2" sx={{ fontWeight: 500 }}>
               {request.customer.customerName}
             </Typography>
@@ -724,6 +770,8 @@ const InvoiceRequestManagement = () => {
       flex: 1.2,
       minWidth: 160,
       sortable: true,
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const request = params.row as InvoiceRequest
         return (
@@ -743,7 +791,7 @@ const InvoiceRequestManagement = () => {
             }
             arrow
             placement="top">
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, py: 1 }}>
               <PersonIcon fontSize="small" sx={{ color: 'text.secondary' }} />
               <Typography variant="body2">{request.requestedBy.saleName}</Typography>
             </Box>
@@ -771,11 +819,13 @@ const InvoiceRequestManagement = () => {
       flex: 1,
       minWidth: 140,
       sortable: true,
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const date = dayjs(params.value as string)
         return (
           <Tooltip title={date.format('HH:mm:ss - DD/MM/YYYY')} arrow>
-            <Box>
+            <Box sx={{ textAlign: 'center', py: 1 }}>
               <Typography variant="body2">{date.format('DD/MM/YYYY')}</Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                 {date.fromNow()}
@@ -791,8 +841,10 @@ const InvoiceRequestManagement = () => {
       flex: 1,
       minWidth: 140,
       sortable: true,
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
-        if (!params.value) return <Typography variant="body2">-</Typography>
+        if (!params.value) return <Typography variant="body2" sx={{ textAlign: 'center' }}>-</Typography>
 
         const date = dayjs(params.value as string)
         const isUrgent = date.diff(dayjs(), 'hour') < 24
@@ -800,7 +852,7 @@ const InvoiceRequestManagement = () => {
 
         return (
           <Tooltip title={date.format('HH:mm - DD/MM/YYYY')} arrow>
-            <Box>
+            <Box sx={{ textAlign: 'center', py: 1 }}>
               <Typography
                 variant="body2"
                 sx={{
@@ -869,8 +921,8 @@ const InvoiceRequestManagement = () => {
     {
       field: 'actions',
       headerName: 'Thao tác',
-      flex: 0.6,
-      minWidth: 80,
+      flex: 0.8,
+      minWidth: 130,
       sortable: false,
       align: 'center',
       headerAlign: 'center',
@@ -885,6 +937,7 @@ const InvoiceRequestManagement = () => {
             onCancel={handleCancel}
             onViewDetail={handleViewDetail}
             onDownloadPDF={handleDownloadPDF}
+            onViewCreatedInvoice={handleViewCreatedInvoice}
           />
         )
       },
@@ -959,12 +1012,22 @@ const InvoiceRequestManagement = () => {
                   minHeight: 600,
                   '& .MuiDataGrid-cell': {
                     borderBottom: '1px solid #f0f0f0',
-                    py: 1.5,
+                    py: 2,
+                    px: 2,
+                    display: 'flex',
+                    alignItems: 'center',
                   },
                   '& .MuiDataGrid-columnHeaders': {
                     backgroundColor: '#f8f9fa',
                     borderBottom: '2px solid #e0e0e0',
                     fontWeight: 600,
+                    '& .MuiDataGrid-columnHeaderTitle': {
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                    },
+                  },
+                  '& .MuiDataGrid-row': {
+                    minHeight: '70px !important',
                   },
                   '& .MuiDataGrid-row:hover': {
                     backgroundColor: '#f8f9fa',
@@ -974,6 +1037,31 @@ const InvoiceRequestManagement = () => {
                     backgroundColor: '#fafafa',
                     minHeight: '56px',
                     padding: '8px 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'flex-end !important',
+                  },
+                  '& .MuiTablePagination-root': {
+                    display: 'flex',
+                    alignItems: 'center',
+                    width: 'auto',
+                    marginLeft: 'auto',
+                  },
+                  '& .MuiTablePagination-toolbar': {
+                    minHeight: '56px',
+                    paddingLeft: '8px',
+                    paddingRight: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'flex-end',
+                  },
+                  '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                    margin: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                  },
+                  '& .MuiDataGrid-selectedRowCount': {
+                    display: 'none',
                   },
                 }}
               />

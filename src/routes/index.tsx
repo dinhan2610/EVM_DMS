@@ -10,6 +10,7 @@ import {
   SaleDashboard,
   CustomerDashboard,
   InvoiceManagement,
+  SaleInvoiceManagement,
   InvoiceRequestManagement,
   HODInvoiceManagement,
   InvoiceDetail,
@@ -167,6 +168,15 @@ const appsRoutes: RoutesProps[] = [
     element: (
       <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN, USER_ROLES.ACCOUNTANT]}>
         <InvoiceManagement />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    name: 'Sale Invoices List',
+    path: '/sales/invoices',
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.SALES]}>
+        <SaleInvoiceManagement />
       </ProtectedRoute>
     ),
   },
