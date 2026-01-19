@@ -1,5 +1,22 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import API_CONFIG from '@/config/api.config'
+import { deleteCookie } from 'cookies-next'
+
+// Auth session cookie key (must match useAuthContext.tsx)
+const AUTH_SESSION_KEY = '_REBACK_AUTH_KEY_'
+
+// Event để thông báo cho AuthContext khi cần logout
+export const AUTH_EVENTS = {
+  TOKEN_EXPIRED: 'auth:token_expired',
+  REFRESH_FAILED: 'auth:refresh_failed',
+  FORCE_LOGOUT: 'auth:force_logout',
+}
+
+// Dispatch custom event khi cần logout
+const dispatchAuthEvent = (eventName: string, detail?: unknown) => {
+  window.dispatchEvent(new CustomEvent(eventName, { detail }))
+  console.log(`🔐 [HttpClient] Dispatched event: ${eventName}`)
+}
 
 class HttpClient {
   private axiosInstance: AxiosInstance
@@ -87,15 +104,15 @@ class HttpClient {
             return this.axiosInstance(originalRequest)
             
           } catch (refreshError) {
-            // Refresh token expired or invalid - logout user
+            // Refresh token expired or invalid - FORCE LOGOUT
+            console.error('🔐 [HttpClient] Refresh token failed:', refreshError)
+            
             this.failedQueue.forEach((promise) => promise.reject(refreshError))
             this.failedQueue = []
-            this.removeTokens()
             
-            // Redirect to login page
-            if (window.location.pathname !== '/auth/sign-in') {
-              window.location.href = '/auth/sign-in'
-            }
+            // Clear ALL auth data (localStorage + cookies)
+            this.forceLogout('Phiên đăng nhập hết hạn')
+            
             return Promise.reject(refreshError)
           } finally {
             this.isRefreshing = false
@@ -104,6 +121,30 @@ class HttpClient {
         return Promise.reject(error)
       }
     )
+  }
+
+  /**
+   * Force logout - Clear all auth data and redirect to login
+   * Called when refresh token fails or is expired
+   */
+  public forceLogout(reason: string = 'Session expired'): void {
+    console.log(`🔐 [HttpClient] Force logout: ${reason}`)
+    
+    // 1. Remove localStorage tokens
+    this.removeTokens()
+    
+    // 2. Remove auth cookie
+    deleteCookie(AUTH_SESSION_KEY)
+    
+    // 3. Dispatch event to notify React AuthContext
+    dispatchAuthEvent(AUTH_EVENTS.FORCE_LOGOUT, { reason })
+    
+    // 4. Redirect to login page (with slight delay to let event propagate)
+    setTimeout(() => {
+      if (window.location.pathname !== '/auth/sign-in') {
+        window.location.href = `/auth/sign-in?expired=true&reason=${encodeURIComponent(reason)}`
+      }
+    }, 100)
   }
 
   public setAccessToken(token: string): void {
