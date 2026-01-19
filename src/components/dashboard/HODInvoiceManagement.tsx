@@ -42,11 +42,11 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import dayjs from 'dayjs'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+// ❌ REMOVED: EditOutlinedIcon - Nút Chỉnh sửa đã bị xóa
 import AddIcon from '@mui/icons-material/Add'
 import SendIcon from '@mui/icons-material/Send'
 import DrawIcon from '@mui/icons-material/Draw'
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+// ❌ REMOVED: DeleteOutlineIcon - Nút Xóa đã bị xóa
 import DownloadIcon from '@mui/icons-material/Download'
 import EmailIcon from '@mui/icons-material/Email'
 import PrintIcon from '@mui/icons-material/Print'
@@ -58,6 +58,7 @@ import LinkIcon from '@mui/icons-material/Link'
 import { Link, useNavigate } from 'react-router-dom'
 import InvoiceFilter, { InvoiceFilterState } from '@/components/InvoiceFilter'
 import InvoicePreviewModal from '@/components/invoices/InvoicePreviewModal'
+import SendInvoiceEmailModal from '@/components/SendInvoiceEmailModal'
 import invoiceService, { InvoiceListItem, INVOICE_TYPE, getInvoiceTypeLabel, getInvoiceTypeColor } from '@/services/invoiceService'
 import templateService from '@/services/templateService'
 import customerService from '@/services/customerService'
@@ -89,6 +90,11 @@ export interface Invoice {
   taxStatusCode: string | null
   amount: number
   notes: string | null // ✅ Ghi chú (chứa lý do từ chối)
+  
+  // ✅ Contact info từ invoice (để gửi email) - đồng bộ với Accountant page
+  contactEmail: string | null
+  contactPerson: string | null
+  contactPhone: string | null
   
   // Invoice type fields
   invoiceType: number
@@ -157,6 +163,11 @@ const mapInvoiceToUI = (
     amount: item.totalAmount,
     notes: item.notes || null,  // ✅ Map notes field
     
+    // ✅ Map contact info (đồng bộ với Accountant page)
+    contactEmail: item.customerEmail || item.contactEmail || null,  // Ưu tiên customerEmail từ backend
+    contactPerson: item.contactPerson || null,
+    contactPhone: item.contactPhone || null,
+    
     invoiceType: item.invoiceType || INVOICE_TYPE.ORIGINAL,
     originalInvoiceID: item.originalInvoiceID,
     originalInvoiceNumber: item.originalInvoiceNumber,
@@ -176,13 +187,15 @@ interface InvoiceActionsMenuProps {
   onReject: (id: string) => void  // ✅ KTT từ chối hóa đơn
   onSign: (id: string, invoiceNumber: string) => void
   onResendToTax: (id: string, invoiceNumber: string) => void
-  onCancel: (id: string, invoiceNumber: string) => void
+  // ❌ REMOVED: onCancel - Nút "Hủy" đã bị xóa
   onPrintInvoice: (id: string, invoiceNumber: string) => void
   isSending: boolean
-  hasBeenAdjusted: boolean // Đã có hóa đơn điều chỉnh từ hóa đơn này chưa
+  // ❌ REMOVED: hasBeenAdjusted - Theo NĐ 123/2020, có thể điều chỉnh nhiều lần
+  // ✅ ADDED: Email modal props (đồng bộ với Accountant page)
+  onOpenEmailModal: (invoice: Invoice) => void
 }
 
-const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTax, onCancel, onPrintInvoice, isSending, hasBeenAdjusted }: InvoiceActionsMenuProps) => {
+const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTax, onPrintInvoice, isSending, onOpenEmailModal }: InvoiceActionsMenuProps) => {
   const navigate = useNavigate()
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
@@ -196,7 +209,7 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTa
   }
 
   // Xác định trạng thái hóa đơn theo luồng mới
-  const isDraft = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.DRAFT // 1
+  // ❌ REMOVED: isDraft - Không còn dùng sau khi xóa nút Chỉnh sửa và Xóa
   const isPendingApproval = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_APPROVAL // 6
   const isPendingSign = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN // 7 - Chờ ký (sau khi KTT duyệt)
   const isSigned = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.SIGNED // 8 - Đã ký
@@ -226,27 +239,19 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTa
   //   + VÀ CHƯA CÓ SỐ (chưa ký)
   //   ➡️ Sau khi ký xong → TỰ ĐỘNG gửi CQT và phát hành
   const canSignAndIssue = (isPendingSign || isSigned) && !hasInvoiceNumber // ⚡ Gộp 1 bước
-  const canCancel = isPendingApproval || isPendingSign // Có thể hủy khi Chờ duyệt HOẶC Chờ ký
+  // ❌ REMOVED: canCancel - Nút "Hủy" đã bị xóa khỏi menu Kế toán trưởng
   
-  // 📋 Logic "Tạo HĐ điều chỉnh"
+  // 📋 Logic "Tạo HĐ điều chỉnh" - Theo NĐ 123/2020
   // Điều kiện:
-  // 1. Hóa đơn đã phát hành (isIssued)
-  // 2. Chưa có hóa đơn điều chỉnh con (!hasBeenAdjusted)
-  // 3. Chính nó KHÔNG phải là hóa đơn điều chỉnh (invoiceType !== ADJUSTMENT)
+  // 1. Hóa đơn đã phát hành (status = 2 ISSUED) HOẶC Đã điều chỉnh (status = 4 ADJUSTED)
+  // 2. Chính nó KHÔNG phải là hóa đơn điều chỉnh (invoiceType !== ADJUSTMENT)
+  // ✅ CHO PHÉP ĐIỀU CHỈNH NHIỀU LẦN theo NĐ 123/2020/NĐ-CP Điều 19
   const isAdjustmentInvoice = invoice.invoiceType === INVOICE_TYPE.ADJUSTMENT
-  const canAdjust = isIssued && !hasBeenAdjusted && !isAdjustmentInvoice
+  const isAdjusted = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.ADJUSTED // Status 4
+  const canAdjust = (isIssued || isAdjusted) && !isAdjustmentInvoice
 
   const menuItems = [
-    {
-      label: 'Chỉnh sửa',
-      icon: <EditOutlinedIcon fontSize="small" />,
-      enabled: isDraft,
-      action: () => {
-        console.log('Chỉnh sửa:', invoice.id)
-        handleClose()
-      },
-      color: 'primary.main',
-    },
+    // ❌ REMOVED: Nút "Chỉnh sửa" - Kế toán trưởng không được chỉnh sửa hóa đơn
     {
       label: 'Duyệt',
       icon: <CheckCircleOutlineIcon fontSize="small" />,
@@ -286,7 +291,7 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTa
       icon: <EmailIcon fontSize="small" />,
       enabled: true, // ✅ Luôn dùng được
       action: () => {
-        console.log('Gửi email:', invoice.id)
+        onOpenEmailModal(invoice)  // ✅ Mở modal gửi email (đồng bộ với Accountant page)
         handleClose()
       },
       color: 'info.main',
@@ -326,10 +331,8 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTa
       },
       color: 'warning.main',
       tooltip: isAdjustmentInvoice
-        ? '⚠️ Hóa đơn điều chỉnh không thể điều chỉnh tiếp'
-        : hasBeenAdjusted 
-          ? '⚠️ Hóa đơn này đã được điều chỉnh rồi (chỉ được điều chỉnh 1 lần)'
-          : 'Tạo hóa đơn điều chỉnh từ hóa đơn gốc đã phát hành',
+        ? '⚠️ Hóa đơn điều chỉnh không thể điều chỉnh tiếp (chỉ điều chỉnh HĐ gốc)'
+        : 'Tạo hóa đơn điều chỉnh (có thể nhiều lần theo NĐ 123/2020)',
     },
     {
       label: 'Tạo HĐ thay thế',
@@ -343,26 +346,8 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTa
       color: 'warning.main',
       tooltip: 'Tạo hóa đơn thay thế (không giới hạn số lần)',
     },
-    {
-      label: 'Hủy',
-      icon: <CancelIcon fontSize="small" />,
-      enabled: canCancel,
-      action: () => {
-        onCancel(invoice.id, invoice.invoiceNumber)
-        handleClose()
-      },
-      color: 'error.main',
-    },
-    {
-      label: 'Xóa',
-      icon: <DeleteOutlineIcon fontSize="small" />,
-      enabled: isDraft,
-      action: () => {
-        console.log('Xóa:', invoice.id)
-        handleClose()
-      },
-      color: 'error.main',
-    },
+    // ❌ REMOVED: Nút "Hủy" - Không hiển thị cho Kế toán trưởng
+    // ❌ REMOVED: Nút "Xóa" - Kế toán trưởng không được xóa hóa đơn
   ]
 
   return (
@@ -513,6 +498,10 @@ const HODInvoiceManagement = () => {
     reason: '',
   })
   
+  // ✅ State quản lý send email modal (đồng bộ với Accountant page)
+  const [sendEmailModalOpen, setSendEmailModalOpen] = useState(false)
+  const [selectedInvoiceForEmail, setSelectedInvoiceForEmail] = useState<Invoice | null>(null)
+  
   // State quản lý preview modal
   const [previewModal, setPreviewModal] = useState({
     open: false,
@@ -635,21 +624,8 @@ const HODInvoiceManagement = () => {
     })
   }
 
-  // 🔍 Tính toán Map các hóa đơn đã bị điều chỉnh (để kiểm tra rule "chỉ điều chỉnh 1 lần")
-  // Key: invoiceID của hóa đơn gốc, Value: true nếu đã có hóa đơn điều chỉnh
-  const adjustedInvoicesMap = useMemo(() => {
-    const map = new Map<string, boolean>()
-    
-    // Duyệt qua tất cả hóa đơn, tìm các hóa đơn điều chỉnh (type = 2)
-    invoices.forEach(inv => {
-      if (inv.invoiceType === 2 && inv.originalInvoiceID) {
-        // Đánh dấu hóa đơn gốc đã bị điều chỉnh
-        map.set(inv.originalInvoiceID.toString(), true)
-      }
-    })
-    
-    return map
-  }, [invoices])
+  // ❌ REMOVED: adjustedInvoicesMap - Không cần nữa vì theo NĐ 123/2020, 
+  // hóa đơn có thể điều chỉnh NHIỀU LẦN, không cần check "đã điều chỉnh chưa"
 
   // Lọc invoices theo filters
   const filteredInvoices = useMemo(() => {
@@ -945,31 +921,8 @@ const HODInvoiceManagement = () => {
     }
   }
 
-  // Handler hủy hóa đơn
-  const handleCancelInvoice = async (invoiceId: string, invoiceNumber: string) => {
-    try {
-      if (!window.confirm(`Bạn có chắc chắn muốn hủy hóa đơn ${invoiceNumber || invoiceId}?\nHóa đơn sẽ quay về trạng thái Nháp.`)) {
-        return
-      }
-      
-      await invoiceService.cancelInvoice(parseInt(invoiceId))
-      
-      setSnackbar({
-        open: true,
-        message: `✅ Đã hủy hóa đơn ${invoiceNumber || invoiceId}!`,
-        severity: 'success',
-      })
-      
-      await loadInvoices()
-    } catch (err) {
-      setSnackbar({
-        open: true,
-        message: `❌ Hủy hóa đơn thất bại.\n${err instanceof Error ? err.message : 'Vui lòng thử lại.'}`,
-        severity: 'error',
-      })
-    }
-  }
-
+  // ❌ REMOVED: handleCancelInvoice - Nút "Hủy" đã bị xóa khỏi menu Kế toán trưởng
+  
   // Handler xem preview & in hóa đơn
   const handlePrintInvoice = (invoiceId: string, invoiceNumber: string) => {
     const invoice = invoices.find(inv => inv.id === invoiceId)
@@ -1000,6 +953,101 @@ const HODInvoiceManagement = () => {
       setSnackbar({
         open: true,
         message: `❌ Không thể tải PDF.\n${err instanceof Error ? err.message : 'Vui lòng thử lại.'}`,
+        severity: 'error',
+      })
+    } finally {
+      setSubmittingId(null)
+    }
+  }
+
+  // ✅ Handler gửi email (đồng bộ với Accountant page)
+  const handleSendEmail = async (emailData: {
+    recipientName: string
+    email: string
+    ccEmails: string[]
+    bccEmails: string[]
+    attachments: File[]
+    includeXml: boolean
+    includePdf: boolean
+    disableSms: boolean
+    language: string
+  }) => {
+    if (!selectedInvoiceForEmail) return
+    
+    const invoiceBeforeSend = {
+      id: selectedInvoiceForEmail.id,
+      number: selectedInvoiceForEmail.invoiceNumber,
+      statusId: selectedInvoiceForEmail.internalStatusId,
+    }
+    
+    try {
+      setSubmittingId(selectedInvoiceForEmail.id)
+      
+      // Upload attachments nếu có (cần implement file upload API)
+      const attachmentUrls: string[] = []
+      if (emailData.attachments.length > 0) {
+        console.log('⚠️ File upload not implemented yet. Attachments:', emailData.attachments)
+      }
+      
+      // Gọi API gửi email
+      const response = await invoiceService.sendInvoiceEmail(
+        parseInt(selectedInvoiceForEmail.id),
+        {
+          emailTemplateId: 0, // Default template
+          recipientEmail: emailData.email,
+          ccEmails: emailData.ccEmails.length > 0 ? emailData.ccEmails : undefined,
+          bccEmails: emailData.bccEmails.length > 0 ? emailData.bccEmails : undefined,
+          customMessage: undefined,
+          includeXml: emailData.includeXml,
+          includePdf: emailData.includePdf,
+          language: emailData.language || 'vi',
+          externalAttachmentUrls: attachmentUrls.length > 0 ? attachmentUrls : undefined,
+        }
+      )
+      
+      console.log('✅ Email sent successfully:', {
+        invoiceId: invoiceBeforeSend.id,
+        invoiceNumber: invoiceBeforeSend.number,
+        sentTo: response.sentTo,
+      })
+      
+      // 🔍 MONITORING: Verify status không bị thay đổi (chỉ log warning nếu có)
+      try {
+        const invoiceDetail = await invoiceService.getInvoiceById(parseInt(invoiceBeforeSend.id))
+        
+        if (invoiceBeforeSend.statusId !== invoiceDetail.invoiceStatusID) {
+          console.warn('⚠️ [WARNING] Invoice status changed after email send (backend bug detected):', {
+            invoiceNumber: invoiceBeforeSend.number,
+            statusBefore: invoiceBeforeSend.statusId,
+            statusAfter: invoiceDetail.invoiceStatusID,
+            note: 'This should NOT happen - backend team needs to investigate',
+          })
+        }
+      } catch (verifyErr) {
+        console.warn('⚠️ Could not verify status after email send:', verifyErr)
+      }
+      
+      // ✅ Reload data và show success
+      await loadInvoices()
+      
+      setSnackbar({
+        open: true,
+        message: `✅ Đã gửi email hóa đơn ${invoiceBeforeSend.number}\nĐến: ${response.sentTo}`,
+        severity: 'success',
+      })
+      
+      setSendEmailModalOpen(false)
+      setSelectedInvoiceForEmail(null)
+      
+    } catch (err) {
+      console.error('❌ Failed to send email:', {
+        invoiceNumber: invoiceBeforeSend.number,
+        error: err,
+      })
+      
+      setSnackbar({
+        open: true,
+        message: `❌ Không thể gửi email hóa đơn ${invoiceBeforeSend.number}\n${err instanceof Error ? err.message : 'Vui lòng thử lại'}`,
         severity: 'error',
       })
     } finally {
@@ -1502,7 +1550,6 @@ const HODInvoiceManagement = () => {
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const isSending = submittingId === params.row.id
-        const hasBeenAdjusted = adjustedInvoicesMap.get(params.row.id) || false
         const invoice = params.row as Invoice
         
         return (
@@ -1552,10 +1599,12 @@ const HODInvoiceManagement = () => {
               onReject={handleOpenRejectDialog}
               onSign={handleOpenSignDialog}
               onResendToTax={handleResendToTax}
-              onCancel={handleCancelInvoice}
               onPrintInvoice={handlePrintInvoice}
               isSending={isSending}
-              hasBeenAdjusted={hasBeenAdjusted}
+              onOpenEmailModal={(inv) => {
+                setSelectedInvoiceForEmail(inv)
+                setSendEmailModalOpen(true)
+              }}
             />
           </Box>
         )
@@ -1848,6 +1897,26 @@ const HODInvoiceManagement = () => {
             invoiceType={previewModal.invoiceType}
             originalInvoiceNumber={previewModal.originalInvoiceNumber}
             adjustmentReason={previewModal.adjustmentReason}
+          />
+          
+          {/* ✅ Send Email Modal (đồng bộ với Accountant page) */}
+          <SendInvoiceEmailModal
+            open={sendEmailModalOpen}
+            onClose={() => {
+              setSendEmailModalOpen(false)
+              setSelectedInvoiceForEmail(null)
+            }}
+            onSend={handleSendEmail}
+            invoiceData={{
+              invoiceNumber: selectedInvoiceForEmail?.invoiceNumber || '',
+              serialNumber: selectedInvoiceForEmail?.symbol || '',
+              date: selectedInvoiceForEmail?.issueDate ? new Date(selectedInvoiceForEmail.issueDate).toLocaleDateString('vi-VN') : '',
+              customerName: selectedInvoiceForEmail?.customerName || '',
+              totalAmount: selectedInvoiceForEmail?.amount ? selectedInvoiceForEmail.amount.toLocaleString('vi-VN') : '0',
+              // ✅ Auto-fill email và tên người nhận từ thông tin liên hệ trong hóa đơn
+              recipientEmail: selectedInvoiceForEmail?.contactEmail || '',
+              recipientName: selectedInvoiceForEmail?.contactPerson || selectedInvoiceForEmail?.customerName || '',
+            }}
           />
         </Box>
       </Box>

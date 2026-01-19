@@ -180,12 +180,12 @@ interface InvoiceActionsMenuProps {
   onCancel: (id: string, invoiceNumber: string) => void
   onPrintInvoice: (id: string, invoiceNumber: string) => void
   isSending: boolean
-  hasBeenAdjusted: boolean // Đã có hóa đơn điều chỉnh từ hóa đơn này chưa
+  // ❌ REMOVED: hasBeenAdjusted - Theo NĐ 123/2020, có thể điều chỉnh nhiều lần
   // Email modal props
   onOpenEmailModal: (invoice: Invoice) => void
 }
 
-const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax, onCancel, onPrintInvoice, isSending, hasBeenAdjusted, onOpenEmailModal }: InvoiceActionsMenuProps) => {
+const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax, onCancel, onPrintInvoice, isSending, onOpenEmailModal }: InvoiceActionsMenuProps) => {
   const navigate = useNavigate()
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
@@ -237,13 +237,14 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax,
   const canSignAndIssue = (isPendingSign || isSigned) && !hasInvoiceNumber // ⚡ Gộp 1 bước
   const canCancel = isPendingApproval || isPendingSign // Có thể hủy khi Chờ duyệt HOẶC Chờ ký
   
-  // 📋 Logic "Tạo HĐ điều chỉnh"
+  // 📋 Logic "Tạo HĐ điều chỉnh" - Theo NĐ 123/2020
   // Điều kiện:
-  // 1. Hóa đơn đã phát hành (isIssued)
-  // 2. Chưa có hóa đơn điều chỉnh con (!hasBeenAdjusted)
-  // 3. Chính nó KHÔNG phải là hóa đơn điều chỉnh (invoiceType !== ADJUSTMENT)
+  // 1. Hóa đơn đã phát hành (status = 2 ISSUED) HOẶC Đã điều chỉnh (status = 4 ADJUSTED)
+  // 2. Chính nó KHÔNG phải là hóa đơn điều chỉnh (invoiceType !== ADJUSTMENT)
+  // ✅ CHO PHÉP ĐIỀU CHỈNH NHIỀU LẦN theo NĐ 123/2020/NĐ-CP Điều 19
   const isAdjustmentInvoice = invoice.invoiceType === INVOICE_TYPE.ADJUSTMENT
-  const canAdjust = isIssued && !hasBeenAdjusted && !isAdjustmentInvoice
+  const isAdjusted = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.ADJUSTED // Status 4
+  const canAdjust = (isIssued || isAdjusted) && !isAdjustmentInvoice
 
   const menuItems = [
     {
@@ -331,10 +332,8 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax,
       },
       color: 'warning.main',
       tooltip: isAdjustmentInvoice
-        ? '⚠️ Hóa đơn điều chỉnh không thể điều chỉnh tiếp'
-        : hasBeenAdjusted 
-          ? '⚠️ Hóa đơn này đã được điều chỉnh rồi (chỉ được điều chỉnh 1 lần)'
-          : 'Tạo hóa đơn điều chỉnh từ hóa đơn gốc đã phát hành',
+        ? '⚠️ Hóa đơn điều chỉnh không thể điều chỉnh tiếp (chỉ điều chỉnh HĐ gốc)'
+        : 'Tạo hóa đơn điều chỉnh (có thể nhiều lần theo NĐ 123/2020)',
     },
     {
       label: 'Tạo HĐ thay thế',
@@ -1527,7 +1526,7 @@ const InvoiceManagement = () => {
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const isSending = submittingId === params.row.id
-        const hasBeenAdjusted = adjustedInvoicesMap.get(params.row.id) || false
+        // ❌ REMOVED: hasBeenAdjusted - Không cần nữa (có thể điều chỉnh nhiều lần)
         const invoice = params.row as Invoice
         
         return (
@@ -1579,7 +1578,6 @@ const InvoiceManagement = () => {
               onCancel={handleCancelInvoice}
               onPrintInvoice={handlePrintInvoice}
               isSending={isSending}
-              hasBeenAdjusted={hasBeenAdjusted}
               onOpenEmailModal={(inv) => {
                 setSelectedInvoiceForEmail(inv)
                 setSendEmailModalOpen(true)
@@ -1591,21 +1589,8 @@ const InvoiceManagement = () => {
     },
   ]
 
-  // 🔍 Tính toán Map các hóa đơn đã bị điều chỉnh (để kiểm tra rule "chỉ điều chỉnh 1 lần")
-  // Key: invoiceID của hóa đơn gốc, Value: true nếu đã có hóa đơn điều chỉnh
-  const adjustedInvoicesMap = useMemo(() => {
-    const map = new Map<string, boolean>()
-    
-    // Duyệt qua tất cả hóa đơn, tìm các hóa đơn điều chỉnh (type = 2)
-    invoices.forEach(inv => {
-      if (inv.invoiceType === 2 && inv.originalInvoiceID) {
-        // Đánh dấu hóa đơn gốc đã bị điều chỉnh
-        map.set(inv.originalInvoiceID.toString(), true)
-      }
-    })
-    
-    return map
-  }, [invoices])
+  // ❌ REMOVED: adjustedInvoicesMap - Không cần nữa vì theo NĐ 123/2020,
+  // hóa đơn có thể điều chỉnh NHIỀU LẦN, không cần check "đã điều chỉnh chưa"
 
   // Logic lọc dữ liệu - tích hợp với InvoiceFilter
   const filteredInvoices = useMemo(() => {
