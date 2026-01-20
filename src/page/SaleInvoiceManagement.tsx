@@ -1551,13 +1551,20 @@ const SaleInvoiceManagement = () => {
       const matchesDateTo = !filters.dateTo || dayjs(invoice.issueDate).isBefore(filters.dateTo, 'day') || dayjs(invoice.issueDate).isSame(filters.dateTo, 'day')
 
       // Lọc theo trạng thái hóa đơn (multiselect)
-      const matchesInvoiceStatus = filters.invoiceStatus.length === 0 || filters.invoiceStatus.includes(invoice.internalStatus)
+      // Lọc theo trạng thái hóa đơn - bỏ qua nếu có 'ALL' hoặc empty
+      const matchesInvoiceStatus = 
+        filters.invoiceStatus.length === 0 || 
+        filters.invoiceStatus.includes('ALL') || 
+        filters.invoiceStatus.includes(invoice.internalStatus)
 
       // Lọc theo trạng thái CQT
       const matchesTaxStatus = !filters.taxStatus || invoice.taxStatus === filters.taxStatus
 
-      // Lọc theo khách hàng
-      const matchesCustomer = !filters.customer || invoice.customerName === filters.customer
+      // Lọc theo khách hàng - bỏ qua nếu là 'ALL' hoặc null
+      const matchesCustomer = 
+        !filters.customer || 
+        filters.customer === 'ALL' || 
+        invoice.customerName === filters.customer
 
       // Lọc theo khoảng tiền
       const matchesAmountFrom = !filters.amountFrom || invoice.amount >= parseFloat(filters.amountFrom)
@@ -1624,7 +1631,12 @@ const SaleInvoiceManagement = () => {
           </Box>
 
           {/* Bộ lọc nâng cao */}
-          <InvoiceFilter onFilterChange={handleFilterChange} onReset={handleResetFilter} />
+          <InvoiceFilter 
+            onFilterChange={handleFilterChange} 
+            onReset={handleResetFilter}
+            totalResults={invoices.length}
+            filteredResults={filteredInvoices.length}
+          />
 
           {/* Loading State */}
           {loading && (

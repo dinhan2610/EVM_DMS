@@ -520,10 +520,7 @@ const HODInvoiceManagement = () => {
     invoiceStatus: [],
     taxStatus: '',
     customer: null,
-    project: null,
     invoiceType: [],
-    amountFrom: '',
-    amountTo: '',
   })
 
   // Load invoices từ API HOD
@@ -617,10 +614,7 @@ const HODInvoiceManagement = () => {
       invoiceStatus: [],
       taxStatus: '',
       customer: null,
-      project: null,
       invoiceType: [],
-      amountFrom: '',
-      amountTo: '',
     })
   }
 
@@ -651,8 +645,8 @@ const HODInvoiceManagement = () => {
       result = result.filter((inv) => dayjs(inv.issueDate).isBefore(dayjs(filters.dateTo)))
     }
 
-    // Invoice status filter
-    if (filters.invoiceStatus && filters.invoiceStatus.length > 0) {
+    // Invoice status filter - bỏ qua nếu có 'ALL'
+    if (filters.invoiceStatus && filters.invoiceStatus.length > 0 && !filters.invoiceStatus.includes('ALL')) {
       result = result.filter((inv) => filters.invoiceStatus.includes(String(inv.internalStatusId)))
     }
 
@@ -662,23 +656,14 @@ const HODInvoiceManagement = () => {
       result = result.filter((inv) => inv.taxStatusId === taxStatusId)
     }
 
-    // Invoice type filter
-    if (filters.invoiceType && filters.invoiceType.length > 0) {
-      result = result.filter((inv) => filters.invoiceType.includes(String(inv.invoiceType)))
+    // Customer filter - bỏ qua nếu là 'ALL'
+    if (filters.customer && filters.customer !== 'ALL') {
+      result = result.filter((inv) => inv.customerName === filters.customer)
     }
 
-    // Amount range filter
-    if (filters.amountFrom) {
-      const minAmount = parseFloat(filters.amountFrom)
-      if (!isNaN(minAmount)) {
-        result = result.filter((inv) => inv.amount >= minAmount)
-      }
-    }
-    if (filters.amountTo) {
-      const maxAmount = parseFloat(filters.amountTo)
-      if (!isNaN(maxAmount)) {
-        result = result.filter((inv) => inv.amount <= maxAmount)
-      }
+    // Invoice type filter - bỏ qua nếu có 'ALL'
+    if (filters.invoiceType && filters.invoiceType.length > 0 && !filters.invoiceType.includes('ALL')) {
+      result = result.filter((inv) => filters.invoiceType.includes(String(inv.invoiceType)))
     }
     
     if (import.meta.env.DEV) {

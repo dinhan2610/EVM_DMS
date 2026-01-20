@@ -534,10 +534,7 @@ const InvoiceManagement = () => {
     invoiceStatus: [],
     taxStatus: '',
     customer: null,
-    project: null,
     invoiceType: [],
-    amountFrom: '',
-    amountTo: '',
   })
 
   // Load invoices từ API
@@ -637,10 +634,7 @@ const InvoiceManagement = () => {
       invoiceStatus: [],
       taxStatus: '',
       customer: null,
-      project: null,
       invoiceType: [],
-      amountFrom: '',
-      amountTo: '',
     })
   }
 
@@ -1607,18 +1601,26 @@ const InvoiceManagement = () => {
       const matchesDateFrom = !filters.dateFrom || dayjs(invoice.issueDate).isAfter(filters.dateFrom, 'day') || dayjs(invoice.issueDate).isSame(filters.dateFrom, 'day')
       const matchesDateTo = !filters.dateTo || dayjs(invoice.issueDate).isBefore(filters.dateTo, 'day') || dayjs(invoice.issueDate).isSame(filters.dateTo, 'day')
 
-      // Lọc theo trạng thái hóa đơn (multiselect)
-      const matchesInvoiceStatus = filters.invoiceStatus.length === 0 || filters.invoiceStatus.includes(invoice.internalStatus)
+      // Lọc theo trạng thái hóa đơn (multiselect) - bỏ qua nếu có 'ALL' hoặc empty
+      const matchesInvoiceStatus = 
+        filters.invoiceStatus.length === 0 || 
+        filters.invoiceStatus.includes('ALL') || 
+        filters.invoiceStatus.includes(invoice.internalStatus)
 
       // Lọc theo trạng thái CQT
       const matchesTaxStatus = !filters.taxStatus || invoice.taxStatus === filters.taxStatus
 
-      // Lọc theo khách hàng
-      const matchesCustomer = !filters.customer || invoice.customerName === filters.customer
+      // Lọc theo khách hàng - bỏ qua nếu là 'ALL' hoặc null
+      const matchesCustomer = 
+        !filters.customer || 
+        filters.customer === 'ALL' || 
+        invoice.customerName === filters.customer
 
-      // Lọc theo khoảng tiền
-      const matchesAmountFrom = !filters.amountFrom || invoice.amount >= parseFloat(filters.amountFrom)
-      const matchesAmountTo = !filters.amountTo || invoice.amount <= parseFloat(filters.amountTo)
+      // Lọc theo loại hóa đơn (multiselect) - bỏ qua nếu có 'ALL' hoặc empty
+      const matchesInvoiceType = 
+        filters.invoiceType.length === 0 || 
+        filters.invoiceType.includes('ALL') || 
+        filters.invoiceType.includes(String(invoice.invoiceType))
 
       return (
         matchesSearch &&
@@ -1627,8 +1629,7 @@ const InvoiceManagement = () => {
         matchesInvoiceStatus &&
         matchesTaxStatus &&
         matchesCustomer &&
-        matchesAmountFrom &&
-        matchesAmountTo
+        matchesInvoiceType
       )
     })
     
@@ -1648,39 +1649,47 @@ const InvoiceManagement = () => {
       <Box sx={{ width: '100%', backgroundColor: '#f5f5f5', minHeight: '100vh', py: 4 }}>
         <Box sx={{ width: '100%', px: { xs: 2, sm: 3, md: 4 } }}>
           {/* Header */}
-          <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
-                Quản lý Hóa đơn
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
+              Quản lý Hóa đơn
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#666' }}>
+              Quản lý và theo dõi các hóa đơn điện tử của doanh nghiệp
+            </Typography>
+            {filteredInvoices.length > 0 && (
+              <Typography variant="body2" sx={{ color: '#1976d2', fontWeight: 500, mt: 0.5 }}>
+                📊 Hiển thị {filteredInvoices.length} / {invoices.length} hóa đơn
               </Typography>
-              <Typography variant="body2" sx={{ color: '#666' }}>
-                Quản lý và theo dõi các hóa đơn điện tử của doanh nghiệp
-              </Typography>
-              {filteredInvoices.length > 0 && (
-                <Typography variant="body2" sx={{ color: '#1976d2', fontWeight: 500, mt: 0.5 }}>
-                  📊 Hiển thị {filteredInvoices.length} / {invoices.length} hóa đơn
-                </Typography>
-              )}
-            </Box>
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<AddIcon />}
-              onClick={() => navigate('/newinvoices')}
-              sx={{
-                textTransform: 'none',
-                fontWeight: 500,
-                boxShadow: '0 2px 8px rgba(28, 132, 238, 0.24)',
-                '&:hover': {
-                  boxShadow: '0 4px 12px rgba(28, 132, 238, 0.32)',
-                },
-              }}>
-              Tạo hóa đơn
-            </Button>
+            )}
           </Box>
 
-          {/* Bộ lọc nâng cao */}
-          <InvoiceFilter onFilterChange={handleFilterChange} onReset={handleResetFilter} />
+          {/* Bộ lọc nâng cao với nút Tạo hóa đơn */}
+          <InvoiceFilter 
+            onFilterChange={handleFilterChange} 
+            onReset={handleResetFilter}
+            totalResults={invoices.length}
+            filteredResults={filteredInvoices.length}
+            actionButton={
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<AddIcon />}
+                onClick={() => navigate('/newinvoices')}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  height: 42,
+                  minWidth: 160,
+                  boxShadow: '0 2px 8px rgba(28, 132, 238, 0.24)',
+                  '&:hover': {
+                    boxShadow: '0 4px 12px rgba(28, 132, 238, 0.32)',
+                    transform: 'translateY(-1px)',
+                  },
+                }}>
+                Tạo hóa đơn
+              </Button>
+            }
+          />
 
           {/* Loading State */}
           {loading && (

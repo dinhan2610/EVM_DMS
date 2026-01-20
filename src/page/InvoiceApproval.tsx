@@ -462,10 +462,7 @@ const InvoiceApproval = () => {
     invoiceStatus: [],
     taxStatus: '',
     customer: null,
-    project: null,
     invoiceType: [],
-    amountFrom: '',
-    amountTo: '',
   })
 
   // State cho dialog duyệt/từ chối
@@ -545,10 +542,7 @@ const InvoiceApproval = () => {
       invoiceStatus: [],
       taxStatus: '',
       customer: null,
-      project: null,
       invoiceType: [],
-      amountFrom: '',
-      amountTo: '',
     })
   }
 
@@ -1003,11 +997,23 @@ const InvoiceApproval = () => {
 
       const matchesDateFrom = !filters.dateFrom || dayjs(invoice.issueDate).isAfter(filters.dateFrom, 'day') || dayjs(invoice.issueDate).isSame(filters.dateFrom, 'day')
       const matchesDateTo = !filters.dateTo || dayjs(invoice.issueDate).isBefore(filters.dateTo, 'day') || dayjs(invoice.issueDate).isSame(filters.dateTo, 'day')
-      const matchesInvoiceStatus = filters.invoiceStatus.length === 0 || filters.invoiceStatus.includes(invoice.internalStatus)
+      
+      // Lọc theo trạng thái hóa đơn - bỏ qua nếu có 'ALL' hoặc empty
+      const matchesInvoiceStatus = 
+        filters.invoiceStatus.length === 0 || 
+        filters.invoiceStatus.includes('ALL') || 
+        filters.invoiceStatus.includes(invoice.internalStatus)
+      
       const matchesTaxStatus = !filters.taxStatus || invoice.taxStatus === filters.taxStatus
-      const matchesCustomer = !filters.customer || invoice.customerName === filters.customer
-      const matchesAmountFrom = !filters.amountFrom || invoice.amount >= parseFloat(filters.amountFrom)
-      const matchesAmountTo = !filters.amountTo || invoice.amount <= parseFloat(filters.amountTo)
+      
+      // Lọc theo khách hàng - bỏ qua nếu là 'ALL' hoặc null
+      const matchesCustomer = 
+        !filters.customer || 
+        filters.customer === 'ALL' || 
+        invoice.customerName === filters.customer
+      
+      // Note: Invoice interface in InvoiceApproval doesn't have invoiceType field
+      // const matchesInvoiceType = filters.invoiceType.length === 0 || filters.invoiceType.includes(String(invoice.invoiceType))
 
       return (
         matchesSearch &&
@@ -1015,9 +1021,8 @@ const InvoiceApproval = () => {
         matchesDateTo &&
         matchesInvoiceStatus &&
         matchesTaxStatus &&
-        matchesCustomer &&
-        matchesAmountFrom &&
-        matchesAmountTo
+        matchesCustomer
+        // && matchesInvoiceType // Not available in this context
       )
     })
   }, [invoices, filters])
@@ -1051,7 +1056,12 @@ const InvoiceApproval = () => {
           </Box>
 
           {/* Bộ lọc */}
-          <InvoiceFilter onFilterChange={handleFilterChange} onReset={handleResetFilter} />
+          <InvoiceFilter 
+            onFilterChange={handleFilterChange} 
+            onReset={handleResetFilter}
+            totalResults={invoices.length}
+            filteredResults={filteredInvoices.length}
+          />
 
           {/* Loading */}
           {loading && (
