@@ -5,11 +5,6 @@ import {
   Typography,
   Paper,
   Button,
-  TextField,
-  Select,
-  MenuItem,
-  InputLabel,
-  FormControl,
   IconButton,
   Chip,
   Dialog,
@@ -21,20 +16,18 @@ import {
   Grid,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams, GridPaginationModel } from '@mui/x-data-grid'
-import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
-import dayjs, { Dayjs } from 'dayjs'
+import dayjs from 'dayjs'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined'
-import SearchIcon from '@mui/icons-material/Search'
-import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import StorageIcon from '@mui/icons-material/Storage'
 import TimelineIcon from '@mui/icons-material/Timeline'
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
 
 import auditService, { DataLog, ActivityLog } from '@/services/auditService'
+import AuditLogsFilter, { AuditLogsFilterState } from '@/components/AuditLogsFilter'
 
 type TabValue = 'data' | 'activity'
 
@@ -64,17 +57,15 @@ const AuditLogsPage = () => {
     totalPages: 0,
   })
 
-  // State: Filters
-  const [fromDate, setFromDate] = useState<Dayjs | null>(dayjs().subtract(7, 'day'))
-  const [toDate, setToDate] = useState<Dayjs | null>(dayjs())
-  const [searchText, setSearchText] = useState('')
-  
-  // Data Logs filters
-  const [selectedTableName, setSelectedTableName] = useState<string>('all')
-  const [selectedAction, setSelectedAction] = useState<string>('all')
-  
-  // Activity Logs filters
-  const [selectedStatus, setSelectedStatus] = useState<string>('all')
+  // State: Filters (Unified with AuditLogsFilter component)
+  const [filters, setFilters] = useState<AuditLogsFilterState>({
+    searchText: '',
+    dateFrom: dayjs().subtract(7, 'day'),
+    dateTo: dayjs(),
+    activityStatus: 'all',
+    tableName: 'all',
+    action: 'all',
+  })
 
   // State: Detail Modal
   const [viewingDataLog, setViewingDataLog] = useState<DataLog | null>(null)
@@ -89,10 +80,10 @@ const AuditLogsPage = () => {
       const response = await auditService.getDataLogs({
         pageIndex: dataLogsPagination.pageIndex,
         pageSize: dataLogsPagination.pageSize,
-        tableName: selectedTableName !== 'all' ? selectedTableName : undefined,
-        action: selectedAction !== 'all' ? selectedAction : undefined,
-        fromDate: fromDate?.toISOString(),
-        toDate: toDate?.toISOString(),
+        tableName: filters.tableName !== 'all' ? filters.tableName : undefined,
+        action: filters.action !== 'all' ? filters.action : undefined,
+        fromDate: filters.dateFrom?.toISOString(),
+        toDate: filters.dateTo?.toISOString(),
       })
 
       setDataLogs(response.items)
@@ -108,7 +99,7 @@ const AuditLogsPage = () => {
     } finally {
       setDataLogsLoading(false)
     }
-  }, [dataLogsPagination.pageIndex, dataLogsPagination.pageSize, selectedTableName, selectedAction, fromDate, toDate])
+  }, [dataLogsPagination.pageIndex, dataLogsPagination.pageSize, filters.tableName, filters.action, filters.dateFrom, filters.dateTo])
 
   // Fetch Activity Logs
   const fetchActivityLogs = useCallback(async () => {
@@ -118,9 +109,9 @@ const AuditLogsPage = () => {
       const response = await auditService.getActivityLogs({
         pageIndex: activityLogsPagination.pageIndex,
         pageSize: activityLogsPagination.pageSize,
-        status: selectedStatus !== 'all' ? (selectedStatus as 'Success' | 'Failed') : undefined,
-        fromDate: fromDate?.toISOString(),
-        toDate: toDate?.toISOString(),
+        status: filters.activityStatus !== 'all' ? (filters.activityStatus as 'Success' | 'Failed') : undefined,
+        fromDate: filters.dateFrom?.toISOString(),
+        toDate: filters.dateTo?.toISOString(),
       })
 
       setActivityLogs(response.items)
@@ -136,7 +127,7 @@ const AuditLogsPage = () => {
     } finally {
       setActivityLogsLoading(false)
     }
-  }, [activityLogsPagination.pageIndex, activityLogsPagination.pageSize, selectedStatus, fromDate, toDate])
+  }, [activityLogsPagination.pageIndex, activityLogsPagination.pageSize, filters.activityStatus, filters.dateFrom, filters.dateTo])
 
   // Effect: Fetch logs when tab changes or filters change
   useEffect(() => {
@@ -147,40 +138,126 @@ const AuditLogsPage = () => {
     }
   }, [currentTab, fetchDataLogs, fetchActivityLogs])
 
-  // Filtered Data Logs (client-side search)
+  // Filtered Data Logs (client-side search with Vietnamese labels)
   const filteredDataLogs = useMemo(() => {
-    if (!searchText) return dataLogs
+    if (!filters.searchText) return dataLogs
 
-    const searchLower = searchText.toLowerCase()
+    const searchLower = filters.searchText.toLowerCase().trim()
     return dataLogs.filter((log) => {
-      return (
+      // Search raw field values
+      if (
         log.userName.toLowerCase().includes(searchLower) ||
         log.tableName.toLowerCase().includes(searchLower) ||
         log.action.toLowerCase().includes(searchLower) ||
-        (log.recordId && log.recordId.includes(searchLower))
-      )
+        (log.recordId && log.recordId.includes(searchLower)) ||
+        log.traceId.toLowerCase().includes(searchLower)
+      ) {
+        return true
+      }
+
+      // Search Vietnamese labels
+      const actionLabel = auditService.getActionLabel(log.action).toLowerCase()
+      const tableLabel = auditService.getTableLabel(log.tableName).toLowerCase()
+      if (actionLabel.includes(searchLower) || tableLabel.includes(searchLower)) {
+        return true
+      }
+
+      // Search formatted timestamp (DD/MM/YYYY HH:mm:ss)
+      const formattedTimestamp = dayjs(log.timestamp).format('DD/MM/YYYY HH:mm:ss')
+      if (formattedTimestamp.includes(searchLower)) {
+        return true
+      }
+
+      // Search oldValues content
+      if (log.oldValues) {
+        try {
+          const oldValuesObj = JSON.parse(log.oldValues)
+          const oldValuesStr = JSON.stringify(oldValuesObj).toLowerCase()
+          if (oldValuesStr.includes(searchLower)) {
+            return true
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+
+      // Search newValues content
+      if (log.newValues) {
+        try {
+          const newValuesObj = JSON.parse(log.newValues)
+          const newValuesStr = JSON.stringify(newValuesObj).toLowerCase()
+          if (newValuesStr.includes(searchLower)) {
+            return true
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+
+      return false
     })
-  }, [dataLogs, searchText])
+  }, [dataLogs, filters.searchText])
 
-  // Filtered Activity Logs (client-side search)
+  // Filtered Activity Logs (client-side search with Vietnamese labels)
   const filteredActivityLogs = useMemo(() => {
-    if (!searchText) return activityLogs
+    if (!filters.searchText) return activityLogs
 
-    const searchLower = searchText.toLowerCase()
+    const searchLower = filters.searchText.toLowerCase().trim()
     return activityLogs.filter((log) => {
-      return (
+      // Search raw field values
+      if (
         log.userId.toLowerCase().includes(searchLower) ||
         log.actionName.toLowerCase().includes(searchLower) ||
         log.description.toLowerCase().includes(searchLower) ||
         log.ipAddress.includes(searchLower)
-      )
+      ) {
+        return true
+      }
+
+      // Search Vietnamese labels
+      const userIdLabel = auditService.getUserIdLabel(log.userId).toLowerCase()
+      const actionNameLabel = auditService.getActionNameLabel(log.actionName).toLowerCase()
+      const statusLabel = auditService.getStatusLabel(log.status).toLowerCase()
+      if (
+        userIdLabel.includes(searchLower) ||
+        actionNameLabel.includes(searchLower) ||
+        statusLabel.includes(searchLower)
+      ) {
+        return true
+      }
+
+      // Search formatted timestamp (DD/MM/YYYY HH:mm:ss)
+      const formattedTimestamp = dayjs(log.timestamp).format('DD/MM/YYYY HH:mm:ss')
+      if (formattedTimestamp.includes(searchLower)) {
+        return true
+      }
+
+      return false
     })
-  }, [activityLogs, searchText])
+  }, [activityLogs, filters.searchText])
 
   // Handlers
   const handleTabChange = (_event: React.SyntheticEvent, newValue: TabValue) => {
     setCurrentTab(newValue)
-    setSearchText('') // Clear search when switching tabs
+    // Clear search when switching tabs
+    setFilters((prev) => ({ ...prev, searchText: '' }))
+  }
+
+  // Handle filter change from AuditLogsFilter component
+  const handleFilterChange = (newFilters: AuditLogsFilterState) => {
+    setFilters(newFilters)
+  }
+
+  // Handle filter reset
+  const handleFilterReset = () => {
+    setFilters({
+      searchText: '',
+      dateFrom: dayjs().subtract(7, 'day'),
+      dateTo: dayjs(),
+      activityStatus: 'all',
+      tableName: 'all',
+      action: 'all',
+    })
   }
 
   const handleViewDataLogDetails = (log: DataLog) => {
@@ -205,15 +282,6 @@ const AuditLogsPage = () => {
     } else {
       fetchActivityLogs()
     }
-  }
-
-  const handleClearAllFilters = () => {
-    setFromDate(dayjs().subtract(7, 'day'))
-    setToDate(dayjs())
-    setSelectedTableName('all')
-    setSelectedAction('all')
-    setSelectedStatus('all')
-    setSearchText('')
   }
 
   const handleDataLogsPaginationChange = (model: GridPaginationModel) => {
@@ -548,7 +616,7 @@ const AuditLogsPage = () => {
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box sx={{ p: 3 }}>
         {/* Header */}
-        <Box mb={4}>
+        <Box mb={3}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
             <Box>
               <Typography variant="h4" fontWeight="bold" gutterBottom>
@@ -564,6 +632,15 @@ const AuditLogsPage = () => {
                 startIcon={<RefreshIcon />}
                 onClick={handleRefresh}
                 disabled={dataLogsLoading || activityLogsLoading}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  borderRadius: 2,
+                  transition: 'all 0.3s',
+                  '&:hover': {
+                    transform: 'translateY(-1px)',
+                  },
+                }}
               >
                 Làm mới
               </Button>
@@ -571,6 +648,11 @@ const AuditLogsPage = () => {
                 variant="outlined"
                 startIcon={<DownloadOutlinedIcon />}
                 disabled
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  borderRadius: 2,
+                }}
               >
                 Xuất Excel
               </Button>
@@ -578,14 +660,31 @@ const AuditLogsPage = () => {
           </Box>
 
           {/* Tabs */}
-          <Paper sx={{ mb: 3 }}>
-            <Tabs value={currentTab} onChange={handleTabChange}>
+          <Paper 
+            sx={{ 
+              mb: 3,
+              borderRadius: 2,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+            }}
+          >
+            <Tabs 
+              value={currentTab} 
+              onChange={handleTabChange}
+              sx={{
+                '& .MuiTab-root': {
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '0.95rem',
+                  minHeight: 64,
+                },
+              }}
+            >
               <Tab
                 value="activity"
                 label={
                   <Box display="flex" alignItems="center" gap={1}>
                     <TimelineIcon />
-                    <Typography>
+                    <Typography fontWeight={600}>
                       Hoạt động người dùng ({activityLogsPagination.totalCount})
                     </Typography>
                   </Box>
@@ -596,7 +695,7 @@ const AuditLogsPage = () => {
                 label={
                   <Box display="flex" alignItems="center" gap={1}>
                     <StorageIcon />
-                    <Typography>
+                    <Typography fontWeight={600}>
                       Thay đổi dữ liệu ({dataLogsPagination.totalCount})
                     </Typography>
                   </Box>
@@ -605,109 +704,12 @@ const AuditLogsPage = () => {
             </Tabs>
           </Paper>
 
-          {/* Filters */}
-          <Paper sx={{ p: 3, mb: 3 }}>
-            <Grid container spacing={2} alignItems="center">
-              {/* Date Range */}
-              <Grid size={{ xs: 12, md: 3 }}>
-                <DatePicker
-                  label="Từ ngày"
-                  value={fromDate}
-                  onChange={setFromDate}
-                  slotProps={{ textField: { fullWidth: true, size: 'small' } }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 3 }}>
-                <DatePicker
-                  label="Đến ngày"
-                  value={toDate}
-                  onChange={setToDate}
-                  slotProps={{ textField: { fullWidth: true, size: 'small' } }}
-                />
-              </Grid>
-
-              {/* Tab-specific filters */}
-              {currentTab === 'data' && (
-                <>
-                  <Grid size={{ xs: 12, md: 2 }}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Bảng dữ liệu</InputLabel>
-                      <Select
-                        value={selectedTableName}
-                        label="Bảng dữ liệu"
-                        onChange={(e) => setSelectedTableName(e.target.value)}
-                      >
-                        <MenuItem value="all">Tất cả</MenuItem>
-                        <MenuItem value="Invoice">Hóa đơn</MenuItem>
-                        <MenuItem value="InvoiceItem">Sản phẩm</MenuItem>
-                        <MenuItem value="InvoiceHistory">Lịch sử HĐ</MenuItem>
-                        <MenuItem value="User">Người dùng</MenuItem>
-                        <MenuItem value="Customer">Khách hàng</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 2 }}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Hành động</InputLabel>
-                      <Select
-                        value={selectedAction}
-                        label="Hành động"
-                        onChange={(e) => setSelectedAction(e.target.value)}
-                      >
-                        <MenuItem value="all">Tất cả</MenuItem>
-                        <MenuItem value="Added">Thêm mới</MenuItem>
-                        <MenuItem value="Modified">Cập nhật</MenuItem>
-                        <MenuItem value="Deleted">Xóa</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                </>
-              )}
-
-              {currentTab === 'activity' && (
-                <Grid size={{ xs: 12, md: 2 }}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Trạng thái</InputLabel>
-                    <Select
-                      value={selectedStatus}
-                      label="Trạng thái"
-                      onChange={(e) => setSelectedStatus(e.target.value)}
-                    >
-                      <MenuItem value="all">Tất cả</MenuItem>
-                      <MenuItem value="Success">Thành công</MenuItem>
-                      <MenuItem value="Failed">Thất bại</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-              )}
-
-              {/* Search */}
-              <Grid size={{ xs: 12, md: 2 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  placeholder="Tìm kiếm..."
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  InputProps={{
-                    startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: 'action.active' }} />,
-                  }}
-                />
-              </Grid>
-            </Grid>
-
-            {/* Filter Actions */}
-            <Box display="flex" justifyContent="flex-end" mt={2} gap={2}>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<FilterListOutlinedIcon />}
-                onClick={handleClearAllFilters}
-              >
-                Xóa bộ lọc
-              </Button>
-            </Box>
-          </Paper>
+          {/* NEW: AuditLogsFilter Component */}
+          <AuditLogsFilter
+            currentTab={currentTab}
+            onFilterChange={handleFilterChange}
+            onReset={handleFilterReset}
+          />
         </Box>
 
         {/* DataGrid */}
