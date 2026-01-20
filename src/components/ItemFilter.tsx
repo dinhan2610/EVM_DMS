@@ -216,9 +216,9 @@ const ItemFilter: React.FC<ItemFilterProps> = ({
       }}
     >
       {/* ========== ROW 1: Search + Filter Button + Action ========== */}
-      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
         {/* Search Input */}
-        <Box sx={{ flex: '1 1 auto', maxWidth: 480, minWidth: 280 }}>
+        <Box sx={{ flex: '1 1 auto', maxWidth: 480, minWidth: 200 }}>
           <TextField
             size="small"
             fullWidth

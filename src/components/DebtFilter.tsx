@@ -47,6 +47,7 @@ interface DebtFilterProps {
   onReset?: () => void
   totalResults?: number
   filteredResults?: number
+  actionButton?: React.ReactNode // Nút action tùy chỉnh (thống nhất với InvoiceFilter/ItemFilter)
 }
 
 // ==================== CONSTANTS ====================
@@ -66,6 +67,7 @@ const DebtFilter: React.FC<DebtFilterProps> = ({
   onReset,
   totalResults = 0,
   filteredResults = 0,
+  actionButton,
 }) => {
   // State - UI
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -201,10 +203,10 @@ const DebtFilter: React.FC<DebtFilterProps> = ({
           },
         }}
       >
-        {/* ========== ROW 1: Search + Filter Button ========== */}
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* ========== ROW 1: Search + Filter Button + Quick Toggle + Action ========== */}
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
           {/* Search Input */}
-          <Box sx={{ flex: '1 1 auto', maxWidth: 480, minWidth: 280 }}>
+          <Box sx={{ flex: '1 1 auto', maxWidth: 480, minWidth: 200 }}>
             <TextField
               size="small"
               fullWidth
@@ -302,14 +304,22 @@ const DebtFilter: React.FC<DebtFilterProps> = ({
                   sx={{
                     fontWeight: filters.overdueOnly ? 600 : 400,
                     color: filters.overdueOnly ? '#f44336' : '#666',
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   Chỉ quá hạn
                 </Typography>
               </Box>
             }
-            sx={{ ml: 'auto', mr: 0 }}
+            sx={{ flex: '0 0 auto', mr: 0 }}
           />
+
+          {/* Action Button (nếu có) */}
+          {actionButton && (
+            <Box sx={{ flex: '0 0 auto' }}>
+              {actionButton}
+            </Box>
+          )}
         </Box>
 
         {/* ========== ADVANCED FILTERS (Collapse) ========== */}

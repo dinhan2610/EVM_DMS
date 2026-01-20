@@ -48,11 +48,6 @@ import {
 // ============================================================================
 // INVOICE NUMBER CELL COMPONENT
 // ============================================================================
-// ⚠️ PERFORMANCE WORKAROUND: Fetch detail API to get invoiceId
-// - List API doesn't include invoiceId (only has invoiceSerial + invoiceNumber)
-// - Must fetch detail API when user clicks to get real invoiceId
-// - TODO: Remove async fetch when backend adds invoiceId to list response
-// - Track: docs/BACKEND_NOTIFICATION_LIST_API_MISSING_INVOICEID.md
 
 interface InvoiceNumberCellProps {
   notificationId: number
@@ -898,6 +893,8 @@ const TaxErrorNotificationManagement = () => {
             type: [],
             taxAuthority: '',
           })}
+          totalResults={totalCount}
+          filteredResults={filteredNotifications.length}
         />
 
         {/* Data Table */}
