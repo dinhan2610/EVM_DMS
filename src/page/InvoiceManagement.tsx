@@ -240,11 +240,17 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax,
   // 📋 Logic "Tạo HĐ điều chỉnh" - Theo NĐ 123/2020
   // Điều kiện:
   // 1. Hóa đơn đã phát hành (status = 2 ISSUED) HOẶC Đã điều chỉnh (status = 4 ADJUSTED)
-  // 2. Chính nó KHÔNG phải là hóa đơn điều chỉnh (invoiceType !== ADJUSTMENT)
-  // ✅ CHO PHÉP ĐIỀU CHỈNH NHIỀU LẦN theo NĐ 123/2020/NĐ-CP Điều 19
+  // 2. ✅ CHO PHÉP ĐIỀU CHỈNH NHIỀU LẦN - Không giới hạn invoiceType
+  // 3. HĐ điều chỉnh có thể điều chỉnh tiếp (NĐ 123/2020/NĐ-CP Điều 19)
   const isAdjustmentInvoice = invoice.invoiceType === INVOICE_TYPE.ADJUSTMENT
+  const isReplacementInvoice = invoice.invoiceType === INVOICE_TYPE.REPLACEMENT
   const isAdjusted = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.ADJUSTED // Status 4
-  const canAdjust = (isIssued || isAdjusted) && !isAdjustmentInvoice
+  
+  // ✅ Cho phép điều chỉnh: ISSUED hoặc ADJUSTED, KHÔNG giới hạn invoiceType
+  const canAdjust = isIssued || isAdjusted
+  
+  // ✅ Cho phép thay thế: ISSUED hoặc ADJUSTED, KHÔNG giới hạn invoiceType
+  const canReplace = isIssued || isAdjusted
 
   const menuItems = [
     {
@@ -332,20 +338,26 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax,
       },
       color: 'warning.main',
       tooltip: isAdjustmentInvoice
-        ? '⚠️ Hóa đơn điều chỉnh không thể điều chỉnh tiếp (chỉ điều chỉnh HĐ gốc)'
-        : 'Tạo hóa đơn điều chỉnh (có thể nhiều lần theo NĐ 123/2020)',
+        ? 'Điều chỉnh HĐ điều chỉnh (cho phép điều chỉnh nhiều lần)'
+        : isReplacementInvoice
+        ? 'Điều chỉnh HĐ thay thế (cho phép điều chỉnh nhiều lần)'
+        : 'Tạo hóa đơn điều chỉnh (không giới hạn số lần)',
     },
     {
       label: 'Tạo HĐ thay thế',
       icon: <RestoreIcon fontSize="small" />,
-      enabled: isIssued, // ✅ Thay thế bao nhiêu lần cũng được
+      enabled: canReplace,
       action: () => {
         console.log('Tạo HĐ thay thế:', invoice.id)
         navigate(`/invoices/${invoice.id}/replace`)
         handleClose()
       },
       color: 'warning.main',
-      tooltip: 'Tạo hóa đơn thay thế (không giới hạn số lần)',
+      tooltip: isAdjustmentInvoice
+        ? 'Thay thế HĐ điều chỉnh (cho phép thay thế nhiều lần)'
+        : isReplacementInvoice
+        ? 'Thay thế HĐ thay thế (cho phép thay thế nhiều lần)'
+        : 'Tạo hóa đơn thay thế (không giới hạn số lần)',
     },
     {
       label: 'Hủy',

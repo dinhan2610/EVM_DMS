@@ -19,16 +19,15 @@ import {
   Error as ErrorIcon,
   MoreVert as MoreVertIcon,
   ErrorOutline as ErrorOutlineIcon,
-  Send as SendIcon,
-  Edit as EditIcon,
-  Cancel as CancelIcon,
+  Restore as RestoreIcon,
+  FindReplace as FindReplaceIcon,
 } from '@mui/icons-material'
 import { useParams, useNavigate } from 'react-router-dom'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
 import InvoicePreviewModal from '@/components/invoices/InvoicePreviewModal'
 import TaxErrorNotificationModal from '@/components/TaxErrorNotificationModal_v2'
 import Spinner from '@/components/Spinner'
-import invoiceService, { InvoiceListItem } from '@/services/invoiceService'
+import invoiceService, { InvoiceListItem, INVOICE_TYPE } from '@/services/invoiceService'
 import templateService, { TemplateResponse } from '@/services/templateService'
 import { getAllCustomers, Customer } from '@/services/customerService'
 import companyService, { Company } from '@/services/companyService'
@@ -137,6 +136,20 @@ const InvoiceDetail: React.FC = () => {
     tax: invoice.vatAmount,
     total: invoice.totalAmount,
   } : undefined
+
+  // ✅ Logic actions menu - Khớp với InvoiceManagement
+  const isIssued = invoice?.invoiceStatusID === INVOICE_INTERNAL_STATUS.ISSUED
+  const isAdjusted = invoice?.invoiceStatusID === INVOICE_INTERNAL_STATUS.ADJUSTED
+  const isAdjustmentInvoice = invoice?.invoiceType === INVOICE_TYPE.ADJUSTMENT
+  const isReplacementInvoice = invoice?.invoiceType === INVOICE_TYPE.REPLACEMENT
+  
+  // ✅ Cho phép điều chỉnh: ISSUED hoặc ADJUSTED, KHÔNG giới hạn invoiceType
+  // HĐ điều chỉnh có thể điều chỉnh tiếp, HĐ thay thế có thể điều chỉnh
+  const canAdjust = isIssued || isAdjusted
+  
+  // ✅ Cho phép thay thế: ISSUED hoặc ADJUSTED, KHÔNG giới hạn invoiceType
+  // HĐ điều chỉnh có thể thay thế, HĐ thay thế có thể thay thế tiếp
+  const canReplace = isIssued || isAdjusted
 
   useEffect(() => {
     const fetchInvoiceDetail = async () => {
@@ -394,116 +407,112 @@ const InvoiceDetail: React.FC = () => {
 
         {/* Actions Menu Dropdown */}
         <Menu
-                  anchorEl={anchorEl}
-                  open={openActionsMenu}
-                  onClose={handleCloseActionsMenu}
-                  anchorOrigin={{
-                    vertical: 'bottom',
-                    horizontal: 'right',
-                  }}
-                  transformOrigin={{
-                    vertical: 'top',
-                    horizontal: 'right',
-                  }}
-                  PaperProps={{
-                    sx: {
-                      minWidth: 280,
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                      borderRadius: 1.5,
-                    },
-                  }}>
-                  <MenuItem
-                    onClick={handleOpenTaxErrorModal}
-                    sx={{
-                      py: 1.5,
-                      '&:hover': {
-                        backgroundColor: 'error.lighter',
-                      },
-                    }}>
-                    <ListItemIcon>
-                      <ErrorOutlineIcon fontSize="small" color="error" />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="Gửi thông báo sai sót (04)"
-                      secondary="Thông báo sai sót đến CQT"
-                      primaryTypographyProps={{
-                        fontWeight: 500,
-                        fontSize: '0.9rem',
-                      }}
-                      secondaryTypographyProps={{
-                        fontSize: '0.75rem',
-                      }}
-                    />
-                  </MenuItem>
-                  
-                  <Divider />
-                  
-                  <MenuItem
-                    onClick={() => {
-                      handleCloseActionsMenu()
-                      // TODO: Implement other actions
-                    }}
-                    disabled
-                    sx={{ py: 1.5 }}>
-                    <ListItemIcon>
-                      <EditIcon fontSize="small" color="action" />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="Điều chỉnh hóa đơn"
-                      secondary="Tạo hóa đơn điều chỉnh"
-                      primaryTypographyProps={{
-                        fontSize: '0.9rem',
-                      }}
-                      secondaryTypographyProps={{
-                        fontSize: '0.75rem',
-                      }}
-                    />
-                  </MenuItem>
-                  
-                  <MenuItem
-                    onClick={() => {
-                      handleCloseActionsMenu()
-                      // TODO: Implement other actions
-                    }}
-                    disabled
-                    sx={{ py: 1.5 }}>
-                    <ListItemIcon>
-                      <SendIcon fontSize="small" color="action" />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="Thay thế hóa đơn"
-                      secondary="Tạo hóa đơn thay thế"
-                      primaryTypographyProps={{
-                        fontSize: '0.9rem',
-                      }}
-                      secondaryTypographyProps={{
-                        fontSize: '0.75rem',
-                      }}
-                    />
-                  </MenuItem>
-                  
-                  <MenuItem
-                    onClick={() => {
-                      handleCloseActionsMenu()
-                      // TODO: Implement cancel action
-                    }}
-                    disabled
-                    sx={{ py: 1.5 }}>
-                    <ListItemIcon>
-                      <CancelIcon fontSize="small" color="action" />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="Hủy hóa đơn"
-                      secondary="Hủy hóa đơn đã phát hành"
-                      primaryTypographyProps={{
-                        fontSize: '0.9rem',
-                      }}
-                      secondaryTypographyProps={{
-                        fontSize: '0.75rem',
-                      }}
-                    />
-                  </MenuItem>
-                </Menu>
+          anchorEl={anchorEl}
+          open={openActionsMenu}
+          onClose={handleCloseActionsMenu}
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'right',
+          }}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+          PaperProps={{
+            sx: {
+              minWidth: 280,
+              boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+              borderRadius: 1.5,
+            },
+          }}>
+          
+          {/* Gửi thông báo sai sót (04) */}
+          <MenuItem
+            onClick={handleOpenTaxErrorModal}
+            sx={{
+              py: 1.5,
+              '&:hover': {
+                backgroundColor: 'error.lighter',
+              },
+            }}>
+            <ListItemIcon>
+              <ErrorOutlineIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            <ListItemText
+              primary="Gửi thông báo sai sót (04)"
+              secondary="Thông báo sai sót đến CQT"
+              primaryTypographyProps={{
+                fontWeight: 500,
+                fontSize: '0.9rem',
+              }}
+              secondaryTypographyProps={{
+                fontSize: '0.75rem',
+              }}
+            />
+          </MenuItem>
+          
+          <Divider />
+          
+          {/* Tạo HĐ điều chỉnh */}
+          <MenuItem
+            onClick={() => {
+              handleCloseActionsMenu()
+              navigate(`/invoices/${invoice.invoiceID}/adjust`)
+            }}
+            disabled={!canAdjust}
+            sx={{ py: 1.5 }}>
+            <ListItemIcon>
+              <FindReplaceIcon fontSize="small" color={canAdjust ? 'warning' : 'action'} />
+            </ListItemIcon>
+            <ListItemText
+              primary="Tạo HĐ điều chỉnh"
+              secondary={
+                isAdjustmentInvoice
+                  ? 'Điều chỉnh HĐ điều chỉnh (cho phép nhiều lần)'
+                  : isReplacementInvoice
+                  ? 'Điều chỉnh HĐ thay thế'
+                  : 'Tạo hóa đơn điều chỉnh'
+              }
+              primaryTypographyProps={{
+                fontSize: '0.9rem',
+                fontWeight: canAdjust ? 500 : 400,
+              }}
+              secondaryTypographyProps={{
+                fontSize: '0.75rem',
+              }}
+            />
+          </MenuItem>
+          
+          {/* Tạo HĐ thay thế */}
+          <MenuItem
+            onClick={() => {
+              handleCloseActionsMenu()
+              navigate(`/invoices/${invoice.invoiceID}/replace`)
+            }}
+            disabled={!canReplace}
+            sx={{ py: 1.5 }}>
+            <ListItemIcon>
+              <RestoreIcon fontSize="small" color={canReplace ? 'warning' : 'action'} />
+            </ListItemIcon>
+            <ListItemText
+              primary="Tạo HĐ thay thế"
+              secondary={
+                isAdjustmentInvoice
+                  ? 'Thay thế HĐ điều chỉnh (cho phép nhiều lần)'
+                  : isReplacementInvoice
+                  ? 'Thay thế HĐ thay thế (cho phép nhiều lần)'
+                  : 'Tạo hóa đơn thay thế'
+              }
+              primaryTypographyProps={{
+                fontSize: '0.9rem',
+                fontWeight: canReplace ? 500 : 400,
+              }}
+              secondaryTypographyProps={{
+                fontSize: '0.75rem',
+              }}
+            />
+          </MenuItem>
+        </Menu>
 
       <Box 
         sx={{ 
