@@ -476,29 +476,24 @@ const SaleInvoiceManagement = () => {
         return
       }
       
-      // Load all data in parallel
-      const [allInvoicesData, templatesData, customersData] = await Promise.all([
-        invoiceService.getAllInvoices(),
+      // ✅ Load all data in parallel
+      // Use getSaleAssignedInvoices() - Backend đã filter theo salesID của user đang login
+      const [filteredInvoicesData, templatesData, customersData] = await Promise.all([
+        invoiceService.getSaleAssignedInvoices(), // 🔥 Backend filter - Chỉ trả invoices của Sale này
         templateService.getAllTemplates(),
         customerService.getAllCustomers(),
       ])
       
-      console.log('📊 [SaleInvoiceManagement] Loaded data from API:', {
-        totalInvoices: allInvoicesData.length,
+      console.log('📊 [SaleInvoiceManagement] Loaded data from backend (pre-filtered):', {
+        saleInvoices: filteredInvoicesData.length,
         totalTemplates: templatesData.length,
         totalCustomers: customersData.length,
         currentSalesID,
+        apiUsed: 'GET /api/Invoice/sale-assigned',
       })
       
-      // 🎯 OPTIMIZATION: Filter TRƯỚC khi map để giảm số lượng phần tử xử lý
-      const filteredInvoicesData = allInvoicesData.filter(item => item.salesID === currentSalesID)
-      
-      console.log(`🔒 [SaleInvoiceManagement] Security Filter Applied:`, {
-        total: allInvoicesData.length,
-        filtered: filteredInvoicesData.length,
-        salesID: currentSalesID,
-        removed: allInvoicesData.length - filteredInvoicesData.length,
-      })
+      // ✅ Backend đã filter rồi - Không cần filter thêm ở frontend
+      // Security: Backend enforces salesID === currentUserId
       
       // ⚠️ Cảnh báo nếu không có hóa đơn nào
       if (filteredInvoicesData.length === 0) {

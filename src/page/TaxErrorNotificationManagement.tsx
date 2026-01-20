@@ -15,6 +15,7 @@ import {
   Button,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
+import React from 'react'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import dayjs from 'dayjs'
@@ -24,7 +25,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import SendIcon from '@mui/icons-material/Send'
 import DownloadIcon from '@mui/icons-material/Download'
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import Spinner from '@/components/Spinner'
 import TaxErrorNotificationFilter, { TaxErrorNotificationFilterState } from '../components/TaxErrorNotificationFilter'
 import TaxErrorNotificationDetailModal from '@/components/TaxErrorNotificationDetailModal'
@@ -43,6 +44,105 @@ import {
   formatCurrency,
   formatDate,
 } from '@/types/taxErrorNotification'
+
+// ============================================================================
+// INVOICE NUMBER CELL COMPONENT
+// ============================================================================
+// ⚠️ PERFORMANCE WORKAROUND: Fetch detail API to get invoiceId
+// - List API doesn't include invoiceId (only has invoiceSerial + invoiceNumber)
+// - Must fetch detail API when user clicks to get real invoiceId
+// - TODO: Remove async fetch when backend adds invoiceId to list response
+// - Track: docs/BACKEND_NOTIFICATION_LIST_API_MISSING_INVOICEID.md
+
+interface InvoiceNumberCellProps {
+  notificationId: number
+  invoiceNumber: string
+  invoiceSymbol: string
+}
+
+const InvoiceNumberCell: React.FC<InvoiceNumberCellProps> = ({ 
+  notificationId, 
+  invoiceNumber, 
+  invoiceSymbol 
+}) => {
+  const navigate = useNavigate()
+  const [isNavigating, setIsNavigating] = useState(false)
+  
+  const handleInvoiceClick = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    
+    try {
+      setIsNavigating(true)
+      console.log(`[🔍 Notification ${notificationId}] Fetching detail to get invoiceId...`)
+      
+      // Fetch notification detail to get real invoiceId
+      const detail = await taxErrorNotificationService.getNotificationById(notificationId)
+      
+      if (!detail.details || detail.details.length === 0) {
+        console.error(`[❌ Notification ${notificationId}] No invoice details found`)
+        alert('⚠️ Không tìm thấy hóa đơn liên kết')
+        return
+      }
+      
+      const invoiceId = detail.details[0].invoiceId
+      console.log(`[✅ Notification ${notificationId}] Found invoiceId: ${invoiceId}`)
+      
+      // Navigate to invoice detail
+      navigate(`/invoices/${invoiceId}`)
+      
+    } catch (error) {
+      console.error(`[❌ Notification ${notificationId}] Failed to fetch:`, error)
+      alert('⚠️ Không thể tải thông tin hóa đơn')
+    } finally {
+      setIsNavigating(false)
+    }
+  }
+  
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+      <Tooltip 
+        title={
+          <Box>
+            <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, mb: 0.5 }}>
+              Hóa đơn gốc
+            </Typography>
+            <Typography variant="caption" sx={{ display: 'block' }}>
+              Số: {invoiceNumber}
+            </Typography>
+            <Typography variant="caption" sx={{ display: 'block' }}>
+              Ký hiệu: {invoiceSymbol}
+            </Typography>
+            <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: '#90caf9' }}>
+              👉 Click để xem chi tiết
+            </Typography>
+          </Box>
+        }
+        arrow 
+        placement="top"
+      >
+        <Typography
+          component="a"
+          onClick={handleInvoiceClick}
+          sx={{
+            textDecoration: 'none',
+            color: isNavigating ? '#90caf9' : '#1976d2',
+            fontWeight: 600,
+            fontSize: '0.875rem',
+            cursor: isNavigating ? 'wait' : 'pointer',
+            transition: 'all 0.2s ease',
+            opacity: isNavigating ? 0.6 : 1,
+            '&:hover': {
+              color: '#1565c0',
+              textDecoration: 'underline',
+            },
+          }}
+        >
+          {isNavigating ? '⏳ Đang tải...' : invoiceNumber}
+        </Typography>
+      </Tooltip>
+    </Box>
+  )
+}
 
 // ============================================================================
 // ACTIONS MENU COMPONENT
@@ -469,56 +569,13 @@ const TaxErrorNotificationManagement = () => {
       sortable: true,
       align: 'center',
       headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) => {
-        const invoiceId = params.row.invoiceId as number
-        const invoiceSymbol = params.row.invoiceSymbol as string
-        
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-            <Tooltip 
-              title={
-                <Box>
-                  <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, mb: 0.5 }}>
-                    Hóa đơn gốc
-                  </Typography>
-                  <Typography variant="caption" sx={{ display: 'block' }}>
-                    Số: {params.value as string}
-                  </Typography>
-                  <Typography variant="caption" sx={{ display: 'block' }}>
-                    Ký hiệu: {invoiceSymbol}
-                  </Typography>
-                  <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: '#90caf9' }}>
-                    👉 Click để xem chi tiết
-                  </Typography>
-                </Box>
-              }
-              arrow 
-              placement="top"
-            >
-              <Link
-                to={`/invoices/${invoiceId}`}
-                style={{
-                  textDecoration: 'none',
-                  color: '#1976d2',
-                  fontWeight: 600,
-                  fontSize: '0.875rem',
-                  transition: 'all 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = '#1565c0'
-                  e.currentTarget.style.textDecoration = 'underline'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = '#1976d2'
-                  e.currentTarget.style.textDecoration = 'none'
-                }}
-              >
-                {params.value as string}
-              </Link>
-            </Tooltip>
-          </Box>
-        )
-      },
+      renderCell: (params: GridRenderCellParams) => (
+        <InvoiceNumberCell
+          notificationId={params.row.id as number}
+          invoiceNumber={params.value as string}
+          invoiceSymbol={params.row.invoiceSymbol as string}
+        />
+      ),
     },
     {
       field: 'customerName',

@@ -47,9 +47,8 @@ export interface CreateDraftRequest {
   errorItems: Array<{
     invoiceId: number
     errorType: number           // 1-4: Cancel/Adjust/Replace/Explain
-    reason: string              // Lý do sai sót (min 10 chars)
-    taxpayerName: string
-    taxCode: string
+    reason: string              // Lý do sai sót (min 10 chars, max 500 chars) - ✅ TRIMMED
+    // ✅ REMOVED: taxpayerName, taxCode (redundant - already in header)
   }>
 }
 
@@ -92,8 +91,10 @@ export interface PreviewResponse {
 export interface SendToCQTResponse {
   success?: boolean
   message?: string
+  referenceId?: string  // Mã tham chiếu từ CQT (34 ký tự hex)
   data?: {
     cqtResponse?: string
+    referenceId?: string
     sentAt?: string
   }
 }

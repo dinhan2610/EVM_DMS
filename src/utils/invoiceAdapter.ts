@@ -244,8 +244,12 @@ export function validateTotals(
  * @param minRows - Số dòng trống tối thiểu (mặc định 5)
  * @param invoiceStatusID - Trạng thái hóa đơn (1=Nháp, 6=Chờ duyệt)
  * @param notes - Ghi chú
- * @param signedBy - UserID người ký (0=chưa ký)
- * @param salesID - UserID người tạo (0=bỏ trống, backend tự lấy từ token)
+ * @param signedBy - UserID người TẠO INVOICE trong hệ thống (performedBy - luôn là currentUserId)
+ *                   Mục đích: Audit trail, accountability, permission check
+ * @param salesID - UserID Sale tạo INVOICE REQUEST ban đầu (CHỈ khi tạo từ request, undefined = không gửi)
+ *                  Mục đích: Tính commission, sales performance, filter by sale
+ * @param requestID - ID của Invoice Request (CHỉ khi tạo từ request, null = không gửi)
+ *                    Mục đích: Link invoice với request, update request status
  * @returns Backend request object
  */
 export function mapToBackendInvoiceRequest(
@@ -253,13 +257,13 @@ export function mapToBackendInvoiceRequest(
   buyerInfo: FrontendBuyerInfo,
   items: FrontendInvoiceItem[],
   totals: FrontendTotals,
-  paymentMethod: string = "Tiền mặt",  // ✅ Hình thức thanh toán
+  paymentMethod: string = "Tiền mặt",
   minRows: number = 5,
-  invoiceStatusID: number = 1,          // ⭐ NEW: 1=Nháp, 6=Chờ duyệt
-  notes: string = '',                   // ⭐ NEW: Ghi chú
-  signedBy: number = 0,                 // ⭐ NEW: UserID người ký (0=chưa ký)
-  salesID?: number,                     // ⭐ NEW: Optional - chỉ gửi khi có giá trị (prefill mode)
-  requestID: number | null = null       // ⭐ NEW: Invoice Request ID (null=không link)
+  invoiceStatusID: number = 1,
+  notes: string = '',
+  signedBy: number = 0,                 // performedBy - Người tạo invoice (Audit/Legal)
+  salesID?: number,                     // Sale tạo request (Business/Commission) - Optional
+  requestID: number | null = null       // Link với request - Optional
 ): BackendInvoiceRequest {
   
   // Validate totals trước khi gửi
@@ -303,28 +307,58 @@ export function mapToBackendInvoiceRequest(
     itemsCount: items.length,
   });
   
-  return {
+  // ✅ CRITICAL: Logic phân biệt 2 mode tạo hóa đơn
+  // 
+  // MODE 1: TẠO TRỰC TIẾP (Accountant tự tạo)
+  //   - salesID = undefined     → KHÔNG gửi lên backend
+  //   - requestID = null        → KHÔNG gửi lên backend
+  //   - performedBy = currentUserId (Accountant)
+  //   → Backend: Invoice độc lập, không link với Sale/Request
+  // 
+  // MODE 2: TẠO TỪ REQUEST (Sale tạo request → Accountant xử lý)
+  //   - salesID = 5 (Sale ID)   → GỬI để tính commission cho Sale
+  //   - requestID = 123         → GỬI để link invoice với request
+  //   - performedBy = currentUserId (Accountant)
+  //   → Backend: Link invoice với request, update request status, lưu salesID
+  
+  const payload = {
     templateID,
-    customerID: buyerInfo.customerID || 0,  // ✅ Backend đã fix collision
+    customerID: buyerInfo.customerID || 0,
     taxCode: buyerInfo.taxCode || 'N/A',
-    invoiceStatusID,                  // 1=Nháp, 6=Chờ duyệt
-    companyID: 1,                     // Backend yêu cầu companyID = 1
-    ...(salesID !== undefined && { salesID }),  // ✅ CHỈ gửi nếu không phải undefined
+    invoiceStatusID,
+    companyID: 1,
     customerName: buyerInfo.companyName || 'Khách hàng',
     address: buyerInfo.address || 'Chưa cập nhật',
     notes: notes || '',
     paymentMethod: paymentMethod,
     items: backendItems,
-    amount: totalAmountBeforeVat,     // Tổng tiền chưa VAT
-    taxAmount: totalVatAmount,        // Tổng tiền VAT
-    totalAmount: totals.total,        // Tổng thanh toán cuối cùng
-    performedBy: signedBy,            // 🆕 Đổi tên từ signedBy → performedBy
+    amount: totalAmountBeforeVat,
+    taxAmount: totalVatAmount,
+    totalAmount: totals.total,
+    performedBy: signedBy,            // ✅ Người TẠO INVOICE (Audit/Legal) - LUÔN CÓ
     minRows: minRows,
     contactEmail: buyerInfo.email || 'noreply@company.com',
     contactPerson: buyerInfo.buyerName || '',
     contactPhone: buyerInfo.phone || '0000000000',
-    ...(requestID !== null && requestID > 0 && { requestID })  // ✅ Chỉ gửi nếu có requestID thực
   };
+  
+  // ✅ CHỈ thêm salesID nếu có giá trị (tạo từ request - để tính commission)
+  if (salesID !== undefined) {
+    if (salesID > 0) {
+      Object.assign(payload, { salesID });
+      console.log('✅ [ADAPTER] Added salesID to payload:', salesID, '(Sale nhận commission)');
+    }
+  }
+  
+  // ✅ CHỈ thêm requestID nếu có giá trị (tạo từ request - để link)
+  if (requestID !== null) {
+    if (requestID > 0) {
+      Object.assign(payload, { requestID });
+      console.log('✅ [ADAPTER] Added requestID to payload:', requestID, '(Link với request)');
+    }
+  }
+  
+  return payload;
 }
 
 /**

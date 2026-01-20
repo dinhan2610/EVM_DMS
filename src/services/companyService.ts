@@ -15,6 +15,7 @@ export interface Company {
   contactPhone: string;
   accountNumber: string;
   bankName: string;
+  taxAuthorityCode?: string;  // ✅ Mã cơ quan thuế (6 digits: 100394, 100395) - Optional
 }
 
 // ==================== API CALLS ====================

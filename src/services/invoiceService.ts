@@ -1064,6 +1064,59 @@ export const getAllInvoices = async (): Promise<InvoiceListItem[]> => {
 };
 
 /**
+ * Lấy danh sách hóa đơn được gán cho Sale hiện tại
+ * API: GET /api/Invoice/sale-assigned
+ * 
+ * Backend tự động filter theo salesID của user đang login
+ * Sale CHỈ xem được hóa đơn của mình (salesID match với currentUserId)
+ * 
+ * @returns Danh sách hóa đơn được gán cho Sale này
+ */
+export const getSaleAssignedInvoices = async (): Promise<InvoiceListItem[]> => {
+  try {
+    console.log('🔍 [getSaleAssignedInvoices] Fetching sale-assigned invoices from backend...')
+    
+    const response = await axios.get<InvoiceListItem[]>(
+      `/api/Invoice/sale-assigned`,
+      { headers: getAuthHeaders() }
+    );
+    
+    console.log('📦 [getSaleAssignedInvoices] Raw response:', {
+      status: response.status,
+      dataType: Array.isArray(response.data) ? 'array' : typeof response.data,
+      dataLength: Array.isArray(response.data) ? response.data.length : 'N/A',
+    })
+    
+    // Backend trả về array trực tiếp
+    let invoicesArray = response.data;
+    
+    // Handle wrapped response if needed
+    if (!Array.isArray(invoicesArray)) {
+      if (response.data && typeof response.data === 'object') {
+        const dataObj = response.data as unknown as Record<string, unknown>;
+        invoicesArray = (dataObj.data || dataObj.invoices || dataObj.items || []) as InvoiceListItem[];
+      } else {
+        invoicesArray = [];
+      }
+    }
+    
+    console.log('✅ [getSaleAssignedInvoices] Returning invoices:', {
+      count: invoicesArray.length,
+      firstInvoice: invoicesArray[0]?.invoiceNumber || 'N/A',
+      salesID: invoicesArray[0]?.salesID || 'N/A',
+    })
+    
+    return invoicesArray;
+  } catch (error) {
+    console.error('❌ [getSaleAssignedInvoices] Error:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('❌ [getSaleAssignedInvoices] Response:', error.response?.data);
+    }
+    return handleApiError(error, 'Get sale assigned invoices failed');
+  }
+};
+
+/**
  * Lấy danh sách hóa đơn cho role Kế toán trưởng (HOD - Head of Department)
  * API: GET /api/Invoice/hodInvoices
  * 
@@ -1911,6 +1964,7 @@ const invoiceService = {
   updateInvoice,        // ✅ Export updateInvoice function
   getAllInvoices,
   getHODInvoices,       // ✅ NEW: API cho role Kế toán trưởng
+  getSaleAssignedInvoices, // ✅ NEW: API cho role Sale - filtered by backend
   getInvoiceById,
   
   // Adjustment Invoice ✨ NEW

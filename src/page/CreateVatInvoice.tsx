@@ -777,7 +777,9 @@ const CreateVatInvoice: React.FC = () => {
   const [totalDiscountPercent, setTotalDiscountPercent] = useState<number>(0) // Tỷ lệ CK chung cho 'total' mode
   const prevDiscountType = React.useRef<string>('none') // Track previous discountType
 
-  // ✅ State để lưu salesID từ prefill (default 0 cho normal create)
+  // ✅ State để lưu salesID từ prefill (CHỈ dùng khi tạo từ Invoice Request)
+  // - Tạo trực tiếp: prefillSalesID = 0 (không sử dụng)
+  // - Tạo từ request: prefillSalesID = salesID của người tạo request
   const [prefillSalesID, setPrefillSalesID] = useState<number>(0)
 
   // State cho loading và error
@@ -1063,11 +1065,13 @@ const CreateVatInvoice: React.FC = () => {
           setShowInvoiceNotes(true)
         }
         
-        // ✅ Lưu salesID từ prefill (nếu có)
-        if (invoiceData.salesID !== undefined && invoiceData.salesID !== null) {
+        // ✅ Lưu salesID từ prefill (CHỈ khi tạo từ Invoice Request)
+        if (invoiceData.salesID !== undefined && invoiceData.salesID !== null && invoiceData.salesID > 0) {
           setPrefillSalesID(invoiceData.salesID)
-          console.log('✅ Saved salesID from prefill:', invoiceData.salesID)
-          console.log('✅ Will use salesID as performedBy:', invoiceData.salesID)
+          console.log('✅ [PREFILL MODE] Loaded salesID from request:', invoiceData.salesID)
+          console.log('   → salesID sẽ được gửi lên backend để link với sale tạo request')
+        } else {
+          console.warn('⚠️ [PREFILL MODE] Request không có salesID hợp lệ, sẽ dùng currentUserId')
         }
         
         // Auto-fill items
@@ -1724,19 +1728,30 @@ const CreateVatInvoice: React.FC = () => {
       
       setIsSubmitting(true)
 
-      // Map frontend state sang backend request
-      // ⭐ Phân biệt 2 trường hợp:
-      // - Tạo từ prefill (isPrefillMode): truyền salesID từ prefill
-      // - Tạo thông thường: KHÔNG truyền salesID, backend tự extract từ token
-      
       // ✅ Lấy userId từ token cho performedBy
       const currentUserId = getUserIdFromToken() || 0;
       console.log('👤 Current userId from token:', currentUserId);
       
+      // ⭐ BUSINESS LOGIC:
+      // - performedBy = currentUserId (LUÔN LUÔN - người tạo invoice trong hệ thống)
+      // - salesID = prefillSalesID (CHỈ KHI từ request - người tạo request ban đầu để tính commission)
+      // - requestID = từ URL (CHỈ KHI từ request - để link invoice với request)
+      
+      const performedByUser = currentUserId; // ✅ Người tạo invoice (Accountant/Admin)
+      const salesIDValue = isPrefillMode && prefillSalesID > 0 ? prefillSalesID : undefined; // ✅ Sale (để commission)
+      const requestIDValue = isPrefillMode && prefillRequestId ? parseInt(prefillRequestId) : null; // ✅ Link request
+      
+      console.log('🔍 ========== INVOICE CREATION MODE ==========');
+      console.log('📋 Mode:', isPrefillMode ? 'TẠO TỪ REQUEST' : 'TẠO TRỰC TIẾP');
+      console.log('👤 performedBy (người tạo invoice):', performedByUser, '(Accountant/Admin)');
+      console.log('🏷️  salesID (người tạo request):', salesIDValue || 'KHÔNG GỬI (không có Sale)');
+      console.log('🔗 requestID (link với request):', requestIDValue || 'KHÔNG GỬI (tạo trực tiếp)');
+      console.log('============================================');
+      
       const backendRequest = mapToBackendInvoiceRequest(
         selectedTemplate.templateID,
         {
-          customerID: buyerCustomerID, // ✅ Truyền customer ID
+          customerID: buyerCustomerID,
           taxCode: buyerTaxCode,
           companyName: buyerCompanyName,
           address: buyerAddress,
@@ -1750,36 +1765,33 @@ const CreateVatInvoice: React.FC = () => {
         5,              // minRows
         invoiceStatusID, // ⭐ Status: 1=Nháp, 6=Chờ duyệt
         invoiceNotes,   // Ghi chú hóa đơn
-        isPrefillMode ? (prefillSalesID || currentUserId) : currentUserId,  // ✅ performedBy: prefill dùng salesID, normal dùng currentUserId
-        isPrefillMode ? prefillSalesID : undefined, // ✅ salesID: CHỈ gửi khi prefill mode
-        prefillRequestId ? parseInt(prefillRequestId) : null  // ✅ requestID từ prefill hoặc null
+        performedByUser,  // ✅ performedBy: LUÔN là currentUserId (người tạo invoice)
+        salesIDValue,     // ✅ salesID: CHỈ có khi tạo từ request (để tính commission)
+        requestIDValue    // ✅ requestID: CHỈ có khi tạo từ request (để link)
       )
 
       console.log(`📤 Sending invoice request (${statusLabel}):`, backendRequest)
       
-      // ✅ Log logic phân biệt prefill vs normal
-      console.log('🔍 Mode detection:', {
-        isPrefillMode,
-        salesIDSent: backendRequest.salesID !== undefined ? backendRequest.salesID : 'NOT_SENT',
-        performedBy: backendRequest.performedBy,
-        requestID: backendRequest.requestID
-      })
-      
       // ✅ Validate payload trước khi gửi
-      console.log('🔍 Payload validation:')
-      console.log('  - templateID:', backendRequest.templateID, typeof backendRequest.templateID)
-      console.log('  - customerID:', backendRequest.customerID, typeof backendRequest.customerID)
-      console.log('  - taxCode:', backendRequest.taxCode)
-      console.log('  - invoiceStatusID:', backendRequest.invoiceStatusID, typeof backendRequest.invoiceStatusID)
-      console.log('  - companyID:', backendRequest.companyID, typeof backendRequest.companyID)
-      console.log('  - items count:', backendRequest.items?.length)
-      console.log('  - amount:', backendRequest.amount, typeof backendRequest.amount)
-      console.log('  - taxAmount:', backendRequest.taxAmount, typeof backendRequest.taxAmount)
-      console.log('  - totalAmount:', backendRequest.totalAmount, typeof backendRequest.totalAmount)
-      console.log('  - paymentMethod:', backendRequest.paymentMethod)
-      console.log('  - performedBy:', backendRequest.performedBy, typeof backendRequest.performedBy)
-      console.log('  - salesID:', backendRequest.salesID, typeof backendRequest.salesID)
-      console.log('  - requestID:', backendRequest.requestID, typeof backendRequest.requestID)
+      console.log('🔍 ========== PAYLOAD VALIDATION ==========');
+      console.log('📄 Template & Customer:');
+      console.log('  - templateID:', backendRequest.templateID, `(${typeof backendRequest.templateID})`);
+      console.log('  - customerID:', backendRequest.customerID, `(${typeof backendRequest.customerID})`);
+      console.log('  - taxCode:', backendRequest.taxCode);
+      console.log('  - companyID:', backendRequest.companyID, `(${typeof backendRequest.companyID})`);
+      console.log('💰 Amounts:');
+      console.log('  - items count:', backendRequest.items?.length);
+      console.log('  - amount (chưa VAT):', backendRequest.amount?.toLocaleString('vi-VN'));
+      console.log('  - taxAmount (VAT):', backendRequest.taxAmount?.toLocaleString('vi-VN'));
+      console.log('  - totalAmount:', backendRequest.totalAmount?.toLocaleString('vi-VN'));
+      console.log('  - paymentMethod:', backendRequest.paymentMethod);
+      console.log('👥 User & Link:');
+      console.log('  - performedBy:', backendRequest.performedBy, `(${typeof backendRequest.performedBy})`);
+      console.log('  - salesID:', backendRequest.salesID ?? '❌ KHÔNG GỬI', backendRequest.salesID ? `(${typeof backendRequest.salesID})` : '');
+      console.log('  - requestID:', backendRequest.requestID ?? '❌ KHÔNG GỬI', backendRequest.requestID ? `(${typeof backendRequest.requestID})` : '');
+      console.log('🔢 Status:');
+      console.log('  - invoiceStatusID:', backendRequest.invoiceStatusID, `(${statusLabel})`);
+      console.log('=========================================');
       
       // Validate items
       backendRequest.items.forEach((item, idx) => {

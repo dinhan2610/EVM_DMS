@@ -77,7 +77,7 @@ export const adaptNotificationListItem = (
   return {
     // IDs
     id: backendItem.id,
-    invoiceId: backendItem.id,  // Temporary - backend should provide real invoiceId
+    invoiceId: 0,  // ⚠️ NOT AVAILABLE in list API - must fetch from detail API via details[].invoiceId
     
     // Dates
     sentDate: new Date(backendItem.createdDate),
