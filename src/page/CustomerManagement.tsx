@@ -23,9 +23,7 @@ import {
   useMediaQuery,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
-import AddIcon from '@mui/icons-material/Add'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
-import SearchIcon from '@mui/icons-material/Search'
 import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined'
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -37,6 +35,7 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import customerService from '@/services/customerService'
+import CustomerFilter, { CustomerFilterState } from '@/components/CustomerFilter'
 
 // Interface (Frontend) - Map từ Backend
 export interface Customer {
@@ -118,8 +117,13 @@ const CustomerManagement = () => {
     }
   }
 
-  // Filter State
-  const [searchText, setSearchText] = useState('')
+  // Filter State - sử dụng CustomerFilter
+  const [filters, setFilters] = useState<CustomerFilterState>({
+    searchText: '',
+    dateFrom: null,
+    dateTo: null,
+    status: '',
+  })
 
   // Snackbar
   const [snackbar, setSnackbar] = useState<{
@@ -132,17 +136,59 @@ const CustomerManagement = () => {
     severity: 'success',
   })
 
-  // Filtered Data
+  // Filtered Data - comprehensive filtering
   const filteredCustomers = useMemo(() => {
     return customers.filter((customer) => {
-      const searchLower = searchText.toLowerCase()
-      return (
-        customer.customerName.toLowerCase().includes(searchLower) ||
-        customer.taxCode.toLowerCase().includes(searchLower) ||
-        customer.email.toLowerCase().includes(searchLower)
-      )
+      // Search text filter
+      if (filters.searchText) {
+        const searchLower = filters.searchText.toLowerCase().trim()
+        const matchesSearch = (
+          customer.customerName.toLowerCase().includes(searchLower) ||
+          customer.taxCode.toLowerCase().includes(searchLower) ||
+          customer.email.toLowerCase().includes(searchLower) ||
+          customer.phone.toLowerCase().includes(searchLower) ||
+          customer.address.toLowerCase().includes(searchLower)
+        )
+        if (!matchesSearch) return false
+      }
+
+      // Status filter
+      if (filters.status && customer.status !== filters.status) {
+        return false
+      }
+
+      // Date range filter (assuming customers have a createdAt field from backend)
+      // Note: Backend Customer interface would need to include createdAt/updatedAt
+      // For now, we'll skip date filtering as it's not in current Customer interface
+      // If backend adds createdAt field, uncomment below:
+      /*
+      if (filters.dateFrom) {
+        const customerDate = dayjs(customer.createdAt)
+        if (customerDate.isBefore(filters.dateFrom, 'day')) return false
+      }
+      if (filters.dateTo) {
+        const customerDate = dayjs(customer.createdAt)
+        if (customerDate.isAfter(filters.dateTo, 'day')) return false
+      }
+      */
+
+      return true
     })
-  }, [customers, searchText])
+  }, [customers, filters])
+
+  // Filter Handlers
+  const handleFilterChange = (newFilters: CustomerFilterState) => {
+    setFilters(newFilters)
+  }
+
+  const handleResetFilter = () => {
+    setFilters({
+      searchText: '',
+      dateFrom: null,
+      dateTo: null,
+      status: '',
+    })
+  }
 
   // Handlers
   const handleOpenModal = (customer?: Customer) => {
@@ -478,64 +524,12 @@ const CustomerManagement = () => {
         </Box>
       </Box>
 
-      {/* Toolbar */}
-      <Paper
-        sx={{
-          p: 2.5,
-          mb: 3,
-          borderRadius: 2,
-          border: '1px solid',
-          borderColor: 'divider',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-        }}
-      >
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            justifyContent: 'space-between',
-            alignItems: { xs: 'stretch', sm: 'center' },
-            gap: 2,
-          }}
-        >
-          <TextField
-            size="small"
-            placeholder="Tìm kiếm theo Tên, MST, Email..."
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            sx={{
-              flex: 1,
-              maxWidth: { sm: 400 },
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 2,
-              },
-            }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ color: 'action.active' }} />
-                </InputAdornment>
-              ),
-            }}
-          />
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpenModal()}
-            sx={{
-              textTransform: 'none',
-              borderRadius: 2,
-              px: 3,
-              boxShadow: 2,
-              '&:hover': {
-                boxShadow: 4,
-              },
-            }}
-          >
-            Thêm Khách hàng
-          </Button>
-        </Box>
-      </Paper>
+      {/* CustomerFilter Component */}
+      <CustomerFilter 
+        onFilterChange={handleFilterChange}
+        onReset={handleResetFilter}
+        onAddCustomer={() => handleOpenModal()}
+      />
 
       {/* DataGrid */}
       <Paper
@@ -756,14 +750,12 @@ const CustomerManagement = () => {
               <TextField
                 fullWidth
                 label="Địa chỉ"
-                multiline
-                rows={2}
                 value={formData.address}
                 onChange={(e) => handleFormChange('address', e.target.value)}
                 placeholder="123 Đường ABC, Quận XYZ, TP.HCM"
                 InputProps={{
                   startAdornment: (
-                    <InputAdornment position="start" sx={{ alignSelf: 'flex-start', mt: 1.5 }}>
+                    <InputAdornment position="start">
                       <LocationOnOutlinedIcon sx={{ fontSize: 20, color: 'action.active' }} />
                     </InputAdornment>
                   ),
