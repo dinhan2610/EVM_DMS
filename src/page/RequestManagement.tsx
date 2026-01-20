@@ -453,7 +453,7 @@ const RequestManagement = () => {
     )
 
     // Điều hướng đến trang tạo hóa đơn với dữ liệu từ request
-    navigate('/newinvoices', {
+    navigate('/create-invoice', {
       state: {
         requestData: request,
       },

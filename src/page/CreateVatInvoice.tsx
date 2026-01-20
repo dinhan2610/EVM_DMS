@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import invoiceService, { Template } from '@/services/invoiceService'
-import customerService from '@/services/customerService'
+import customerService, { Customer } from '@/services/customerService'
 import productService, { Product } from '@/services/productService'
 import companyService, { Company } from '@/services/companyService'
 import { mapToBackendInvoiceRequest } from '@/utils/invoiceAdapter'
@@ -34,6 +34,7 @@ import {
   DialogContent,
   DialogActions,
   Tooltip,
+  Autocomplete,
 } from '@mui/material'
 import {
   HelpOutline,
@@ -1148,10 +1149,38 @@ const CreateVatInvoice: React.FC = () => {
   // State cho customer lookup
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false)
   const [customerNotFound, setCustomerNotFound] = useState(false)
+  const [customerSuggestions, setCustomerSuggestions] = useState<Customer[]>([])
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
   
   // Function: Tự động tìm và điền thông tin khách hàng theo MST
   const handleTaxCodeLookup = async (taxCode: string) => {
     if (!taxCode || taxCode.trim().length < 10) {
+      setCustomerNotFound(false)
+      return
+    }
+    
+    const trimmedTaxCode = taxCode.trim()
+    
+    // ✅ Validate: Từ chối số điện thoại Việt Nam (bắt đầu bằng 0 và theo pattern SĐT)
+    // Pattern SĐT VN: 03x, 05x, 07x, 08x, 09x (10 số) hoặc 024, 028... (10-11 số)
+    const phonePattern = /^0[1-9]\d{8,9}$/
+    if (phonePattern.test(trimmedTaxCode)) {
+      setSnackbar({
+        open: true,
+        message: 'Bạn đang nhập số điện thoại. Vui lòng nhập Mã số thuế (MST) của đơn vị.',
+        severity: 'error',
+      })
+      setCustomerNotFound(false)
+      return
+    }
+    
+    // ✅ Validate: MST chỉ chứa chữ số
+    if (!/^\d+$/.test(trimmedTaxCode)) {
+      setSnackbar({
+        open: true,
+        message: 'MST không hợp lệ. MST chỉ được chứa chữ số.',
+        severity: 'error',
+      })
       setCustomerNotFound(false)
       return
     }
@@ -1161,7 +1190,7 @@ const CreateVatInvoice: React.FC = () => {
       setCustomerNotFound(false)
       
       // ✅ Gọi API findCustomerByTaxCode để tìm kiếm trực tiếp
-      const foundCustomer = await customerService.findCustomerByTaxCode(taxCode.trim())
+      const foundCustomer = await customerService.findCustomerByTaxCode(trimmedTaxCode)
       
       if (foundCustomer) {
         // Tự động điền thông tin
@@ -1316,6 +1345,61 @@ const CreateVatInvoice: React.FC = () => {
   const handleTaxCodeChange = (value: string) => {
     setBuyerTaxCode(value)
     setCustomerNotFound(false)
+  }
+
+  // ✅ Search customer by name for autocomplete
+  const searchCustomerByName = useCallback(async (searchQuery: string) => {
+    if (!searchQuery || searchQuery.trim().length < 2) {
+      setCustomerSuggestions([])
+      return
+    }
+
+    try {
+      setIsLoadingSuggestions(true)
+      // Get all customers và filter theo tên công ty
+      const allCustomers = await customerService.getAllCustomers()
+      const filtered = allCustomers.filter(c => 
+        c.customerName.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+      setCustomerSuggestions(filtered.slice(0, 10)) // Limit 10 results
+    } catch (error) {
+      console.error('Error searching customers:', error)
+      setCustomerSuggestions([])
+    } finally {
+      setIsLoadingSuggestions(false)
+    }
+  }, [])
+
+  // ✅ Debounced search - trigger khi nhập tên công ty
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (buyerCompanyName && buyerCompanyName.trim().length >= 2) {
+        searchCustomerByName(buyerCompanyName)
+      } else {
+        setCustomerSuggestions([])
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [buyerCompanyName, searchCustomerByName])
+
+  // ✅ Handle customer selection from autocomplete
+  const handleCustomerSelect = (customer: Customer) => {
+    if (customer) {
+      setBuyerCustomerID(customer.customerID)
+      setBuyerTaxCode(customer.taxCode)
+      setBuyerCompanyName(customer.customerName)
+      setBuyerAddress(customer.address)
+      setBuyerEmail(customer.contactEmail)
+      setBuyerPhone(customer.contactPhone)
+      setBuyerName(customer.contactPerson)
+      
+      setSnackbar({
+        open: true,
+        message: `Đã chọn khách hàng: ${customer.customerName}`,
+        severity: 'success',
+      })
+    }
   }
   
   // ✅ Xử lý khi chọn "Tăng số lượng" cho sản phẩm trùng
@@ -2378,23 +2462,51 @@ const CreateVatInvoice: React.FC = () => {
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
                     Tên đơn vị:
                   </Typography>
-                  <TextField
+                  <Autocomplete
+                    freeSolo
                     size="small"
                     fullWidth
-                    placeholder="CÔNG TY CỔ PHẦN MISA"
-                    variant="standard"
-                    value={buyerCompanyName}
-                    onChange={(e) => setBuyerCompanyName(e.target.value)}
-                    sx={{ fontSize: '0.8125rem' }}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton size="small" edge="end">
-                            <ExpandMore fontSize="small" />
-                          </IconButton>
-                        </InputAdornment>
-                      ),
+                    options={customerSuggestions}
+                    getOptionLabel={(option: Customer | string) => 
+                      typeof option === 'string' ? option : option.customerName
+                    }
+                    renderOption={(props, option: Customer) => (
+                      <li {...props} key={option.customerID}>
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            {option.customerName}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            MST: {option.taxCode} - {option.address}
+                          </Typography>
+                        </Box>
+                      </li>
+                    )}
+                    inputValue={buyerCompanyName}
+                    onInputChange={(_e, value) => setBuyerCompanyName(value)}
+                    onChange={(_e, value) => {
+                      if (typeof value === 'object' && value !== null) {
+                        handleCustomerSelect(value)
+                      }
                     }}
+                    loading={isLoadingSuggestions}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        placeholder="CÔNG TY CỔ PHẦN MISA"
+                        variant="standard"
+                        sx={{ fontSize: '0.8125rem' }}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {isLoadingSuggestions ? <CircularProgress size={16} /> : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
                   />
                 </Stack>
 
@@ -2417,7 +2529,14 @@ const CreateVatInvoice: React.FC = () => {
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
                     Người mua hàng:
                   </Typography>
-                  <TextField size="small" placeholder="Kế toán A" variant="standard" value={buyerName} onChange={(e) => setBuyerName(e.target.value)} sx={{ width: 160, fontSize: '0.8125rem' }} />
+                  <TextField 
+                    size="small" 
+                    placeholder="Kế toán A" 
+                    variant="standard" 
+                    value={buyerName} 
+                    onChange={(e) => setBuyerName(e.target.value)} 
+                    sx={{ width: 160, fontSize: '0.8125rem' }} 
+                  />
                   <Typography variant="caption" sx={{ minWidth: 50, fontSize: '0.8125rem' }}>
                     Email:
                   </Typography>

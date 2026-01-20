@@ -264,9 +264,9 @@ const appsRoutes: RoutesProps[] = [
     element: <InvoiceDetail />,
   },
   {
-    name: 'Create Invoice (New)',
+    name: 'Create Invoice (Legacy Redirect)',
     path: '/newinvoices',
-    element: <CreateVatInvoice />,
+    element: <Navigate to="/create-invoice" replace />,
   },
   {
     name: 'Create/Edit Invoice',

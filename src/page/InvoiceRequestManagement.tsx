@@ -556,7 +556,7 @@ const InvoiceRequestManagement = () => {
       console.log('📝 Tạo hoá đơn từ yêu cầu:', requestID)
       
       // ✅ Navigate đến trang tạo hóa đơn với requestId
-      navigate(`/newinvoices?requestId=${requestID}`)
+      navigate(`/create-invoice?requestId=${requestID}`)
       
       setSnackbar({
         open: true,

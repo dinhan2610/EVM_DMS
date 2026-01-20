@@ -1629,7 +1629,7 @@ const HODInvoiceManagement = () => {
                 variant="contained"
                 color="primary"
                 startIcon={<AddIcon />}
-                onClick={() => navigate('/newinvoices')}
+                onClick={() => navigate('/create-invoice')}
                 sx={{
                   textTransform: 'none',
                   fontWeight: 600,
