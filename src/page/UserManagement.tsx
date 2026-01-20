@@ -21,7 +21,6 @@ import {
   Switch,
   FormControlLabel,
   Checkbox,
-  InputAdornment,
   Alert,
   Snackbar,
   useTheme,
@@ -34,13 +33,13 @@ import AddIcon from '@mui/icons-material/Add'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import LockOpenOutlinedIcon from '@mui/icons-material/LockOpenOutlined'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
-import SearchIcon from '@mui/icons-material/Search'
 import PersonAddOutlinedIcon from '@mui/icons-material/PersonAddOutlined'
 import VpnKeyOutlinedIcon from '@mui/icons-material/VpnKeyOutlined'
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined'
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import userService, { UserApiResponse } from '@/services/userService'
+import UserFilter, { UserFilterState } from '@/components/UserFilter'
 
 // Interface: User (mapped from API)
 export interface User {
@@ -116,10 +115,14 @@ const UserManagement = () => {
   const [selectedUserDetail, setSelectedUserDetail] = useState<UserApiResponse | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
 
-  // Filter States
-  const [searchQuery, setSearchQuery] = useState('')
-  const [roleFilter, setRoleFilter] = useState<string>('all')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  // ✅ NEW: UserFilter state (professional filter component)
+  const [filters, setFilters] = useState<UserFilterState>({
+    searchText: '',
+    roles: [],
+    status: 'all',
+    dateFrom: null,
+    dateTo: null,
+  })
 
   // Snackbar
   const [snackbar, setSnackbar] = useState<{
@@ -154,7 +157,7 @@ const UserManagement = () => {
       let response
       
       // ✅ Smart API call based on filter
-      switch (statusFilter) {
+      switch (filters.status) {
         case 'active':
           response = await userService.getActiveUsers(1, 100)
           break
@@ -176,39 +179,63 @@ const UserManagement = () => {
     } finally {
       setLoading(false)
     }
-  }, [statusFilter])
+  }, [filters.status])
 
   // ✅ Re-fetch when status filter changes
   useEffect(() => {
     fetchUsers()
   }, [fetchUsers])
 
-  // Filtered Data - Chỉ filter theo search và role (status đã được filter bởi API)
+  // Filtered Data - Filter based on UserFilter criteria
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
-      const matchesSearch =
-        (user.fullName?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-        (user.email?.toLowerCase() || '').includes(searchQuery.toLowerCase())
+      // 1. Search text (name, email, phone) - Optimized with trim & normalize
+      const matchesSearch = !filters.searchText || (() => {
+        const searchLower = filters.searchText.toLowerCase().trim()
+        if (!searchLower) return true
+        
+        const fullNameMatch = (user.fullName?.toLowerCase() || '').includes(searchLower)
+        const emailMatch = (user.email?.toLowerCase() || '').includes(searchLower)
+        // Phone search: remove spaces/dashes for flexible matching
+        const userPhone = (user.phoneNumber || '').replace(/[\s-]/g, '')
+        const searchPhone = searchLower.replace(/[\s-]/g, '')
+        const phoneMatch = userPhone.includes(searchPhone)
+        
+        return fullNameMatch || emailMatch || phoneMatch
+      })()
       
-      // Filter by role - 4 roles nội bộ
-      let matchesRole = roleFilter === 'all'
+      // 2. Filter by role
+      let matchesRole = filters.roles.length === 0 // If no roles selected, show all
       if (!matchesRole) {
         const userRoleLower = (user.role || '').toLowerCase()
-        if (roleFilter === 'Admin') {
-          matchesRole = userRoleLower === 'admin'
-        } else if (roleFilter === 'HOD') {
-          matchesRole = userRoleLower === 'hod'
-        } else if (roleFilter === 'Accountant') {
-          matchesRole = userRoleLower === 'accountant'
-        } else if (roleFilter === 'Sale') {
-          matchesRole = userRoleLower === 'sale'
+        matchesRole = filters.roles.some(role => userRoleLower === role.toLowerCase())
+      }
+      
+      // 3. Filter by status (Active/Inactive)
+      let matchesStatus = true
+      if (filters.status !== 'all') {
+        if (filters.status === 'active') {
+          matchesStatus = user.status === 'Active'
+        } else if (filters.status === 'inactive') {
+          matchesStatus = user.status === 'Inactive'
         }
       }
       
-      // ✅ Không cần filter status nữa vì API đã filter rồi
-      return matchesSearch && matchesRole
+      // 4. Date range filter (join date)
+      let matchesDateRange = true
+      if (filters.dateFrom || filters.dateTo) {
+        const userDate = new Date(user.joinDate)
+        if (filters.dateFrom && userDate < filters.dateFrom.toDate()) {
+          matchesDateRange = false
+        }
+        if (filters.dateTo && userDate > filters.dateTo.toDate()) {
+          matchesDateRange = false
+        }
+      }
+      
+      return matchesSearch && matchesRole && matchesStatus && matchesDateRange
     })
-  }, [users, searchQuery, roleFilter])
+  }, [users, filters])
 
   // Handlers
   const handleOpenModal = (user?: User) => {
@@ -640,71 +667,19 @@ const UserManagement = () => {
         </Button>
       </Box>
 
-      {/* Toolbar - Filters */}
-      <Paper
-        sx={{
-          p: 2.5,
-          mb: 3,
-          borderRadius: 2,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+      {/* ✅ NEW: Professional User Filter Component */}
+      <UserFilter
+        onFilterChange={(newFilters) => setFilters(newFilters)}
+        onReset={() => {
+          setFilters({
+            searchText: '',
+            roles: [],
+            status: 'all',
+            dateFrom: null,
+            dateTo: null,
+          })
         }}
-      >
-        <Grid container spacing={2} alignItems="center">
-          <Grid size={{ xs: 12, md: 5 }}>
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="Tìm kiếm theo Tên hoặc Email..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon color="action" />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                },
-              }}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3.5 }}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Lọc theo Vai trò</InputLabel>
-              <Select
-                value={roleFilter}
-                label="Lọc theo Vai trò"
-                onChange={(e) => setRoleFilter(e.target.value)}
-                sx={{ borderRadius: 2 }}
-              >
-                <MenuItem value="all">Tất cả vai trò</MenuItem>
-                <MenuItem value="Admin">Quản trị viên</MenuItem>
-                <MenuItem value="HOD">Kế toán trưởng</MenuItem>
-                <MenuItem value="Accountant">Kế toán</MenuItem>
-                <MenuItem value="Sale">Nhân viên bán hàng</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3.5 }}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Lọc theo Trạng thái</InputLabel>
-              <Select
-                value={statusFilter}
-                label="Lọc theo Trạng thái"
-                onChange={(e) => setStatusFilter(e.target.value)}
-                sx={{ borderRadius: 2 }}
-              >
-                <MenuItem value="all">Tất cả trạng thái</MenuItem>
-                <MenuItem value="Active">Hoạt động</MenuItem>
-                <MenuItem value="Inactive">Vô hiệu</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-        </Grid>
-      </Paper>
+      />
 
         {/* DataGrid */}
         <Paper
