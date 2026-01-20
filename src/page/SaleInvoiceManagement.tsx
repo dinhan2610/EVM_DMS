@@ -23,18 +23,12 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import dayjs from 'dayjs'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import AddIcon from '@mui/icons-material/Add'
-import SendIcon from '@mui/icons-material/Send'
 import DrawIcon from '@mui/icons-material/Draw'
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DownloadIcon from '@mui/icons-material/Download'
 import EmailIcon from '@mui/icons-material/Email'
 import PrintIcon from '@mui/icons-material/Print'
-import RestoreIcon from '@mui/icons-material/Restore'
-import FindReplaceIcon from '@mui/icons-material/FindReplace'
-import CancelIcon from '@mui/icons-material/Cancel'
 import LinkIcon from '@mui/icons-material/Link'
 import { Link, useNavigate } from 'react-router-dom'
 import { Snackbar, Alert } from '@mui/material'
@@ -187,8 +181,7 @@ interface InvoiceActionsMenuProps {
   onOpenEmailModal: (invoice: Invoice) => void
 }
 
-const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax, onCancel, onPrintInvoice, onDownloadPDF, isSending, hasBeenAdjusted, onOpenEmailModal }: InvoiceActionsMenuProps) => {
-  const navigate = useNavigate()
+const InvoiceActionsMenu = ({ invoice, onPrintInvoice, onDownloadPDF, onOpenEmailModal }: InvoiceActionsMenuProps) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
 
@@ -200,50 +193,6 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax,
     setAnchorEl(null)
   }
 
-  // Xác định trạng thái hóa đơn theo luồng mới
-  const isDraft = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.DRAFT // 1
-  const isPendingApproval = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_APPROVAL // 6
-  const isPendingSign = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN // 7 - Chờ ký (sau khi KTT duyệt)
-  const isSigned = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.SIGNED // 8 - Đã ký
-  const isIssued = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.ISSUED // 2 - Đã phát hành
-  const isRejected = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.REJECTED // 16 - Bị từ chối
-  
-  // ⚠️ Kiểm tra lỗi gửi CQT từ Tax Status (không phải Internal Status)
-  const hasTaxError = invoice.taxStatusId !== null && isTaxStatusError(invoice.taxStatusId)
-  
-  // 🔍 Kiểm tra có số hóa đơn chưa - Xử lý cả number và string
-  const hasInvoiceNumber = (() => {
-    if (!invoice.invoiceNumber) return false
-    // Backend có thể trả về number 0 hoặc string '0'
-    if (typeof invoice.invoiceNumber === 'number') {
-      return invoice.invoiceNumber > 0
-    }
-    // Nếu là string
-    const numStr = invoice.invoiceNumber.toString().trim()
-    return numStr !== '' && numStr !== '0'
-  })()
-  
-  // 🎯 Logic hiển thị nút "Ký số & Phát hành" (Gộp 1 bước)
-  // ✅ Backend đã sửa: /sign API cấp số luôn
-  // 
-  // - Ký số & Phát hành: Cho phép khi:
-  //   + Status = 7 (PENDING_SIGN) - Chờ ký (sau khi KTT duyệt)
-  //   + HOẶC Status = 8 (SIGNED) - Đã ký, có thể phát hành lại
-  //   + VÀ CHƯA CÓ SỐ (chưa ký)
-  //   ➡️ Sau khi ký xong → TỰ ĐỘNG gửi CQT và phát hành
-  // 
-  // - Phát hành (fallback): Chỉ hiển thị khi:
-  //   + Status = 8 (SIGNED) - Đã ký, chờ phát hành
-  //   + VÀ ĐÃ CÓ SỐ (đã ký rồi)
-  //   ➡️ Trường hợp ký thành công nhưng chưa phát hành (lỗi, gián đoạn)
-  const canSignAndIssue = (isPendingSign || isSigned) && !hasInvoiceNumber // ⚡ Gộp 1 bước
-  const canCancel = isPendingApproval || isPendingSign // Có thể hủy khi Chờ duyệt HOẶC Chờ ký
-  
-  // 📋 Logic "Tạo HĐ điều chỉnh"
-  // Điều kiện:
-  // 1. Hóa đơn đã phát hành (isIssued)
-  // 2. Chưa có hóa đơn điều chỉnh con (!hasBeenAdjusted)
-  // 3. Chính nó KHÔNG phải là hóa đơn điều chỉnh (invoiceType !== ADJUSTMENT)
   // 🔒 SALE ROLE: Chỉ xem, không được thao tác quản trị
   // Sale chỉ có quyền: Xem, Tải PDF, Gửi email, In
   const menuItems = [
@@ -447,10 +396,7 @@ const SaleInvoiceManagement = () => {
     invoiceStatus: [],
     taxStatus: '',
     customer: null,
-    project: null,
     invoiceType: [],
-    amountFrom: '',
-    amountTo: '',
   })
 
   // Load invoices từ API
@@ -565,10 +511,7 @@ const SaleInvoiceManagement = () => {
       invoiceStatus: [],
       taxStatus: '',
       customer: null,
-      project: null,
       invoiceType: [],
-      amountFrom: '',
-      amountTo: '',
     })
   }
 
@@ -1566,19 +1509,13 @@ const SaleInvoiceManagement = () => {
         filters.customer === 'ALL' || 
         invoice.customerName === filters.customer
 
-      // Lọc theo khoảng tiền
-      const matchesAmountFrom = !filters.amountFrom || invoice.amount >= parseFloat(filters.amountFrom)
-      const matchesAmountTo = !filters.amountTo || invoice.amount <= parseFloat(filters.amountTo)
-
       return (
         matchesSearch &&
         matchesDateFrom &&
         matchesDateTo &&
         matchesInvoiceStatus &&
         matchesTaxStatus &&
-        matchesCustomer &&
-        matchesAmountFrom &&
-        matchesAmountTo
+        matchesCustomer
       )
     })
     
