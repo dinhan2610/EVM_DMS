@@ -2,39 +2,39 @@
   "rewrites": [
     {
       "source": "/api/:match*",
-      "destination": "http://159.223.64.31/api/:match*"
+      "destination": "https://159.223.64.31/api/:match*"
     },
     {
       "source": "/Auth/:match*",
-      "destination": "http://159.223.64.31/Auth/:match*"
+      "destination": "https://159.223.64.31/Auth/:match*"
     },
     {
       "source": "/User/:match*",
-      "destination": "http://159.223.64.31/User/:match*"
+      "destination": "https://159.223.64.31/User/:match*"
     },
     {
       "source": "/InvoiceTemplate/:match*",
-      "destination": "http://159.223.64.31/InvoiceTemplate/:match*"
+      "destination": "https://159.223.64.31/InvoiceTemplate/:match*"
     },
     {
       "source": "/TemplateFrame/:match*",
-      "destination": "http://159.223.64.31/TemplateFrame/:match*"
+      "destination": "https://159.223.64.31/TemplateFrame/:match*"
     },
     {
       "source": "/Prefix/:match*",
-      "destination": "http://159.223.64.31/Prefix/:match*"
+      "destination": "https://159.223.64.31/Prefix/:match*"
     },
     {
       "source": "/Serial/:match*",
-      "destination": "http://159.223.64.31/Serial/:match*"
+      "destination": "https://159.223.64.31/Serial/:match*"
     },
     {
       "source": "/SerialStatus/:match*",
-      "destination": "http://159.223.64.31/SerialStatus/:match*"
+      "destination": "https://159.223.64.31/SerialStatus/:match*"
     },
     {
       "source": "/InvoiceType/:match*",
-      "destination": "http://159.223.64.31/InvoiceType/:match*"
+      "destination": "https://159.223.64.31/InvoiceType/:match*"
     },
     {
       "source": "/(.*)",

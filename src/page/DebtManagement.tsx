@@ -29,10 +29,9 @@ import {
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
-import dayjs, { Dayjs } from 'dayjs'
+import dayjs from 'dayjs'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import PaymentIcon from '@mui/icons-material/Payment'
 import HistoryIcon from '@mui/icons-material/History'
@@ -169,6 +168,16 @@ const DebtManagement = () => {
       lastPaymentDate: string | null;
     };
   } | null>(null)
+  // ✅ NEW: Month/Year filter for monthly debt report
+  const [selectedMonth, setSelectedMonth] = useState<number>(dayjs().month() + 1) // 1-12
+  const [selectedYear, setSelectedYear] = useState<number>(dayjs().year())
+  // ✅ NEW: Monthly debt summary statistics
+  const [monthlySummary, setMonthlySummary] = useState<{
+    totalReceivable: number;
+    totalPaid: number;
+    totalRemaining: number;
+    totalOverdue: number;
+  } | null>(null)
   // Note: Despite the backend field name 'unpaidInvoices', this should contain ALL invoices (Unpaid, PartiallyPaid, Paid)
   const [invoices, setInvoices] = useState<DebtInvoice[]>([])
   const [paymentHistory, setPaymentHistory] = useState<PaymentRecord[]>([])
@@ -191,6 +200,7 @@ const DebtManagement = () => {
   const [selectedTab, setSelectedTab] = useState<'invoices' | 'history'>('invoices')
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<DebtInvoice | null>(null)
+  const [selectedInvoicePayments, setSelectedInvoicePayments] = useState<PaymentRecord[]>([]) // ✅ NEW - Lịch sử thanh toán của hoá đơn
 
   // State - Filters
   const [filters, setFilters] = useState<DebtFilterState>({
@@ -206,7 +216,6 @@ const DebtManagement = () => {
   // State - Form
   const [paymentData, setPaymentData] = useState({
     amount: 0,
-    date: dayjs() as Dayjs,
     method: PAYMENT_METHODS.BANK_TRANSFER,
     transactionCode: '',
     note: '',
@@ -215,9 +224,7 @@ const DebtManagement = () => {
   // State - Form Validation
   const [formErrors, setFormErrors] = useState({
     amount: '',
-    date: '',
     method: '',
-    transactionCode: '',
   })
   
   // State - Feedback
@@ -272,7 +279,8 @@ const DebtManagement = () => {
   }, [])
 
   /**
-   * Fetch customer debt detail when selected customer or pagination changes
+   * Fetch customer debt detail when selected customer, month/year, or pagination changes
+   * ✅ UPDATED: Use paymentService.getMonthlyDebt() for better performance and summary statistics
    */
   useEffect(() => {
     const fetchCustomerDebtDetail = async () => {
@@ -280,109 +288,134 @@ const DebtManagement = () => {
         setInvoices([])
         setPaymentHistory([])
         setSelectedCustomerDetail(null)
+        setMonthlySummary(null)
         return
       }
 
       try {
         setIsLoadingDetail(true)
         
-        // ✅ NEW: Use proper pagination parameters
-        const response = await debtService.getCustomerDebtDetail(
-          selectedCustomer.customerId,
-          {
-            InvoicePageSize: invoicePagination.pageSize,
-            InvoicePageIndex: invoicePagination.pageIndex,
-            PaymentPageSize: paymentPagination.pageSize,
-            PaymentPageIndex: paymentPagination.pageIndex,
-            SortBy: 'invoiceDate',
-            SortOrder: 'desc',
-          }
+        // ✅ NEW: Use paymentService.getMonthlyDebt() to get summary + invoices in one call
+        const monthlyDebt = await paymentService.getMonthlyDebt(
+          selectedMonth,
+          selectedYear,
+          selectedCustomer.customerId
         )
         
-        // 🔍 DEBUG: Check if backend now returns Paid invoices
-        console.log('[DebtManagement] Raw backend response - invoice count:', response.invoices.length);
-        console.log('[DebtManagement] Invoice payment statuses:', 
-          response.invoices.map(inv => ({ 
-            invoiceNo: inv.invoiceNumber, 
-            status: inv.paymentStatus,
-            remaining: inv.remainingAmount 
-          }))
-        );
+        // ✅ Store summary statistics
+        setMonthlySummary({
+          totalReceivable: monthlyDebt.summary.totalReceivable,
+          totalPaid: monthlyDebt.summary.totalPaid,
+          totalRemaining: monthlyDebt.summary.totalRemaining,
+          totalOverdue: monthlyDebt.summary.totalOverdue,
+        })
         
-        // ✅ FIXED: Backend now returns ALL invoices (including Paid) via 'invoices' field
-        const mappedInvoices: DebtInvoice[] = response.invoices.map(inv => {
-          // 🔧 FIX: Backend returns "Partially Paid" (with space), normalize to "PartiallyPaid"
-          let normalizedStatus = inv.paymentStatus as string
-          if (normalizedStatus === 'Partially Paid') {
+        console.log('[DebtManagement] Monthly debt summary:', monthlyDebt.summary)
+        console.log('[DebtManagement] Invoice count:', monthlyDebt.invoices.items.length)
+        
+        // ✅ Map invoices from monthly debt API response
+        const mappedInvoices: DebtInvoice[] = monthlyDebt.invoices.items.map(inv => {
+          // 🔍 DEBUG: Log raw status from API
+          console.log(`[Invoice ${inv.invoiceId}] Raw status from API:`, inv.status, '| Remaining:', inv.remainingAmount, '| Overdue:', inv.overdueAmount)
+          
+          // ✅ Normalize payment status from API (handle all possible variations)
+          let normalizedStatus: DebtInvoice['paymentStatus']
+          const statusLower = (inv.status || '').toLowerCase().replace(/\s+/g, '')
+          
+          if (statusLower === 'paid' || statusLower === 'full' || statusLower === 'fullypaid') {
+            normalizedStatus = 'Paid'
+          } else if (statusLower === 'partiallypaid' || statusLower === 'partially' || statusLower === 'partial') {
             normalizedStatus = 'PartiallyPaid'
+          } else if (statusLower === 'overdue') {
+            normalizedStatus = 'Overdue'
+          } else if (statusLower === 'unpaid' || statusLower === 'notpaid') {
+            normalizedStatus = 'Unpaid'
+          } else {
+            // Fallback: Calculate from amounts if status is unknown
+            console.warn(`[Invoice ${inv.invoiceId}] Unknown status: "${inv.status}", calculating from amounts...`)
+            normalizedStatus = calculatePaymentStatus(inv.totalAmount, inv.paidAmount, inv.remainingAmount)
           }
+          
+          console.log(`[Invoice ${inv.invoiceId}] Normalized status:`, normalizedStatus)
           
           return {
             id: inv.invoiceId,
-            invoiceNo: inv.invoiceNumber,
-            invoiceStatusId: inv.invoiceStatusID,
-            invoiceStatus: inv.invoiceStatus,
+            invoiceNo: String(inv.invoiceId), // Use invoiceId as invoice number
+            invoiceStatusId: 0, // Not provided by monthly debt API
+            invoiceStatus: inv.status, // Keep original status string
             invoiceDate: inv.invoiceDate,
-            dueDate: inv.dueDate,
+            dueDate: inv.dueDate || inv.invoiceDate, // Fallback to invoiceDate if dueDate is null
             totalAmount: inv.totalAmount,
             paidAmount: inv.paidAmount,
             remainingAmount: inv.remainingAmount,
-            paymentStatus: normalizedStatus as DebtInvoice['paymentStatus'],
-            description: inv.description,
-            isOverdue: inv.isOverdue,
+            paymentStatus: normalizedStatus, // ✅ Use normalized status
+            description: `Khách hàng: ${inv.customerName}`,
+            isOverdue: inv.overdueAmount > 0,
           }
-        })
-        // Sort by invoiceDate descending (newest first)
-        .sort((a, b) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime())
+        }).sort((a, b) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime())
         
-        // 🔍 DEBUG: Log payment statuses to verify ALL statuses are included
-        console.log('[DebtManagement] Total invoices:', mappedInvoices.length);
-        const breakdown = {
-          unpaid: mappedInvoices.filter(i => i.paymentStatus === 'Unpaid').length,
-          partiallyPaid: mappedInvoices.filter(i => i.paymentStatus === 'PartiallyPaid').length,
-          paid: mappedInvoices.filter(i => i.paymentStatus === 'Paid').length,
-          overdue: mappedInvoices.filter(i => i.paymentStatus === 'Overdue').length,
-        };
-        console.log('[DebtManagement] Payment status breakdown:', JSON.stringify(breakdown));
-
-        const mappedPayments: PaymentRecord[] = response.paymentHistory.map(pay => ({
-          id: pay.paymentId,
+        // 🔍 DEBUG: Log payment status breakdown
+        const statusBreakdown = {
+          Paid: mappedInvoices.filter(i => i.paymentStatus === 'Paid').length,
+          PartiallyPaid: mappedInvoices.filter(i => i.paymentStatus === 'PartiallyPaid').length,
+          Unpaid: mappedInvoices.filter(i => i.paymentStatus === 'Unpaid').length,
+          Overdue: mappedInvoices.filter(i => i.paymentStatus === 'Overdue').length,
+        }
+        console.log('[DebtManagement] Payment status breakdown:', statusBreakdown)
+        
+        console.log('[DebtManagement] Mapped invoices:', mappedInvoices.length)
+        
+        // ✅ NEW: Fetch payment history using paymentService.getPayments() with new pagination API
+        const paymentsResponse = await paymentService.getPayments({
+          customerId: selectedCustomer.customerId,
+          pageIndex: paymentPagination.pageIndex,
+          pageSize: paymentPagination.pageSize,
+        })
+        
+        // ✅ Map payment response to PaymentRecord format
+        const mappedPayments: PaymentRecord[] = paymentsResponse.data.map(pay => ({
+          id: pay.id,
           invoiceId: pay.invoiceId,
-          invoiceNo: pay.invoiceNumber,
+          invoiceNo: pay.invoice?.invoiceNumber ? String(pay.invoice.invoiceNumber) : 'N/A',
           amount: pay.amount,
           paymentDate: pay.paymentDate,
           paymentMethod: pay.paymentMethod,
-          transactionCode: pay.transactionCode || undefined,
+          transactionCode: pay.transactionCode,
           note: pay.note,
           userId: pay.userId,
-          userName: pay.userName,
+          userName: pay.user?.userName || 'N/A',
         }))
         
         setInvoices(mappedInvoices)
         setPaymentHistory(mappedPayments)
         
-        // Store customer detail summary for header stats
+        // ✅ Calculate summary from monthly debt data
         setSelectedCustomerDetail({
-          summary: response.summary
+          summary: {
+            totalDebt: monthlySummary?.totalRemaining || 0,
+            overdueDebt: monthlySummary?.totalOverdue || 0,
+            totalPaid: monthlySummary?.totalPaid || 0,
+            invoiceCount: monthlyDebt.invoices.totalCount,
+            unpaidInvoiceCount: mappedInvoices.filter(i => i.paymentStatus !== 'Paid').length,
+            lastPaymentDate: mappedPayments.length > 0 ? mappedPayments[0].paymentDate : null,
+          }
         })
         
-        // Update pagination state from API response
-        if (response.invoicesPagination) {
-          setInvoicePagination({
-            pageIndex: response.invoicesPagination.pageIndex,
-            pageSize: response.invoicesPagination.pageSize,
-            totalCount: response.invoicesPagination.totalCount,
-            totalPages: response.invoicesPagination.totalPages,
-          })
-        }
-        if (response.paymentHistoryPagination) {
-          setPaymentPagination({
-            pageIndex: response.paymentHistoryPagination.pageIndex,
-            pageSize: response.paymentHistoryPagination.pageSize,
-            totalCount: response.paymentHistoryPagination.totalCount,
-            totalPages: response.paymentHistoryPagination.totalPages,
-          })
-        }
+        // ✅ Update invoice pagination from monthly debt API
+        setInvoicePagination({
+          pageIndex: monthlyDebt.invoices.pageIndex,
+          pageSize: invoicePagination.pageSize, // Keep current pageSize
+          totalCount: monthlyDebt.invoices.totalCount,
+          totalPages: monthlyDebt.invoices.totalPages,
+        })
+        
+        // ✅ Update payment pagination from new payments API
+        setPaymentPagination({
+          pageIndex: paymentsResponse.pageIndex,
+          pageSize: paymentsResponse.pageSize,
+          totalCount: paymentsResponse.totalCount,
+          totalPages: paymentsResponse.totalPages,
+        })
       } catch (error) {
         console.error('Failed to fetch customer debt detail:', error)
         setSnackbar({
@@ -397,7 +430,7 @@ const DebtManagement = () => {
 
     fetchCustomerDebtDetail()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCustomer, invoicePagination.pageIndex, invoicePagination.pageSize, paymentPagination.pageIndex, paymentPagination.pageSize])
+  }, [selectedCustomer, selectedMonth, selectedYear, invoicePagination.pageIndex, invoicePagination.pageSize, paymentPagination.pageIndex, paymentPagination.pageSize])
 
   /**
    * Refresh customer list after successful payment
@@ -429,70 +462,102 @@ const DebtManagement = () => {
 
   /**
    * Refresh customer debt detail after successful payment
+   * ✅ UPDATED: Use paymentService.getMonthlyDebt() same as main fetch
    */
   const refreshCustomerDetail = useCallback(async () => {
     if (!selectedCustomer) return
 
     try {
-      // ✅ Use proper pagination (max 100 per backend limit)
-      const response = await debtService.getCustomerDebtDetail(
-        selectedCustomer.customerId,
-        { 
-          InvoicePageSize: invoicePagination.pageSize, 
-          InvoicePageIndex: invoicePagination.pageIndex, 
-          PaymentPageSize: paymentPagination.pageSize, 
-          PaymentPageIndex: paymentPagination.pageIndex,
-          SortBy: 'invoiceDate',
-          SortOrder: 'desc',
-        }
+      // ✅ Use paymentService.getMonthlyDebt() for consistency
+      const monthlyDebt = await paymentService.getMonthlyDebt(
+        selectedMonth,
+        selectedYear,
+        selectedCustomer.customerId
       )
       
-      const mappedInvoices: DebtInvoice[] = response.invoices.map(inv => {
-        // 🔧 FIX: Backend returns "Partially Paid" (with space), normalize to "PartiallyPaid"
-        let normalizedStatus = inv.paymentStatus as string
-        if (normalizedStatus === 'Partially Paid') {
+      // ✅ Store summary statistics
+      setMonthlySummary({
+        totalReceivable: monthlyDebt.summary.totalReceivable,
+        totalPaid: monthlyDebt.summary.totalPaid,
+        totalRemaining: monthlyDebt.summary.totalRemaining,
+        totalOverdue: monthlyDebt.summary.totalOverdue,
+      })
+      
+      // ✅ Map invoices with same normalization logic
+      const mappedInvoices: DebtInvoice[] = monthlyDebt.invoices.items.map(inv => {
+        // Normalize payment status from API (handle all possible variations)
+        let normalizedStatus: DebtInvoice['paymentStatus']
+        const statusLower = (inv.status || '').toLowerCase().replace(/\\s+/g, '')
+        
+        if (statusLower === 'paid' || statusLower === 'full' || statusLower === 'fullypaid') {
+          normalizedStatus = 'Paid'
+        } else if (statusLower === 'partiallypaid' || statusLower === 'partially' || statusLower === 'partial') {
           normalizedStatus = 'PartiallyPaid'
+        } else if (statusLower === 'overdue') {
+          normalizedStatus = 'Overdue'
+        } else if (statusLower === 'unpaid' || statusLower === 'notpaid') {
+          normalizedStatus = 'Unpaid'
+        } else {
+          // Fallback: Calculate from amounts if status is unknown
+          normalizedStatus = calculatePaymentStatus(inv.totalAmount, inv.paidAmount, inv.remainingAmount)
         }
         
         return {
           id: inv.invoiceId,
-          invoiceNo: inv.invoiceNumber,
-          invoiceStatusId: inv.invoiceStatusID,
-          invoiceStatus: inv.invoiceStatus,
+          invoiceNo: String(inv.invoiceId),
+          invoiceStatusId: 0,
+          invoiceStatus: inv.status,
           invoiceDate: inv.invoiceDate,
-          dueDate: inv.dueDate,
+          dueDate: inv.dueDate || inv.invoiceDate,
           totalAmount: inv.totalAmount,
           paidAmount: inv.paidAmount,
           remainingAmount: inv.remainingAmount,
-          paymentStatus: normalizedStatus as DebtInvoice['paymentStatus'],
-          description: inv.description,
-          isOverdue: inv.isOverdue,
+          paymentStatus: normalizedStatus,
+          description: `Khách hàng: ${inv.customerName}`,
+          isOverdue: inv.overdueAmount > 0,
         }
       })
-      // Sort by invoiceDate descending (newest first)
       .sort((a: DebtInvoice, b: DebtInvoice) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime())
 
-      const mappedPayments: PaymentRecord[] = response.paymentHistory.map(pay => ({
-        id: pay.paymentId,
+      // ✅ Fetch payment history using paymentService.getPayments()
+      const paymentsResponse = await paymentService.getPayments({
+        customerId: selectedCustomer.customerId,
+        pageIndex: paymentPagination.pageIndex,
+        pageSize: paymentPagination.pageSize,
+      })
+      
+      const mappedPayments: PaymentRecord[] = paymentsResponse.data.map(pay => ({
+        id: pay.id,
         invoiceId: pay.invoiceId,
-        invoiceNo: pay.invoiceNumber,
+        invoiceNo: pay.invoice?.invoiceNumber ? String(pay.invoice.invoiceNumber) : 'N/A',
         amount: pay.amount,
         paymentDate: pay.paymentDate,
         paymentMethod: pay.paymentMethod,
-        transactionCode: pay.transactionCode || undefined,
+        transactionCode: pay.transactionCode,
         note: pay.note,
         userId: pay.userId,
-        userName: pay.userName,
+        userName: pay.user?.userName || 'N/A',
       }))
-      // Sort by paymentDate descending (newest first)
       .sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())
 
       setInvoices(mappedInvoices)
       setPaymentHistory(mappedPayments)
+      
+      // Calculate summary from monthly debt data
+      setSelectedCustomerDetail({
+        summary: {
+          totalDebt: monthlyDebt.summary.totalRemaining,
+          overdueDebt: monthlyDebt.summary.totalOverdue,
+          totalPaid: monthlyDebt.summary.totalPaid,
+          invoiceCount: monthlyDebt.invoices.totalCount,
+          unpaidInvoiceCount: mappedInvoices.filter(i => i.paymentStatus !== 'Paid').length,
+          lastPaymentDate: mappedPayments.length > 0 ? mappedPayments[0].paymentDate : null,
+        }
+      })
     } catch (error) {
       console.error('Failed to refresh customer detail:', error)
     }
-  }, [selectedCustomer, invoicePagination.pageSize, invoicePagination.pageIndex, paymentPagination.pageSize, paymentPagination.pageIndex])
+  }, [selectedCustomer, selectedMonth, selectedYear, paymentPagination.pageSize, paymentPagination.pageIndex])
 
   // ==================== COMPUTED VALUES ====================
   
@@ -577,11 +642,10 @@ const DebtManagement = () => {
     setSelectedTab('invoices')
   }, [])
 
-  const handlePaymentClick = useCallback((invoice: DebtInvoice) => {
+  const handlePaymentClick = useCallback(async (invoice: DebtInvoice) => {
     setSelectedInvoice(invoice)
     setPaymentData({
       amount: invoice.remainingAmount,
-      date: dayjs(),
       method: PAYMENT_METHODS.BANK_TRANSFER,
       transactionCode: '',
       note: '',
@@ -589,10 +653,22 @@ const DebtManagement = () => {
     // Reset validation errors
     setFormErrors({
       amount: '',
-      date: '',
       method: '',
-      transactionCode: '',
     })
+    
+    // ✅ NEW: Fetch payment history for this specific invoice
+    try {
+      const invoicePayments = await paymentService.getPayments({
+        invoiceId: invoice.id,
+        pageSize: 50, // Get last 50 payments
+      })
+      setSelectedInvoicePayments(invoicePayments.data)
+      console.log(`[Invoice ${invoice.id}] Payment history:`, invoicePayments.data.length, 'payments')
+    } catch (error) {
+      console.error('Failed to fetch invoice payments:', error)
+      setSelectedInvoicePayments([])
+    }
+    
     setPaymentModalOpen(true)
   }, []) // Empty deps OK - only using setters which are stable
 
@@ -618,23 +694,14 @@ const DebtManagement = () => {
       hasError = true
     }
 
-    // Validate date (required)
-    if (!paymentData.date || !paymentData.date.isValid()) {
-      errors.date = 'Vui lòng chọn ngày thanh toán'
-      hasError = true
-    }
-
     // Validate payment method (required)
     if (!paymentData.method) {
       errors.method = 'Vui lòng chọn hình thức thanh toán'
       hasError = true
     }
 
-    // Validate transaction code (required)
-    if (!paymentData.transactionCode || paymentData.transactionCode.trim() === '') {
-      errors.transactionCode = 'Vui lòng nhập mã giao dịch'
-      hasError = true
-    }
+    // ✅ UPDATED: Transaction code is now optional (not required by API)
+    // Removed validation
 
     // Update error state
     setFormErrors(errors)
@@ -659,47 +726,36 @@ const DebtManagement = () => {
         paymentMethod: paymentData.method,
         transactionCode: paymentData.transactionCode || undefined,
         note: paymentData.note || undefined,
-        paymentDate: paymentData.date.toISOString(),
+        paymentDate: dayjs().toISOString(), // ✅ AUTO - Use today's date
         userId: parseInt(user.id),
       }
 
       const paymentResponse = await paymentService.createPayment(paymentRequest)
 
-      // Check if invoice info is in response
-      if (paymentResponse.invoice) {
-        const statusText = paymentResponse.invoice.remainingAmount === 0
-          ? 'Trả toàn bộ ✓'
-          : 'Trả một phần'
-        
-        setSnackbar({
-          open: true,
-          message: `✅ ${statusText}\n💰 Số tiền: ${formatCurrency(paymentData.amount)}\n📊 Còn nợ: ${formatCurrency(paymentResponse.invoice.remainingAmount)}`,
-          severity: paymentResponse.invoice.remainingAmount === 0 ? 'success' : 'info',
-        })
-      } else {
-        // Fallback if invoice info not in response
-        setSnackbar({
-          open: true,
-          message: `✅ Đã ghi nhận thanh toán thành công!\n💰 Số tiền: ${formatCurrency(paymentData.amount)}`,
-          severity: 'success',
-        })
-      }
+      // ✅ NEW: Display remainingAmount from API response
+      const remainingAmount = paymentResponse.remainingAmount ?? paymentResponse.invoice?.remainingAmount ?? 0
+      const isPaidFull = remainingAmount === 0
+      const statusText = isPaidFull ? 'Trả toàn bộ ✓' : 'Trả một phần'
+      const statusIcon = isPaidFull ? '✅' : '💰'
+      
+      setSnackbar({
+        open: true,
+        message: `${statusIcon} ${statusText}\n💰 Số tiền thanh toán: ${formatCurrency(paymentData.amount)}\n📊 Còn lại: ${formatCurrency(remainingAmount)}`,
+        severity: isPaidFull ? 'success' : 'info',
+      })
 
       // Close modal and reset
       setPaymentModalOpen(false)
       setSelectedInvoice(null)
       setPaymentData({
         amount: 0,
-        date: dayjs(),
         method: PAYMENT_METHODS.BANK_TRANSFER,
         transactionCode: '',
         note: '',
       })
       setFormErrors({
         amount: '',
-        date: '',
         method: '',
-        transactionCode: '',
       })
 
       // Refresh data to show updated amounts
@@ -827,18 +883,15 @@ const DebtManagement = () => {
         width: 150,
         align: 'center',
         headerAlign: 'center',
-        valueGetter: (value: unknown, row: DebtInvoice) => {
-          // If backend doesn't provide status, calculate it
-          return value || calculatePaymentStatus(row.totalAmount, row.paidAmount, row.remainingAmount)
-        },
         renderCell: (params: GridRenderCellParams) => {
-          const finalStatus = params.value as DebtInvoice['paymentStatus']
+          // ✅ Use paymentStatus directly from API (already normalized in mapping)
+          const status = params.value as DebtInvoice['paymentStatus']
           
           return (
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
               <Chip
-                label={getPaymentStatusLabel(finalStatus)}
-                color={getPaymentStatusColor(finalStatus)}
+                label={getPaymentStatusLabel(status)}
+                color={getPaymentStatusColor(status)}
                 size="small"
                 sx={{ fontWeight: 500, fontSize: '0.7rem', minWidth: 90 }}
               />
@@ -1127,6 +1180,148 @@ const DebtManagement = () => {
                 overflow: 'hidden',
               }}
             >
+              {/* ✅ NEW: Month/Year Filter */}
+              <Box sx={{ 
+                px: 2.5, 
+                py: 1.5, 
+                borderBottom: '1px solid #e0e0e0', 
+                backgroundColor: '#f8f9fa',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2
+              }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: '#666', fontSize: '0.8125rem' }}>
+                  📅 Kỳ báo cáo:
+                </Typography>
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>Tháng</InputLabel>
+                  <Select
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value as number)}
+                    label="Tháng"
+                    sx={{ backgroundColor: '#fff' }}
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
+                      <MenuItem key={month} value={month}>
+                        Tháng {month}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl size="small" sx={{ minWidth: 100 }}>
+                  <InputLabel>Năm</InputLabel>
+                  <Select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(e.target.value as number)}
+                    label="Năm"
+                    sx={{ backgroundColor: '#fff' }}
+                  >
+                    {Array.from({ length: 5 }, (_, i) => dayjs().year() - 2 + i).map((year) => (
+                      <MenuItem key={year} value={year}>
+                        {year}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <Box sx={{ ml: 'auto' }}>
+                  <Typography variant="caption" sx={{ color: '#999', fontSize: '0.75rem' }}>
+                    Dữ liệu tháng {selectedMonth}/{selectedYear}
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* ✅ NEW: Monthly Summary Statistics Cards */}
+              {monthlySummary && (
+                <Box sx={{ 
+                  px: 2.5, 
+                  py: 2, 
+                  borderBottom: '1px solid #e0e0e0', 
+                  backgroundColor: '#fff'
+                }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1.5, fontSize: '0.875rem' }}>
+                    📊 Tổng quan công nợ tháng {selectedMonth}/{selectedYear}
+                  </Typography>
+                  <Stack 
+                    direction="row" 
+                    spacing={2} 
+                    sx={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: 'repeat(4, 1fr)', 
+                      gap: 2 
+                    }}
+                  >
+                    <Paper 
+                      elevation={0} 
+                      sx={{ 
+                        p: 2, 
+                        border: '1px solid #e3f2fd', 
+                        borderRadius: 2, 
+                        backgroundColor: '#e3f2fd',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ color: '#1565c0', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', mb: 0.5 }}>
+                        Tổng phải thu
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 700, color: '#1565c0', fontSize: '1.4rem' }}>
+                        {formatCurrency(monthlySummary.totalReceivable)}
+                      </Typography>
+                    </Paper>
+                    <Paper 
+                      elevation={0} 
+                      sx={{ 
+                        p: 2, 
+                        border: '1px solid #e8f5e9', 
+                        borderRadius: 2, 
+                        backgroundColor: '#e8f5e9',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ color: '#2e7d32', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', mb: 0.5 }}>
+                        Đã thanh toán
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 700, color: '#2e7d32', fontSize: '1.4rem' }}>
+                        {formatCurrency(monthlySummary.totalPaid)}
+                      </Typography>
+                    </Paper>
+                    <Paper 
+                      elevation={0} 
+                      sx={{ 
+                        p: 2, 
+                        border: '1px solid #fff3e0', 
+                        borderRadius: 2, 
+                        backgroundColor: '#fff3e0',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ color: '#e65100', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', mb: 0.5 }}>
+                        Còn lại
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 700, color: '#e65100', fontSize: '1.4rem' }}>
+                        {formatCurrency(monthlySummary.totalRemaining)}
+                      </Typography>
+                    </Paper>
+                    <Paper 
+                      elevation={0} 
+                      sx={{ 
+                        p: 2, 
+                        border: '1px solid #ffebee', 
+                        borderRadius: 2, 
+                        backgroundColor: '#ffebee',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ color: '#c62828', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', mb: 0.5 }}>
+                        Quá hạn
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 700, color: '#c62828', fontSize: '1.4rem' }}>
+                        {formatCurrency(monthlySummary.totalOverdue)}
+                      </Typography>
+                    </Paper>
+                  </Stack>
+                </Box>
+              )}
+
               {/* Customer Info & KPI - Inline Compact */}
               <Box sx={{ 
                 px: 2.5, 
@@ -1304,6 +1499,9 @@ const DebtManagement = () => {
                             backgroundColor: '#fafafa',
                             minHeight: '56px',
                             padding: '8px 16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'flex-end',
                           },
                           '& .MuiTablePagination-root': {
                             overflow: 'visible',
@@ -1312,6 +1510,29 @@ const DebtManagement = () => {
                             minHeight: '56px',
                             paddingLeft: '16px',
                             paddingRight: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                          },
+                          '& .MuiTablePagination-selectLabel': {
+                            margin: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                          },
+                          '& .MuiTablePagination-displayedRows': {
+                            margin: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                          },
+                          '& .MuiTablePagination-select': {
+                            display: 'flex',
+                            alignItems: 'center',
+                            paddingTop: '8px',
+                            paddingBottom: '8px',
+                          },
+                          '& .MuiTablePagination-actions': {
+                            display: 'flex',
+                            alignItems: 'center',
+                            marginLeft: '12px',
                           },
                         }}
                       />
@@ -1353,6 +1574,9 @@ const DebtManagement = () => {
                             backgroundColor: '#fafafa',
                             minHeight: '56px',
                             padding: '8px 16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'flex-end',
                           },
                           '& .MuiTablePagination-root': {
                             overflow: 'visible',
@@ -1361,6 +1585,29 @@ const DebtManagement = () => {
                             minHeight: '56px',
                             paddingLeft: '16px',
                             paddingRight: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                          },
+                          '& .MuiTablePagination-selectLabel': {
+                            margin: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                          },
+                          '& .MuiTablePagination-displayedRows': {
+                            margin: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                          },
+                          '& .MuiTablePagination-select': {
+                            display: 'flex',
+                            alignItems: 'center',
+                            paddingTop: '8px',
+                            paddingBottom: '8px',
+                          },
+                          '& .MuiTablePagination-actions': {
+                            display: 'flex',
+                            alignItems: 'center',
+                            marginLeft: '12px',
                           },
                         }}
                       />
@@ -1422,8 +1669,30 @@ const DebtManagement = () => {
                     </Stack>
                   </Alert>
 
+                  {/* ✅ NEW: Payment History for this Invoice */}
+                  {selectedInvoicePayments.length > 0 && (
+                    <Alert severity="success" sx={{ '& .MuiAlert-message': { width: '100%' } }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                        📜 Lịch sử thanh toán ({selectedInvoicePayments.length} lần):
+                      </Typography>
+                      <Stack spacing={0.5} sx={{ maxHeight: 120, overflowY: 'auto' }}>
+                        {selectedInvoicePayments.map((payment, index) => (
+                          <Box key={payment.id} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                            <Typography variant="caption" sx={{ color: '#666' }}>
+                              {index + 1}. {dayjs(payment.paymentDate).format('DD/MM/YYYY')} - {payment.paymentMethod}
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: '#2e7d32' }}>
+                              {formatCurrency(payment.amount)}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Stack>
+                    </Alert>
+                  )}
+
                   {/* Payment Amount with VN formatting */}
-                  <TextField
+                  <Box>
+                    <TextField
                     fullWidth
                     required
                     label="Số tiền thanh toán"
@@ -1451,29 +1720,76 @@ const DebtManagement = () => {
                     error={!!formErrors.amount || (paymentData.amount > selectedInvoice.remainingAmount)}
                     placeholder="Ví dụ: 1.000.000"
                   />
+                    {/* ✅ NEW: Quick Amount Buttons */}
+                    <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => setPaymentData({ ...paymentData, amount: selectedInvoice.remainingAmount })}
+                        sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+                      >
+                        💯 Toàn bộ ({formatCurrency(selectedInvoice.remainingAmount)})
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => setPaymentData({ ...paymentData, amount: Math.round(selectedInvoice.remainingAmount / 2) })}
+                        sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+                      >
+                        50% ({formatCurrency(Math.round(selectedInvoice.remainingAmount / 2))})
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => setPaymentData({ ...paymentData, amount: Math.round(selectedInvoice.remainingAmount / 3) })}
+                        sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+                      >
+                        1/3 ({formatCurrency(Math.round(selectedInvoice.remainingAmount / 3))})
+                      </Button>
+                    </Stack>
+                  </Box>
 
-                  {/* Payment Date */}
-                  <DatePicker
-                    label="Ngày thanh toán"
-                    value={paymentData.date}
-                    onChange={(newValue) => {
-                      setPaymentData({ ...paymentData, date: newValue || dayjs() })
-                      // Clear error on change
-                      if (formErrors.date) {
-                        setFormErrors({ ...formErrors, date: '' })
-                      }
-                    }}
-                    slotProps={{
-                      textField: {
-                        fullWidth: true,
-                        required: true,
-                        error: !!formErrors.date,
-                        helperText: formErrors.date || 'Chọn ngày thực hiện thanh toán',
-                      },
-                    }}
-                  />
+                  {/* ✅ NEW: Preview Result */}
+                  {paymentData.amount > 0 && paymentData.amount <= selectedInvoice.remainingAmount && (
+                    <Paper 
+                      elevation={0} 
+                      sx={{ 
+                        p: 2, 
+                        bgcolor: paymentData.amount === selectedInvoice.remainingAmount ? '#e8f5e9' : '#fff3e0',
+                        border: '1px solid',
+                        borderColor: paymentData.amount === selectedInvoice.remainingAmount ? '#4caf50' : '#ff9800',
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 1 }}>
+                        {paymentData.amount === selectedInvoice.remainingAmount ? '✅ Xem trước kết quả:' : '📊 Xem trước kết quả:'}
+                      </Typography>
+                      <Stack spacing={0.5}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="caption" sx={{ color: '#666' }}>Số tiền thanh toán:</Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 600, color: '#2e7d32' }}>
+                            {formatCurrency(paymentData.amount)}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="caption" sx={{ color: '#666' }}>Số tiền còn lại sau thanh toán:</Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: paymentData.amount === selectedInvoice.remainingAmount ? '#2e7d32' : '#e65100' }}>
+                            {formatCurrency(selectedInvoice.remainingAmount - paymentData.amount)}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="caption" sx={{ color: '#666' }}>Trạng thái mới:</Typography>
+                          <Chip 
+                            label={paymentData.amount === selectedInvoice.remainingAmount ? 'Đã thanh toán' : 'Trả một phần'} 
+                            color={paymentData.amount === selectedInvoice.remainingAmount ? 'success' : 'warning'}
+                            size="small"
+                            sx={{ height: 20, fontSize: '0.7rem' }}
+                          />
+                        </Box>
+                      </Stack>
+                    </Paper>
+                  )}
 
-                  {/* Payment Method */}
+                  {/* Payment Method - Simplified to common options */}
                   <FormControl fullWidth required error={!!formErrors.method}>
                     <InputLabel>Hình thức thanh toán</InputLabel>
                     <Select
@@ -1487,13 +1803,10 @@ const DebtManagement = () => {
                         }
                       }}
                     >
-                      <MenuItem value={PAYMENT_METHODS.BANK_TRANSFER}>Chuyển khoản ngân hàng</MenuItem>
-                      <MenuItem value={PAYMENT_METHODS.CASH}>Tiền mặt</MenuItem>
-                      <MenuItem value={PAYMENT_METHODS.CREDIT_CARD}>Thẻ tín dụng</MenuItem>
-                      <MenuItem value={PAYMENT_METHODS.DEBIT_CARD}>Thẻ ghi nợ</MenuItem>
-                      <MenuItem value={PAYMENT_METHODS.EWALLET}>Ví điện tử</MenuItem>
-                      <MenuItem value={PAYMENT_METHODS.CHECK}>Séc</MenuItem>
-                      <MenuItem value={PAYMENT_METHODS.OTHER}>Khác</MenuItem>
+                      <MenuItem value={PAYMENT_METHODS.BANK_TRANSFER}>🏦 Chuyển khoản ngân hàng</MenuItem>
+                      <MenuItem value={PAYMENT_METHODS.CASH}>💵 Tiền mặt</MenuItem>
+                      <MenuItem value={PAYMENT_METHODS.EWALLET}>📱 Ví điện tử (Momo, ZaloPay...)</MenuItem>
+                      <MenuItem value={PAYMENT_METHODS.OTHER}>📋 Khác</MenuItem>
                     </Select>
                     {formErrors.method && (
                       <Typography variant="caption" sx={{ color: '#d32f2f', mt: 0.5, ml: 1.75 }}>
@@ -1502,22 +1815,16 @@ const DebtManagement = () => {
                     )}
                   </FormControl>
 
-                  {/* Transaction Code */}
+                  {/* Transaction Code - OPTIONAL */}
                   <TextField
                     fullWidth
-                    required
-                    label="Mã giao dịch"
+                    label="Mã giao dịch (Tùy chọn)"
                     value={paymentData.transactionCode}
                     onChange={(e) => {
                       setPaymentData({ ...paymentData, transactionCode: e.target.value })
-                      // Clear error on change
-                      if (formErrors.transactionCode) {
-                        setFormErrors({ ...formErrors, transactionCode: '' })
-                      }
                     }}
                     placeholder="VD: TXN123456, REF789..."
-                    helperText={formErrors.transactionCode || 'Mã tham chiếu giao dịch ngân hàng, mã chuyển khoản'}
-                    error={!!formErrors.transactionCode}
+                    helperText="Mã tham chiếu giao dịch ngân hàng, mã chuyển khoản (không bắt buộc)"
                   />
 
                   {/* Note (Optional) */}

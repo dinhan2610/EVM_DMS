@@ -22,9 +22,10 @@ interface BackendPaymentResponse {
   paymentID: number;
   invoiceID: number;
   amountPaid: number;
+  remainingAmount: number;        // ✅ NEW - Số tiền còn lại của hóa đơn
   paymentMethod: string;
-  transactionCode?: string;
-  note?: string;
+  transactionCode?: string | null;
+  note?: string | null;
   paymentDate: string;
   createdBy: number;
   invoice?: {
@@ -46,6 +47,7 @@ export interface PaymentResponse {
   id: number;
   invoiceId: number;
   amount: number;
+  remainingAmount?: number;       // ✅ NEW - Số tiền còn lại của hóa đơn
   paymentMethod: string;
   transactionCode?: string;
   note?: string;
@@ -67,12 +69,24 @@ export interface PaymentResponse {
   };
 }
 
+// ✅ NEW - Paginated response from GET /api/Payment
+export interface BackendPaginatedPaymentResponse {
+  items: BackendPaymentResponse[];
+  pageIndex: number;
+  totalPages: number;
+  totalCount: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
 export interface PaginatedPaymentResponse {
   data: PaymentResponse[];
   pageIndex: number;
   pageSize: number;
   totalCount: number;
   totalPages: number;
+  hasPreviousPage: boolean;  // ✅ NEW - From updated API
+  hasNextPage: boolean;       // ✅ NEW - From updated API
 }
 
 export interface PaymentQueryParams {
@@ -83,6 +97,48 @@ export interface PaymentQueryParams {
   searchTerm?: string;
   startDate?: string;
   endDate?: string;
+}
+
+// ✅ NEW - Monthly debt response types
+export interface MonthlyDebtInvoice {
+  invoiceId: number;
+  invoiceDate: string;
+  dueDate: string | null;
+  customerName: string;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  overdueAmount: number;
+  status: string;
+}
+
+export interface MonthlyDebtSummary {
+  totalReceivable: number;   // Tổng phải thu
+  totalPaid: number;          // Tổng đã thu
+  totalRemaining: number;     // Tổng còn lại
+  totalOverdue: number;       // Tổng quá hạn
+}
+
+export interface MonthlyDebtData {
+  summary: MonthlyDebtSummary;
+  invoices: {
+    items: MonthlyDebtInvoice[];
+    pageIndex: number;
+    totalPages: number;
+    totalCount: number;
+    hasPreviousPage: boolean;
+    hasNextPage: boolean;
+  };
+}
+
+export interface MonthlyDebtResponse {
+  value: MonthlyDebtData;
+  valueOrDefault: MonthlyDebtData;
+  isFailed: boolean;
+  isSuccess: boolean;
+  reasons: string[];
+  errors: string[];
+  successes: string[];
 }
 
 // ==================== HELPER FUNCTIONS ====================
@@ -157,9 +213,10 @@ export const createPayment = async (paymentData: PaymentRequest): Promise<Paymen
       id: backendData.paymentID,                    // Map paymentID → id
       invoiceId: backendData.invoiceID,
       amount: backendData.amountPaid,               // Map amountPaid → amount
+      remainingAmount: backendData.remainingAmount, // ✅ NEW - Remaining amount after payment
       paymentMethod: backendData.paymentMethod,
-      transactionCode: backendData.transactionCode,
-      note: backendData.note,
+      transactionCode: backendData.transactionCode || undefined,
+      note: backendData.note || undefined,
       paymentDate: backendData.paymentDate,
       userId: backendData.createdBy,                // Map createdBy → userId
       createdAt: backendData.paymentDate,           // Use paymentDate as createdAt
@@ -185,10 +242,13 @@ export const createPayment = async (paymentData: PaymentRequest): Promise<Paymen
 
 /**
  * Get paginated list of payments with filters
+ * Handles new API structure with items[] array and transforms backend payment format
  */
 export const getPayments = async (params?: PaymentQueryParams): Promise<PaginatedPaymentResponse> => {
   try {
-    const response = await axios.get<PaginatedPaymentResponse>(
+    console.log('[getPayments] Request params:', params);
+    
+    const response = await axios.get<BackendPaginatedPaymentResponse>(
       `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PAYMENT.GET_ALL}`,
       {
         headers: getAuthHeaders(),
@@ -197,8 +257,46 @@ export const getPayments = async (params?: PaymentQueryParams): Promise<Paginate
       }
     );
     
-    return response.data;
+    console.log('[getPayments] Backend response:', response.data);
+    
+    // Transform backend paginated response to frontend format
+    const transformedPayments: PaymentResponse[] = response.data.items.map(backendPayment => ({
+      id: backendPayment.paymentID,                    // Map paymentID → id
+      invoiceId: backendPayment.invoiceID,
+      amount: backendPayment.amountPaid,               // Map amountPaid → amount
+      remainingAmount: backendPayment.remainingAmount, // ✅ NEW field
+      paymentMethod: backendPayment.paymentMethod,
+      transactionCode: backendPayment.transactionCode || undefined,
+      note: backendPayment.note || undefined,
+      paymentDate: backendPayment.paymentDate,
+      userId: backendPayment.createdBy,                // Map createdBy → userId
+      createdAt: backendPayment.paymentDate,
+      invoice: backendPayment.invoice ? {
+        invoiceNumber: String(backendPayment.invoice.invoiceNumber),
+        customerName: backendPayment.invoice.customerName,
+        totalAmount: backendPayment.invoice.totalAmount,
+        paidAmount: backendPayment.invoice.paidAmount,
+        remainingAmount: backendPayment.invoice.remainingAmount,
+        paymentStatus: backendPayment.invoice.paymentStatus,
+      } : undefined,
+      user: backendPayment.user
+    }));
+    
+    const transformedResponse: PaginatedPaymentResponse = {
+      data: transformedPayments,
+      pageIndex: response.data.pageIndex,
+      pageSize: params?.pageSize || transformedPayments.length, // Use requested pageSize or actual items length
+      totalPages: response.data.totalPages,
+      totalCount: response.data.totalCount,
+      hasPreviousPage: response.data.hasPreviousPage,
+      hasNextPage: response.data.hasNextPage,
+    };
+    
+    console.log('[getPayments] ✅ Transformed response:', transformedResponse);
+    
+    return transformedResponse;
   } catch (error) {
+    console.error('[getPayments] ❌ Error:', error);
     return handleApiError(error, 'Get Payments');
   }
 };
@@ -264,6 +362,55 @@ export const getPaymentsByCustomer = async (
   }
 };
 
+/**
+ * Get monthly debt report for a specific customer
+ * Returns summary statistics and detailed invoice breakdown
+ * @param month - Month number (1-12)
+ * @param year - Year (e.g., 2025, 2026)
+ * @param customerId - Customer ID
+ * @returns Monthly debt data with summary and invoice list
+ */
+export const getMonthlyDebt = async (
+  month: number,
+  year: number,
+  customerId: number
+): Promise<MonthlyDebtData> => {
+  try {
+    console.log('[getMonthlyDebt] Request:', { month, year, customerId });
+    
+    const response = await axios.get<MonthlyDebtResponse>(
+      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PAYMENT.GET_MONTHLY_DEBT}`,
+      {
+        headers: getAuthHeaders(),
+        params: { month, year, customerId },
+        timeout: API_CONFIG.TIMEOUT,
+      }
+    );
+    
+    console.log('[getMonthlyDebt] Backend response:', response.data);
+    
+    // Handle Result pattern wrapper - use value or valueOrDefault
+    const monthlyDebtData = response.data.value || response.data.valueOrDefault;
+    
+    if (!monthlyDebtData) {
+      throw new Error('Monthly debt data is empty or unavailable');
+    }
+    
+    // Check if the operation failed
+    if (response.data.isFailed) {
+      const errorMessage = response.data.errors?.join(', ') || 'Failed to retrieve monthly debt data';
+      throw new Error(errorMessage);
+    }
+    
+    console.log('[getMonthlyDebt] ✅ Monthly debt data:', monthlyDebtData);
+    
+    return monthlyDebtData;
+  } catch (error) {
+    console.error('[getMonthlyDebt] ❌ Error:', error);
+    return handleApiError(error, 'Get Monthly Debt Report');
+  }
+};
+
 // ==================== EXPORTS ====================
 
 export const paymentService = {
@@ -272,6 +419,7 @@ export const paymentService = {
   getPaymentById,
   getPaymentsByInvoice,
   getPaymentsByCustomer,
+  getMonthlyDebt, // ✅ NEW - Monthly debt report
 };
 
 export default paymentService;

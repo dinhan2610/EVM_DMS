@@ -60,6 +60,7 @@ export const API_CONFIG = {
       GET_BY_ID: (id: number) => `/Payment/${id}`,
       GET_BY_INVOICE: (invoiceId: number) => `/Payment?InvoiceId=${invoiceId}`,
       GET_BY_CUSTOMER: (customerId: number) => `/Payment?CustomerId=${customerId}`,
+      GET_MONTHLY_DEBT: '/Payment/monthly-debt', // GET - Lấy công nợ theo tháng với query params
     },
   },
   
