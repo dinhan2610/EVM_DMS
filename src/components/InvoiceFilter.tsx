@@ -282,10 +282,10 @@ const InvoiceFilter: React.FC<InvoiceFilterProps> = ({
             boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
           },
         }}>
-        {/* Phần tìm kiếm và nút lọc */}
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Phần tìm kiếm và nút lọc - LUÔN TRÊN 1 HÀNG */}
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
           {/* 1. Thanh Tìm kiếm */}
-          <Box sx={{ flex: '1 1 auto', maxWidth: 480, minWidth: 280 }}>
+          <Box sx={{ flex: '1 1 auto', maxWidth: 480, minWidth: 200 }}>
             <TextField
               size="small"
               fullWidth

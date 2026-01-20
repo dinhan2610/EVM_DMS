@@ -1602,7 +1602,7 @@ const HODInvoiceManagement = () => {
       <Box sx={{ width: '100%', backgroundColor: '#f5f5f5', minHeight: '100vh', py: 4 }}>
         <Box sx={{ width: '100%', px: { xs: 2, sm: 3, md: 4 } }}>
           {/* Header */}
-          <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ mb: 4 }}>
             <Box>
               <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
                 📋 Quản lý Hóa đơn (Kế toán trưởng)
@@ -1616,25 +1616,35 @@ const HODInvoiceManagement = () => {
                 </Typography>
               )}
             </Box>
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<AddIcon />}
-              onClick={() => navigate('/newinvoices')}
-              sx={{
-                textTransform: 'none',
-                fontWeight: 500,
-                boxShadow: '0 2px 8px rgba(28, 132, 238, 0.24)',
-                '&:hover': {
-                  boxShadow: '0 4px 12px rgba(28, 132, 238, 0.32)',
-                },
-              }}>
-              Tạo hóa đơn
-            </Button>
           </Box>
 
-          {/* Bộ lọc nâng cao */}
-          <InvoiceFilter onFilterChange={handleFilterChange} onReset={handleResetFilter} />
+          {/* Bộ lọc nâng cao với nút Tạo hóa đơn */}
+          <InvoiceFilter 
+            onFilterChange={handleFilterChange} 
+            onReset={handleResetFilter}
+            totalResults={invoices.length}
+            filteredResults={filteredInvoices.length}
+            actionButton={
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<AddIcon />}
+                onClick={() => navigate('/newinvoices')}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  height: 42,
+                  minWidth: 160,
+                  boxShadow: '0 2px 8px rgba(28, 132, 238, 0.24)',
+                  '&:hover': {
+                    boxShadow: '0 4px 12px rgba(28, 132, 238, 0.32)',
+                    transform: 'translateY(-1px)',
+                  },
+                }}>
+                Tạo hóa đơn
+              </Button>
+            }
+          />
 
           {/* Loading State */}
           {loading && (

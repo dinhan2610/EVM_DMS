@@ -1,18 +1,12 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
   Paper,
   Typography,
   Button,
-  TextField,
-  InputAdornment,
   IconButton,
   Chip,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -26,7 +20,6 @@ import {
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import AddIcon from '@mui/icons-material/Add'
-import SearchIcon from '@mui/icons-material/Search'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import LockOpenOutlinedIcon from '@mui/icons-material/LockOpenOutlined'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
@@ -34,6 +27,7 @@ import { toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import AddNewItemModal, { ItemFormData } from '../components/AddNewItemModal'
 import ItemDetailModal from '../components/ItemDetailModal'
+import ItemFilter, { ItemFilterState } from '../components/ItemFilter'
 import { useProducts } from '@/hooks/useProducts'
 import { useCategories } from '@/hooks/useCategories'
 import productService from '@/services/productService'
@@ -54,14 +48,21 @@ const ItemsManagement = () => {
   const { categories } = useCategories()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [items, setItems] = useState<Item[]>([])
-  const [searchText, setSearchText] = useState('')
   const [editingItem, setEditingItem] = useState<Item | null>(null)
   const [viewingItem, setViewingItem] = useState<Item | null>(null)
-  const [categoryFilter, setCategoryFilter] = useState<number | 'all'>('all')
   const [confirmModalOpen, setConfirmModalOpen] = useState(false)
   const [selectedItemForToggle, setSelectedItemForToggle] = useState<Item | null>(null)
   const [saving, setSaving] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+
+  // Filter state
+  const [filters, setFilters] = useState<ItemFilterState>({
+    searchText: '',
+    categoryIds: [],
+    status: 'all',
+    vatRates: [],
+    priceRange: 'all',
+  })
 
   // Sync products từ API vào items state
   useEffect(() => {
@@ -327,24 +328,75 @@ const ItemsManagement = () => {
     return category?.name || 'Chưa xác định'
   }
 
-  // Filter items theo search
+  // Helper: Parse price from salesPrice
+  const getPriceInRange = (price: number, range: string): boolean => {
+    switch (range) {
+      case 'under1m':
+        return price < 1000000
+      case '1m-5m':
+        return price >= 1000000 && price < 5000000
+      case '5m-10m':
+        return price >= 5000000 && price < 10000000
+      case 'over10m':
+        return price >= 10000000
+      default:
+        return true
+    }
+  }
+
+  // Filter items theo filters state
   const filteredItems = useMemo(() => {
-    return items
-      .filter((item) => {
-        // Lọc theo Danh mục
-        if (categoryFilter === 'all') return true
-        return item.categoryID === categoryFilter
-      })
-      .filter((item) => {
-        // Lọc theo SearchText
-        if (!searchText) return true
-        return (
-          item.code.toLowerCase().includes(searchText.toLowerCase()) ||
-          item.name.toLowerCase().includes(searchText.toLowerCase()) ||
-          item.description.toLowerCase().includes(searchText.toLowerCase())
-        )
-      })
-  }, [items, searchText, categoryFilter])
+    return items.filter((item) => {
+      // 1. Search text filter
+      if (filters.searchText?.trim()) {
+        const searchLower = filters.searchText.toLowerCase()
+        const matchesSearch =
+          item.code.toLowerCase().includes(searchLower) ||
+          item.name.toLowerCase().includes(searchLower) ||
+          item.description.toLowerCase().includes(searchLower)
+        if (!matchesSearch) return false
+      }
+
+      // 2. Category filter
+      if (filters.categoryIds.length > 0 && !filters.categoryIds.includes(-1)) {
+        if (!item.categoryID || !filters.categoryIds.includes(item.categoryID)) {
+          return false
+        }
+      }
+
+      // 3. Status filter
+      if (filters.status !== 'all') {
+        if (item.status !== filters.status) return false
+      }
+
+      // 4. VAT Rate filter
+      if (filters.vatRates.length > 0 && !filters.vatRates.includes('ALL')) {
+        if (!filters.vatRates.includes(item.vatTaxRate)) return false
+      }
+
+      // 5. Price range filter
+      if (filters.priceRange !== 'all') {
+        if (!getPriceInRange(item.salesPrice, filters.priceRange)) return false
+      }
+
+      return true
+    })
+  }, [items, filters])
+
+  // Filter handlers
+  const handleFilterChange = useCallback((newFilters: ItemFilterState) => {
+    setFilters(newFilters)
+  }, [])
+
+  const handleResetFilter = useCallback(() => {
+    setFilters({
+      searchText: '',
+      categoryIds: [],
+      status: 'all',
+      vatRates: [],
+      priceRange: 'all',
+    })
+  }, [])
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -629,23 +681,36 @@ const ItemsManagement = () => {
               Quản lý danh sách sản phẩm, dịch vụ của doanh nghiệp
             </Typography>
           </Box>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={handleOpenModal}
-            disabled={loading}
-            sx={{
-              textTransform: 'none',
-              fontWeight: 500,
-              boxShadow: '0 2px 8px rgba(28, 132, 238, 0.24)',
-              '&:hover': {
-                boxShadow: '0 4px 12px rgba(28, 132, 238, 0.32)',
-              },
-            }}>
-            Thêm mới
-          </Button>
         </Box>
+
+        {/* Advanced Filter Component */}
+        <ItemFilter
+          onFilterChange={handleFilterChange}
+          onReset={handleResetFilter}
+          totalResults={items.length}
+          filteredResults={filteredItems.length}
+          actionButton={
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<AddIcon />}
+              onClick={handleOpenModal}
+              disabled={loading}
+              sx={{
+                textTransform: 'none',
+                fontWeight: 600,
+                height: 42,
+                borderRadius: 2,
+                boxShadow: '0 2px 8px rgba(28, 132, 238, 0.24)',
+                '&:hover': {
+                  boxShadow: '0 4px 12px rgba(28, 132, 238, 0.32)',
+                },
+              }}
+            >
+              Thêm mới
+            </Button>
+          }
+        />
 
         {/* Data Table */}
         <Paper
@@ -664,69 +729,9 @@ const ItemsManagement = () => {
             </Alert>
           )}
 
-          {/* Search Section */}
-          <Box sx={{ p: 3, borderBottom: '1px solid #e0e0e0' }}>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
-              <TextField
-                fullWidth
-                size="small"
-                label="Tìm kiếm theo mã, tên hoặc mô tả"
-                variant="outlined"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                placeholder="Nhập từ khóa tìm kiếm..."
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon sx={{ color: '#999' }} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  maxWidth: 500,
-                  '& .MuiOutlinedInput-root': {
-                    backgroundColor: '#fafafa',
-                    '&:hover': {
-                      backgroundColor: '#f5f5f5',
-                    },
-                    '&.Mui-focused': {
-                      backgroundColor: '#fff',
-                    },
-                  },
-                }}
-              />
-              
-              {/* Category Filter */}
-              <FormControl size="small" sx={{ minWidth: 220, width: { xs: '100%', md: 'auto' } }}>
-                <InputLabel>Lọc theo Danh mục</InputLabel>
-                <Select
-                  value={categoryFilter}
-                  label="Lọc theo Danh mục"
-                  onChange={(e) => setCategoryFilter(e.target.value as number | 'all')}
-                  sx={{
-                    backgroundColor: '#fafafa',
-                    '&:hover': {
-                      backgroundColor: '#f5f5f5',
-                    },
-                    '&.Mui-focused': {
-                      backgroundColor: '#fff',
-                    },
-                  }}
-                >
-                  <MenuItem value="all">Tất cả Danh mục</MenuItem>
-                  {categories.map((category) => (
-                    <MenuItem key={category.id} value={category.id}>
-                      {category.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Stack>
-          </Box>
-
           {/* Error Alert */}
           {error && (
-            <Alert severity="error" sx={{ mb: 3 }}>
+            <Alert severity="error" sx={{ m: 2 }}>
               {error}
             </Alert>
           )}

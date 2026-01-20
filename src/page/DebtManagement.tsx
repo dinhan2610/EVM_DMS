@@ -33,13 +33,13 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import dayjs, { Dayjs } from 'dayjs'
-import SearchIcon from '@mui/icons-material/Search'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import PaymentIcon from '@mui/icons-material/Payment'
 import HistoryIcon from '@mui/icons-material/History'
 import PersonIcon from '@mui/icons-material/Person'
 import EmailIcon from '@mui/icons-material/Email'
 import PhoneIcon from '@mui/icons-material/Phone'
+import DebtFilter, { DebtFilterState } from '@/components/DebtFilter'
 import { CustomerDebt, DebtInvoice, PaymentRecord, PAYMENT_METHODS } from '@/types/debt.types'
 import { paymentService } from '@/services/paymentService'
 import { debtService } from '@/services/debtService'
@@ -188,10 +188,20 @@ const DebtManagement = () => {
   })
   
   // State - UI
-  const [searchText, setSearchText] = useState('')
   const [selectedTab, setSelectedTab] = useState<'invoices' | 'history'>('invoices')
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<DebtInvoice | null>(null)
+
+  // State - Filters
+  const [filters, setFilters] = useState<DebtFilterState>({
+    searchText: '',
+    dateFrom: null,
+    dateTo: null,
+    dueDateFrom: null,
+    dueDateTo: null,
+    paymentStatus: [],
+    overdueOnly: false,
+  })
   
   // State - Form
   const [paymentData, setPaymentData] = useState({
@@ -486,18 +496,80 @@ const DebtManagement = () => {
 
   // ==================== COMPUTED VALUES ====================
   
-  // Filtered customers based on search text
+  // Filtered customers based on filters
   const filteredCustomers = useMemo(() => {
-    if (!searchText.trim()) return customers
-    
-    const searchLower = searchText.toLowerCase()
-    return customers.filter((customer) =>
-      customer.customerName.toLowerCase().includes(searchLower) ||
-      customer.taxCode.toLowerCase().includes(searchLower) ||
-      customer.email?.toLowerCase().includes(searchLower) ||
-      customer.phone?.toLowerCase().includes(searchLower)
-    )
-  }, [customers, searchText])
+    return customers.filter((customer) => {
+      // 1. Search text filter
+      if (filters.searchText?.trim()) {
+        const searchLower = filters.searchText.toLowerCase()
+        const matchesSearch =
+          customer.customerName.toLowerCase().includes(searchLower) ||
+          customer.taxCode.toLowerCase().includes(searchLower) ||
+          customer.email?.toLowerCase().includes(searchLower) ||
+          customer.phone?.toLowerCase().includes(searchLower)
+        if (!matchesSearch) return false
+      }
+
+      // 2. Overdue only filter
+      if (filters.overdueOnly && customer.overdueDebt <= 0) {
+        return false
+      }
+
+      return true
+    })
+  }, [customers, filters])
+
+  // Filtered invoices based on filters
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter((invoice) => {
+      // 1. Invoice date range
+      if (filters.dateFrom && dayjs(invoice.invoiceDate).isBefore(filters.dateFrom, 'day')) {
+        return false
+      }
+      if (filters.dateTo && dayjs(invoice.invoiceDate).isAfter(filters.dateTo, 'day')) {
+        return false
+      }
+
+      // 2. Due date range
+      if (filters.dueDateFrom && dayjs(invoice.dueDate).isBefore(filters.dueDateFrom, 'day')) {
+        return false
+      }
+      if (filters.dueDateTo && dayjs(invoice.dueDate).isAfter(filters.dueDateTo, 'day')) {
+        return false
+      }
+
+      // 3. Payment status filter
+      if (filters.paymentStatus.length > 0 && !filters.paymentStatus.includes('ALL')) {
+        if (!filters.paymentStatus.includes(invoice.paymentStatus)) {
+          return false
+        }
+      }
+
+      // 4. Overdue only filter
+      if (filters.overdueOnly && !invoice.isOverdue) {
+        return false
+      }
+
+      return true
+    })
+  }, [invoices, filters])
+
+  // ==================== FILTER HANDLERS ====================
+  const handleFilterChange = useCallback((newFilters: DebtFilterState) => {
+    setFilters(newFilters)
+  }, [])
+
+  const handleResetFilter = useCallback(() => {
+    setFilters({
+      searchText: '',
+      dateFrom: null,
+      dateTo: null,
+      dueDateFrom: null,
+      dueDateTo: null,
+      paymentStatus: [],
+      overdueOnly: false,
+    })
+  }, [])
 
   // ==================== EVENT HANDLERS ====================
   const handleCustomerClick = useCallback((customer: CustomerDebt) => {
@@ -961,98 +1033,87 @@ const DebtManagement = () => {
             </Paper>
           ) : (
             <Box>
-              {/* Customer Selection Bar - Compact */}
-              <Paper
-            elevation={0}
-            sx={{
-              mb: 2,
-              p: 1.5,
-              border: '1px solid #e0e0e0',
-              borderRadius: 2,
-              backgroundColor: '#fff',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-            }}
-          >
-            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
-              {/* Search Input */}
-              <TextField
-                size="small"
-                placeholder="Tìm kiếm khách hàng..."
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon sx={{ color: '#999', fontSize: 20 }} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  flex: 1,
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 1.5,
-                    backgroundColor: '#fafafa',
-                    '&:hover': {
-                      backgroundColor: '#f5f5f5',
-                    },
-                  },
-                  '& .MuiOutlinedInput-input': {
-                    fontSize: '0.875rem',
-                  },
-                }}
+              {/* Advanced Filter Component */}
+              <DebtFilter
+                onFilterChange={handleFilterChange}
+                onReset={handleResetFilter}
+                totalResults={customers.length}
+                filteredResults={filteredCustomers.length}
               />
 
-              {/* Customer Select Dropdown */}
-              <FormControl size="small" sx={{ flex: 1 }} disabled={isLoading}>
-                <InputLabel sx={{ fontSize: '0.875rem' }}>
-                  {isLoading ? 'Đang tải...' : 'Chọn khách hàng'}
-                </InputLabel>
-                <Select
-                  value={selectedCustomer?.customerId || ''}
-                  onChange={(e) => {
-                    const customer = customers.find((c) => c.customerId === e.target.value)
-                    if (customer) handleCustomerClick(customer)
-                  }}
-                  label={isLoading ? 'Đang tải...' : 'Chọn khách hàng'}
-                  sx={{
-                    backgroundColor: '#fafafa',
-                    fontSize: '0.875rem',
-                    '&:hover': {
-                      backgroundColor: '#f5f5f5',
-                    },
-                  }}
-                >
-                  {isLoading ? (
-                    <MenuItem disabled>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <CircularProgress size={16} />
-                        <Typography variant="body2">Đang tải...</Typography>
-                      </Box>
-                    </MenuItem>
-                  ) : filteredCustomers.length === 0 ? (
-                    <MenuItem disabled>
-                      <Typography variant="body2" sx={{ color: '#999' }}>
-                        Không tìm thấy khách hàng
-                      </Typography>
-                    </MenuItem>
-                  ) : (
-                    filteredCustomers.map((customer) => (
-                      <MenuItem key={customer.customerId} value={customer.customerId}>
-                        <Box>
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#1a1a1a', fontSize: '0.875rem' }}>
-                            {customer.customerName}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: '#999', fontSize: '0.75rem' }}>
-                            MST: {customer.taxCode} • {customer.phone}
-                          </Typography>
+              {/* Customer Selection Dropdown */}
+              <Paper
+                elevation={0}
+                sx={{
+                  mb: 2,
+                  p: 1.5,
+                  border: '1px solid #e0e0e0',
+                  borderRadius: 2,
+                  backgroundColor: '#fff',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                }}
+              >
+                <FormControl size="small" fullWidth disabled={isLoading}>
+                  <InputLabel sx={{ fontSize: '0.875rem' }}>
+                    {isLoading ? 'Đang tải...' : `Chọn khách hàng (${filteredCustomers.length})`}
+                  </InputLabel>
+                  <Select
+                    value={selectedCustomer?.customerId || ''}
+                    onChange={(e) => {
+                      const customer = filteredCustomers.find((c) => c.customerId === e.target.value)
+                      if (customer) handleCustomerClick(customer)
+                    }}
+                    label={isLoading ? 'Đang tải...' : `Chọn khách hàng (${filteredCustomers.length})`}
+                    sx={{
+                      backgroundColor: '#fafafa',
+                      fontSize: '0.875rem',
+                      '&:hover': {
+                        backgroundColor: '#f5f5f5',
+                      },
+                    }}
+                  >
+                    {isLoading ? (
+                      <MenuItem disabled>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <CircularProgress size={16} />
+                          <Typography variant="body2">Đang tải...</Typography>
                         </Box>
                       </MenuItem>
-                    ))
-                  )}
-                </Select>
-              </FormControl>
-            </Box>
-          </Paper>
+                    ) : filteredCustomers.length === 0 ? (
+                      <MenuItem disabled>
+                        <Typography variant="body2" sx={{ color: '#999' }}>
+                          Không tìm thấy khách hàng phù hợp với bộ lọc
+                        </Typography>
+                      </MenuItem>
+                    ) : (
+                      filteredCustomers.map((customer) => (
+                        <MenuItem key={customer.customerId} value={customer.customerId}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                            <Box>
+                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#1a1a1a', fontSize: '0.875rem' }}>
+                                {customer.customerName}
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#999', fontSize: '0.75rem' }}>
+                                MST: {customer.taxCode} • {customer.phone}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ textAlign: 'right' }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#d32f2f', fontSize: '0.8rem' }}>
+                                {formatCurrency(customer.totalDebt)}
+                              </Typography>
+                              {customer.overdueDebt > 0 && (
+                                <Typography variant="caption" sx={{ color: '#ff9800', fontSize: '0.7rem' }}>
+                                  Quá hạn: {formatCurrency(customer.overdueDebt)}
+                                </Typography>
+                              )}
+                            </Box>
+                          </Box>
+                        </MenuItem>
+                      ))
+                    )}
+                  </Select>
+                </FormControl>
+              </Paper>
 
           {/* Main Content: Full Width */}
           {selectedCustomer && (
@@ -1207,7 +1268,7 @@ const DebtManagement = () => {
                       </Box>
                     ) : selectedTab === 'invoices' ? (
                       <DataGrid
-                        rows={invoices}
+                        rows={filteredInvoices}
                         columns={invoiceColumns}
                         disableRowSelectionOnClick
                         loading={isLoadingDetail}

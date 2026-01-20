@@ -37,7 +37,8 @@ import PrintIcon from '@mui/icons-material/Print'
 import DownloadIcon from '@mui/icons-material/Download'
 import FindReplaceIcon from '@mui/icons-material/FindReplace'
 import RestoreIcon from '@mui/icons-material/Restore'
-import { Link } from 'react-router-dom'
+import AddIcon from '@mui/icons-material/Add'
+import { Link, useNavigate } from 'react-router-dom'
 import InvoiceFilter, { InvoiceFilterState } from '@/components/InvoiceFilter'
 import invoiceService, { InvoiceListItem } from '@/services/invoiceService'
 import templateService from '@/services/templateService'
@@ -448,6 +449,7 @@ const InvoiceApprovalActionsMenu = ({ invoice, onApprove, onReject, onSign, onIs
 
 const InvoiceApproval = () => {
   usePageTitle('Duyệt hóa đơn')
+  const navigate = useNavigate()
   
   // State quản lý data
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -1055,12 +1057,32 @@ const InvoiceApproval = () => {
             </Typography>
           </Box>
 
-          {/* Bộ lọc */}
+          {/* Bộ lọc với nút Tạo hóa đơn */}
           <InvoiceFilter 
             onFilterChange={handleFilterChange} 
             onReset={handleResetFilter}
             totalResults={invoices.length}
             filteredResults={filteredInvoices.length}
+            actionButton={
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<AddIcon />}
+                onClick={() => navigate('/newinvoices')}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  height: 42,
+                  minWidth: 160,
+                  boxShadow: '0 2px 8px rgba(28, 132, 238, 0.24)',
+                  '&:hover': {
+                    boxShadow: '0 4px 12px rgba(28, 132, 238, 0.32)',
+                    transform: 'translateY(-1px)',
+                  },
+                }}>
+                Tạo hóa đơn
+              </Button>
+            }
           />
 
           {/* Loading */}
