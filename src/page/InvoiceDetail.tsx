@@ -11,6 +11,12 @@ import {
   ListItemIcon,
   ListItemText,
   Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  Chip,
 } from '@mui/material'
 import {
   Print,
@@ -21,13 +27,18 @@ import {
   ErrorOutline as ErrorOutlineIcon,
   Restore as RestoreIcon,
   FindReplace as FindReplaceIcon,
+  History as HistoryIcon,
+  Close as CloseIcon,
+  Link as LinkIcon,
 } from '@mui/icons-material'
+import { Timeline, TimelineItem, TimelineSeparator, TimelineConnector, TimelineContent, TimelineDot, TimelineOppositeContent } from '@mui/lab'
 import { useParams, useNavigate } from 'react-router-dom'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
 import InvoicePreviewModal from '@/components/invoices/InvoicePreviewModal'
 import TaxErrorNotificationModal from '@/components/TaxErrorNotificationModal_v2'
 import Spinner from '@/components/Spinner'
 import invoiceService, { InvoiceListItem, INVOICE_TYPE } from '@/services/invoiceService'
+import invoiceHistoryService, { InvoiceHistory } from '@/services/invoiceHistoryService'
 import templateService, { TemplateResponse } from '@/services/templateService'
 import { getAllCustomers, Customer } from '@/services/customerService'
 import companyService, { Company } from '@/services/companyService'
@@ -113,6 +124,11 @@ const InvoiceDetail: React.FC = () => {
   
   // State for Tax Error Notification Modal
   const [showTaxErrorModal, setShowTaxErrorModal] = useState(false)
+  
+  // State for Invoice History Modal
+  const [showHistoryModal, setShowHistoryModal] = useState(false)
+  const [historyData, setHistoryData] = useState<InvoiceHistory[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
 
   // Derived data
   
@@ -294,6 +310,28 @@ const InvoiceDetail: React.FC = () => {
     // Note: List page sẽ tự động refresh khi navigate đến /tax-error-notifications
   }
 
+  // Handle open Invoice History Modal
+  const handleOpenHistoryModal = async () => {
+    handleCloseActionsMenu()
+    setShowHistoryModal(true)
+    setLoadingHistory(true)
+    
+    try {
+      if (invoice) {
+        const history = await invoiceHistoryService.getInvoiceHistory(invoice.invoiceID)
+        setHistoryData(history)
+      }
+    } catch (error) {
+      console.error('Error loading invoice history:', error)
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
+
+  const handleCloseHistoryModal = () => {
+    setShowHistoryModal(false)
+  }
+
   const handleBack = () => {
     navigate('/invoices')
   }
@@ -441,6 +479,33 @@ const InvoiceDetail: React.FC = () => {
             <ListItemText
               primary="Gửi thông báo sai sót (04)"
               secondary="Thông báo sai sót đến CQT"
+              primaryTypographyProps={{
+                fontWeight: 500,
+                fontSize: '0.9rem',
+              }}
+              secondaryTypographyProps={{
+                fontSize: '0.75rem',
+              }}
+            />
+          </MenuItem>
+          
+          <Divider />
+          
+          {/* Lịch sử thao tác */}
+          <MenuItem
+            onClick={handleOpenHistoryModal}
+            sx={{
+              py: 1.5,
+              '&:hover': {
+                backgroundColor: 'action.hover',
+              },
+            }}>
+            <ListItemIcon>
+              <HistoryIcon fontSize="small" color="primary" />
+            </ListItemIcon>
+            <ListItemText
+              primary="Lịch sử thao tác"
+              secondary="Xem lịch sử thay đổi hóa đơn"
               primaryTypographyProps={{
                 fontWeight: 500,
                 fontSize: '0.9rem',
@@ -647,6 +712,96 @@ const InvoiceDetail: React.FC = () => {
         company={company}
         onSuccess={handleTaxErrorSuccess}
       />
+
+      {/* Invoice History Modal */}
+      <Dialog
+        open={showHistoryModal}
+        onClose={handleCloseHistoryModal}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            maxHeight: '80vh',
+          },
+        }}>
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <HistoryIcon color="primary" />
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Lịch sử thao tác hóa đơn
+            </Typography>
+          </Box>
+          <IconButton onClick={handleCloseHistoryModal} size="small">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        
+        <DialogContent dividers>
+          {loadingHistory ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : historyData.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Typography color="text.secondary">
+                Chưa có lịch sử thao tác
+              </Typography>
+            </Box>
+          ) : (
+            <Timeline position="right">
+              {historyData.map((item, index) => (
+                <TimelineItem key={item.historyID}>
+                  <TimelineOppositeContent color="text.secondary" sx={{ flex: 0.3, py: 1.5 }}>
+                    <Typography variant="caption" sx={{ display: 'block', fontWeight: 500 }}>
+                      {new Date(item.date).toLocaleDateString('vi-VN')}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {new Date(item.date).toLocaleTimeString('vi-VN')}
+                    </Typography>
+                  </TimelineOppositeContent>
+                  
+                  <TimelineSeparator>
+                    <TimelineDot 
+                      color={invoiceHistoryService.getActionTypeColor(item.actionType)}
+                      variant={index === 0 ? 'filled' : 'outlined'}
+                    />
+                    {index < historyData.length - 1 && <TimelineConnector />}
+                  </TimelineSeparator>
+                  
+                  <TimelineContent sx={{ py: 1.5 }}>
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                        {invoiceHistoryService.getActionTypeLabel(item.actionType)}
+                      </Typography>
+                      
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                        Người thực hiện: {item.performerName}
+                      </Typography>
+                      
+                      {item.referenceInvoiceID && item.referenceInvoiceNumber && (
+                        <Chip
+                          icon={<LinkIcon sx={{ fontSize: 14 }} />}
+                          label={`HĐ tham chiếu: ${item.referenceInvoiceNumber}`}
+                          size="small"
+                          variant="outlined"
+                          sx={{ mt: 0.5 }}
+                        />
+                      )}
+                    </Box>
+                  </TimelineContent>
+                </TimelineItem>
+              ))}
+            </Timeline>
+          )}
+        </DialogContent>
+        
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={handleCloseHistoryModal} variant="contained">
+            Đóng
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   )
 }

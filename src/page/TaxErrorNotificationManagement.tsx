@@ -531,8 +531,8 @@ const TaxErrorNotificationManagement = () => {
     {
       field: 'messageId',
       headerName: 'Mã thông báo',
-      flex: 1,
-      minWidth: 180,
+      flex: 1.2,
+      minWidth: 450,
       sortable: true,
       align: 'center',
       headerAlign: 'center',

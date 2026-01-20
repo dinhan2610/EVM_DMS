@@ -287,6 +287,49 @@ export const canRetryTaxSubmit = (statusId: number): boolean => {
          statusId === TAX_STATUS.KQ04;
 };
 
+/**
+ * Convert tax status ID sang mã code string (TB01, KQ01, etc.)
+ * @param statusId - Tax status ID
+ * @returns Mã code string hoặc null nếu không có
+ */
+export const getTaxStatusCode = (statusId: number | null): string | null => {
+  if (statusId === null || statusId === undefined) return null;
+  
+  const codeMap: Record<number, string> = {
+    // Trạng thái mặc định
+    [TAX_STATUS.NOT_SENT]: 'NOT_SENT',
+    [TAX_STATUS.PENDING]: 'PENDING',
+    [TAX_STATUS.RECEIVED]: 'RECEIVED',
+    [TAX_STATUS.REJECTED]: 'REJECTED',
+    [TAX_STATUS.APPROVED]: 'APPROVED',
+    [TAX_STATUS.FAILED]: 'FAILED',
+    [TAX_STATUS.PROCESSING]: 'PROCESSING',
+    [TAX_STATUS.NOT_FOUND]: 'NOT_FOUND',
+    
+    // Nhóm TB (Thông báo)
+    [TAX_STATUS.TB01]: 'TB01',
+    [TAX_STATUS.TB02]: 'TB02',
+    [TAX_STATUS.TB03]: 'TB03',
+    [TAX_STATUS.TB04]: 'TB04',
+    [TAX_STATUS.TB05]: 'TB05',
+    [TAX_STATUS.TB06]: 'TB06',
+    [TAX_STATUS.TB07]: 'TB07',
+    [TAX_STATUS.TB08]: 'TB08',
+    [TAX_STATUS.TB09]: 'TB09',
+    [TAX_STATUS.TB10]: 'TB10',
+    [TAX_STATUS.TB11]: 'TB11',
+    [TAX_STATUS.TB12]: 'TB12',
+    
+    // Nhóm KQ (Kết quả)
+    [TAX_STATUS.KQ01]: 'KQ01',
+    [TAX_STATUS.KQ02]: 'KQ02',
+    [TAX_STATUS.KQ03]: 'KQ03',
+    [TAX_STATUS.KQ04]: 'KQ04',
+  };
+  
+  return codeMap[statusId] || null;
+};
+
 // ===== LEGACY SUPPORT - Tương thích ngược =====
 /**
  * @deprecated Sử dụng TAX_STATUS thay thế

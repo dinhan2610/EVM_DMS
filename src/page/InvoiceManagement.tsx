@@ -1029,21 +1029,26 @@ const InvoiceManagement = () => {
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const value = params.value as string
-        if (!value) return <Typography variant="body2" sx={{ color: '#bdbdbd', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>-</Typography>
+        if (!value) {
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Typography variant="body2" sx={{ color: '#bdbdbd' }}>-</Typography>
+            </Box>
+          )
+        }
         return (
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 600,
-              letterSpacing: '0.02em',
-              color: '#1976d2',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-            }}>
-            {value}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Typography
+              variant="body2"
+              sx={{
+                fontWeight: 600,
+                letterSpacing: '0.02em',
+                color: '#1976d2',
+                fontSize: '0.875rem',
+              }}>
+              {value}
+            </Typography>
+          </Box>
         )
       },
     },
@@ -1053,8 +1058,29 @@ const InvoiceManagement = () => {
       flex: 1.5,
       minWidth: 180,
       sortable: true,
-      align: 'center',
-      headerAlign: 'center',
+      align: 'left',
+      headerAlign: 'left',
+      renderCell: (params: GridRenderCellParams) => {
+        const value = params.value as string
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 1 }}>
+            <Tooltip title={value} arrow placement="top">
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 500,
+                  color: '#2c3e50',
+                  fontSize: '0.875rem',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}>
+                {value}
+              </Typography>
+            </Tooltip>
+          </Box>
+        )
+      },
     },
     {
       field: 'taxCode',
@@ -1066,21 +1092,26 @@ const InvoiceManagement = () => {
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const value = params.value as string
-        if (!value) return <Typography variant="body2" sx={{ color: '#bdbdbd', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>-</Typography>
+        if (!value) {
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Typography variant="body2" sx={{ color: '#bdbdbd' }}>-</Typography>
+            </Box>
+          )
+        }
         return (
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 500,
-              letterSpacing: '0.02em',
-              color: '#2c3e50',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-            }}>
-            {value}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Typography
+              variant="body2"
+              sx={{
+                fontWeight: 500,
+                letterSpacing: '0.02em',
+                color: '#2c3e50',
+                fontSize: '0.875rem',
+              }}>
+              {value}
+            </Typography>
+          </Box>
         )
       },
     },
@@ -1094,7 +1125,19 @@ const InvoiceManagement = () => {
       align: 'center',
       headerAlign: 'center',
       valueGetter: (value: string) => new Date(value),
-      renderCell: (params: GridRenderCellParams) => dayjs(params.value as Date).format('DD/MM/YYYY'),
+      renderCell: (params: GridRenderCellParams) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 500,
+              color: '#546e7a',
+              fontSize: '0.875rem',
+            }}>
+            {dayjs(params.value as Date).format('DD/MM/YYYY')}
+          </Typography>
+        </Box>
+      ),
     },
     {
       field: 'internalStatus',
@@ -1136,6 +1179,9 @@ const InvoiceManagement = () => {
             size="small" 
             sx={{ 
               fontWeight: 600,
+              fontSize: '0.75rem',
+              height: 28,
+              borderRadius: '20px',
               ...(isRejected && {
                 animation: 'pulse 2s ease-in-out infinite',
                 '@keyframes pulse': {
@@ -1148,7 +1194,7 @@ const InvoiceManagement = () => {
         )
         
         // Wrap with Tooltip ONLY when rejection reason exists
-        return isRejected && rejectionReason ? (
+        const content = isRejected && rejectionReason ? (
           <Tooltip 
             title={tooltipContent} 
             arrow 
@@ -1167,6 +1213,12 @@ const InvoiceManagement = () => {
             <span>{chipElement}</span>
           </Tooltip>
         ) : chipElement
+        
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            {content}
+          </Box>
+        )
       },
     },
     {
@@ -1178,19 +1230,19 @@ const InvoiceManagement = () => {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
-        const taxStatusId = params.row.taxStatusId
-        const taxStatusCode = params.row.taxStatusCode
+        const taxStatusId = params.row.taxStatusId as number | null
+        const taxAuthorityCode = params.row.taxAuthority as string // ✅ Mã CQT thực sự của hóa đơn
         const isError = taxStatusId !== null && isTaxStatusError(taxStatusId)
         
         // Tooltip content với thông tin chi tiết
         const tooltipContent = (
-          <Box>
+          <Box sx={{ py: 0.5 }}>
             <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
               Trạng thái: {params.value as string}
             </Typography>
-            {taxStatusCode && (
+            {taxAuthorityCode && (
               <Typography variant="caption" sx={{ display: 'block', opacity: 0.9 }}>
-                Mã: {taxStatusCode}
+                Mã CQT: <strong>{taxAuthorityCode}</strong>
               </Typography>
             )}
             {isError && (
@@ -1202,24 +1254,34 @@ const InvoiceManagement = () => {
         )
         
         return (
-          <Tooltip title={tooltipContent} arrow placement="top">
-            <Chip 
-              label={params.value as string} 
-              color={getTaxStatusColor(taxStatusId)} 
-              size="small"
-              sx={{ 
-                fontWeight: 600,
-                cursor: 'help',
-                ...(isError && {
-                  animation: 'pulse 2s ease-in-out infinite',
-                  '@keyframes pulse': {
-                    '0%, 100%': { opacity: 1 },
-                    '50%': { opacity: 0.8 },
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Tooltip title={tooltipContent} arrow placement="top">
+              <Chip 
+                label={params.value as string} 
+                color={getTaxStatusColor(taxStatusId)} 
+                size="small"
+                sx={{ 
+                  fontWeight: 600,
+                  fontSize: '0.75rem',
+                  height: 28,
+                  borderRadius: '20px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    transform: 'translateY(-1px)',
+                    boxShadow: 2,
                   },
-                }),
-              }}
-            />
-          </Tooltip>
+                  ...(isError && {
+                    animation: 'pulse 2s ease-in-out infinite',
+                    '@keyframes pulse': {
+                      '0%, 100%': { opacity: 1 },
+                      '50%': { opacity: 0.8 },
+                    },
+                  }),
+                }}
+              />
+            </Tooltip>
+          </Box>
         )
       },
     },
@@ -1516,12 +1578,23 @@ const InvoiceManagement = () => {
       field: 'amount',
       headerName: 'Tổng tiền',
       flex: 1,
-      minWidth: 120,
+      minWidth: 130,
       sortable: true,
-      align: 'center',
+      align: 'right',
       headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) =>
-        new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(params.value as number),
+      renderCell: (params: GridRenderCellParams) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%', pr: 2 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 600,
+              color: '#2e7d32',
+              fontSize: '0.875rem',
+            }}>
+            {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(params.value as number)}
+          </Typography>
+        </Box>
+      ),
     },
     {
       field: 'actions',
@@ -1536,7 +1609,7 @@ const InvoiceManagement = () => {
         const invoice = params.row as Invoice
         
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 0.5 }}>
             {/* Icon 1: Xem chi tiết */}
             <Tooltip title="Xem chi tiết" arrow placement="top">
               <IconButton
@@ -1668,11 +1741,7 @@ const InvoiceManagement = () => {
             <Typography variant="body2" sx={{ color: '#666' }}>
               Quản lý và theo dõi các hóa đơn điện tử của doanh nghiệp
             </Typography>
-            {filteredInvoices.length > 0 && (
-              <Typography variant="body2" sx={{ color: '#1976d2', fontWeight: 500, mt: 0.5 }}>
-                📊 Hiển thị {filteredInvoices.length} / {invoices.length} hóa đơn
-              </Typography>
-            )}
+            
           </Box>
 
           {/* Bộ lọc nâng cao với nút Tạo hóa đơn */}
