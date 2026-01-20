@@ -1092,7 +1092,23 @@ const HODInvoiceManagement = () => {
       minWidth: 180,
       sortable: true,
       align: 'left',
-      headerAlign: 'left',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 1 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              color: '#2c3e50',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}>
+            {params.value as string}
+          </Typography>
+        </Box>
+      ),
     },
     {
       field: 'taxCode',
@@ -1507,23 +1523,20 @@ const HODInvoiceManagement = () => {
       flex: 1,
       minWidth: 140,
       sortable: true,
-      align: 'right',
-      headerAlign: 'right',
+      align: 'left',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
-        <Typography 
-          variant="body2" 
-          sx={{ 
-            fontWeight: 600, 
-            color: '#1976d2',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            height: '100%',
-            width: '100%',
-          }}
-        >
-          {formatCurrency(params.value as number)}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', height: '100%', pl: 1 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              color: '#2e7d32',
+            }}>
+            {formatCurrency(params.value as number)}
+          </Typography>
+        </Box>
       ),
     },
     {

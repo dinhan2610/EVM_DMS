@@ -819,22 +819,21 @@ const InvoiceApproval = () => {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
-        <Link
-          to={`/approval/invoices/${params.row.id}`}
-          style={{
-            textDecoration: 'none',
-            color: '#1976d2',
-            fontWeight: 600,
-            transition: 'color 0.2s',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100%',
-          }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = '#1565c0')}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = '#1976d2')}>
-          {params.value as string}
-        </Link>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <Link
+            to={`/approval/invoices/${params.row.id}`}
+            style={{
+              textDecoration: 'none',
+              color: '#1976d2',
+              fontWeight: 600,
+              fontSize: '0.875rem',
+              transition: 'color 0.2s',
+            }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = '#1565c0')}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = '#1976d2')}>
+            {params.value as string}
+          </Link>
+        </Box>
       ),
     },
     {
@@ -847,21 +846,26 @@ const InvoiceApproval = () => {
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const value = params.value as string
-        if (!value) return <Typography variant="body2" sx={{ color: '#bdbdbd', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>-</Typography>
+        if (!value) {
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Typography variant="body2" sx={{ color: '#bdbdbd' }}>-</Typography>
+            </Box>
+          )
+        }
         return (
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 600,
-              letterSpacing: '0.02em',
-              color: '#1976d2',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-            }}>
-            {value}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Typography
+              variant="body2"
+              sx={{
+                fontWeight: 600,
+                fontSize: '0.875rem',
+                letterSpacing: '0.02em',
+                color: '#1976d2',
+              }}>
+              {value}
+            </Typography>
+          </Box>
         )
       },
     },
@@ -871,8 +875,24 @@ const InvoiceApproval = () => {
       flex: 1.5,
       minWidth: 180,
       sortable: true,
-      align: 'center',
+      align: 'left',
       headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 1 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              color: '#2c3e50',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}>
+            {params.value as string}
+          </Typography>
+        </Box>
+      ),
     },
     {
       field: 'taxCode',
@@ -884,21 +904,26 @@ const InvoiceApproval = () => {
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const value = params.value as string
-        if (!value) return <Typography variant="body2" sx={{ color: '#bdbdbd', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>-</Typography>
+        if (!value) {
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Typography variant="body2" sx={{ color: '#bdbdbd' }}>-</Typography>
+            </Box>
+          )
+        }
         return (
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 500,
-              letterSpacing: '0.02em',
-              color: '#2c3e50',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-            }}>
-            {value}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Typography
+              variant="body2"
+              sx={{
+                fontWeight: 500,
+                fontSize: '0.875rem',
+                letterSpacing: '0.02em',
+                color: '#2c3e50',
+              }}>
+              {value}
+            </Typography>
+          </Box>
         )
       },
     },
@@ -912,7 +937,19 @@ const InvoiceApproval = () => {
       align: 'center',
       headerAlign: 'center',
       valueGetter: (value: string) => new Date(value),
-      renderCell: (params: GridRenderCellParams) => dayjs(params.value as Date).format('DD/MM/YYYY'),
+      renderCell: (params: GridRenderCellParams) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              color: '#2c3e50',
+            }}>
+            {dayjs(params.value as Date).format('DD/MM/YYYY')}
+          </Typography>
+        </Box>
+      ),
     },
     {
       field: 'internalStatus',
@@ -925,12 +962,18 @@ const InvoiceApproval = () => {
       renderCell: (params: GridRenderCellParams) => {
         const statusId = params.row.internalStatusId
         return (
-          <Chip 
-            label={params.value as string} 
-            color={getInternalStatusColor(statusId)} 
-            size="small" 
-            sx={{ fontWeight: 600 }}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Chip 
+              label={params.value as string} 
+              color={getInternalStatusColor(statusId)} 
+              size="small" 
+              sx={{ 
+                fontWeight: 600,
+                fontSize: '0.75rem',
+                height: 28,
+              }}
+            />
+          </Box>
         )
       },
     },
@@ -945,12 +988,18 @@ const InvoiceApproval = () => {
       renderCell: (params: GridRenderCellParams) => {
         const taxStatusId = params.row.taxStatusId
         return (
-          <Chip 
-            label={params.value as string} 
-            color={getTaxStatusColor(taxStatusId)} 
-            size="small"
-            sx={{ fontWeight: 600 }}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Chip 
+              label={params.value as string} 
+              color={getTaxStatusColor(taxStatusId)} 
+              size="small"
+              sx={{ 
+                fontWeight: 600,
+                fontSize: '0.75rem',
+                height: 28,
+              }}
+            />
+          </Box>
         )
       },
     },
@@ -960,10 +1009,21 @@ const InvoiceApproval = () => {
       flex: 1,
       minWidth: 120,
       sortable: true,
-      align: 'center',
+      align: 'left',
       headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) =>
-        new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(params.value as number),
+      renderCell: (params: GridRenderCellParams) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', height: '100%', pl: 1 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              color: '#2e7d32',
+            }}>
+            {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(params.value as number)}
+          </Typography>
+        </Box>
+      ),
     },
     {
       field: 'actions',
@@ -1127,11 +1187,17 @@ const InvoiceApproval = () => {
                   border: 'none',
                   '& .MuiDataGrid-cell': {
                     borderBottom: '1px solid #f0f0f0',
+                    display: 'flex',
+                    alignItems: 'center',
                   },
                   '& .MuiDataGrid-columnHeaders': {
                     backgroundColor: '#f8f9fa',
                     borderBottom: '2px solid #e0e0e0',
                     fontWeight: 600,
+                  },
+                  '& .MuiDataGrid-columnHeaderTitle': {
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
                   },
                   '& .MuiDataGrid-row:hover': {
                     backgroundColor: '#f8f9fa',
@@ -1139,6 +1205,20 @@ const InvoiceApproval = () => {
                   '& .MuiDataGrid-footerContainer': {
                     borderTop: '2px solid #e0e0e0',
                     backgroundColor: '#fafafa',
+                    minHeight: '52px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  },
+                  '& .MuiTablePagination-root': {
+                    overflow: 'visible',
+                  },
+                  '& .MuiTablePagination-toolbar': {
+                    minHeight: '52px',
+                    flexWrap: 'nowrap',
+                  },
+                  '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                    margin: 0,
                   },
                 }}
                 autoHeight

@@ -29,7 +29,6 @@ import {
 } from '@mui/material'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
-import AddIcon from '@mui/icons-material/Add'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import LockOpenOutlinedIcon from '@mui/icons-material/LockOpenOutlined'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
@@ -517,62 +516,149 @@ const UserManagement = () => {
       headerName: 'Họ và Tên',
       flex: 1,
       minWidth: 180,
+      align: 'left',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<User>) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 1 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 500,
+              color: '#2c3e50',
+              fontSize: '0.875rem',
+            }}
+          >
+            {params.row.fullName}
+          </Typography>
+        </Box>
+      ),
     },
     {
       field: 'email',
       headerName: 'Email',
       flex: 1.2,
       minWidth: 220,
+      align: 'left',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<User>) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 1 }}>
+          <Tooltip title={params.row.email} arrow placement="top">
+            <Typography
+              variant="body2"
+              sx={{
+                fontSize: '0.875rem',
+                color: '#546e7a',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {params.row.email}
+            </Typography>
+          </Tooltip>
+        </Box>
+      ),
     },
     {
       field: 'phoneNumber',
       headerName: 'Số điện thoại',
       width: 130,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<User>) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontSize: '0.875rem',
+              color: '#2c3e50',
+              fontWeight: 500,
+            }}
+          >
+            {params.row.phoneNumber}
+          </Typography>
+        </Box>
+      ),
     },
     {
       field: 'role',
       headerName: 'Vai trò',
       width: 140,
-      renderCell: (params: GridRenderCellParams<User>) => {
-        return (
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<User>) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
           <Chip
             label={getRoleLabel(params.row.role)}
             color={getRoleColor(params.row.role)}
             size="small"
-            sx={{ fontWeight: 500 }}
+            sx={{ 
+              fontWeight: 600,
+              fontSize: '0.75rem',
+              height: 28,
+              borderRadius: '20px',
+            }}
           />
-        )
-      },
+        </Box>
+      ),
     },
     {
       field: 'status',
       headerName: 'Trạng thái',
       width: 130,
-      renderCell: (params: GridRenderCellParams<User>) => {
-        return (
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<User>) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
           <Chip
             label={params.row.status === 'Active' ? 'Hoạt động' : 'Vô hiệu'}
             color={params.row.status === 'Active' ? 'success' : 'default'}
             size="small"
             variant={params.row.status === 'Active' ? 'filled' : 'outlined'}
+            sx={{
+              fontWeight: 600,
+              fontSize: '0.75rem',
+              height: 28,
+              borderRadius: '20px',
+            }}
           />
-        )
-      },
+        </Box>
+      ),
     },
     {
       field: 'joinDate',
       headerName: 'Ngày tham gia',
       type: 'date',
       width: 140,
+      align: 'center',
+      headerAlign: 'center',
       valueGetter: (value) => {
         return value ? new Date(value) : null
       },
       renderCell: (params: GridRenderCellParams<User>) => {
         try {
           const date = new Date(params.row.joinDate)
-          return isNaN(date.getTime()) ? '-' : date.toLocaleDateString('vi-VN')
+          const formattedDate = isNaN(date.getTime()) ? '-' : date.toLocaleDateString('vi-VN')
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontSize: '0.875rem',
+                  color: '#546e7a',
+                  fontWeight: 500,
+                }}
+              >
+                {formattedDate}
+              </Typography>
+            </Box>
+          )
         } catch {
-          return '-'
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Typography variant="body2" sx={{ color: '#bdbdbd' }}>-</Typography>
+            </Box>
+          )
         }
       },
     },
@@ -581,6 +667,8 @@ const UserManagement = () => {
       headerName: 'Hành động',
       type: 'actions',
       width: 200,
+      align: 'center',
+      headerAlign: 'center',
       getActions: (params) => [
         <Tooltip title="Xem chi tiết" key="view">
           <IconButton
@@ -638,33 +726,13 @@ const UserManagement = () => {
   return (
     <Box sx={{ p: 3 }}>
       {/* Header */}
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5 }}>
-            Quản lý Người dùng
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Quản lý tài khoản và phân quyền người dùng trong hệ thống
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenModal()}
-          sx={{
-            textTransform: 'none',
-            borderRadius: 2,
-            px: 3,
-            py: 1,
-            boxShadow: 2,
-            '&:hover': {
-              boxShadow: 4,
-            },
-          }}
-        >
-          Thêm Người dùng
-        </Button>
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5 }}>
+          Quản lý Người dùng
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Quản lý tài khoản và phân quyền người dùng trong hệ thống
+        </Typography>
       </Box>
 
       {/* ✅ NEW: Professional User Filter Component */}
@@ -679,6 +747,7 @@ const UserManagement = () => {
             dateTo: null,
           })
         }}
+        onAddUser={() => handleOpenModal()}
       />
 
         {/* DataGrid */}
@@ -737,6 +806,20 @@ const UserManagement = () => {
               '& .MuiDataGrid-footerContainer': {
                 borderTop: 2,
                 borderColor: 'divider',
+                minHeight: '52px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              },
+              '& .MuiTablePagination-root': {
+                overflow: 'visible',
+              },
+              '& .MuiTablePagination-toolbar': {
+                flexWrap: 'nowrap',
+                minHeight: '52px',
+              },
+              '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                margin: 0,
               },
             }}
           />

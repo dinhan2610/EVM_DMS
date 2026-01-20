@@ -94,7 +94,15 @@ const InvoiceNumberCell: React.FC<InvoiceNumberCellProps> = ({
   }
   
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+    <Box 
+      sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        height: '100%',
+        width: '100%',
+      }}
+    >
       <Tooltip 
         title={
           <Box>
@@ -512,20 +520,26 @@ const TaxErrorNotificationManagement = () => {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
-        <Typography 
-          variant="body2" 
-          sx={{ 
-            fontSize: '0.875rem', 
-            fontWeight: 500,
-            color: '#546e7a',
+        <Box
+          sx={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            width: '100%',
             height: '100%',
           }}
         >
-          {formatDate(params.value as Date)}
-        </Typography>
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              fontSize: '0.875rem', 
+              fontWeight: 500,
+              color: '#546e7a',
+            }}
+          >
+            {formatDate(params.value as Date)}
+          </Typography>
+        </Box>
       ),
     },
     {
@@ -534,25 +548,35 @@ const TaxErrorNotificationManagement = () => {
       flex: 1.2,
       minWidth: 450,
       sortable: true,
-      align: 'center',
+      align: 'left',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
         <Tooltip title="Mã giao dịch T-VAN" arrow placement="top">
-          <Typography
-            variant="body2"
+          <Box
             sx={{
-              fontSize: '0.875rem',
-              fontWeight: 600,
-              color: '#1976d2',
-              letterSpacing: '0.02em',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
+              justifyContent: 'flex-start',
+              width: '100%',
               height: '100%',
+              pl: 1,
             }}
           >
-            {params.value as string}
-          </Typography>
+            <Typography
+              variant="body2"
+              sx={{
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                color: '#1976d2',
+                letterSpacing: '0.02em',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {params.value as string}
+            </Typography>
+          </Box>
         </Tooltip>
       ),
     },
@@ -578,27 +602,34 @@ const TaxErrorNotificationManagement = () => {
       flex: 1.5,
       minWidth: 220,
       sortable: true,
-      align: 'center',
+      align: 'left',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
         <Tooltip title={params.value as string} arrow placement="top">
-          <Typography
-            variant="body2"
+          <Box
             sx={{
-              fontSize: '0.875rem',
-              fontWeight: 500,
-              color: '#2c3e50',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
+              justifyContent: 'flex-start',
+              width: '100%',
               height: '100%',
+              pl: 1,
             }}
           >
-            {params.value as string}
-          </Typography>
+            <Typography
+              variant="body2"
+              sx={{
+                fontSize: '0.875rem',
+                fontWeight: 500,
+                color: '#2c3e50',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {params.value as string}
+            </Typography>
+          </Box>
         </Tooltip>
       ),
     },
@@ -667,25 +698,37 @@ const TaxErrorNotificationManagement = () => {
           />
         )
         
-        return tooltipContent ? (
-          <Tooltip 
-            title={tooltipContent} 
-            arrow 
-            placement="top"
-            componentsProps={{
-              tooltip: {
-                sx: {
-                  bgcolor: 'rgba(0, 0, 0, 0.9)',
-                  '& .MuiTooltip-arrow': {
-                    color: 'rgba(0, 0, 0, 0.9)',
-                  },
-                },
-              },
+        return (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              height: '100%',
             }}
           >
-            <span>{chipElement}</span>
-          </Tooltip>
-        ) : chipElement
+            {tooltipContent ? (
+              <Tooltip 
+                title={tooltipContent} 
+                arrow 
+                placement="top"
+                componentsProps={{
+                  tooltip: {
+                    sx: {
+                      bgcolor: 'rgba(0, 0, 0, 0.9)',
+                      '& .MuiTooltip-arrow': {
+                        color: 'rgba(0, 0, 0, 0.9)',
+                      },
+                    },
+                  },
+                }}
+              >
+                <span>{chipElement}</span>
+              </Tooltip>
+            ) : chipElement}
+          </Box>
+        )
       },
     },
     {
@@ -754,25 +797,37 @@ const TaxErrorNotificationManagement = () => {
           />
         )
         
-        return tooltipContent ? (
-          <Tooltip 
-            title={tooltipContent} 
-            arrow 
-            placement="top"
-            componentsProps={{
-              tooltip: {
-                sx: {
-                  bgcolor: 'rgba(0, 0, 0, 0.9)',
-                  '& .MuiTooltip-arrow': {
-                    color: 'rgba(0, 0, 0, 0.9)',
-                  },
-                },
-              },
+        return (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              height: '100%',
             }}
           >
-            <span>{chipElement}</span>
-          </Tooltip>
-        ) : chipElement
+            {tooltipContent ? (
+              <Tooltip 
+                title={tooltipContent} 
+                arrow 
+                placement="top"
+                componentsProps={{
+                  tooltip: {
+                    sx: {
+                      bgcolor: 'rgba(0, 0, 0, 0.9)',
+                      '& .MuiTooltip-arrow': {
+                        color: 'rgba(0, 0, 0, 0.9)',
+                      },
+                    },
+                  },
+                }}
+              >
+                <span>{chipElement}</span>
+              </Tooltip>
+            ) : chipElement}
+          </Box>
+        )
       },
     },
     {
@@ -781,43 +836,113 @@ const TaxErrorNotificationManagement = () => {
       flex: 1,
       minWidth: 140,
       sortable: true,
-      align: 'center',
+      align: 'right',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
-        <Typography
-          variant="body2"
+        <Box
           sx={{
-            fontSize: '0.875rem',
-            fontWeight: 600,
-            color: '#1976d2',
-            letterSpacing: '0.02em',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
+            justifyContent: 'flex-end',
+            width: '100%',
             height: '100%',
+            pr: 2,
           }}
         >
-          {formatCurrency(params.value as number)}
-        </Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              color: '#1976d2',
+              letterSpacing: '0.02em',
+            }}
+          >
+            {formatCurrency(params.value as number)}
+          </Typography>
+        </Box>
       ),
     },
     {
       field: 'actions',
       headerName: 'Thao tác',
       flex: 0.5,
-      minWidth: 100,
+      minWidth: 120,
       sortable: false,
       align: 'center',
       headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) => (
-        <NotificationActionsMenu
-          notification={params.row as ITaxErrorNotification}
-          onView={handleView}
-          onEdit={handleEdit}
-          onResend={handleResend}
-          onDownload={handleDownload}
-        />
-      ),
+      renderCell: (params: GridRenderCellParams) => {
+        const notification = params.row as ITaxErrorNotification
+        const canDownload = notification.xmlPath !== null && notification.status === NotificationStatus.ACCEPTED
+        
+        return (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 0.5,
+              width: '100%',
+              height: '100%',
+            }}
+          >
+            {/* View Detail Icon */}
+            <Tooltip title="Xem chi tiết" arrow placement="top">
+              <IconButton
+                size="small"
+                onClick={() => handleView(notification.id)}
+                sx={{
+                  color: '#1976d2',
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                    transform: 'scale(1.1)',
+                  },
+                }}
+              >
+                <VisibilityOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            
+            {/* Download PDF Icon */}
+            <Tooltip 
+              title={canDownload ? 'Tải về XML' : 'Chỉ tải được file của thông báo đã tiếp nhận'} 
+              arrow 
+              placement="top"
+            >
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={() => canDownload && handleDownload(notification.id)}
+                  disabled={!canDownload}
+                  sx={{
+                    color: canDownload ? '#0288d1' : 'rgba(0, 0, 0, 0.26)',
+                    transition: 'all 0.2s ease',
+                    '&:hover': canDownload ? {
+                      backgroundColor: 'rgba(2, 136, 209, 0.08)',
+                      transform: 'scale(1.1)',
+                    } : {},
+                    '&.Mui-disabled': {
+                      color: 'rgba(0, 0, 0, 0.26)',
+                    },
+                  }}
+                >
+                  <DownloadIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+            
+            {/* More Actions Menu */}
+            <NotificationActionsMenu
+              notification={notification}
+              onView={handleView}
+              onEdit={handleEdit}
+              onResend={handleResend}
+              onDownload={handleDownload}
+            />
+          </Box>
+        )
+      },
     },
   ]
 
@@ -930,6 +1055,12 @@ const TaxErrorNotificationManagement = () => {
                 fontWeight: 700,
                 fontSize: '0.875rem',
               },
+              '& .MuiDataGrid-columnHeaderTitle': {
+                textAlign: 'center',
+                display: 'flex',
+                justifyContent: 'center',
+                width: '100%',
+              },
               '& .MuiDataGrid-cell': {
                 borderBottom: '1px solid #f0f0f0',
                 fontSize: '0.875rem',
@@ -952,6 +1083,7 @@ const TaxErrorNotificationManagement = () => {
                 minHeight: '56px',
                 paddingLeft: '16px',
                 paddingRight: '8px',
+                flexWrap: 'nowrap',
               },
               '& .MuiTablePagination-selectLabel': {
                 margin: 0,

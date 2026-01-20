@@ -439,22 +439,24 @@ const ItemsManagement = () => {
       field: 'code',
       headerName: 'Mã hàng hoá, dịch vụ',
       width: 160,
-      align: 'center',
+      align: 'left',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
         <Box
           sx={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
+            justifyContent: 'flex-start',
             width: '100%',
             height: '100%',
+            pl: 1,
           }}>
           <Typography
             variant="body2"
             onClick={() => handleViewDetails(params.row)}
             sx={{
               fontWeight: 600,
+              fontSize: '0.875rem',
               color: '#1c84ee',
               cursor: 'pointer',
               '&:hover': {
@@ -472,6 +474,8 @@ const ItemsManagement = () => {
       headerName: 'Tên hàng hoá, dịch vụ',
       flex: 1,
       minWidth: 250,
+      align: 'left',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
         <Box
           sx={{
@@ -480,13 +484,14 @@ const ItemsManagement = () => {
             justifyContent: 'center',
             width: '100%',
             height: '100%',
+            pl: 1,
             py: 1,
           }}>
-          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+          <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.875rem', color: '#2c3e50' }}>
             {params.value}
           </Typography>
           {params.row.description && (
-            <Typography variant="caption" sx={{ color: '#666', display: 'block', mt: 0.5 }}>
+            <Typography variant="caption" sx={{ color: '#546e7a', display: 'block', mt: 0.5, fontSize: '0.75rem' }}>
               {params.row.description.length > 50
                 ? params.row.description.substring(0, 50) + '...'
                 : params.row.description}
@@ -516,9 +521,11 @@ const ItemsManagement = () => {
               label={categoryName}
               size="small"
               sx={{
+                height: 28,
                 backgroundColor: '#e3f2fd',
                 color: '#1976d2',
                 fontWeight: 500,
+                fontSize: '0.75rem',
               }}
             />
           </Box>
@@ -540,7 +547,7 @@ const ItemsManagement = () => {
             width: '100%',
             height: '100%',
           }}>
-          <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
+          <Typography variant="body2" sx={{ fontSize: '0.875rem', color: '#2c3e50', textTransform: 'capitalize' }}>
             {params.value}
           </Typography>
         </Box>
@@ -550,18 +557,19 @@ const ItemsManagement = () => {
       field: 'salesPrice',
       headerName: 'Giá bán',
       width: 150,
-      align: 'center',
+      align: 'left',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
         <Box
           sx={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
+            justifyContent: 'flex-start',
             width: '100%',
             height: '100%',
+            pl: 1,
           }}>
-          <Typography variant="body2" sx={{ fontWeight: 600, color: '#22c55e' }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.875rem', color: '#22c55e' }}>
             {formatCurrency(params.value)}
           </Typography>
         </Box>
@@ -582,7 +590,16 @@ const ItemsManagement = () => {
             width: '100%',
             height: '100%',
           }}>
-          <Chip label={params.value} size="small" color="default" sx={{ fontWeight: 500 }} />
+          <Chip 
+            label={params.value} 
+            size="small" 
+            color="default" 
+            sx={{ 
+              height: 28,
+              fontWeight: 500,
+              fontSize: '0.75rem',
+            }} 
+          />
         </Box>
       ),
     },
@@ -601,7 +618,7 @@ const ItemsManagement = () => {
             width: '100%',
             height: '100%',
           }}>
-          <Typography variant="body2" sx={{ color: params.value > 0 ? '#ef5f5f' : '#999' }}>
+          <Typography variant="body2" sx={{ fontSize: '0.875rem', color: params.value > 0 ? '#ef5f5f' : '#999' }}>
             {params.value}%
           </Typography>
         </Box>
@@ -766,8 +783,20 @@ const ItemsManagement = () => {
                 borderBottom: '2px solid #e0e0e0',
                 fontWeight: 600,
               },
+              '& .MuiDataGrid-columnHeaderTitle': {
+                textAlign: 'center',
+                display: 'flex',
+                justifyContent: 'center',
+                width: '100%',
+              },
               '& .MuiDataGrid-row:hover': {
                 backgroundColor: '#f8f9fa',
+              },
+              '& .MuiDataGrid-footerContainer': {
+                borderTop: '2px solid #e0e0e0',
+                '& .MuiTablePagination-toolbar': {
+                  flexWrap: 'nowrap',
+                },
               },
             }}
             autoHeight

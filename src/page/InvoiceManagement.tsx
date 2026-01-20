@@ -1829,6 +1829,9 @@ const InvoiceManagement = () => {
                   backgroundColor: '#fafafa',
                   minHeight: '56px',
                   padding: '8px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
                 },
                 '& .MuiTablePagination-root': {
                   overflow: 'visible',
@@ -1837,6 +1840,7 @@ const InvoiceManagement = () => {
                   minHeight: '56px',
                   paddingLeft: '16px',
                   paddingRight: '8px',
+                  flexWrap: 'nowrap',
                 },
                 '& .MuiTablePagination-selectLabel': {
                   margin: 0,

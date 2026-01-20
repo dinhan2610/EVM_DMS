@@ -786,19 +786,22 @@ const InvoiceRequestManagement = () => {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
-        <Typography
-          variant="body2"
-          sx={{
-            fontWeight: 600,
-            color: 'primary.main',
-            cursor: 'pointer',
-            '&:hover': {
-              textDecoration: 'underline',
-            },
-          }}
-          onClick={() => handleViewDetail(params.row.requestID)}>
-          {params.value as string}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 600,
+              fontSize: '0.875rem',
+              color: 'primary.main',
+              cursor: 'pointer',
+              '&:hover': {
+                textDecoration: 'underline',
+              },
+            }}
+            onClick={() => handleViewDetail(params.row.requestID)}>
+            {params.value as string}
+          </Typography>
+        </Box>
       ),
     },
     {
@@ -820,25 +823,29 @@ const InvoiceRequestManagement = () => {
         const colors = colorMap[type as keyof typeof colorMap] || colorMap[1]
 
         return (
-          <Box
-            sx={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '6px 14px',
-              borderRadius: '20px',
-              bgcolor: colors.bg,
-              border: `1px solid ${colors.border}`,
-            }}>
-            <Typography
-              variant="body2"
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Box
               sx={{
-                color: colors.text,
-                fontWeight: 600,
-                fontSize: '0.75rem',
-                letterSpacing: '0.5px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '6px 14px',
+                borderRadius: '20px',
+                bgcolor: colors.bg,
+                border: `1px solid ${colors.border}`,
+                height: 28,
               }}>
-              {label}
-            </Typography>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: colors.text,
+                  fontWeight: 600,
+                  fontSize: '0.75rem',
+                  letterSpacing: '0.5px',
+                  lineHeight: 1,
+                }}>
+                {label}
+              </Typography>
+            </Box>
           </Box>
         )
       },
@@ -849,16 +856,29 @@ const InvoiceRequestManagement = () => {
       flex: 1.5,
       minWidth: 200,
       sortable: true,
-      align: 'center',
+      align: 'left',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const request = params.row as InvoiceRequest
         return (
-          <Box sx={{ textAlign: 'center', py: 1 }}>
-            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', pl: 1 }}>
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                fontWeight: 500,
+                fontSize: '0.875rem',
+                color: '#2c3e50',
+              }}
+            >
               {request.customer.customerName}
             </Typography>
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            <Typography 
+              variant="caption" 
+              sx={{ 
+                color: '#546e7a',
+                fontSize: '0.75rem',
+              }}
+            >
               MST: {request.customer.taxCode}
             </Typography>
           </Box>
@@ -892,9 +912,18 @@ const InvoiceRequestManagement = () => {
             }
             arrow
             placement="top">
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, py: 1 }}>
-              <PersonIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-              <Typography variant="body2">{request.requestedBy.saleName}</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, height: '100%' }}>
+              <PersonIcon fontSize="small" sx={{ color: '#546e7a', fontSize: '1.125rem' }} />
+              <Typography 
+                variant="body2"
+                sx={{
+                  fontSize: '0.875rem',
+                  fontWeight: 500,
+                  color: '#2c3e50',
+                }}
+              >
+                {request.requestedBy.saleName}
+              </Typography>
             </Box>
           </Tooltip>
         )
@@ -906,12 +935,21 @@ const InvoiceRequestManagement = () => {
       flex: 1,
       minWidth: 140,
       sortable: true,
-      align: 'right',
-      headerAlign: 'right',
+      align: 'left',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
-        <Typography variant="body2" sx={{ fontWeight: 600, color: 'success.main' }}>
-          {(params.value as number).toLocaleString('vi-VN')} ₫
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', height: '100%', pl: 1 }}>
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              fontWeight: 600, 
+              fontSize: '0.875rem',
+              color: '#2e7d32',
+            }}
+          >
+            {(params.value as number).toLocaleString('vi-VN')} ₫
+          </Typography>
+        </Box>
       ),
     },
     {
@@ -926,9 +964,24 @@ const InvoiceRequestManagement = () => {
         const date = dayjs(params.value as string)
         return (
           <Tooltip title={date.format('HH:mm:ss - DD/MM/YYYY')} arrow>
-            <Box sx={{ textAlign: 'center', py: 1 }}>
-              <Typography variant="body2">{date.format('DD/MM/YYYY')}</Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Typography 
+                variant="body2"
+                sx={{
+                  fontSize: '0.875rem',
+                  fontWeight: 500,
+                  color: '#2c3e50',
+                }}
+              >
+                {date.format('DD/MM/YYYY')}
+              </Typography>
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  color: '#546e7a',
+                  fontSize: '0.75rem',
+                }}
+              >
                 {date.fromNow()}
               </Typography>
             </Box>
@@ -945,7 +998,13 @@ const InvoiceRequestManagement = () => {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
-        if (!params.value) return <Typography variant="body2" sx={{ textAlign: 'center' }}>-</Typography>
+        if (!params.value) {
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Typography variant="body2" sx={{ color: '#546e7a' }}>-</Typography>
+            </Box>
+          )
+        }
 
         const date = dayjs(params.value as string)
         const isUrgent = date.diff(dayjs(), 'hour') < 24
@@ -953,19 +1012,21 @@ const InvoiceRequestManagement = () => {
 
         return (
           <Tooltip title={date.format('HH:mm - DD/MM/YYYY')} arrow>
-            <Box sx={{ textAlign: 'center', py: 1 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
               <Typography
                 variant="body2"
                 sx={{
-                  fontWeight: isUrgent || isOverdue ? 600 : 400,
-                  color: isOverdue ? 'error.main' : isUrgent ? 'warning.main' : 'text.primary',
+                  fontSize: '0.875rem',
+                  fontWeight: isUrgent || isOverdue ? 600 : 500,
+                  color: isOverdue ? '#d32f2f' : isUrgent ? '#ed6c02' : '#2c3e50',
                 }}>
                 {date.format('DD/MM/YYYY')}
               </Typography>
               <Typography
                 variant="caption"
                 sx={{
-                  color: isOverdue ? 'error.main' : isUrgent ? 'warning.main' : 'text.secondary',
+                  fontSize: '0.75rem',
+                  color: isOverdue ? '#d32f2f' : isUrgent ? '#ed6c02' : '#546e7a',
                 }}>
                 {isOverdue ? '⚠️ Quá hạn' : date.fromNow()}
               </Typography>
@@ -1006,15 +1067,19 @@ const InvoiceRequestManagement = () => {
 
         return (
           <Tooltip title={tooltipContent} arrow placement="top">
-            <Chip
-              label={statusName}
-              color={color}
-              size="small"
-              sx={{
-                fontWeight: 600,
-                cursor: 'help',
-              }}
-            />
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Chip
+                label={statusName}
+                color={color}
+                size="small"
+                sx={{
+                  fontWeight: 600,
+                  fontSize: '0.75rem',
+                  height: 28,
+                  cursor: 'help',
+                }}
+              />
+            </Box>
           </Tooltip>
         )
       },
@@ -1059,11 +1124,7 @@ const InvoiceRequestManagement = () => {
             <Typography variant="body2" sx={{ color: '#666' }}>
               Quản lý và xử lý các yêu cầu xuất hóa đơn từ đội ngũ Sales
             </Typography>
-            {filteredRequests.length > 0 && (
-              <Typography variant="body2" sx={{ color: '#1976d2', fontWeight: 500, mt: 0.5 }}>
-                📊 Hiển thị {filteredRequests.length} / {requests.length} yêu cầu
-              </Typography>
-            )}
+            
           </Box>
 
           {/* Filter */}
@@ -1168,6 +1229,7 @@ const InvoiceRequestManagement = () => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'flex-end',
+                    flexWrap: 'nowrap',
                   },
                   '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
                     margin: 0,

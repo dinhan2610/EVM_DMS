@@ -309,14 +309,14 @@ const AuditLogsPage = () => {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<DataLog>) => (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, alignItems: 'center', justifyContent: 'center', height: '100%' }}>
           <Typography 
             variant="body2" 
             sx={{ 
               fontSize: '0.875rem',
               fontWeight: 600,
               lineHeight: 1.2,
-              color: 'text.primary',
+              color: '#2c3e50',
             }}
           >
             {dayjs(params.row.timestamp).format('DD/MM/YYYY')}
@@ -325,7 +325,7 @@ const AuditLogsPage = () => {
             variant="caption" 
             sx={{ 
               fontSize: '0.75rem',
-              color: 'text.secondary',
+              color: '#546e7a',
               lineHeight: 1,
             }}
           >
@@ -339,14 +339,25 @@ const AuditLogsPage = () => {
       headerName: 'Người thực hiện',
       width: 180,
       flex: 0.5,
+      align: 'left',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<DataLog>) => (
-        <Box display="flex" alignItems="center" gap={1}>
+        <Box 
+          sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 1, 
+            height: '100%',
+            pl: 1,
+          }}
+        >
           <PersonOutlineIcon fontSize="small" color="action" sx={{ fontSize: '1.125rem' }} />
           <Typography 
             variant="body2" 
             sx={{
               fontSize: '0.875rem',
               fontWeight: 500,
+              color: '#2c3e50',
             }}
           >
             {params.row.userName}
@@ -361,16 +372,19 @@ const AuditLogsPage = () => {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<DataLog>) => (
-        <Chip
-          label={auditService.getActionLabel(params.row.action)}
-          color={auditService.getActionColor(params.row.action)}
-          size="small"
-          sx={{ 
-            fontWeight: 600,
-            minWidth: 90,
-            fontSize: '0.8125rem',
-          }}
-        />
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <Chip
+            label={auditService.getActionLabel(params.row.action)}
+            color={auditService.getActionColor(params.row.action)}
+            size="small"
+            sx={{ 
+              fontWeight: 600,
+              minWidth: 90,
+              fontSize: '0.75rem',
+              height: 28,
+            }}
+          />
+        </Box>
       ),
     },
     {
@@ -378,16 +392,21 @@ const AuditLogsPage = () => {
       headerName: 'Bảng dữ liệu',
       width: 160,
       flex: 0.5,
+      align: 'center',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<DataLog>) => (
-        <Chip
-          label={auditService.getTableLabel(params.row.tableName)}
-          variant="outlined"
-          size="small"
-          sx={{ 
-            fontWeight: 500,
-            fontSize: '0.8125rem',
-          }}
-        />
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <Chip
+            label={auditService.getTableLabel(params.row.tableName)}
+            variant="outlined"
+            size="small"
+            sx={{ 
+              fontWeight: 500,
+              fontSize: '0.75rem',
+              height: 28,
+            }}
+          />
+        </Box>
       ),
     },
     {
@@ -397,17 +416,19 @@ const AuditLogsPage = () => {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<DataLog>) => (
-        <Typography 
-          variant="body2" 
-          sx={{ 
-            fontFamily: 'monospace',
-            fontSize: '0.8125rem',
-            fontWeight: 500,
-            color: 'text.secondary',
-          }}
-        >
-          {params.row.recordId || '—'}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              fontFamily: 'monospace',
+              fontSize: '0.8125rem',
+              fontWeight: 500,
+              color: '#546e7a',
+            }}
+          >
+            {params.row.recordId || '—'}
+          </Typography>
+        </Box>
       ),
     },
     {
@@ -415,19 +436,24 @@ const AuditLogsPage = () => {
       headerName: 'Trace ID',
       width: 240,
       flex: 1,
+      align: 'left',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<DataLog>) => (
-        <Typography 
-          variant="caption" 
-          sx={{ 
-            fontFamily: 'monospace',
-            fontSize: '0.75rem',
-            color: 'text.secondary',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis'
-          }}
-        >
-          {params.row.traceId}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 1 }}>
+          <Typography 
+            variant="caption" 
+            sx={{ 
+              fontFamily: 'monospace',
+              fontSize: '0.75rem',
+              color: '#546e7a',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {params.row.traceId}
+          </Typography>
+        </Box>
       ),
     },
     {
@@ -439,20 +465,22 @@ const AuditLogsPage = () => {
       sortable: false,
       disableColumnMenu: true,
       renderCell: (params: GridRenderCellParams<DataLog>) => (
-        <IconButton
-          size="small"
-          onClick={() => handleViewDataLogDetails(params.row)}
-          color="primary"
-          sx={{
-            '&:hover': {
-              bgcolor: 'primary.lighter',
-              transform: 'scale(1.1)',
-            },
-            transition: 'all 0.2s',
-          }}
-        >
-          <VisibilityOutlinedIcon fontSize="small" />
-        </IconButton>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <IconButton
+            size="small"
+            onClick={() => handleViewDataLogDetails(params.row)}
+            color="primary"
+            sx={{
+              '&:hover': {
+                bgcolor: 'primary.lighter',
+                transform: 'scale(1.1)',
+              },
+              transition: 'all 0.2s',
+            }}
+          >
+            <VisibilityOutlinedIcon fontSize="small" />
+          </IconButton>
+        </Box>
       ),
     },
   ]
@@ -466,14 +494,14 @@ const AuditLogsPage = () => {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<ActivityLog>) => (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, alignItems: 'center', justifyContent: 'center', height: '100%' }}>
           <Typography 
             variant="body2" 
             sx={{ 
               fontSize: '0.875rem',
               fontWeight: 600,
               lineHeight: 1.2,
-              color: 'text.primary',
+              color: '#2c3e50',
             }}
           >
             {dayjs(params.row.timestamp).format('DD/MM/YYYY')}
@@ -482,7 +510,7 @@ const AuditLogsPage = () => {
             variant="caption" 
             sx={{ 
               fontSize: '0.75rem',
-              color: 'text.secondary',
+              color: '#546e7a',
               lineHeight: 1,
             }}
           >
@@ -513,16 +541,19 @@ const AuditLogsPage = () => {
         }
 
         return (
-          <Chip 
-            label={label}
-            size="small" 
-            color={getChipColor(userId)}
-            sx={{ 
-              fontWeight: 600,
-              fontSize: '0.8125rem',
-              minWidth: 120,
-            }}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Chip 
+              label={label}
+              size="small" 
+              color={getChipColor(userId)}
+              sx={{ 
+                fontWeight: 600,
+                fontSize: '0.75rem',
+                minWidth: 120,
+                height: 28,
+              }}
+            />
+          </Box>
         )
       },
     },
@@ -531,19 +562,24 @@ const AuditLogsPage = () => {
       headerName: 'Hành động',
       width: 220,
       flex: 1,
+      align: 'left',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<ActivityLog>) => (
-        <Typography 
-          variant="body2" 
-          sx={{
-            fontSize: '0.875rem',
-            fontWeight: 600,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {auditService.getActionNameLabel(params.row.actionName)}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 1 }}>
+          <Typography 
+            variant="body2" 
+            sx={{
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              color: '#2c3e50',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {auditService.getActionNameLabel(params.row.actionName)}
+          </Typography>
+        </Box>
       ),
     },
     {
@@ -553,16 +589,19 @@ const AuditLogsPage = () => {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<ActivityLog>) => (
-        <Chip
-          label={auditService.getStatusLabel(params.row.status)}
-          color={auditService.getStatusColor(params.row.status)}
-          size="small"
-          sx={{ 
-            fontWeight: 600,
-            minWidth: 100,
-            fontSize: '0.8125rem',
-          }}
-        />
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <Chip
+            label={auditService.getStatusLabel(params.row.status)}
+            color={auditService.getStatusColor(params.row.status)}
+            size="small"
+            sx={{ 
+              fontWeight: 600,
+              minWidth: 100,
+              fontSize: '0.75rem',
+              height: 28,
+            }}
+          />
+        </Box>
       ),
     },
     {
@@ -570,19 +609,23 @@ const AuditLogsPage = () => {
       headerName: 'Mô tả',
       width: 300,
       flex: 1.5,
+      align: 'left',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<ActivityLog>) => (
-        <Typography
-          variant="body2"
-          sx={{
-            fontSize: '0.875rem',
-            color: 'text.secondary',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {params.row.description}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 1 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontSize: '0.875rem',
+              color: '#546e7a',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {params.row.description}
+          </Typography>
+        </Box>
       ),
     },
     {
@@ -594,20 +637,22 @@ const AuditLogsPage = () => {
       sortable: false,
       disableColumnMenu: true,
       renderCell: (params: GridRenderCellParams<ActivityLog>) => (
-        <IconButton
-          size="small"
-          onClick={() => handleViewActivityLogDetails(params.row)}
-          color="primary"
-          sx={{
-            '&:hover': {
-              bgcolor: 'primary.lighter',
-              transform: 'scale(1.1)',
-            },
-            transition: 'all 0.2s',
-          }}
-        >
-          <VisibilityOutlinedIcon fontSize="small" />
-        </IconButton>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <IconButton
+            size="small"
+            onClick={() => handleViewActivityLogDetails(params.row)}
+            color="primary"
+            sx={{
+              '&:hover': {
+                bgcolor: 'primary.lighter',
+                transform: 'scale(1.1)',
+              },
+              transition: 'all 0.2s',
+            }}
+          >
+            <VisibilityOutlinedIcon fontSize="small" />
+          </IconButton>
+        </Box>
       ),
     },
   ]
@@ -785,6 +830,7 @@ const AuditLogsPage = () => {
                   minHeight: '52px',
                   paddingLeft: 2,
                   paddingRight: 2,
+                  flexWrap: 'nowrap',
                 },
                 '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
                   margin: 0,
@@ -855,6 +901,7 @@ const AuditLogsPage = () => {
                   minHeight: '52px',
                   paddingLeft: 2,
                   paddingRight: 2,
+                  flexWrap: 'nowrap',
                 },
                 '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
                   margin: 0,

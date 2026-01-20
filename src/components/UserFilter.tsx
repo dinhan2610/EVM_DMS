@@ -45,6 +45,7 @@ import FilterListIcon from '@mui/icons-material/FilterList'
 import ClearIcon from '@mui/icons-material/Clear'
 import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
+import AddIcon from '@mui/icons-material/Add'
 import { Dayjs } from 'dayjs'
 
 // ============================================================================
@@ -70,6 +71,7 @@ interface UserFilterProps {
   onFilterChange?: (filters: UserFilterState) => void
   onReset?: () => void
   showAdvancedByDefault?: boolean // Mở rộng bộ lọc mặc định
+  onAddUser?: () => void // Callback khi click nút Thêm Người dùng
 }
 
 // ============================================================================
@@ -97,7 +99,8 @@ const ALL_ROLES = [
 const UserFilter: React.FC<UserFilterProps> = ({ 
   onFilterChange, 
   onReset,
-  showAdvancedByDefault = false 
+  showAdvancedByDefault = false,
+  onAddUser
 }) => {
   // ========================================
   // STATE MANAGEMENT
@@ -337,6 +340,35 @@ const UserFilter: React.FC<UserFilterProps> = ({
               </Button>
             </Box>
           </Tooltip>
+
+          {/* 3. Nút Thêm Người dùng */}
+          {onAddUser && (
+            <Box sx={{ flex: '0 0 auto', ml: 'auto' }}>
+              <Button
+                variant="contained"
+                color="primary"
+                size="medium"
+                startIcon={<AddIcon />}
+                onClick={onAddUser}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '0.95rem',
+                  height: 42,
+                  borderRadius: 2,
+                  px: 3,
+                  boxShadow: '0 2px 12px rgba(25, 118, 210, 0.3)',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-1px)',
+                    boxShadow: '0 4px 16px rgba(25, 118, 210, 0.4)',
+                  },
+                }}
+              >
+                Thêm Người dùng
+              </Button>
+            </Box>
+          )}
         </Box>
 
         {/* ========================================
