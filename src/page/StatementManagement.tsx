@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -33,6 +33,8 @@ import EmailIcon from '@mui/icons-material/Email'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
 import SendIcon from '@mui/icons-material/Send'
 import { Link } from 'react-router-dom'
+import dayjs from 'dayjs'
+import StatementFilter, { StatementFilterState } from '@/components/StatementFilter'
 import {
   STATEMENT_STATUS,
   STATEMENT_STATUS_LABELS,
@@ -372,17 +374,103 @@ const StatementManagement = () => {
   const [selectedRowsCount, setSelectedRowsCount] = useState<number>(0)
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' | 'info' })
 
-  // Filter statements based on selected tab
+  // Filter state
+  const [filters, setFilters] = useState<StatementFilterState>({
+    searchText: '',
+    dateFrom: null,
+    dateTo: null,
+    periodFrom: '',
+    periodTo: '',
+    status: [],
+    customer: null,
+    emailSentStatus: 'ALL',
+    linkedInvoice: 'ALL',
+  })
+
+  // ==================== FILTER LOGIC ====================
+
+  // Filter statements based on selected tab AND filter criteria
   const filteredStatements = useMemo(() => {
+    let result = statements
+
+    // Tab filtering
     switch (selectedTab) {
       case 'draft':
-        return statements.filter(s => s.status !== STATEMENT_STATUS.INVOICED)
+        result = result.filter(s => s.status !== STATEMENT_STATUS.INVOICED)
+        break
       case 'invoiced':
-        return statements.filter(s => s.status === STATEMENT_STATUS.INVOICED)
+        result = result.filter(s => s.status === STATEMENT_STATUS.INVOICED)
+        break
       default:
-        return statements
+        break
     }
-  }, [statements, selectedTab])
+
+    // Advanced filtering
+    result = result.filter((statement) => {
+      // 1️⃣ Search text
+      const matchesSearch =
+        !filters.searchText ||
+        statement.code.toLowerCase().includes(filters.searchText.toLowerCase()) ||
+        statement.customerName.toLowerCase().includes(filters.searchText.toLowerCase()) ||
+        statement.linkedInvoiceNumber?.toLowerCase().includes(filters.searchText.toLowerCase())
+
+      // 2️⃣ Date range (ngày tạo)
+      const matchesDateFrom =
+        !filters.dateFrom ||
+        dayjs(statement.createdDate).isAfter(filters.dateFrom, 'day') ||
+        dayjs(statement.createdDate).isSame(filters.dateFrom, 'day')
+      const matchesDateTo =
+        !filters.dateTo ||
+        dayjs(statement.createdDate).isBefore(filters.dateTo, 'day') ||
+        dayjs(statement.createdDate).isSame(filters.dateTo, 'day')
+
+      // 3️⃣ Period range (kỳ cước)
+      const matchesPeriodFrom =
+        !filters.periodFrom ||
+        statement.period >= filters.periodFrom
+      const matchesPeriodTo =
+        !filters.periodTo ||
+        statement.period <= filters.periodTo
+
+      // 4️⃣ Status
+      const matchesStatus =
+        filters.status.length === 0 ||
+        filters.status.includes('ALL') ||
+        filters.status.includes(statement.status)
+
+      // 5️⃣ Customer
+      const matchesCustomer =
+        !filters.customer ||
+        filters.customer === 'ALL' ||
+        statement.customerName === filters.customer
+
+      // 6️⃣ Email sent status
+      const matchesEmailSent =
+        filters.emailSentStatus === 'ALL' ||
+        (filters.emailSentStatus === 'SENT' && statement.isEmailSent) ||
+        (filters.emailSentStatus === 'NOT_SENT' && !statement.isEmailSent)
+
+      // 7️⃣ Invoice linked status
+      const matchesInvoiceLinked =
+        filters.linkedInvoice === 'ALL' ||
+        (filters.linkedInvoice === 'LINKED' && statement.linkedInvoiceNumber !== null) ||
+        (filters.linkedInvoice === 'NOT_LINKED' && statement.linkedInvoiceNumber === null)
+
+      return (
+        matchesSearch &&
+        matchesDateFrom &&
+        matchesDateTo &&
+        matchesPeriodFrom &&
+        matchesPeriodTo &&
+        matchesStatus &&
+        matchesCustomer &&
+        matchesEmailSent &&
+        matchesInvoiceLinked
+      )
+    })
+
+    return result
+  }, [statements, selectedTab, filters])
 
   // Count badges
   const countDraft = useMemo(() => 
@@ -393,6 +481,28 @@ const StatementManagement = () => {
     statements.filter(s => s.status === STATEMENT_STATUS.INVOICED).length, 
     [statements]
   )
+
+  // ==================== HANDLERS ====================
+
+  // Handle filter change
+  const handleFilterChange = useCallback((newFilters: StatementFilterState) => {
+    setFilters(newFilters)
+  }, [])
+
+  // Handle reset filter
+  const handleResetFilter = useCallback(() => {
+    setFilters({
+      searchText: '',
+      dateFrom: null,
+      dateTo: null,
+      periodFrom: '',
+      periodTo: '',
+      status: [],
+      customer: null,
+      emailSentStatus: 'ALL',
+      linkedInvoice: 'ALL',
+    })
+  }, [])
 
   // Handle tab change
   const handleTabChange = (_event: React.SyntheticEvent, newValue: 'all' | 'draft' | 'invoiced') => {
@@ -613,32 +723,45 @@ const StatementManagement = () => {
   return (
     <Box sx={{ p: 3 }}>
       {/* Header */}
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
-            Quản lý Bảng kê công nợ
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
+          📋 Quản lý Bảng kê công nợ
+        </Typography>
+        <Typography variant="body2" sx={{ color: '#666' }}>
+          Quản lý và theo dõi các bảng kê cước, công nợ khách hàng
+        </Typography>
+        {filteredStatements.length > 0 && (
+          <Typography variant="body2" sx={{ color: '#1976d2', fontWeight: 500, mt: 0.5 }}>
+            📊 Hiển thị {filteredStatements.length} / {statements.length} bảng kê
           </Typography>
-          <Typography variant="body2" sx={{ color: '#666' }}>
-            Quản lý và theo dõi các bảng kê cước, công nợ khách hàng
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<AddIcon />}
-          onClick={() => navigate('/statements/new')}
-          sx={{
-            textTransform: 'none',
-            fontWeight: 500,
-            boxShadow: '0 2px 8px rgba(28, 132, 238, 0.24)',
-            '&:hover': {
-              boxShadow: '0 4px 12px rgba(28, 132, 238, 0.32)',
-            },
-          }}
-        >
-          Tạo Bảng kê mới
-        </Button>
+        )}
       </Box>
+
+      {/* Statement Filter */}
+      <StatementFilter
+        onFilterChange={handleFilterChange}
+        onReset={handleResetFilter}
+        totalResults={statements.length}
+        filteredResults={filteredStatements.length}
+        actionButton={
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AddIcon />}
+            onClick={() => navigate('/statements/new')}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 500,
+              boxShadow: '0 2px 8px rgba(28, 132, 238, 0.24)',
+              '&:hover': {
+                boxShadow: '0 4px 12px rgba(28, 132, 238, 0.32)',
+              },
+            }}
+          >
+            Tạo Bảng kê mới
+          </Button>
+        }
+      />
 
       {/* Tabs - Quick Filters */}
       <Paper

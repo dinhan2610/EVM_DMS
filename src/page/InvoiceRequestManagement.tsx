@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -36,6 +36,9 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import PersonIcon from '@mui/icons-material/Person'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useAuthContext } from '@/context/useAuthContext'
+import InvoiceRequestFilter, {
+  InvoiceRequestFilterState,
+} from '@/components/InvoiceRequestFilter'
 import {
   InvoiceRequest,
   InvoiceRequestStatus,
@@ -326,6 +329,19 @@ const InvoiceRequestManagement = () => {
     severity?: 'success' | 'error' | 'warning' | 'info'
   }>({ open: false, message: '', severity: 'info' })
 
+  // Filter state
+  const [filters, setFilters] = useState<InvoiceRequestFilterState>({
+    searchText: '',
+    dateFrom: null,
+    dateTo: null,
+    requiredDateFrom: null,
+    requiredDateTo: null,
+    statusIDs: [],
+    requestTypes: [],
+    customer: null,
+    createdBy: null,
+  })
+
   // Reject dialog state
   const [rejectDialog, setRejectDialog] = useState<{
     open: boolean
@@ -339,6 +355,26 @@ const InvoiceRequestManagement = () => {
     pageSize: 10,
     page: 0,
   })
+
+  // ==================== FILTER HANDLERS ====================
+
+  const handleFilterChange = useCallback((newFilters: InvoiceRequestFilterState) => {
+    setFilters(newFilters)
+  }, [])
+
+  const handleResetFilter = useCallback(() => {
+    setFilters({
+      searchText: '',
+      dateFrom: null,
+      dateTo: null,
+      requiredDateFrom: null,
+      requiredDateTo: null,
+      statusIDs: [],
+      requestTypes: [],
+      customer: null,
+      createdBy: null,
+    })
+  }, [])
 
   // ==================== DATA FETCHING ====================
 
@@ -437,6 +473,71 @@ const InvoiceRequestManagement = () => {
   useEffect(() => {
     fetchInvoiceRequests()
   }, [refreshTrigger, fetchInvoiceRequests])
+
+  // ==================== FILTER LOGIC ====================
+
+  const filteredRequests = useMemo(() => {
+    return requests.filter((request) => {
+      // Search text
+      const matchesSearch =
+        !filters.searchText ||
+        request.requestCode.toLowerCase().includes(filters.searchText.toLowerCase()) ||
+        request.customer.customerName.toLowerCase().includes(filters.searchText.toLowerCase()) ||
+        request.customer.taxCode?.toLowerCase().includes(filters.searchText.toLowerCase()) ||
+        request.requestedBy.saleName.toLowerCase().includes(filters.searchText.toLowerCase())
+
+      // Date range (ngày tạo)
+      const matchesDateFrom =
+        !filters.dateFrom ||
+        dayjs(request.requestDate).isAfter(filters.dateFrom, 'day') ||
+        dayjs(request.requestDate).isSame(filters.dateFrom, 'day')
+      const matchesDateTo =
+        !filters.dateTo ||
+        dayjs(request.requestDate).isBefore(filters.dateTo, 'day') ||
+        dayjs(request.requestDate).isSame(filters.dateTo, 'day')
+
+      // Required date range (hạn xuất)
+      const matchesRequiredDateFrom =
+        !filters.requiredDateFrom ||
+        !request.requiredDate ||
+        dayjs(request.requiredDate).isAfter(filters.requiredDateFrom, 'day') ||
+        dayjs(request.requiredDate).isSame(filters.requiredDateFrom, 'day')
+      const matchesRequiredDateTo =
+        !filters.requiredDateTo ||
+        !request.requiredDate ||
+        dayjs(request.requiredDate).isBefore(filters.requiredDateTo, 'day') ||
+        dayjs(request.requiredDate).isSame(filters.requiredDateTo, 'day')
+
+      // Status
+      const matchesStatus =
+        filters.statusIDs.length === 0 ||
+        filters.statusIDs.includes(-1) ||
+        filters.statusIDs.includes(request.statusID)
+
+      // Request type
+      const matchesRequestType =
+        filters.requestTypes.length === 0 ||
+        filters.requestTypes.includes(-1) ||
+        filters.requestTypes.includes(request.requestType)
+
+      // Customer
+      const matchesCustomer =
+        !filters.customer ||
+        filters.customer === 'ALL' ||
+        request.customer.customerName === filters.customer
+
+      return (
+        matchesSearch &&
+        matchesDateFrom &&
+        matchesDateTo &&
+        matchesRequiredDateFrom &&
+        matchesRequiredDateTo &&
+        matchesStatus &&
+        matchesRequestType &&
+        matchesCustomer
+      )
+    })
+  }, [requests, filters])
 
   // ==================== ACTION HANDLERS ====================
 
@@ -958,7 +1059,20 @@ const InvoiceRequestManagement = () => {
             <Typography variant="body2" sx={{ color: '#666' }}>
               Quản lý và xử lý các yêu cầu xuất hóa đơn từ đội ngũ Sales
             </Typography>
+            {filteredRequests.length > 0 && (
+              <Typography variant="body2" sx={{ color: '#1976d2', fontWeight: 500, mt: 0.5 }}>
+                📊 Hiển thị {filteredRequests.length} / {requests.length} yêu cầu
+              </Typography>
+            )}
           </Box>
+
+          {/* Filter */}
+          <InvoiceRequestFilter
+            onFilterChange={handleFilterChange}
+            onReset={handleResetFilter}
+            totalResults={requests.length}
+            filteredResults={filteredRequests.length}
+          />
 
           {/* Loading State */}
           {loading && (
@@ -995,7 +1109,7 @@ const InvoiceRequestManagement = () => {
                 overflow: 'hidden',
               }}>
               <DataGrid
-                rows={requests}
+                rows={filteredRequests}
                 columns={columns}
                 getRowId={(row) => row.requestID}
                 checkboxSelection
