@@ -28,6 +28,7 @@ export interface CreateTemplateInternalRequest {
   layoutDefinition: unknown // ✅ Object (OLD or FULL schema)
   templateFrameID: number
   logoUrl: string | null
+  renderedHtml?: string // ✅ NEW: Template HTML
 }
 
 /**
@@ -242,6 +243,7 @@ export const createTemplate = async (data: CreateTemplateRequest): Promise<Templ
       layoutDefinition: data.layoutDefinition, // ✅ Send as OBJECT, Axios will handle
       templateFrameID: data.templateFrameID,
       logoUrl: data.logoUrl,
+      renderedHtml: data.renderedHtml, // ✅ NEW: Template HTML
     }
     
     console.log('[createTemplate] Request Data:', {

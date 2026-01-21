@@ -47,6 +47,7 @@ import companyService, { Company } from '@/services/companyService'
 import API_CONFIG from '@/config/api.config'
 import { mapEditorStateToApiRequest } from '@/utils/templateApiMapper'
 import type { TemplateEditorState } from '@/utils/templateApiMapper'
+import { exportTemplateToHTML } from '@/utils/templateHtmlExporter'
 
 // Interface cũ - tương thích với InvoiceTemplatePreview
 interface TemplateConfig {
@@ -161,6 +162,7 @@ const TemplateEditor: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false)
   const [openAddDialog, setOpenAddDialog] = useState(false)
   const [addDialogType] = useState<'field' | 'column'>('field')
+  const previewRef = React.useRef<HTMLDivElement>(null)
   
   // ============ API INTEGRATION STATES ============
   const [templateFrames, setTemplateFrames] = useState<TemplateFrame[]>([])
@@ -566,7 +568,23 @@ const TemplateEditor: React.FC = () => {
       }
       
       console.log('=== STEP 5: Creating Template ===')
-      // Step 4: Create Template
+      
+      // Step 4a: Export template HTML
+      let renderedHtml: string | undefined;
+      try {
+        if (previewRef.current) {
+          console.log('📝 Exporting template HTML...');
+          renderedHtml = await exportTemplateToHTML(previewRef.current);
+          console.log('✅ Template HTML exported successfully, length:', renderedHtml.length);
+        } else {
+          console.warn('⚠️ Preview ref not available, skipping HTML export');
+        }
+      } catch (htmlError) {
+        console.error('❌ Error exporting template HTML:', htmlError);
+        // Continue without HTML - non-blocking
+      }
+      
+      // Step 4b: Create Template with HTML
       const templateData = {
         templateName: state.templateName,
         serialID: serialResponse.serialID,
@@ -574,6 +592,7 @@ const TemplateEditor: React.FC = () => {
         layoutDefinition,
         templateFrameID,
         logoUrl,
+        renderedHtml, // ✅ NEW: Template HTML
       }
       console.log('Template Data:', {
         templateName: templateData.templateName,
@@ -581,6 +600,7 @@ const TemplateEditor: React.FC = () => {
         templateTypeID: templateData.templateTypeID,
         templateFrameID: templateData.templateFrameID,
         logoUrl: templateData.logoUrl,
+        renderedHtmlLength: renderedHtml?.length || 0,
         layoutDefinition: 'LayoutDefinitionRequest object (see above)',
       })
       
@@ -1353,6 +1373,7 @@ const TemplateEditor: React.FC = () => {
               
               {/* Smart Preview: Backend HTML (100% accurate) or React fallback */}
               <Box
+                ref={previewRef}
                 sx={{
                   // Scale được xử lý bên trong TemplatePreviewIframe
                   boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)',
