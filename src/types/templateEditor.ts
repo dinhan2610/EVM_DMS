@@ -11,10 +11,10 @@ export interface Field {
 }
 
 // State tổng hợp cho toàn bộ template
+// ✅ Cleaned up - removed unused fields that API doesn't accept
 export interface TemplateState {
   templateName: string
   invoiceType: 'withCode' | 'withoutCode'
-  invoiceDate: string // ISO date string
   symbol: {
     invoiceType: '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' // Số đầu: Loại HĐ (1-9)
     taxCode: 'C' | 'K' // C: Có mã CQT, K: Không mã CQT
@@ -23,10 +23,8 @@ export interface TemplateState {
     management: string // 2 ký tự quản lý mẫu (VD: AA)
   }
   logo: string | null
-  logoSize: number // Logo size in pixels (default: 60)
   background: {
-    custom: string | null
-    frame: string
+    frame: string // ✅ Only frame selection, no custom background
   }
   company: {
     name: string
@@ -42,8 +40,6 @@ export interface TemplateState {
     sttTitle: string
     sttContent: string
   }
-  modelCode: string
-  templateCode: string
   // Quick settings
   settings: {
     numberFont: 'arial' | 'times' | 'courier' | 'calibri'
@@ -70,18 +66,16 @@ export interface TemplateState {
 }
 
 // Các loại action để cập nhật state
+// ✅ Cleaned up - removed unused actions
 export type TemplateAction =
   | { type: 'SET_TEMPLATE_NAME'; payload: string }
   | { type: 'SET_INVOICE_TYPE'; payload: 'withCode' | 'withoutCode' }
-  | { type: 'SET_INVOICE_DATE'; payload: string }
   | { type: 'SET_SYMBOL_INVOICE_TYPE'; payload: '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' }
   | { type: 'SET_SYMBOL_TAX_CODE'; payload: 'C' | 'K' }
   | { type: 'SET_SYMBOL_YEAR'; payload: string }
   | { type: 'SET_SYMBOL_INVOICE_FORM'; payload: 'T' | 'D' | 'L' | 'M' | 'N' | 'B' | 'G' | 'H' | 'X' }
   | { type: 'SET_SYMBOL_MANAGEMENT'; payload: string }
   | { type: 'SET_LOGO'; payload: string | null }
-  | { type: 'SET_LOGO_SIZE'; payload: number }
-  | { type: 'SET_BACKGROUND_CUSTOM'; payload: string | null }
   | { type: 'SET_BACKGROUND_FRAME'; payload: string }
   | { type: 'SET_COMPANY_NAME'; payload: string }
   | { type: 'SET_COMPANY_FIELD'; payload: { id: string; value: string } }

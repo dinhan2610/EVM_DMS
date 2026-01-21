@@ -79,8 +79,8 @@ const mapTemplateToConfig = (template: TemplateResponse, company: Company | null
     companyTaxCode: company?.taxCode || '0000000000',
     companyAddress: company?.address || 'Đang tải...',
     companyPhone: company?.contactPhone || '0000000000',
-    modelCode: template.serial,
-    templateCode: template.templateName,
+
+
   }
 }
 
@@ -658,7 +658,7 @@ const InvoiceDetail: React.FC = () => {
                 blankRows={5}
                 visibility={DEFAULT_TEMPLATE_VISIBILITY}
                 bilingual={false}
-                invoiceDate={invoice.createdAt}
+
                 invoiceType="withCode"
                 symbol={DEFAULT_INVOICE_SYMBOL}
                 customerVisibility={{

@@ -62,8 +62,7 @@ export interface TemplateConfigProps {
   companyTaxCode: string;
   companyAddress: string;
   companyPhone: string;
-  modelCode: string;
-  templateCode: string;
+  companyBankAccount?: string;
 }
 
 /**
@@ -132,8 +131,6 @@ export interface InvoiceTemplatePreviewProps {
   blankRows?: number;
   backgroundFrame?: string;
   bilingual?: boolean;
-  invoiceDate?: string;
-  logoSize?: number;
   invoiceType?: 'withCode' | 'withoutCode';
   symbol?: InvoiceSymbol;
   customerVisibility?: CustomerVisibility;

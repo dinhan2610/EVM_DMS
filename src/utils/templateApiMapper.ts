@@ -63,13 +63,9 @@ export interface TemplateEditorState {
       customerTaxCode: boolean
     }
   }
-  modelCode?: string
   background?: {
     frame: string
-    custom: string | null
   }
-  invoiceDate?: string
-  templateCode?: string
 }
 
 // ==================== MAPPER FUNCTIONS ====================
@@ -156,13 +152,9 @@ export function mapEditorStateToApiRequest(editorState: TemplateEditorState): an
         customerTaxCode: editorState.settings?.customerVisibility?.customerTaxCode ?? false,
       },
     },
-    modelCode: editorState.modelCode || '',
     background: editorState.background || {
       frame: '',
-      custom: null,
     },
-    invoiceDate: editorState.invoiceDate || new Date().toISOString(),
-    templateCode: editorState.templateCode || '',
   }
 }
 

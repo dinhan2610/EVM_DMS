@@ -8,64 +8,38 @@ const templateReducer = (state: TemplateState, action: TemplateAction): Template
     case 'SET_TEMPLATE_NAME':
       return { ...state, templateName: action.payload }
     
-    case 'SET_INVOICE_TYPE': {
-      const newType = action.payload
-      const newModelCode = newType === 'withCode' ? '01GTKT' : '02GTTT'
-      return { ...state, invoiceType: newType, modelCode: newModelCode }
-    }
+    case 'SET_INVOICE_TYPE':
+      return { ...state, invoiceType: action.payload }
     
-    case 'SET_INVOICE_DATE':
-      return { ...state, invoiceDate: action.payload }
-    
-    case 'SET_SYMBOL_INVOICE_TYPE': {
-      const newType = action.payload
-      const newTemplateCode = `${newType}${state.symbol.taxCode}${state.symbol.year}${state.symbol.invoiceForm}${state.symbol.management}`
+    case 'SET_SYMBOL_INVOICE_TYPE':
       return {
         ...state,
-        symbol: { ...state.symbol, invoiceType: newType },
-        templateCode: newTemplateCode,
+        symbol: { ...state.symbol, invoiceType: action.payload },
       }
-    }
     
-    case 'SET_SYMBOL_TAX_CODE': {
-      const newTaxCode = action.payload
-      const newTemplateCode = `${state.symbol.invoiceType}${newTaxCode}${state.symbol.year}${state.symbol.invoiceForm}${state.symbol.management}`
+    case 'SET_SYMBOL_TAX_CODE':
       return {
         ...state,
-        symbol: { ...state.symbol, taxCode: newTaxCode },
-        templateCode: newTemplateCode,
+        symbol: { ...state.symbol, taxCode: action.payload },
       }
-    }
     
-    case 'SET_SYMBOL_YEAR': {
-      const newYear = action.payload
-      const newTemplateCode = `${state.symbol.invoiceType}${state.symbol.taxCode}${newYear}${state.symbol.invoiceForm}${state.symbol.management}`
+    case 'SET_SYMBOL_YEAR':
       return {
         ...state,
-        symbol: { ...state.symbol, year: newYear },
-        templateCode: newTemplateCode,
+        symbol: { ...state.symbol, year: action.payload },
       }
-    }
     
-    case 'SET_SYMBOL_INVOICE_FORM': {
-      const newForm = action.payload
-      const newTemplateCode = `${state.symbol.invoiceType}${state.symbol.taxCode}${state.symbol.year}${newForm}${state.symbol.management}`
+    case 'SET_SYMBOL_INVOICE_FORM':
       return {
         ...state,
-        symbol: { ...state.symbol, invoiceForm: newForm },
-        templateCode: newTemplateCode,
+        symbol: { ...state.symbol, invoiceForm: action.payload },
       }
-    }
     
-    case 'SET_SYMBOL_MANAGEMENT': {
-      const newManagement = action.payload
-      const newTemplateCode = `${state.symbol.invoiceType}${state.symbol.taxCode}${state.symbol.year}${state.symbol.invoiceForm}${newManagement}`
+    case 'SET_SYMBOL_MANAGEMENT':
       return {
         ...state,
-        symbol: { ...state.symbol, management: newManagement },
-        templateCode: newTemplateCode,
+        symbol: { ...state.symbol, management: action.payload },
       }
-    }
     
     case 'SET_LOGO':
       // Cleanup old blob URL if exists
@@ -74,31 +48,34 @@ const templateReducer = (state: TemplateState, action: TemplateAction): Template
       }
       return { ...state, logo: action.payload }
     
-    case 'SET_LOGO_SIZE':
-      return { ...state, logoSize: action.payload }
-    
-    case 'SET_BACKGROUND_CUSTOM':
-      if (state.background.custom && state.background.custom.startsWith('blob:')) {
-        URL.revokeObjectURL(state.background.custom)
-      }
-      return { ...state, background: { ...state.background, custom: action.payload } }
-    
     case 'SET_BACKGROUND_FRAME':
       return { ...state, background: { ...state.background, frame: action.payload } }
     
     case 'SET_COMPANY_NAME':
       return { ...state, company: { ...state.company, name: action.payload } }
     
-    case 'SET_COMPANY_FIELD':
+    case 'SET_COMPANY_FIELD': {
+      // Update both the top-level field AND the fields array
+      const fieldId = action.payload.id
+      const fieldValue = action.payload.value
+      
       return {
         ...state,
         company: {
           ...state.company,
+          // Update top-level fields for direct access
+          ...(fieldId === 'name' && { name: fieldValue }),
+          ...(fieldId === 'taxCode' && { taxCode: fieldValue }),
+          ...(fieldId === 'address' && { address: fieldValue }),
+          ...(fieldId === 'phone' && { phone: fieldValue }),
+          ...(fieldId === 'bankAccount' && { bankAccount: fieldValue }),
+          // Update fields array for flexibility
           fields: state.company.fields.map((f) =>
-            f.id === action.payload.id ? { ...f, value: action.payload.value } : f
+            f.id === fieldId ? { ...f, value: fieldValue } : f
           ),
         },
       }
+    }
     
     case 'TOGGLE_COMPANY_FIELD':
       return {

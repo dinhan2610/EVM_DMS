@@ -1717,8 +1717,8 @@ const CreateVatInvoice: React.FC = () => {
       companyTaxCode: company.taxCode,
       companyAddress: company.address,
       companyPhone: company.contactPhone,
-      modelCode: selectedTemplate.serial,
-      templateCode: selectedTemplate.templateName,
+
+
     }
   }
 
@@ -3139,7 +3139,7 @@ const CreateVatInvoice: React.FC = () => {
                   blankRows={5}
                   visibility={DEFAULT_TEMPLATE_VISIBILITY}
                   bilingual={false}
-                  invoiceDate={new Date().toISOString()}
+
                   invoiceType="withCode"
                   symbol={DEFAULT_INVOICE_SYMBOL}
                   customerVisibility={{

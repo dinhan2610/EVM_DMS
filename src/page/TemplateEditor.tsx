@@ -7,8 +7,6 @@ import {
   Typography,
   TextField,
   Button,
-  Radio,
-  RadioGroup,
   FormControlLabel,
   FormControl,
   Select,
@@ -21,9 +19,6 @@ import {
   AccordionSummary,
   AccordionDetails,
   Checkbox,
-  Divider,
-  
-  Chip,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -33,18 +28,9 @@ import {
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
-import PlayCircleIcon from '@mui/icons-material/PlayCircle'
-import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import InfoIcon from '@mui/icons-material/Info'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import PrintIcon from '@mui/icons-material/Print'
-import ZoomInIcon from '@mui/icons-material/ZoomIn'
-import ZoomOutIcon from '@mui/icons-material/ZoomOut'
-import RestartAltIcon from '@mui/icons-material/RestartAlt'
-import SaveIcon from '@mui/icons-material/Save'
-import UndoIcon from '@mui/icons-material/Undo'
-import RedoIcon from '@mui/icons-material/Redo'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
 import { DragDropContext, DropResult } from '@hello-pangea/dnd'
 import { useTemplateReducer } from '@/hooks/useTemplateReducer'
@@ -57,6 +43,7 @@ import invoiceSymbolService, {
   InvoiceTypeApiResponse 
 } from '@/services/invoiceSymbolService'
 import templateService from '@/services/templateService'
+import companyService, { Company } from '@/services/companyService'
 import API_CONFIG from '@/config/api.config'
 import { mapEditorStateToApiRequest } from '@/utils/templateApiMapper'
 import type { TemplateEditorState } from '@/utils/templateApiMapper'
@@ -70,8 +57,6 @@ interface TemplateConfig {
   companyAddress: string
   companyPhone: string
   companyBankAccount: string
-  modelCode: string
-  templateCode: string
 }
 
 // Interface cho visibility
@@ -98,15 +83,11 @@ const TemplateEditor: React.FC = () => {
   
   // Set title based on mode
   usePageTitle(isEditMode ? 'Chỉnh sửa mẫu' : 'Tạo mẫu mới')
-  
-  // ✅ Ref cho input file để reset sau khi xóa
-  const logoInputRef = React.useRef<HTMLInputElement>(null)
 
   // ============ KHỞI TẠO STATE MỚI VỚI REDUCER ============
   const initialState: TemplateState = {
     templateName: 'Hóa đơn bán hàng (mẫu CB)',
     invoiceType: 'withCode',
-    invoiceDate: new Date().toISOString(),
     symbol: { 
       invoiceType: '1', // 1: HĐ điện tử GTGT
       taxCode: 'C', // C: Có mã CQT
@@ -115,8 +96,7 @@ const TemplateEditor: React.FC = () => {
       management: 'AA' // Mặc định AA
     },
     logo: null,
-    logoSize: 150,
-    background: { custom: null, frame: '/khunghoadon.png' },
+    background: { frame: '/khunghoadon.png' },
     company: {
       name: 'Công ty Cổ phần Giải pháp Tổng thể Kỷ Nguyên Số',
       taxCode: '0316882091',
@@ -146,12 +126,10 @@ const TemplateEditor: React.FC = () => {
         { id: 'note', label: 'Ghi chú', visible: false, hasCode: false },
         { id: 'warehouse', label: 'Kho nhập', visible: false, hasCode: false },
       ],
-      rowCount: 5,
+      rowCount: 3,
       sttTitle: 'STT',
       sttContent: '[STT]',
     },
-    modelCode: '01GTKT',
-    templateCode: '2C25TYY',
     settings: {
       numberFont: 'arial',
       showQrCode: true,
@@ -176,13 +154,11 @@ const TemplateEditor: React.FC = () => {
     },
   }
 
-  const { state, dispatch, canUndo, canRedo } = useTemplateReducer(initialState)
+  const { state, dispatch } = useTemplateReducer(initialState)
 
   // ============ UI STATES (giữ lại cho component) ============
   const [loading, setLoading] = useState(false)
-  const [previewScale, setPreviewScale] = useState(1.0)
   const [isSaving, setIsSaving] = useState(false)
-  const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [openAddDialog, setOpenAddDialog] = useState(false)
   const [addDialogType] = useState<'field' | 'column'>('field')
   
@@ -203,21 +179,26 @@ const TemplateEditor: React.FC = () => {
   const [showConfirmDelete, setShowConfirmDelete] = useState<{open: boolean; id: string; type: 'field' | 'column'}>({
     open: false, id: '', type: 'field'
   })
-  const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'idle'>('idle')
 
   // ============ COMPATIBILITY (tương thích với Preview) ============
   const blankRows = state.table.rowCount
-  const config: TemplateConfig = useMemo(() => ({
-    templateName: state.templateName,
-    companyLogo: state.logo,
-    companyName: state.company.name,
-    companyTaxCode: state.company.taxCode,
-    companyAddress: state.company.address,
-    companyPhone: state.company.phone,
-    companyBankAccount: state.company.bankAccount,
-    modelCode: state.modelCode,
-    templateCode: state.templateCode,
-  }), [state])
+  const config: TemplateConfig = useMemo(() => {
+    console.log('🔄 [useMemo Config] Creating config from state.company:', state.company)
+    
+    const configObject = {
+      templateName: state.templateName,
+      companyLogo: state.logo,
+      companyName: state.company.name,
+      companyTaxCode: state.company.taxCode,
+      companyAddress: state.company.address,
+      companyPhone: state.company.phone,
+      companyBankAccount: state.company.bankAccount,
+    }
+    
+    console.log('📤 [useMemo Config] Passing to preview:', configObject)
+    
+    return configObject
+  }, [state])
 
   // ✅ Luôn hiển thị đầy đủ tất cả thông tin (không cần toggle)
   const visibility = useMemo<TemplateVisibility>(() => ({
@@ -341,19 +322,13 @@ const TemplateEditor: React.FC = () => {
       }
     }
 
-    // Auto save mỗi 30s
+    // Auto save mỗi 30s - chạy ngầm không hiển thị UI
     const autoSaveInterval = setInterval(() => {
-      setAutoSaveStatus('saving')
       const draft = {
         state,
         timestamp: new Date().toISOString(),
       }
       localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(draft))
-      
-      setTimeout(() => {
-        setAutoSaveStatus('saved')
-        setTimeout(() => setAutoSaveStatus('idle'), 2000)
-      }, 500)
     }, 30000) // 30 seconds
 
     return () => clearInterval(autoSaveInterval)
@@ -361,42 +336,7 @@ const TemplateEditor: React.FC = () => {
 
   // ============ NEW HANDLERS VỚI DISPATCH ============
   
-  const handleTemplateNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    const error = validateTemplateName(value)
-    setErrors(prev => ({ ...prev, templateName: error || '' }))
-    dispatch({ type: 'SET_TEMPLATE_NAME', payload: value })
-  }, [dispatch, validateTemplateName])
 
-  const handleInvoiceTypeChange = useCallback((type: 'withCode' | 'withoutCode') => {
-    dispatch({ type: 'SET_INVOICE_TYPE', payload: type })
-    showSuccess('Đã thay đổi loại hóa đơn')
-  }, [dispatch, showSuccess])
-
-
-  const handleLogoUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      // Validate file size (max 2MB)
-      if (file.size > 2 * 1024 * 1024) {
-        setErrors(prev => ({ ...prev, logo: 'Kích thước logo không được vượt quá 2MB' }))
-        return
-      }
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        setErrors(prev => ({ ...prev, logo: 'Vui lòng chọn file ảnh' }))
-        return
-      }
-      setErrors(prev => ({ ...prev, logo: '' }))
-      const fileUrl = URL.createObjectURL(file)
-      dispatch({ type: 'SET_LOGO', payload: fileUrl })
-      showSuccess('Đã tải logo thành công')
-    }
-    // ✅ Reset input value để có thể upload lại cùng file
-    e.target.value = ''
-  }, [dispatch, showSuccess])
-
-  
   const handleAddField = useCallback((label: string, value?: string) => {
     dispatch({ type: 'ADD_COMPANY_FIELD', payload: { label, value: value || '' } })
     setOpenAddDialog(false)
@@ -437,6 +377,51 @@ const TemplateEditor: React.FC = () => {
         payload: { startIndex: source.index, endIndex: destination.index },
       })
     }
+  }, [dispatch])
+
+  // ============ FETCH COMPANY DATA FROM API ============
+  useEffect(() => {
+    const fetchCompanyData = async () => {
+      try {
+        const companyData: Company = await companyService.getDefaultCompany()
+        
+        console.log('🏢 [API Response] Company Data:', companyData)
+        console.log('📋 Fields:', {
+          companyName: companyData.companyName,
+          taxCode: companyData.taxCode,
+          address: companyData.address,
+          contactPhone: companyData.contactPhone,
+          accountNumber: companyData.accountNumber,
+          bankName: companyData.bankName,
+        })
+        
+        // Map API data to state format
+        const bankAccount = `${companyData.accountNumber} - ${companyData.bankName}`
+        
+        console.log('💾 [Dispatching] Company updates:', {
+          name: companyData.companyName,
+          taxCode: companyData.taxCode,
+          address: companyData.address,
+          phone: companyData.contactPhone,
+          bankAccount: bankAccount,
+        })
+        
+        // Update company info in state
+        dispatch({ type: 'SET_COMPANY_NAME', payload: companyData.companyName })
+        dispatch({ type: 'SET_COMPANY_FIELD', payload: { id: 'name', value: companyData.companyName } })
+        dispatch({ type: 'SET_COMPANY_FIELD', payload: { id: 'taxCode', value: companyData.taxCode } })
+        dispatch({ type: 'SET_COMPANY_FIELD', payload: { id: 'address', value: companyData.address } })
+        dispatch({ type: 'SET_COMPANY_FIELD', payload: { id: 'phone', value: companyData.contactPhone } })
+        dispatch({ type: 'SET_COMPANY_FIELD', payload: { id: 'bankAccount', value: bankAccount } })
+        
+        console.log('✅ Company data loaded and dispatched successfully')
+      } catch (error) {
+        console.error('❌ Error loading company data:', error)
+        // Keep default hardcoded values if API fails
+      }
+    }
+
+    fetchCompanyData()
   }, [dispatch])
 
   const handleBack = () => {
@@ -537,10 +522,7 @@ const TemplateEditor: React.FC = () => {
           bankAccount: state.company.bankAccount,
         },
         settings: state.settings,
-        modelCode: state.modelCode,
         background: state.background,
-        invoiceDate: state.invoiceDate,
-        templateCode: state.templateCode,
       }
       
       const layoutDefinition = mapEditorStateToApiRequest(editorState)
@@ -604,8 +586,6 @@ const TemplateEditor: React.FC = () => {
       
       const templateResponse = await templateService.createTemplate(templateData)
       console.log('Template Response:', templateResponse)
-      
-      setLastSaved(new Date())
       showSuccess(`Đã tạo mẫu hóa đơn thành công! Mã số: ${serialResponse.fullSerial || 'N/A'}`)
       
       // Redirect to template list after 1.5s
@@ -650,7 +630,6 @@ const TemplateEditor: React.FC = () => {
       }
       console.log('Auto-saving:', data)
       await new Promise((resolve) => setTimeout(resolve, 500))
-      setLastSaved(new Date())
     } catch (error) {
       console.error('Auto-save error:', error)
     } finally {
@@ -658,27 +637,26 @@ const TemplateEditor: React.FC = () => {
     }
   }, [config, state, visibility, blankRows])
 
-  const handlePrintPreview = useCallback(() => {
-    if (templateId) {
-      navigate(`/admin/templates/preview/${templateId}`)
+  const handlePrintPreview = useCallback(async () => {
+    if (!templateId) {
+      // Nếu chưa có templateId (template mới), phải save trước
+      try {
+        await handleSave()
+        // After save, handleSave will set templateId via navigate
+        // User will need to click preview again after save
+        alert('Vui lòng click "Xem Trước Bản In" lần nữa sau khi đã lưu template.')
+      } catch (error) {
+        console.error('Error saving template:', error)
+        alert('Không thể lưu template. Vui lòng kiểm tra thông tin và thử lại.')
+      }
     } else {
-      alert('Vui lòng lưu mẫu trước khi xem trước bản in')
+      // Đã có templateId, navigate trực tiếp tới preview page với API HTML
+      console.log('🎯 [TemplateEditor] Navigating to final preview (API HTML):', templateId)
+      navigate(`/admin/templates/preview/${templateId}`)
     }
-  }, [templateId, navigate])
+  }, [templateId, navigate, handleSave])
 
-  const handleZoomIn = () => {
-    setPreviewScale((prev) => Math.min(1.0, prev + 0.05)) // Max 100% để fit trong 75% container
-  }
-
-  const handleZoomOut = () => {
-    setPreviewScale((prev) => Math.max(0.4, prev - 0.05)) // Min 40%
-  }
-
-  const handleResetZoom = () => {
-    setPreviewScale(1.0) // Reset về 100%
-  }
-
-  // Keyboard shortcuts - Enhanced with Undo/Redo
+  // Keyboard shortcuts - Save and Print only
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       // Ctrl/Cmd + S: Save
@@ -692,23 +670,11 @@ const TemplateEditor: React.FC = () => {
         e.preventDefault()
         handlePrintPreview()
       }
-
-      // Ctrl/Cmd + Z: Undo
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault()
-        if (canUndo) dispatch({ type: 'UNDO' })
-      }
-
-      // Ctrl/Cmd + Y hoặc Ctrl/Cmd + Shift + Z: Redo
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
-        e.preventDefault()
-        if (canRedo) dispatch({ type: 'REDO' })
-      }
     }
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [handleSave, handlePrintPreview, canUndo, canRedo, dispatch])
+  }, [handleSave, handlePrintPreview])
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
@@ -731,136 +697,40 @@ const TemplateEditor: React.FC = () => {
           </Stack>
 
           <Stack direction="row" spacing={1.5} alignItems="center">
-            {/* Auto-save indicator */}
-            {lastSaved && (
-              <Chip
-                icon={isSaving ? <CircularProgress size={12} /> : <SaveIcon sx={{ fontSize: 14 }} />}
-                label={isSaving ? 'Đang lưu...' : `Đã lưu ${lastSaved.toLocaleTimeString('vi-VN')}`}
-                size="small"
-                color={isSaving ? 'default' : 'success'}
-                sx={{ 
-                  fontWeight: 500,
-                  fontSize: '0.75rem',
-                }}
-              />
-            )}
-
             <Tooltip title="Trợ giúp" arrow>
               <IconButton sx={{ color: '#757575' }}>
                 <HelpOutlineIcon sx={{ fontSize: 22 }} />
               </IconButton>
             </Tooltip>
 
-            {/* Print Preview Button - NEW */}
-            <Tooltip title="Xem trước bản in (Ctrl+P)" arrow>
-              <Button
-                variant="outlined"
-                startIcon={<PrintIcon />}
-                onClick={handlePrintPreview}
-                sx={{
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  fontSize: '0.875rem',
-                  px: 2,
-                  py: 0.75,
-                  borderWidth: 2,
-                  '&:hover': {
-                    borderWidth: 2,
-                    transform: 'translateY(-1px)',
-                  },
-                  transition: 'all 0.2s ease',
-                }}>
-                Xem Trước Bản In
-              </Button>
-            </Tooltip>
-
-            {/* Undo/Redo Buttons - NEW */}
-            <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-
-            <Tooltip title="Hoàn tác (Ctrl+Z)" arrow>
-              <span>
-                <IconButton
-                  size="small"
-                  onClick={() => dispatch({ type: 'UNDO' })}
-                  disabled={!canUndo}
-                  sx={{
-                    bgcolor: 'white',
-                    border: '1px solid #e0e0e0',
-                    '&:hover': { bgcolor: '#f5f5f5' },
-                    '&:disabled': { opacity: 0.5, cursor: 'not-allowed' },
-                  }}
-                >
-                  <UndoIcon fontSize="small" />
-                </IconButton>
-              </span>
-            </Tooltip>
-
-            <Tooltip title="Làm lại (Ctrl+Y)" arrow>
-              <span>
-                <IconButton
-                  size="small"
-                  onClick={() => dispatch({ type: 'REDO' })}
-                  disabled={!canRedo}
-                  sx={{
-                    bgcolor: 'white',
-                    border: '1px solid #e0e0e0',
-                    '&:hover': { bgcolor: '#f5f5f5' },
-                    '&:disabled': { opacity: 0.5, cursor: 'not-allowed' },
-                  }}
-                >
-                  <RedoIcon fontSize="small" />
-                </IconButton>
-              </span>
-            </Tooltip>
-
-            {/* Autosave Status */}
-            {autoSaveStatus === 'saved' && (
-              <Chip 
-                label="✓ Đã tự động lưu" 
-                size="small" 
-                sx={{ 
-                  bgcolor: '#e8f5e9', 
-                  color: '#2e7d32',
-                  fontSize: '0.75rem',
-                  height: 24,
-                  fontWeight: 500,
-                  '& .MuiChip-label': { px: 1 }
-                }}
-              />
-            )}
-            {autoSaveStatus === 'saving' && (
-              <Chip 
-                label="Đang lưu..." 
-                size="small" 
-                icon={<CircularProgress size={12} sx={{ color: '#1976d2' }} />}
-                sx={{ 
-                  bgcolor: '#e3f2fd', 
-                  color: '#1976d2',
-                  fontSize: '0.75rem',
-                  height: 24,
-                  fontWeight: 500,
-                  '& .MuiChip-label': { px: 1 }
-                }}
-              />
-            )}
-
+            {/* Final Preview Button - Optimized */}
             <Button
               variant="contained"
-              startIcon={<PlayCircleIcon />}
+              startIcon={<PrintIcon />}
+              onClick={handlePrintPreview}
+              disabled={!templateId}
               sx={{
                 textTransform: 'none',
                 fontWeight: 600,
-                bgcolor: '#1976d2',
                 fontSize: '0.875rem',
-                px: 2.5,
-                py: 0.75,
-                boxShadow: 'none',
-                '&:hover': { 
-                  bgcolor: '#1565c0',
-                  boxShadow: '0 2px 8px rgba(25, 118, 210, 0.25)',
+                px: 3,
+                py: 0.85,
+                bgcolor: templateId ? '#1976d2' : '#e0e0e0',
+                color: 'white',
+                boxShadow: templateId ? '0 2px 4px rgba(25, 118, 210, 0.2)' : 'none',
+                '&:hover': {
+                  bgcolor: templateId ? '#1565c0' : '#e0e0e0',
+                  boxShadow: templateId ? '0 4px 12px rgba(25, 118, 210, 0.3)' : 'none',
+                  transform: templateId ? 'translateY(-2px)' : 'none',
                 },
-              }}>
-              Xem phim hướng dẫn
+                '&:disabled': {
+                  bgcolor: '#e0e0e0',
+                  color: '#9e9e9e',
+                },
+                transition: 'all 0.2s ease',
+              }}
+            >
+              Xem Trước Cuối Cùng
             </Button>
           </Stack>
         </Stack>
@@ -868,13 +738,13 @@ const TemplateEditor: React.FC = () => {
 
       {/* Main Content */}
       <Box sx={{ px: 3, py: 3 }}>
-        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3} alignItems="flex-start">
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="flex-start">
           {/* Left - Form 30% - Sticky Sidebar */}
           <Box sx={{ 
-            width: { xs: '100%', lg: '25%' },
-            position: { lg: 'sticky' },
-            top: { lg: 16 },
-            alignSelf: { lg: 'flex-start' },
+            width: { xs: '100%', md: '30%' },
+            position: { md: 'sticky' },
+            top: { md: 16 },
+            alignSelf: { md: 'flex-start' },
           }}>
             <Paper 
               elevation={0} 
@@ -890,28 +760,6 @@ const TemplateEditor: React.FC = () => {
               <Stack spacing={2.5}>
                 
                
-
-                {/* Hình thức */}
-                <Box>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#616161', mb: 0.75, display: 'block', fontSize: '0.8125rem' }}>
-                    Hình thức hoá đơn <span style={{ color: '#d32f2f' }}>*</span>
-                  </Typography>
-                  <RadioGroup 
-                    value={state.invoiceType} 
-                    onChange={(e) => handleInvoiceTypeChange(e.target.value as 'withCode' | 'withoutCode')}
-                  >
-                    <FormControlLabel
-                      value="withCode"
-                      control={<Radio size="small" />}
-                      label={<Typography sx={{ fontSize: '0.875rem' }}>HĐ có mã của CQT</Typography>}
-                    />
-                    <FormControlLabel
-                      value="withoutCode"
-                      control={<Radio size="small" />}
-                      label={<Typography sx={{ fontSize: '0.875rem' }}>HĐ không có mã của CQT</Typography>}
-                    />
-                  </RadioGroup>
-                </Box>
 
                 {/* Ký hiệu - Theo quy định Việt Nam */}
                 <Box>
@@ -1140,124 +988,6 @@ const TemplateEditor: React.FC = () => {
                   </Box>
                 </Box>
 
-                {/* Logo */}
-                <Box>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#616161', mb: 0.75, display: 'block', fontSize: '0.8125rem' }}>
-                    Logo
-                  </Typography>
-                  <Button
-                    component="label"
-                    variant="outlined"
-                    fullWidth
-                    startIcon={<CloudUploadIcon />}
-                    sx={{
-                      textTransform: 'none',
-                      fontSize: '0.875rem',
-                      py: 1.25,
-                      borderStyle: 'dashed',
-                      borderWidth: 2,
-                      borderColor: errors.logo ? '#d32f2f' : '#d0d0d0',
-                      color: errors.logo ? '#d32f2f' : '#616161',
-                      transition: 'all 0.3s ease',
-                      '&:hover': { 
-                        borderColor: errors.logo ? '#d32f2f' : '#1976d2', 
-                        bgcolor: errors.logo ? '#ffebee' : '#e3f2fd',
-                        color: errors.logo ? '#d32f2f' : '#1976d2',
-                        transform: 'translateY(-2px)',
-                      },
-                    }}>
-                    {config.companyLogo ? '✓ Đã tải lên logo' : 'Tải lên logo công ty'}
-                    <input 
-                      ref={logoInputRef}
-                      type="file" 
-                      hidden 
-                      accept="image/*" 
-                      onChange={handleLogoUpload} 
-                    />
-                  </Button>
-                  
-                  {/* Error message cho Logo */}
-                  {errors.logo && (
-                    <Typography sx={{ fontSize: '0.75rem', color: '#d32f2f', mt: 0.5 }}>
-                      {errors.logo}
-                    </Typography>
-                  )}
-                  
-                  {config.companyLogo && (
-                    <Box 
-                      sx={{ 
-                        mt: 1.5, 
-                        p: 1.5,
-                        bgcolor: '#f9f9f9',
-                        borderRadius: 1.5,
-                        border: '1px solid #e0e0e0',
-                        position: 'relative',
-                        textAlign: 'center',
-                        transition: 'all 0.2s ease',
-                        '&:hover': {
-                          borderColor: '#1976d2',
-                          boxShadow: '0 2px 8px rgba(25, 118, 210, 0.1)',
-                        },
-                      }}>
-                      {/* Quick delete button */}
-                      <Tooltip title="Xóa logo" arrow>
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            dispatch({ type: 'SET_LOGO', payload: null })
-                            // ✅ Reset input file để có thể upload lại
-                            if (logoInputRef.current) {
-                              logoInputRef.current.value = ''
-                            }
-                            showSuccess('Đã xóa logo')
-                          }}
-                          sx={{
-                            position: 'absolute',
-                            top: 8,
-                            right: 8,
-                            bgcolor: 'white',
-                            boxShadow: 1,
-                            '&:hover': { bgcolor: '#ffebee', color: '#d32f2f' },
-                          }}
-                        >
-                          <DeleteOutlineIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      
-                      <img 
-                        src={config.companyLogo} 
-                        alt="Logo preview" 
-                        style={{ 
-                          maxWidth: '100%', 
-                          maxHeight: 100, 
-                          objectFit: 'contain',
-                          borderRadius: 4,
-                        }} 
-                      />
-                      <Typography sx={{ fontSize: '0.75rem', color: '#9e9e9e', mt: 1 }}>
-                        Logo công ty
-                      </Typography>
-                    </Box>
-                  )}
-                  
-                  {/* Empty state cho logo */}
-                  {!config.companyLogo && !errors.logo && (
-                    <Box sx={{ 
-                      mt: 1, 
-                      p: 2, 
-                      bgcolor: '#f5f9ff', 
-                      borderRadius: 1,
-                      border: '1px dashed #bbdefb',
-                    }}>
-                      <Typography sx={{ fontSize: '0.75rem', color: '#1976d2', textAlign: 'center' }}>
-                        💡 Tải lên logo công ty để hiển thị trên hóa đơn
-                      </Typography>
-                    </Box>
-                  )}
-                </Box>
-
-              
-
                 {/* Khung viền mẫu - với Preview Grid từ API */}
                 <Box>
                   <Typography variant="caption" sx={{ fontWeight: 600, color: '#616161', mb: 0.75, display: 'block', fontSize: '0.8125rem' }}>
@@ -1460,94 +1190,6 @@ const TemplateEditor: React.FC = () => {
                     </AccordionSummary>
                     <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
                       <Stack spacing={2.5}>
-                        {/* Tên mẫu */}
-                        <Box>
-                          <Typography sx={{ 
-                            fontSize: '0.8125rem', 
-                            fontWeight: 600, 
-                            color: '#37474f',
-                            mb: 1,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 0.5,
-                          }}>
-                            📝 Tên mẫu hóa đơn
-                          </Typography>
-                          <TextField
-                            fullWidth
-                            size="small"
-                            value={state.templateName}
-                            onChange={handleTemplateNameChange}
-                            error={!!errors.templateName}
-                            helperText={errors.templateName}
-                            placeholder="Ví dụ: Hóa đơn bán hàng (mẫu CB)"
-                            sx={{
-                              '& .MuiOutlinedInput-root': {
-                                fontSize: '0.8125rem',
-                                bgcolor: '#fafafa',
-                                '&:hover': { bgcolor: '#f5f5f5' },
-                                '&.Mui-focused': { bgcolor: '#fff' },
-                              },
-                            }}
-                          />
-                        </Box>
-
-                        {/* Ngày lập hóa đơn */}
-                        <Box>
-                          <Typography sx={{ 
-                            fontSize: '0.8125rem', 
-                            fontWeight: 600, 
-                            color: '#37474f',
-                            mb: 1,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 0.5,
-                          }}>
-                            📅 Ngày lập hóa đơn (Invoice Date)
-                          </Typography>
-                          <TextField
-                            fullWidth
-                            size="small"
-                            type="date"
-                            value={new Date(state.invoiceDate).toISOString().split('T')[0]}
-                            onChange={(e) => dispatch({ type: 'SET_INVOICE_DATE', payload: new Date(e.target.value).toISOString() })}
-                            InputLabelProps={{ shrink: true }}
-                            sx={{
-                              '& .MuiOutlinedInput-root': {
-                                fontSize: '0.8125rem',
-                                bgcolor: '#fafafa',
-                                '&:hover': { bgcolor: '#f5f5f5' },
-                                '&.Mui-focused': { bgcolor: '#fff' },
-                              },
-                            }}
-                            helperText="Tự động lấy ngày hiện tại, có thể chỉnh sửa"
-                          />
-                          <Box sx={{ 
-                            mt: 0.5, 
-                            p: 1, 
-                            bgcolor: '#e3f2fd', 
-                            borderRadius: 1,
-                            border: '1px solid #bbdefb',
-                          }}>
-                            <Typography sx={{ fontSize: '0.75rem', color: '#1565c0', fontWeight: 500 }}>
-                              📌 Hiển thị: {new Date(state.invoiceDate).toLocaleDateString('vi-VN', { 
-                                weekday: 'long', 
-                                year: 'numeric', 
-                                month: 'long', 
-                                day: 'numeric' 
-                              })}
-                            </Typography>
-                            <Typography sx={{ fontSize: '0.7rem', color: '#1976d2', mt: 0.25 }}>
-                              English: {new Date(state.invoiceDate).toLocaleDateString('en-US', { 
-                                weekday: 'long', 
-                                year: 'numeric', 
-                                month: 'long', 
-                                day: 'numeric' 
-                              })}
-                            </Typography>
-                          </Box>
-                        </Box>
-
                         {/* QR Code */}
                         <Paper
                           elevation={0}
@@ -1634,27 +1276,6 @@ const TemplateEditor: React.FC = () => {
               {/* Buttons */}
               <Stack direction="row" spacing={2} sx={{ mt: 3, pt: 2, borderTop: '1px solid #e0e0e0' }}>
                 <Button
-                  variant="outlined"
-                  fullWidth
-                  onClick={handleBack}
-                  disabled={loading}
-                  sx={{
-                    textTransform: 'none',
-                    fontSize: '0.875rem',
-                    fontWeight: 600,
-                    py: 1.2,
-                    borderColor: '#d0d0d0',
-                    color: '#616161',
-                    transition: 'all 0.2s ease',
-                    '&:hover': { 
-                      borderColor: '#999', 
-                      bgcolor: '#f5f5f5',
-                      transform: 'translateY(-1px)',
-                    },
-                  }}>
-                  Quay lại
-                </Button>
-                <Button
                   variant="contained"
                   fullWidth
                   onClick={handleContinue}
@@ -1685,75 +1306,32 @@ const TemplateEditor: React.FC = () => {
           </Box>
 
           {/* Right - Preview 70% */}
-          <Box sx={{ width: { xs: '100%', lg: '75%' } }}>
-            {/* Zoom Controls */}
-            <Stack 
-              direction="row" 
-              spacing={1} 
-              alignItems="center" 
-              justifyContent="space-between"
-              sx={{ mb: 1.5 }}
+          <Box sx={{ 
+            width: { xs: '100%', md: '70%' },
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            {/* Info Alert - Smart Preview Explanation */}
+            <Alert 
+              severity="info"
+              icon={<InfoIcon />}
+              sx={{ 
+                mb: 2,
+                borderRadius: 2,
+                '& .MuiAlert-message': { width: '100%' },
+              }}
             >
-              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
-                📄 Xem trước mẫu hóa đơn (trang A4)
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                ✏️ Chế độ Chỉnh sửa
               </Typography>
-              
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Tooltip title="Thu nhỏ (Ctrl + -)">
-                  <IconButton 
-                    size="small" 
-                    onClick={handleZoomOut}
-                    sx={{
-                      bgcolor: 'white',
-                      border: '1px solid #e0e0e0',
-                      '&:hover': { bgcolor: '#f5f5f5' },
-                    }}
-                  >
-                    <ZoomOutIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                
-                <Chip 
-                  label={`${Math.round(previewScale * 100)}%`} 
-                  size="small"
-                  sx={{
-                    fontWeight: 600,
-                    bgcolor: 'white',
-                    border: '1px solid #e0e0e0',
-                    minWidth: 60,
-                  }}
-                />
-                
-                <Tooltip title="Phóng to (Ctrl + +)">
-                  <IconButton 
-                    size="small" 
-                    onClick={handleZoomIn}
-                    sx={{
-                      bgcolor: 'white',
-                      border: '1px solid #e0e0e0',
-                      '&:hover': { bgcolor: '#f5f5f5' },
-                    }}
-                  >
-                    <ZoomInIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                
-                <Tooltip title="Vừa màn hình">
-                  <IconButton 
-                    size="small" 
-                    onClick={handleResetZoom}
-                    sx={{
-                      bgcolor: 'white',
-                      border: '1px solid #e0e0e0',
-                      '&:hover': { bgcolor: '#f5f5f5' },
-                    }}
-                  >
-                    <RestartAltIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Stack>
-            </Stack>
+              <Typography variant="caption" sx={{ display: 'block', lineHeight: 1.6 }}>
+                • <strong>Kéo thả logo:</strong> Click và kéo logo để di chuyển vị trí<br />
+                • <strong>Điều chỉnh kích thước:</strong> Dùng slider bên trái để thay đổi size logo<br />
+                • <strong>Tự động lưu:</strong> Thay đổi của bạn sẽ được lưu khi nhấn "Tiếp tục"
+              </Typography>
+            </Alert>
 
+            {/* Zoom Controls */}
             {/* Preview Container - Optimized for 75% width */}
             <Paper 
               elevation={0} 
@@ -1766,8 +1344,6 @@ const TemplateEditor: React.FC = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                overflow: 'visible', // Visible để hiển thị đầy đủ viền
-                minHeight: 'calc(100vh - 220px)', // Fit viewport
                 position: 'relative',
                 '&:hover': {
                   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
@@ -1775,42 +1351,16 @@ const TemplateEditor: React.FC = () => {
                 },
               }}>
               
-              {/* Page 1 Indicator */}
+              {/* Smart Preview: Backend HTML (100% accurate) or React fallback */}
               <Box
                 sx={{
-                  width: '100%',
-                  mb: 1.5,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1.5,
-                }}
-              >
-                <Divider sx={{ flex: 1, borderColor: '#bdbdbd' }} />
-                <Chip 
-                  label="📄 Trang 1" 
-                  size="small" 
-                  sx={{ 
-                    bgcolor: 'white',
-                    fontWeight: 600,
-                    fontSize: '0.75rem',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                  }} 
-                />
-                <Divider sx={{ flex: 1, borderColor: '#bdbdbd' }} />
-              </Box>
-
-              {/* Invoice Preview with Scale Transform - Centered & Contained */}
-              <Box
-                sx={{
-                  transform: `scale(${previewScale})`,
-                  transformOrigin: 'top center',
-                  transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  // Scale được xử lý bên trong TemplatePreviewIframe
                   boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)',
                   borderRadius: 1.5,
-                  overflow: 'visible', // Visible để không cắt viền invoice
-                  bgcolor: 'transparent', // Transparent để thấy viền
+                  overflow: 'visible',
+                  bgcolor: 'transparent',
                   mb: 2,
-                  maxWidth: '100%', // Không vượt quá container
+                  width: '100%',
                   display: 'flex',
                   justifyContent: 'center',
                   '&:hover': {
@@ -1818,14 +1368,13 @@ const TemplateEditor: React.FC = () => {
                   },
                 }}
               >
+                {/* ✅ Luôn dùng React Preview để edit được (drag logo, adjust size) */}
                 <InvoiceTemplatePreview
                   config={config}
                   visibility={visibility}
                   blankRows={blankRows}
-                  backgroundFrame={state.background.custom || state.background.frame}
+                  backgroundFrame={state.background.frame}
                   bilingual={state.settings.bilingual}
-                  invoiceDate={state.invoiceDate}
-                  logoSize={state.logoSize}
                   invoiceType={state.invoiceType}
                   symbol={state.symbol}
                   customerVisibility={{
@@ -1838,60 +1387,6 @@ const TemplateEditor: React.FC = () => {
                   }}
                 />
               </Box>
-
-              {/* Pagination Info - Enhanced */}
-              <Stack 
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={1.5}
-                alignItems="center"
-                sx={{
-                  bgcolor: 'white',
-                  px: 2.5,
-                  py: 1.25,
-                  borderRadius: 1.5,
-                  border: '1px solid #e0e0e0',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                }}
-              >
-                <Stack direction="row" alignItems="center" spacing={0.5}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#424242' }}>
-                    📏 Kích thước:
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    A4 (210 × 297mm)
-                  </Typography>
-                </Stack>
-                
-                <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
-                
-                <Stack direction="row" alignItems="center" spacing={0.5}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#424242' }}>
-                    🔍 Zoom:
-                  </Typography>
-                  <Chip 
-                    label={`${Math.round(previewScale * 100)}%`}
-                    size="small"
-                    sx={{ 
-                      height: 20,
-                      fontSize: '0.7rem',
-                      fontWeight: 600,
-                      bgcolor: previewScale >= 1.0 ? '#e8f5e9' : previewScale <= 0.5 ? '#fff3e0' : '#e3f2fd',
-                      color: previewScale >= 1.0 ? '#2e7d32' : previewScale <= 0.5 ? '#e65100' : '#1565c0',
-                    }}
-                  />
-                </Stack>
-                
-                <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
-                
-                <Stack direction="row" alignItems="center" spacing={0.5}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#424242' }}>
-                    📄 Trang:
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    1/1
-                  </Typography>
-                </Stack>
-              </Stack>
 
             </Paper>
           </Box>

@@ -39,6 +39,7 @@ export const API_CONFIG = {
       GET_ALL: '/InvoiceTemplate',
       GET_BY_ID: (id: number) => `/InvoiceTemplate/${id}`,
       UPDATE: (id: number) => `/InvoiceTemplate/${id}`,
+      PREVIEW_HTML: (id: number) => `/InvoiceTemplate/preview-template/${id}`, // ✅ NEW: Get rendered HTML preview
     },
     INVOICE: {
       CREATE: '/Invoice',

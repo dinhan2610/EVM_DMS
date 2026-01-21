@@ -145,6 +145,52 @@ export const createSerial = async (data: CreateSerialRequest): Promise<SerialRes
   }
 }
 
+// ==================== TEMPLATE PREVIEW API FUNCTIONS ====================
+
+/**
+ * Get template preview HTML from backend
+ * This endpoint returns fully rendered HTML with inline CSS
+ * Used for: Final preview, Print, PDF generation
+ * 
+ * @param templateId - Template ID
+ * @returns HTML string ready for display in iframe or print
+ */
+export const getTemplatePreviewHtml = async (
+  templateId: number
+): Promise<string> => {
+  try {
+    console.log('[getTemplatePreviewHtml] Fetching preview for template:', templateId)
+    
+    const response = await axios.get<string>(
+      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.TEMPLATE.PREVIEW_HTML(templateId)}`,
+      {
+        headers: getAuthHeaders(),
+        responseType: 'text', // ✅ Important: Get as text, not JSON
+      }
+    )
+    
+    console.log('[getTemplatePreviewHtml] Success, HTML length:', response.data.length)
+    return response.data
+  } catch (error) {
+    // Fallback: Return empty HTML with error message
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      console.warn('[getTemplatePreviewHtml] Template not found, returning empty preview')
+      return `
+        <!DOCTYPE html>
+        <html>
+          <head><meta charset="UTF-8"><title>Template Not Found</title></head>
+          <body style="font-family: Arial; padding: 40px; text-align: center;">
+            <h2>Template không tồn tại</h2>
+            <p>Vui lòng tạo và lưu template trước khi xem preview.</p>
+          </body>
+        </html>
+      `
+    }
+    
+    return handleApiError(error, 'getTemplatePreviewHtml')
+  }
+}
+
 /**
  * Get all serials
  * @returns Array of serials
