@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hóa đơn GTGT - 100% Match React UI</title>
+  <style>
+    /* ============================================================================
+       RESET & BASE - Matching MUI defaults
+       ============================================================================ */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: "Roboto", "Helvetica", "Arial", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      background-color: #f5f5f5;
+      color: rgba(0, 0, 0, 0.87);
+      line-height: 1.5;
+      font-size: 1rem;
+      font-weight: 400;
+      letter-spacing: 0.00938em;
+    }
+    
+    /* Convert rem to px: 1rem = 16px in MUI default */
+    /* 0.75rem = 12px, 0.8rem = 12.8px, 0.9rem = 14.4px, 1.65rem = 26.4px */
+    
+    /* ============================================================================
+       A4 PAPER CONTAINER - Matches MUI Paper + sx props
+       ============================================================================ */
+    .invoice-paper {
+      /* React: margin: '0 auto', padding: '1.5cm 1.2cm' */
+      margin: 0 auto;
+      padding: 1.5cm 1.2cm;
+      
+      /* React: width: '100%', maxWidth: '210mm', minHeight: '297mm' */
+      width: 100%;
+      max-width: 210mm;
+      min-height: 297mm;
+      
+      /* React: boxSizing: 'border-box', bgcolor: 'white' */
+      box-sizing: border-box;
+      background-color: #fff;
+      
+      /* React: overflow: 'visible', display: 'flex', flexDirection: 'column' */
+      overflow: visible;
+      display: flex;
+      flex-direction: column;
+      
+      /* React: position: 'relative' */
+      position: relative;
+      
+      /* React: elevation={0} means no box-shadow */
+      box-shadow: none;
+      
+      /* Background frame support */
+      background-size: 100% 100%;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+    
+    @media print {
+      body {
+        background: white;
+      }
+      .invoice-paper {
+        width: 210mm;
+        max-width: 210mm;
+        padding: 1.2cm 1cm;
+        box-shadow: none;
+        margin: 0;
+        min-height: 0;
+      }
+    }
+    
+    @media (max-width: 900px) {
+      .invoice-paper {
+        width: 100%;
+        max-width: 100%;
+        padding: 1.5rem 1rem;
+        min-height: auto;
+      }
+    }
+    
+    /* ============================================================================
+       WATERMARK - "BẢN NHÁP"
+       React: position: 'absolute', top: '50%', left: '50%', 
+       transform: 'translate(-50%, -50%) rotate(-45deg)',
+       fontSize: '120px', fontWeight: 900, color: 'rgba(255, 107, 107, 0.15)'
+       ============================================================================ */
+    .watermark {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-45deg);
+      font-size: 120px;
+      font-weight: 900;
+      color: rgba(255, 107, 107, 0.15);
+      text-transform: uppercase;
+      letter-spacing: 20px;
+      pointer-events: none;
+      z-index: 0;
+      user-select: none;
+      white-space: nowrap;
+    }
+    
+    /* ============================================================================
+       CONTENT WRAPPER
+       React: position: 'relative', flex: 1, display: 'flex', 
+       flexDirection: 'column', zIndex: 1
+       ============================================================================ */
+    .content-wrapper {
+      position: relative;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      z-index: 1;
+    }
+    
+    /* ============================================================================
+       HEADER ROW (Logo + Title)
+       React: display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+       mb: 2.5 (20px), mt: 0.5 (4px), position: 'relative', minHeight: '80px'
+       ============================================================================ */
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      margin-top: 4px;
+      position: relative;
+      min-height: 80px;
+    }
+    
+    /* Logo Container - React: flex: 0, minWidth: '130px', position: 'relative' */
+    .logo-container {
+      flex: 0 0 auto;
+      min-width: 130px;
+      position: relative;
+    }
+    
+    /* Logo Wrapper - React: position: 'relative', width: '120px', height: 'auto' */
+    .logo-wrapper {
+      position: relative;
+      width: 120px;
+      height: auto;
+    }
+    
+    /* Logo Image - React: width: '120px', marginTop: '-55px' */
+    .logo-wrapper img {
+      width: 120px;
+      height: auto;
+      object-fit: contain;
+      display: block;
+      margin-top: -55px;
+    }
+    
+    /* Title Container (Center Absolute)
+       React: position: 'absolute', left: '50%', transform: 'translateX(-50%)',
+       width: '60%', maxWidth: '500px', textAlign: 'center', zIndex: 1 */
+    .title-container {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 60%;
+      max-width: 500px;
+      text-align: center;
+      z-index: 1;
+    }
+    
+    /* Main Title
+       React: fontSize: '1.65rem' (26.4px), fontWeight: 'bold', lineHeight: 1.3,
+       textTransform: 'uppercase', mb: 0.2 (1.6px) */
+    .main-title {
+      text-transform: uppercase;
+      font-size: 1.65rem;
+      font-weight: 700;
+      line-height: 1.3;
+      letter-spacing: 0;
+      margin-bottom: 1.6px;
+      white-space: nowrap;
+      max-width: 95%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    
+    /* Bilingual Subtitle
+       React: fontSize: '0.95rem' (15.2px), fontWeight: 'bold', lineHeight: 1.2,
+       textTransform: 'uppercase', mb: 0.5 (4px) */
+    .subtitle-bilingual {
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      line-height: 1.2;
+      letter-spacing: 0;
+      margin-bottom: 4px;
+      white-space: nowrap;
+    }
+    
+    /* Header Spacer - React: flex: 1 */
+    .header-spacer {
+      flex: 1 1 auto;
+    }
+    
+    /* ============================================================================
+       METADATA ROW (Tax Code, Date, Symbol, Number)
+       React: display: 'flex', justifyContent: 'space-between', 
+       mb: 0.3 (2.4px), mt: -1 (-8px)
+       ============================================================================ */
+    .metadata-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 2.4px;
+      margin-top: -8px;
+    }
+    
+    .metadata-col {
+      flex: 1 1 0%;
+    }
+    
+    .metadata-col-center {
+      text-align: center;
+    }
+    
+    .metadata-col-right {
+      text-align: right;
+    }
+    
+    /* Metadata Text - React: fontSize: '0.75rem' (12px), lineHeight: 1.5, mb: 0.2 (1.6px) */
+    .metadata-text {
+      font-size: 0.75rem;
+      line-height: 1.5;
+      margin-bottom: 1.6px;
+      font-weight: 400;
+      letter-spacing: 0.00938em;
+    }
+    
+    .metadata-text.italic {
+      font-style: italic;
+    }
+    
+    /* Symbol/Number - React: fontSize: '0.75rem', lineHeight: 1.8, mb: 0.5 (4px) */
+    .metadata-symbol {
+      font-size: 0.75rem;
+      line-height: 1.8;
+      margin-bottom: 4px;
+      font-weight: 400;
+    }
+    
+    /* Draft Badge
+       React: color: '#ff6b6b', fontWeight: 600, fontStyle: 'italic',
+       backgroundColor: '#fff3cd', padding: '2px 6px', borderRadius: '3px',
+       border: '1px solid #ffc107' */
+    .draft-badge {
+      color: #ff6b6b;
+      font-weight: 600;
+      font-style: italic;
+      background-color: #fff3cd;
+      padding: 2px 6px;
+      border-radius: 3px;
+      border: 1px solid #ffc107;
+      display: inline;
+    }
+    
+    /* ============================================================================
+       DIVIDER - React: my: 1 (8px top and bottom)
+       MUI Divider: border-top: 1px solid rgba(0, 0, 0, 0.12)
+       ============================================================================ */
+    .divider {
+      border: none;
+      border-top: 1px solid rgba(0, 0, 0, 0.12);
+      margin: 8px 0;
+    }
+    
+    /* ============================================================================
+       COMPANY INFO SECTION
+       React: display: 'flex', gap: 3 (24px), mb: 1.2 (9.6px)
+       Flex ratio: company 82, qr 18
+       ============================================================================ */
+    .company-section {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 9.6px;
+    }
+    
+    .company-info-col {
+      flex: 82 1 0%;
+    }
+    
+    .qr-col {
+      flex: 18 1 0%;
+      text-align: right;
+    }
+    
+    /* Info Text
+       React: fontSize: '0.75rem' (12px), mb: 0.3 (2.4px), lineHeight: 1.6,
+       overflow: 'hidden', textOverflow: 'ellipsis' */
+    .info-text {
+      font-size: 0.75rem;
+      line-height: 1.6;
+      margin-bottom: 2.4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 400;
+      letter-spacing: 0.00938em;
+    }
+    
+    .info-text:last-child {
+      margin-bottom: 0;
+    }
+    
+    /* Two Column Row (Tax + Phone)
+       React: display: 'flex', gap: 3 (24px), mb: 0.3 (2.4px) */
+    .two-col-row {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 2.4px;
+    }
+    
+    /* React: width: 'calc(50% - 12px)' */
+    .two-col-item {
+      width: calc(50% - 12px);
+    }
+    
+    /* QR Placeholder
+       React: width: 65, height: 65, border: '1px dashed #999',
+       bgcolor: '#f9f9f9', borderRadius: 0.5 (4px) */
+    .qr-placeholder {
+      width: 65px;
+      height: 65px;
+      border: 1px dashed #999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #f9f9f9;
+      border-radius: 4px;
+      margin-left: auto;
+      font-size: 0.7rem;
+      color: rgba(0, 0, 0, 0.6);
+    }
+    
+    /* ============================================================================
+       CUSTOMER INFO SECTION
+       React: display: 'flex', gap: 3 (24px), mb: 1 (8px)
+       Same flex ratio 82/18
+       ============================================================================ */
+    .customer-section {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 8px;
+    }
+    
+    .customer-info-col {
+      flex: 82 1 0%;
+    }
+    
+    .customer-spacer-col {
+      flex: 18 1 0%;
+    }
+    
+    /* ============================================================================
+       PRODUCT TABLE
+       React: my: 1 (8px), bgcolor: 'transparent', border: '1px solid #000'
+       ============================================================================ */
+    .table-container {
+      margin: 8px 0;
+      background: transparent;
+    }
+    
+    .product-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #000;
+      background: transparent;
+      font-size: 0.875rem;
+    }
+    
+    /* Table Header
+       React: fontWeight: 'bold', fontSize: '0.75rem' (12px), padding: '5px 6px',
+       border: '1px solid #000', bgcolor: 'transparent' */
+    .product-table th {
+      font-weight: 700;
+      font-size: 0.75rem;
+      padding: 5px 6px;
+      border: 1px solid #000;
+      background: transparent;
+      vertical-align: middle;
+      text-align: center;
+    }
+    
+    /* Table header bilingual styling */
+    .th-main {
+      font-size: 0.75rem;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+    
+    .th-bilingual {
+      font-size: 0.7rem;
+      font-style: italic;
+      line-height: 1.3;
+      font-weight: 400;
+    }
+    
+    /* Column widths from React */
+    .col-stt { width: 40px; }
+    .col-name { min-width: 180px; }
+    .col-unit { width: 50px; }
+    .col-qty { width: 60px; }
+    .col-price { width: 85px; }
+    .col-vat { width: 55px; }
+    .col-total { width: 90px; }
+    
+    /* Table Body
+       React: fontSize: '0.8rem' (12.8px), padding: '6px 8px',
+       border: '1px solid #000', bgcolor: 'transparent' */
+    .product-table td {
+      font-size: 0.8rem;
+      padding: 6px 8px;
+      border: 1px solid #000;
+      background: transparent;
+      vertical-align: middle;
+    }
+    
+    .td-center { text-align: center; }
+    .td-left { text-align: left; }
+    .td-right { text-align: right; }
+    
+    /* Notes Cell
+       React: fontStyle: 'italic', pt: 0, pl: 3 (24px), fontSize: '0.75rem',
+       padding: '0 8px 4px 24px', color: 'text.secondary' or '#aaa',
+       border: '1px solid #000', borderTop: 'none' */
+    .notes-cell-empty {
+      padding: 4px 8px;
+      border: 1px solid #000;
+      border-top: none;
+      background: transparent;
+    }
+    
+    .notes-cell {
+      font-style: italic;
+      padding: 0 8px 4px 24px;
+      font-size: 0.75rem;
+      color: rgba(0, 0, 0, 0.6);
+      border: 1px solid #000;
+      border-top: none;
+      background: transparent;
+    }
+    
+    .notes-placeholder {
+      color: #aaa;
+    }
+    
+    /* ============================================================================
+       TOTALS SECTION
+       React: display: 'flex', justifyContent: 'flex-end', mb: 1 (8px)
+       Box width: '50%', Stack spacing: 0.4 (3.2px)
+       ============================================================================ */
+    .totals-section {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 8px;
+      align-items: flex-start;
+    }
+    
+    .totals-box {
+      width: 50%;
+    }
+    
+    .totals-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 3.2px;
+    }
+    
+    /* React: Stack direction="row" justifyContent="space-between" */
+    .totals-row {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    /* React: fontSize: '0.8rem' (12.8px) */
+    .totals-label {
+      font-size: 0.8rem;
+      font-weight: 400;
+    }
+    
+    .totals-value {
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+    
+    /* Discount - React: color: 'error.main' (#d32f2f in MUI default theme) */
+    .totals-discount {
+      color: #d32f2f;
+    }
+    
+    /* Divider in totals - React: my: 0.4 (3.2px) */
+    .totals-divider {
+      border: none;
+      border-top: 1px solid rgba(0, 0, 0, 0.12);
+      margin: 3.2px 0;
+    }
+    
+    /* Total Final - React: fontSize: '0.9rem' (14.4px), color: 'primary.main' (#1976d2) */
+    .totals-final-label {
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+    
+    .totals-final-value {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #1976d2;
+    }
+    
+    /* ============================================================================
+       AMOUNT IN WORDS
+       React: mb: 1.5 (12px), fontStyle: 'italic', fontSize: '0.8rem', lineHeight: 1.6
+       ============================================================================ */
+    .amount-words {
+      margin-bottom: 12px;
+      font-style: italic;
+      font-size: 0.8rem;
+      line-height: 1.6;
+      font-weight: 400;
+    }
+    
+    /* ============================================================================
+       SIGNATURE SECTION
+       React: display: 'flex', gap: 3 (24px), mt: 1.8 (14.4px)
+       ============================================================================ */
+    .signature-section {
+      display: flex;
+      gap: 24px;
+      margin-top: 14.4px;
+    }
+    
+    .signature-col {
+      flex: 1 1 0%;
+      text-align: center;
+    }
+    
+    /* React: fontSize: '0.8rem', mb: 0.4 (3.2px), fontWeight: 'bold' */
+    .signature-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-bottom: 3.2px;
+    }
+    
+    /* React: fontSize: '0.75rem', fontStyle: 'italic', color: 'text.secondary' */
+    .signature-subtitle {
+      font-size: 0.75rem;
+      font-style: italic;
+      color: rgba(0, 0, 0, 0.6);
+    }
+    
+    .signature-subtitle-block {
+      display: block;
+      margin-bottom: 8px;
+    }
+    
+    /* ============================================================================
+       BILINGUAL TEXT STYLE
+       React: fontSize: '0.85em', fontStyle: 'italic', ml: 0.5 (4px)
+       ============================================================================ */
+    .bilingual-text {
+      font-size: 0.85em;
+      font-style: italic;
+      margin-left: 4px;
+    }
+    
+    /* ============================================================================
+       UTILITY CLASSES
+       ============================================================================ */
+    strong { font-weight: 700; }
+    .text-bold { font-weight: 700; }
+    .text-italic { font-style: italic; }
+  </style>
+</head>
+<body>
+  <!-- ============================================================================
+       INVOICE TEMPLATE - 100% MATCH WITH REACT UI
+       Replace {{variables}} with actual data when generating
+       ============================================================================ -->
+  <div class="invoice-paper" style="background-image: url('{{backgroundFrame}}');">
+    
+    <!-- WATERMARK (show if no invoice number) -->
+    <!-- <div class="watermark">BẢN NHÁP</div> -->
+    
+    <div class="content-wrapper">
+      
+      <!-- ========== HEADER: Logo + Title ========== -->
+      <div class="header-row">
+        <!-- Logo (Left) -->
+        <div class="logo-container">
+          <div class="logo-wrapper">
+            <img src="/logokns.png" alt="Company Logo">
+          </div>
+        </div>
+        
+        <!-- Title (Center Absolute) -->
+        <div class="title-container">
+          <div class="main-title">HÓA ĐƠN GIÁ TRỊ GIA TĂNG</div>
+          <!-- Bilingual subtitle (show if bilingual = true) -->
+          <!-- <div class="subtitle-bilingual">(VAT INVOICE)</div> -->
+        </div>
+        
+        <!-- Spacer (Right) -->
+        <div class="header-spacer"></div>
+      </div>
+      
+      <!-- ========== METADATA ROW: Tax Code/Date (Center), Symbol/Number (Right) ========== -->
+      <div class="metadata-row">
+        <!-- Left Empty -->
+        <div class="metadata-col"></div>
+        
+        <!-- Center: Tax Code + Date -->
+        <div class="metadata-col metadata-col-center">
+          <!-- Show if invoiceType === 'withCode' -->
+          <div class="metadata-text">
+            Mã CQT<!-- <span class="bilingual-text">(Tax Code)</span> -->: <strong>{{taxAuthorityCode}}</strong>
+          </div>
+          <div class="metadata-text italic">
+            Ngày {{day}} tháng {{month}} năm {{year}}
+          </div>
+        </div>
+        
+        <!-- Right: Symbol + Number -->
+        <div class="metadata-col metadata-col-right">
+          <div class="metadata-symbol">
+            Ký hiệu<!-- <span class="bilingual-text">(Symbol)</span> -->: <strong>{{symbol}}</strong>
+          </div>
+          <div class="metadata-symbol">
+            Số<!-- <span class="bilingual-text">(No.)</span> -->: 
+            <!-- If has invoice number: -->
+            <strong>{{invoiceNumber}}</strong>
+            <!-- If no invoice number (draft): -->
+            <!-- <span class="draft-badge">BẢN NHÁP</span> -->
+          </div>
+        </div>
+      </div>
+      
+      <hr class="divider">
+      
+      <!-- ========== COMPANY INFO SECTION (Flex 82/18) ========== -->
+      <div class="company-section">
+        <!-- Left: Company Info (82%) -->
+        <div class="company-info-col">
+          <!-- Company Name -->
+          <div class="info-text">
+            Đơn vị bán<!-- <span class="bilingual-text">(Seller)</span> -->: <strong>{{companyName}}</strong>
+          </div>
+          
+          <!-- Tax Code + Phone (2 columns) -->
+          <div class="two-col-row">
+            <div class="two-col-item">
+              <div class="info-text">
+                Mã số thuế<!-- <span class="bilingual-text">(Tax ID)</span> -->: <strong>{{companyTaxCode}}</strong>
+              </div>
+            </div>
+            <div class="two-col-item">
+              <div class="info-text">
+                Điện thoại<!-- <span class="bilingual-text">(Phone)</span> -->: <strong>{{companyPhone}}</strong>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Address -->
+          <div class="info-text">
+            Địa chỉ<!-- <span class="bilingual-text">(Address)</span> -->: <strong>{{companyAddress}}</strong>
+          </div>
+          
+          <!-- Bank Account -->
+          <div class="info-text">
+            Số tài khoản<!-- <span class="bilingual-text">(Account No.)</span> -->: <strong>{{companyBankAccount}}</strong>
+          </div>
+        </div>
+        
+        <!-- Right: QR Code (18%) -->
+        <div class="qr-col">
+          <div class="qr-placeholder">
+            <!-- Replace with actual QR code image if available -->
+            QR
+          </div>
+        </div>
+      </div>
+      
+      <hr class="divider">
+      
+      <!-- ========== CUSTOMER INFO SECTION ========== -->
+      <div class="customer-section">
+        <!-- Left: Customer Info (82%) -->
+        <div class="customer-info-col">
+          <!-- Buyer Name -->
+          <div class="info-text">
+            Họ tên người mua hàng<!-- <span class="bilingual-text">(Buyer Name)</span> -->: <strong>{{buyerName}}</strong>
+          </div>
+          
+          <!-- Company Name -->
+          <div class="info-text">
+            Đơn vị mua<!-- <span class="bilingual-text">(Company Name)</span> -->: <strong>{{customerCompanyName}}</strong>
+          </div>
+          
+          <!-- Tax Code + Phone (2 columns) -->
+          <div class="two-col-row">
+            <div class="two-col-item">
+              <div class="info-text">
+                Mã số thuế<!-- <span class="bilingual-text">(Tax ID)</span> -->: <strong>{{customerTaxCode}}</strong>
+              </div>
+            </div>
+            <div class="two-col-item">
+              <div class="info-text">
+                Điện thoại<!-- <span class="bilingual-text">(Phone)</span> -->: <strong>{{customerPhone}}</strong>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Address -->
+          <div class="info-text">
+            Địa chỉ<!-- <span class="bilingual-text">(Address)</span> -->: <strong>{{customerAddress}}</strong>
+          </div>
+          
+          <!-- Email -->
+          <div class="info-text">
+            Email<!-- <span class="bilingual-text">(Email)</span> -->: <strong>{{customerEmail}}</strong>
+          </div>
+          
+          <!-- Payment Method -->
+          <div class="info-text">
+            Hình thức thanh toán<!-- <span class="bilingual-text">(Payment Method)</span> -->: <strong>{{paymentMethod}}</strong>
+          </div>
+        </div>
+        
+        <!-- Right: Empty spacer (18%) -->
+        <div class="customer-spacer-col"></div>
+      </div>
+      
+      <!-- ========== PRODUCT TABLE ========== -->
+      <div class="table-container">
+        <table class="product-table">
+          <thead>
+            <!-- ========== TABLE HEADER (7 columns) ========== -->
+            <!-- React: fontWeight: 'bold', fontSize: '0.75rem', padding: '5px 6px' -->
+            <!-- Each header has 2 lines (if bilingual):
+                 1. Main (Vietnamese): fontSize: '0.75rem', fontWeight: 700, lineHeight: 1.3
+                 2. Bilingual (English): fontSize: '0.7rem', fontStyle: italic, lineHeight: 1.3
+            -->
+            <tr>
+              <!-- Column 1: STT (No.) -->
+              <!-- width: '40px', align: 'center' -->
+              <!-- Data type: number (integer) - Row index from 1 to N -->
+              <th class="col-stt">
+                <div class="th-main">STT</div>
+                <!-- <div class="th-bilingual">(No.)</div> -->
+              </th>
+              
+              <!-- Column 2: Tên hàng hóa, dịch vụ (Description) -->
+              <!-- minWidth: '180px', align: 'left' (content), header align: 'center' -->
+              <!-- Data type: string - Product/service name (can be multiline) -->
+              <th class="col-name">
+                <div class="th-main">Tên hàng hóa, dịch vụ</div>
+                <!-- <div class="th-bilingual">(Description)</div> -->
+              </th>
+              
+              <!-- Column 3: ĐVT (Unit) -->
+              <!-- width: '50px', align: 'center' -->
+              <!-- Data type: string - Unit of measurement (e.g., "Bộ", "Cái", "Kg", "m²") -->
+              <th class="col-unit">
+                <div class="th-main">ĐVT</div>
+                <!-- <div class="th-bilingual">(Unit)</div> -->
+              </th>
+              
+              <!-- Column 4: Số lượng (Quantity) -->
+              <!-- width: '60px', align: 'center' -->
+              <!-- Data type: number (integer or decimal) - Quantity of items -->
+              <th class="col-qty">
+                <div class="th-main">Số lượng</div>
+                <!-- <div class="th-bilingual">(Quantity)</div> -->
+              </th>
+              
+              <!-- Column 5: Đơn giá (Unit Price) -->
+              <!-- width: '85px', align: 'right' (content), header align: 'center' -->
+              <!-- Data type: number (currency) - Formatted with thousand separators (e.g., "50.000.000") -->
+              <th class="col-price">
+                <div class="th-main">Đơn giá</div>
+                <!-- <div class="th-bilingual">(Unit Price)</div> -->
+              </th>
+              
+              <!-- Column 6: Thuế suất (VAT %) -->
+              <!-- width: '55px', align: 'center' -->
+              <!-- Data type: number (percentage) - VAT rate (e.g., 0, 5, 8, 10) + "%" suffix -->
+              <th class="col-vat">
+                <div class="th-main">Thuế suất</div>
+                <!-- <div class="th-bilingual">(VAT %)</div> -->
+              </th>
+              
+              <!-- Column 7: Thành tiền (Amount) -->
+              <!-- width: '90px', align: 'right' (content), header align: 'center' -->
+              <!-- Data type: number (currency) - Calculated: quantity × unitPrice, formatted with thousand separators -->
+              <th class="col-total">
+                <div class="th-main">Thành tiền</div>
+                <!-- <div class="th-bilingual">(Amount)</div> -->
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- ========== PRODUCT ROWS ========== -->
+            <!-- React structure per row (7 columns):
+                 1. STT (center) - Row number: {globalIndex + 1}
+                 2. Name (left) - Product name: {product?.name || '\u00A0'}
+                 3. Unit (center) - Unit: {product?.unit || '\u00A0'}
+                 4. Quantity (center) - Quantity: {product?.quantity || '\u00A0'}
+                 5. Unit Price (right) - Formatted: {product.unitPrice.toLocaleString('vi-VN')}
+                 6. VAT Rate (center) - Format: {product.vatRate}%
+                 7. Amount (right) - Calculated: {(quantity * unitPrice).toLocaleString('vi-VN')}
+                 
+                 All cells: fontSize: '0.8rem', padding: '6px 8px', border: '1px solid #000'
+                 
+                 Example row structure:
+                 <tr>
+                   <td class="td-center">1</td>
+                   <td class="td-left">Phần mềm quản lý doanh nghiệp</td>
+                   <td class="td-center">Bộ</td>
+                   <td class="td-center">2</td>
+                   <td class="td-right">50.000.000</td>
+                   <td class="td-center">10%</td>
+                   <td class="td-right">100.000.000</td>
+                 </tr>
+                 
+                 If no data (blank row):
+                 <tr>
+                   <td class="td-center">1</td>
+                   <td class="td-left">&nbsp;</td>
+                   <td class="td-center">&nbsp;</td>
+                   <td class="td-center">&nbsp;</td>
+                   <td class="td-right">&nbsp;</td>
+                   <td class="td-center">&nbsp;</td>
+                   <td class="td-right">&nbsp;</td>
+                 </tr>
+            -->
+            <!-- Example Product Row 1 -->
+            <tr>
+              <!-- STT: Row number (integer) -->
+              <td class="td-center">{{rowNumber}}</td>
+              
+              <!-- Tên hàng hóa, dịch vụ: Product/service name (string) -->
+              <td class="td-left">{{productName}}</td>
+              
+              <!-- ĐVT: Unit of measurement (string, e.g., "Bộ", "Cái", "Kg") -->
+              <td class="td-center">{{unit}}</td>
+              
+              <!-- Số lượng: Quantity (number - integer or decimal) -->
+              <td class="td-center">{{quantity}}</td>
+              
+              <!-- Đơn giá: Unit price (currency formatted with thousand separators) -->
+              <td class="td-right">{{unitPrice}}</td>
+              
+              <!-- Thuế suất: VAT rate (percentage with "%" suffix, e.g., "10%") -->
+              <td class="td-center">{{vatRate}}%</td>
+              
+              <!-- Thành tiền: Total amount (calculated: quantity × unitPrice, formatted) -->
+              <td class="td-right">{{amount}}</td>
+            </tr>
+            
+            <!-- Additional rows will follow the same structure above -->
+            <!-- If no data (blank row), use &nbsp; for empty cells -->
+            
+            <!-- ========== NOTES ROW (last page only) ========== -->
+            <!-- React format: notes ? `(Ghi chú: ${notes})` : placeholder -->
+            <tr>
+              <td class="notes-cell-empty"></td>
+              <td colspan="6" class="notes-cell">
+                <!-- If has notes: (Ghi chú: {{notes}}) -->
+                <!-- If no notes: <span class="notes-placeholder">Nhập ghi chú nếu có</span> -->
+                {{NOTES_CONTENT}}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- ========== TOTALS SECTION ========== -->
+      <div class="totals-section">
+        <div class="totals-box">
+          <div class="totals-stack">
+            <!-- Subtotal -->
+            <div class="totals-row">
+              <span class="totals-label">
+                Tổng tiền hàng<!-- <span class="bilingual-text">(Subtotal)</span> -->:
+              </span>
+              <span class="totals-value">{{subtotal}}</span>
+            </div>
+            
+            <!-- Discount (show if > 0) -->
+            {{DISCOUNT_ROW}}
+            
+            <!-- After Discount -->
+            <div class="totals-row">
+              <span class="totals-label">
+                Tiền sau chiết khấu<!-- <span class="bilingual-text">(After Discount)</span> -->:
+              </span>
+              <span class="totals-value">{{subtotalAfterDiscount}}</span>
+            </div>
+            
+            <!-- VAT Amount -->
+            <div class="totals-row">
+              <span class="totals-label">
+                Tiền thuế GTGT<!-- <span class="bilingual-text">(VAT Amount)</span> -->:
+              </span>
+              <span class="totals-value">{{vatAmount}}</span>
+            </div>
+            
+            <hr class="totals-divider">
+            
+            <!-- Total Amount -->
+            <div class="totals-row">
+              <span class="totals-final-label">
+                Tổng tiền thanh toán<!-- <span class="bilingual-text">(Total Amount)</span> -->:
+              </span>
+              <span class="totals-final-value">{{totalAmount}}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- ========== AMOUNT IN WORDS ========== -->
+      <div class="amount-words">
+        Số tiền viết bằng chữ<!-- <span class="bilingual-text">(Amount in words)</span> -->: <strong>{{amountInWords}}</strong>
+      </div>
+      
+      <!-- ========== SIGNATURE SECTION ========== -->
+      <div class="signature-section">
+        <!-- Buyer Signature -->
+        <div class="signature-col">
+          <div class="signature-title">
+            Người mua hàng<!-- <span class="bilingual-text">(Buyer)</span> -->
+          </div>
+          <div class="signature-subtitle">
+            (Chữ ký số (nếu có)<!-- <span class="bilingual-text">(Digital Signature (if any))</span> -->)
+          </div>
+        </div>
+        
+        <!-- Seller Signature -->
+        <div class="signature-col">
+          <div class="signature-title">
+            Người bán hàng<!-- <span class="bilingual-text">(Seller)</span> -->
+          </div>
+          <div class="signature-subtitle signature-subtitle-block">
+            (Chữ ký điện tử, Chữ ký số<!-- <span class="bilingual-text">(Digital Signature)</span> -->)
+          </div>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+  
+</body>
+</html>

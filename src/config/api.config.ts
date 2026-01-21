@@ -48,7 +48,12 @@ export const API_CONFIG = {
       UPDATE: (id: number) => `/Invoice/${id}`,
       DELETE: (id: number) => `/Invoice/${id}`,
       SIGN: (id: number) => `/Invoice/${id}/sign`,
-      SEND_EMAIL: (id: number) => `/api/Email/${id}/send-email`, // ✅ Backend endpoint: /api/Email/{id}/send-email
+      SEND_EMAIL: (id: number) => `/Email/${id}/send-email`,
+      // Invoice Preview & Advanced
+      PREVIEW: '/Invoice/preview', // ⭐ Preview invoice before creating
+      LOOKUP: (lookupCode: string) => `/Invoice/lookup/${lookupCode}`, // Public lookup
+      GET_ORIGINAL: (id: number) => `/Invoice/${id}/original`, // Get invoice before adjustment
+      EXPORT_PDF: (id: number) => `/Invoice/${id}/pdf`, // Export PDF
       // Adjustment & Replacement APIs
       ADJUSTMENT: '/Invoice/adjustment',
       REPLACEMENT: '/Invoice/replacement',
@@ -62,6 +67,21 @@ export const API_CONFIG = {
       GET_BY_INVOICE: (invoiceId: number) => `/Payment?InvoiceId=${invoiceId}`,
       GET_BY_CUSTOMER: (customerId: number) => `/Payment?CustomerId=${customerId}`,
       GET_MONTHLY_DEBT: '/Payment/monthly-debt', // GET - Lấy công nợ theo tháng với query params
+    },
+    FILE: {
+      UPLOAD: '/File/upload',
+      UPLOAD_XML: '/File/uploadXML',
+      UPLOAD_TEMPLATE_IMAGE: '/File/upload-template-image',
+      CONVERT_PDF_XML: '/File/convert-pdf-xml',
+      GENERATE_XML: (invoiceId: number) => `/File/generate-xml/${invoiceId}`,
+      HTML_TO_PDF: '/File/pdf-from-html', // ⭐ Backend HTML → PDF conversion
+    },
+    TAX: {
+      SUBMIT: '/Tax/submit',
+      CREATE_FORM04SS: '/Tax/Create-Form04SS-Draft',
+      SEND_TO_CQT: (id: number) => `/Tax/${id}/send-form-to-CQT`,
+      PREVIEW: (id: number) => `/Tax/${id}/preview`,
+      EXPORT_PDF: (id: number) => `/Tax/${id}/pdf`,
     },
   },
   

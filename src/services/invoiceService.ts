@@ -1706,6 +1706,113 @@ export const sendInvoiceEmail = async (
   }
 };
 
+// ==================== INVOICE PREVIEW & LOOKUP ====================
+
+/**
+ * ⭐ Preview invoice before creating
+ * POST /api/Invoice/preview
+ * 
+ * Use case:
+ * - Preview invoice với template trước khi save
+ * - Validate invoice data
+ * - Show preview modal to user
+ * 
+ * @param data - Invoice data (same as create invoice)
+ * @returns Preview HTML or validation result
+ */
+export const previewInvoice = async (
+  data: BackendInvoiceRequest
+): Promise<{ html: string; isValid: boolean; errors?: string[] }> => {
+  try {
+    const response = await axios.post(
+      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.INVOICE.PREVIEW}`,
+      data,
+      { headers: getAuthHeaders() }
+    );
+    
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 400) {
+        const message = error.response.data?.message || 'Dữ liệu hóa đơn không hợp lệ';
+        throw new Error(message);
+      }
+    }
+    throw error;
+  }
+};
+
+/**
+ * ⭐ Public invoice lookup (no authentication required)
+ * GET /api/Invoice/lookup/{lookupCode}
+ * 
+ * Use case:
+ * - Khách hàng tra cứu hóa đơn qua QR code
+ * - Public invoice verification
+ * - Customer portal
+ * 
+ * @param lookupCode - Unique lookup code from QR or email
+ * @returns Public invoice information
+ */
+export const lookupInvoice = async (
+  lookupCode: string
+): Promise<{
+  invoiceNumber: string;
+  invoiceDate: string;
+  customerName: string;
+  totalAmount: number;
+  status: string;
+  qrCodeUrl?: string;
+  pdfUrl?: string;
+}> => {
+  try {
+    // No auth headers - public endpoint
+    const response = await axios.get(
+      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.INVOICE.LOOKUP(lookupCode)}`
+    );
+    
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 404) {
+        throw new Error('Không tìm thấy hóa đơn với mã tra cứu này');
+      }
+    }
+    throw error;
+  }
+};
+
+/**
+ * Get original invoice (before adjustment)
+ * GET /api/Invoice/{id}/original
+ * 
+ * Use case:
+ * - View original invoice when viewing adjusted invoice
+ * - Compare original vs adjusted
+ * 
+ * @param invoiceId - Adjusted invoice ID
+ * @returns Original invoice data
+ */
+export const getOriginalInvoice = async (
+  invoiceId: number
+): Promise<BackendInvoiceResponse> => {
+  try {
+    const response = await axios.get<BackendInvoiceResponse>(
+      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.INVOICE.GET_ORIGINAL(invoiceId)}`,
+      { headers: getAuthHeaders() }
+    );
+    
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 404) {
+        throw new Error('Không tìm thấy hóa đơn gốc');
+      }
+    }
+    throw error;
+  }
+};
+
 // ==================== ADJUSTMENT INVOICE API ====================
 
 /**
@@ -1993,6 +2100,11 @@ const invoiceService = {
   
   // Email
   sendInvoiceEmail,
+  
+  // Preview & Lookup ⭐ NEW
+  previewInvoice,
+  lookupInvoice,
+  getOriginalInvoice,
   
   // Preview & Export
   getInvoiceHTML,

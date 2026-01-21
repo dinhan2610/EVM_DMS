@@ -18,57 +18,123 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://159.223.64.31',
+        target: 'https://eims.site',
         changeOrigin: true,
         secure: false,
       },
       '/InvoiceTemplate': {
-        target: 'http://159.223.64.31',
+        target: 'https://eims.site',
         changeOrigin: true,
         secure: false,
       },
       '/TemplateFrame': {
-        target: 'http://159.223.64.31',
+        target: 'https://eims.site',
         changeOrigin: true,
         secure: false,
       },
       '/Auth': {
-        target: 'http://159.223.64.31',
+        target: 'https://eims.site',
         changeOrigin: true,
         secure: false,
       },
       '/User': {
-        target: 'http://159.223.64.31',
+        target: 'https://eims.site',
         changeOrigin: true,
         secure: false,
       },
       '/Prefix': {
-        target: 'http://159.223.64.31',
+        target: 'https://eims.site',
         changeOrigin: true,
         secure: false,
       },
       '/Serial': {
-        target: 'http://159.223.64.31',
+        target: 'https://eims.site',
         changeOrigin: true,
         secure: false,
       },
       '/SerialStatus': {
-        target: 'http://159.223.64.31',
+        target: 'https://eims.site',
         changeOrigin: true,
         secure: false,
       },
       '/InvoiceType': {
-        target: 'http://159.223.64.31',
+        target: 'https://eims.site',
         changeOrigin: true,
         secure: false,
       },
       '/Notification': {
-        target: 'http://159.223.64.31',
+        target: 'https://eims.site',
         changeOrigin: true,
         secure: false,
       },
       '/Audit': {
-        target: 'http://159.223.64.31',
+        target: 'https://eims.site',
+        changeOrigin: true,
+        secure: false,
+      },
+      // ⭐ NEW API ENDPOINTS
+      '/Invoice': {
+        target: 'https://eims.site',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/Email': {
+        target: 'https://eims.site',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/File': {
+        target: 'https://eims.site',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/Tax': {
+        target: 'https://eims.site',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/Payment': {
+        target: 'https://eims.site',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/Company': {
+        target: 'https://eims.site',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/Customer': {
+        target: 'https://eims.site',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/Product': {
+        target: 'https://eims.site',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/InvoiceRequest': {
+        target: 'https://eims.site',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/Statement': {
+        target: 'https://eims.site',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/TaxApiStatus': {
+        target: 'https://eims.site',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/InvoiceErrorNotifications': {
+        target: 'https://eims.site',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/Dashboard': {
+        target: 'https://eims.site',
         changeOrigin: true,
         secure: false,
       },

@@ -220,6 +220,173 @@ export const retrySubmitInvoiceToTax = async (invoiceId: number): Promise<string
   }
 };
 
+// ==================== FORM 04SS (TỜ KHAI THUẾ GTGT) ====================
+
+/**
+ * Form 04SS Request - Tờ khai thuế GTGT
+ */
+export interface Form04SSRequest {
+  companyId: number;
+  period: string; // Format: "MM/YYYY"
+  invoiceIds: number[]; // List of invoices to include
+  declarationType: 'monthly' | 'quarterly';
+  notes?: string;
+}
+
+export interface Form04SSResponse {
+  formId: number;
+  formCode: string;
+  period: string;
+  totalRevenue: number;
+  totalVAT: number;
+  status: string;
+  createdAt: string;
+  pdfUrl?: string;
+}
+
+/**
+ * ⭐ Create Form 04SS Draft (Tờ khai thuế GTGT)
+ * POST /api/Tax/Create-Form04SS-Draft
+ * 
+ * Use case:
+ * - Tạo tờ khai thuế GTGT (Form 04SS)
+ * - Tự động tính tổng doanh thu, VAT từ invoices
+ * - Save draft trước khi submit lên CQT
+ */
+export const createForm04SSDraft = async (
+  data: Form04SSRequest
+): Promise<Form04SSResponse> => {
+  try {
+    console.log('[createForm04SSDraft] Creating Form 04SS draft...');
+    
+    const response = await axios.post<Form04SSResponse>(
+      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.TAX.CREATE_FORM04SS}`,
+      data,
+      { headers: getAuthHeaders() }
+    );
+
+    console.log('[createForm04SSDraft] ✅ Success');
+    return response.data;
+  } catch (error) {
+    console.error('[createForm04SSDraft] Error:', error);
+    if (axios.isAxiosError(error) && error.response?.status === 400) {
+      const message = error.response.data?.message || 'Dữ liệu tờ khai không hợp lệ';
+      throw new Error(message);
+    }
+    return handleApiError(error, 'Tạo tờ khai thuế thất bại');
+  }
+};
+
+/**
+ * Preview tax form (HTML preview)
+ * GET /api/Tax/{id}/preview
+ */
+export const previewTaxForm = async (formId: number): Promise<{ html: string }> => {
+  try {
+    console.log(`[previewTaxForm] Previewing form ${formId}...`);
+    
+    const response = await axios.get(
+      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.TAX.PREVIEW(formId)}`,
+      { headers: getAuthHeaders() }
+    );
+
+    console.log('[previewTaxForm] ✅ Success');
+    return response.data;
+  } catch (error) {
+    console.error('[previewTaxForm] Error:', error);
+    return handleApiError(error, 'Preview tax form failed');
+  }
+};
+
+/**
+ * Export tax form to PDF
+ * GET /api/Tax/{id}/pdf
+ */
+export const exportTaxFormPdf = async (formId: number): Promise<Blob> => {
+  try {
+    console.log(`[exportTaxFormPdf] Exporting form ${formId} to PDF...`);
+    
+    const response = await axios.get(
+      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.TAX.EXPORT_PDF(formId)}`,
+      {
+        headers: getAuthHeaders(),
+        responseType: 'blob',
+      }
+    );
+
+    console.log('[exportTaxFormPdf] ✅ Success');
+    return response.data;
+  } catch (error) {
+    console.error('[exportTaxFormPdf] Error:', error);
+    return handleApiError(error, 'Export tax form PDF failed');
+  }
+};
+
+/**
+ * ⭐ Send form to CQT (Cơ quan thuế)
+ * POST /api/Tax/{id}/send-form-to-CQT
+ */
+export const sendFormToCQT = async (formId: number): Promise<{
+  success: boolean;
+  message: string;
+  submissionId?: string;
+  transactionCode?: string;
+}> => {
+  try {
+    console.log(`[sendFormToCQT] Sending form ${formId} to CQT...`);
+    
+    const response = await axios.post(
+      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.TAX.SEND_TO_CQT(formId)}`,
+      {},
+      { headers: getAuthHeaders() }
+    );
+
+    console.log('[sendFormToCQT] ✅ Success - Form sent to CQT');
+    return response.data;
+  } catch (error) {
+    console.error('[sendFormToCQT] Error:', error);
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 404) {
+        throw new Error('Không tìm thấy tờ khai thuế');
+      }
+      if (error.response?.status === 400) {
+        const message = error.response.data?.message || 'Tờ khai chưa sẵn sàng để gửi';
+        throw new Error(message);
+      }
+    }
+    return handleApiError(error, 'Gửi tờ khai lên CQT thất bại');
+  }
+};
+
+// ==================== HELPER FUNCTIONS ====================
+
+/**
+ * Download tax form PDF
+ */
+export const downloadTaxFormPdf = async (
+  formId: number,
+  filename: string = 'tax-form.pdf'
+) => {
+  const blob = await exportTaxFormPdf(formId);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+/**
+ * Open tax form PDF in new tab
+ */
+export const openTaxFormPdfInNewTab = async (formId: number) => {
+  const blob = await exportTaxFormPdf(formId);
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+};
+
 // ==================== EXPORTS ====================
 
 const taxService = {
@@ -232,6 +399,14 @@ const taxService = {
   checkInvoiceTaxStatus,
   syncInvoiceTaxStatus,
   retrySubmitInvoiceToTax,
+  
+  // Form 04SS ⭐ NEW
+  createForm04SSDraft,
+  previewTaxForm,
+  exportTaxFormPdf,
+  downloadTaxFormPdf,
+  openTaxFormPdfInNewTab,
+  sendFormToCQT,
 };
 
 export default taxService;

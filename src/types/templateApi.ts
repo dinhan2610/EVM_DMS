@@ -57,6 +57,7 @@ export interface CreateTemplateApiRequest {
   layoutDefinition: any // ✅ Object (Axios will stringify)
   templateFrameID: number
   logoUrl: string | null
+  renderedHtml?: string // ✅ Template HTML for PDF generation
 }
 
 /**
@@ -69,6 +70,7 @@ export interface UpdateTemplateApiRequest {
   templateFrameID: number
   logoUrl: string | null
   isActive: boolean
+  renderedHtml?: string // ✅ Template HTML for PDF generation
 }
 
 // ==================== API RESPONSE SCHEMA ====================

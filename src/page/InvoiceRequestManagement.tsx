@@ -935,10 +935,10 @@ const InvoiceRequestManagement = () => {
       flex: 1,
       minWidth: 140,
       sortable: true,
-      align: 'left',
+      align: 'right',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', height: '100%', pl: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%', pr: 2 }}>
           <Typography 
             variant="body2" 
             sx={{ 

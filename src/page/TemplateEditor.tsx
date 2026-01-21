@@ -27,11 +27,11 @@ import {
   Alert,
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
 import InfoIcon from '@mui/icons-material/Info'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import PrintIcon from '@mui/icons-material/Print'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
+import InvoiceSymbolGuideModal from '@/components/InvoiceSymbolGuideModal'
 import { DragDropContext, DropResult } from '@hello-pangea/dnd'
 import { useTemplateReducer } from '@/hooks/useTemplateReducer'
 import { TemplateState } from '@/types/templateEditor'
@@ -162,6 +162,7 @@ const TemplateEditor: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false)
   const [openAddDialog, setOpenAddDialog] = useState(false)
   const [addDialogType] = useState<'field' | 'column'>('field')
+  const [guideModalOpen, setGuideModalOpen] = useState(false)
   const previewRef = React.useRef<HTMLDivElement>(null)
   
   // ============ API INTEGRATION STATES ============
@@ -717,9 +718,23 @@ const TemplateEditor: React.FC = () => {
           </Stack>
 
           <Stack direction="row" spacing={1.5} alignItems="center">
-            <Tooltip title="Trợ giúp" arrow>
-              <IconButton sx={{ color: '#757575' }}>
-                <HelpOutlineIcon sx={{ fontSize: 22 }} />
+            {/* Symbol Structure Guide */}
+            <Tooltip title="Cấu trúc Ký hiệu Hóa đơn" arrow>
+              <IconButton 
+                onClick={() => setGuideModalOpen(true)}
+                sx={{ 
+                  color: '#1976d2',
+                  bgcolor: '#e3f2fd',
+                  '&:hover': { 
+                    bgcolor: '#bbdefb',
+                    transform: 'scale(1.05)',
+                  },
+                  transition: 'all 0.2s ease',
+                  width: 36,
+                  height: 36,
+                }}
+              >
+                <InfoIcon sx={{ fontSize: 20 }} />
               </IconButton>
             </Tooltip>
 
@@ -1492,6 +1507,12 @@ const TemplateEditor: React.FC = () => {
           {errors._general}
         </Alert>
       </Snackbar>
+
+      {/* Invoice Symbol Guide Modal */}
+      <InvoiceSymbolGuideModal 
+        open={guideModalOpen}
+        onClose={() => setGuideModalOpen(false)}
+      />
       </Box>
     </DragDropContext>
   )
