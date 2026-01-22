@@ -13,7 +13,6 @@ import {
   TableRow,
 } from '@mui/material';
 import { numberToWords } from '@/utils/numberToWords';
-import logoKns from '/logokns.png';
 import type {
   InvoiceTemplatePreviewProps,
 } from '@/types/invoiceTemplate';
@@ -215,7 +214,7 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
               {/* Phần 1: Header - LUÔN HIỆN Ở TẤT CẢ TRANG */}
               {/* Logo + Tiêu đề - CÙNG 1 HÀNG */}
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5, mt: 0.5, position: 'relative', minHeight: '80px' }}>
-                {/* Cột Trái: Logo cố định - LUÔN HIỂN THỊ */}
+                {/* Cột Trái: Logo động từ API - LUÔN HIỂN THỊ */}
                 <Box sx={{ 
                   flex: 0,
                   minWidth: '130px',
@@ -227,7 +226,7 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
                     height: 'auto',
                   }}>
                     <img
-                      src={logoKns}
+                      src={config.companyLogo || '/logokns.png'}
                       alt="Company Logo"
                       style={{
                         width: '120px',

@@ -85,6 +85,9 @@ const TemplateEditor: React.FC = () => {
   // Set title based on mode
   usePageTitle(isEditMode ? 'Chỉnh sửa mẫu' : 'Tạo mẫu mới')
 
+  // ============ COMPANY LOGO STATE ============
+  const [companyLogo, setCompanyLogo] = useState<string | null>(null)
+
   // ============ KHỞI TẠO STATE MỚI VỚI REDUCER ============
   const initialState: TemplateState = {
     templateName: 'Hóa đơn bán hàng (mẫu CB)',
@@ -190,7 +193,7 @@ const TemplateEditor: React.FC = () => {
     
     const configObject = {
       templateName: state.templateName,
-      companyLogo: state.logo,
+      companyLogo: companyLogo || state.logo, // 🆕 Use API logo if available, fallback to state.logo
       companyName: state.company.name,
       companyTaxCode: state.company.taxCode,
       companyAddress: state.company.address,
@@ -201,7 +204,7 @@ const TemplateEditor: React.FC = () => {
     console.log('📤 [useMemo Config] Passing to preview:', configObject)
     
     return configObject
-  }, [state])
+  }, [state, companyLogo])
 
   // ✅ Luôn hiển thị đầy đủ tất cả thông tin (không cần toggle)
   const visibility = useMemo<TemplateVisibility>(() => ({
@@ -396,10 +399,17 @@ const TemplateEditor: React.FC = () => {
           contactPhone: companyData.contactPhone,
           accountNumber: companyData.accountNumber,
           bankName: companyData.bankName,
+          logoUrl: companyData.logoUrl,
         })
         
         // Map API data to state format
         const bankAccount = `${companyData.accountNumber} - ${companyData.bankName}`
+        
+        // 🆕 Set company logo from API
+        if (companyData.logoUrl) {
+          setCompanyLogo(companyData.logoUrl)
+          console.log('🖼️ Company logo loaded from API:', companyData.logoUrl)
+        }
         
         console.log('💾 [Dispatching] Company updates:', {
           name: companyData.companyName,
@@ -407,6 +417,7 @@ const TemplateEditor: React.FC = () => {
           address: companyData.address,
           phone: companyData.contactPhone,
           bankAccount: bankAccount,
+          logoUrl: companyData.logoUrl,
         })
         
         // Update company info in state
@@ -448,8 +459,9 @@ const TemplateEditor: React.FC = () => {
     setLoading(true)
     setIsSaving(true)
     try {
-      console.log('=== STEP 1: Creating Serial ===')
-      // Step 1: Create Serial (Mã số hóa đơn)
+      console.log('=== STEP 1: Creating/Finding Serial ===')
+      // Step 1: Get or Create Serial (Mã số hóa đơn)
+      // ✅ Smart function: Tìm serial đã tồn tại, nếu chưa có thì tạo mới
       const serialData = {
         prefixID: parseInt(state.symbol.invoiceType) || 1,
         serialStatusID: serialStatuses.find(s => s.symbol === state.symbol.taxCode)?.serialStatusID || (state.symbol.taxCode === 'C' ? 1 : 2),
@@ -459,14 +471,15 @@ const TemplateEditor: React.FC = () => {
       }
       console.log('Serial Data:', serialData)
       
-      const serialResponse = await templateService.createSerial(serialData)
+      const serialResponse = await templateService.getOrCreateSerial(serialData)
       console.log('Serial Response:', serialResponse)
       
       console.log('=== STEP 2: Processing Logo ===')
-      // Step 2: Upload logo if exists (convert blob/base64 to file)
+      // Step 2: Determine logoUrl - Priority: uploaded logo > company API logo
       let logoUrl: string | null = null
+      
       if (state.logo) {
-        // If logo is blob URL or base64, upload it
+        // User uploaded a new logo - process it
         if (state.logo.startsWith('blob:') || state.logo.startsWith('data:image')) {
           try {
             console.log('Converting blob/base64 logo to file...')
@@ -475,22 +488,24 @@ const TemplateEditor: React.FC = () => {
             const blob = await response.blob()
             const file = new File([blob], 'logo.png', { type: 'image/png' })
             logoUrl = await templateService.uploadLogo(file)
-            console.log('Logo uploaded:', logoUrl)
+            console.log('✅ New logo uploaded:', logoUrl)
           } catch (uploadError) {
-            console.warn('Logo upload failed, skipping logo:', uploadError)
-            // Skip logo instead of using blob/base64 (backend doesn't accept local URLs)
-            logoUrl = null
+            console.warn('⚠️ Logo upload failed, falling back to company logo:', uploadError)
+            // Fallback to company logo from API
+            logoUrl = companyLogo
           }
         } else if (state.logo.startsWith('http://') || state.logo.startsWith('https://')) {
           // Already a valid URL from server
           logoUrl = state.logo
-          console.log('Using existing logo URL:', logoUrl)
+          console.log('✅ Using existing logo URL:', logoUrl)
         } else {
-          console.warn('Invalid logo URL format:', state.logo)
-          logoUrl = null
+          console.warn('⚠️ Invalid logo URL format, using company logo from API')
+          logoUrl = companyLogo
         }
       } else {
-        console.log('No logo provided')
+        // No uploaded logo - use company logo from API
+        logoUrl = companyLogo
+        console.log('✅ Using company logo from API:', logoUrl)
       }
       
       console.log('=== STEP 3: Preparing Layout Definition ===')
@@ -607,7 +622,7 @@ const TemplateEditor: React.FC = () => {
       
       const templateResponse = await templateService.createTemplate(templateData)
       console.log('Template Response:', templateResponse)
-      showSuccess(`Đã tạo mẫu hóa đơn thành công! Mã số: ${serialResponse.fullSerial || 'N/A'}`)
+      showSuccess(`Đã tạo mẫu hóa đơn thành công! Mã số: ${serialResponse.serial || 'N/A'}`)
       
       // Redirect to template list after 1.5s
       setTimeout(() => {

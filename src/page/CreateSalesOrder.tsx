@@ -48,6 +48,7 @@ import {
   DeleteOutline,
   Warning,
   Add,
+  ArrowBack,
 } from '@mui/icons-material'
 import SendInvoiceEmailModal from '@/components/SendInvoiceEmailModal'
 import { DataGrid, GridColDef, GridRenderCellParams, GridRenderEditCellParams } from '@mui/x-data-grid'
@@ -1467,13 +1468,11 @@ function CreateSalesOrder() {
     if (!template || !company) return null
 
     return {
-      companyLogo: null,
+      companyLogo: company.logoUrl || null, // ✅ Use logo from Company API
       companyName: company.companyName,
       companyTaxCode: company.taxCode,
       companyAddress: company.address,
       companyPhone: company.contactPhone,
-      modelCode: template.serial,
-      templateCode: template.templateName,
     }
   }
 
@@ -1945,9 +1944,28 @@ function CreateSalesOrder() {
     <Box sx={{ minHeight: '100vh', pb: 2 }}>
       {/* Header NGOÀI Paper */}
       <Box sx={{ px: 2, py: 1.5, maxWidth: '1600px', margin: '0 auto' }}>
-        <Typography variant="h6" sx={{ fontWeight: 600, color: '#1976d2' }}>
-          📋 Tạo Yêu cầu Xuất Hóa đơn
-        </Typography>
+        <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Typography variant="h6" sx={{ fontWeight: 600, color: '#1976d2' }}>
+            📋 Tạo Yêu cầu Xuất Hóa đơn
+          </Typography>
+          <Button
+            variant="outlined"
+            startIcon={<ArrowBack />}
+            onClick={() => navigate(-1)}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 500,
+              borderColor: '#e0e0e0',
+              color: '#666',
+              '&:hover': {
+                borderColor: '#1976d2',
+                backgroundColor: 'rgba(25, 118, 210, 0.04)',
+                color: '#1976d2',
+              },
+            }}>
+            Quay lại
+          </Button>
+        </Stack>
       </Box>
 
       {/* Main Content */}
@@ -2746,7 +2764,6 @@ function CreateSalesOrder() {
                   blankRows={5}
                   visibility={DEFAULT_TEMPLATE_VISIBILITY}
                   bilingual={false}
-                  invoiceDate={new Date().toISOString()}
                   invoiceType="withCode"
                   symbol={DEFAULT_INVOICE_SYMBOL}
                   customerVisibility={{

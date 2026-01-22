@@ -68,19 +68,20 @@ export interface SerialResponse {
  */
 export interface PrefixResponse {
   prefixID: number
-  prefixName: string  // e.g., "Hóa đơn điện tử giá trị gia tăng"
+  symbol: string  // "1", "2", etc.
+  description: string
 }
 
 export interface SerialStatusResponse {
   serialStatusID: number
   symbol: string  // "C", "K", "0"
-  statusName: string  // e.g., "Hóa đơn có mã của cơ quan thuế"
+  description: string
 }
 
 export interface InvoiceTypeResponse {
   invoiceTypeID: number
   symbol: string  // "T", "D", "L", etc.
-  typeName: string  // e.g., "Hóa đơn Doanh nghiệp..."
+  description: string
 }
 
 // ✅ Use API types from templateApi.ts
@@ -162,10 +163,9 @@ const handleApiError = (error: unknown, context: string): never => {
 export const getAllPrefixes = async (): Promise<PrefixResponse[]> => {
   try {
     const response = await axios.get<PrefixResponse[]>(
-      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.INVOICE_SYMBOL.PREFIX}`,
+      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.SERIAL.PREFIX}`,
       { headers: getAuthHeaders() }
     )
-    console.log('🔍 [getAllPrefixes] Response:', JSON.stringify(response.data.slice(0, 3), null, 2))
     return response.data
   } catch (error) {
     throw handleApiError(error, 'Get All Prefixes')
@@ -179,10 +179,9 @@ export const getAllPrefixes = async (): Promise<PrefixResponse[]> => {
 export const getAllSerialStatuses = async (): Promise<SerialStatusResponse[]> => {
   try {
     const response = await axios.get<SerialStatusResponse[]>(
-      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.INVOICE_SYMBOL.SERIAL_STATUS}`,
+      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.SERIAL.SERIAL_STATUS}`,
       { headers: getAuthHeaders() }
     )
-    console.log('🔍 [getAllSerialStatuses] Response:', JSON.stringify(response.data, null, 2))
     return response.data
   } catch (error) {
     throw handleApiError(error, 'Get All Serial Statuses')
@@ -196,10 +195,9 @@ export const getAllSerialStatuses = async (): Promise<SerialStatusResponse[]> =>
 export const getAllInvoiceTypes = async (): Promise<InvoiceTypeResponse[]> => {
   try {
     const response = await axios.get<InvoiceTypeResponse[]>(
-      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.INVOICE_SYMBOL.INVOICE_TYPE}`,
+      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.SERIAL.INVOICE_TYPE}`,
       { headers: getAuthHeaders() }
     )
-    console.log('🔍 [getAllInvoiceTypes] Response:', JSON.stringify(response.data.slice(0, 3), null, 2))
     return response.data
   } catch (error) {
     throw handleApiError(error, 'Get All Invoice Types')
@@ -223,27 +221,12 @@ const buildSerialString = (
   statuses: SerialStatusResponse[],
   types: InvoiceTypeResponse[]
 ): string => {
-  console.log('🔨 [buildSerialString] Looking for:', {
-    prefixID: data.prefixID,
-    serialStatusID: data.serialStatusID,
-    invoiceTypeID: data.invoiceTypeID
-  })
-  
   const prefix = prefixes.find(p => p.prefixID === data.prefixID)
   const status = statuses.find(s => s.serialStatusID === data.serialStatusID)
   const type = types.find(t => t.invoiceTypeID === data.invoiceTypeID)
   
-  console.log('🔨 [buildSerialString] Found:', {
-    prefix: prefix ? JSON.stringify(prefix) : 'NOT FOUND',
-    status: status ? JSON.stringify(status) : 'NOT FOUND',
-    type: type ? JSON.stringify(type) : 'NOT FOUND'
-  })
-  
   if (!prefix || !status || !type) {
     console.error('❌ Missing reference data:', { prefix, status, type })
-    console.error('❌ Available prefixes:', prefixes)
-    console.error('❌ Available statuses:', statuses)
-    console.error('❌ Available types:', types)
     throw new Error('Cannot build serial: missing reference data')
   }
   
@@ -251,9 +234,7 @@ const buildSerialString = (
   const year = data.year.length === 4 ? data.year.slice(-2) : data.year
   
   // Build serial string
-  // Format: [PrefixID][Status Symbol][Year][Type Symbol][Tail]
-  // Example: "1C26THA" = prefixID:1 + status:C + year:26 + type:T + tail:HA
-  const serialString = `${prefix.prefixID}${status.symbol}${year}${type.symbol}${data.tail}`
+  const serialString = `${prefix.symbol}${status.symbol}${year}${type.symbol}${data.tail}`
   console.log('🔨 Built serial string:', serialString, 'from:', data)
   
   return serialString
@@ -345,30 +326,44 @@ export const getOrCreateSerial = async (data: CreateSerialRequest): Promise<Seri
       getAllInvoiceTypes()
     ])
     
-    console.log('📦 Reference data loaded:', {
-      existingSerials: existingSerials.length,
-      prefixes: prefixes.length,
-      statuses: statuses.length,
-      types: types.length
+    // � Normalize year to 2 digits for comparison (26 or 2026 → "26")
+    const normalizeYear = (year: string): string => {
+      if (!year) return ''
+      // If 4 digits (e.g., "2026"), take last 2 digits
+      if (year.length === 4) return year.slice(-2)
+      // If already 2 digits (e.g., "26"), keep as is
+      return year
+    }
+    
+    const normalizedSearchYear = normalizeYear(data.year)
+    console.log('🔍 Searching for serial:', { prefixID: data.prefixID, serialStatusID: data.serialStatusID, year: normalizedSearchYear, invoiceTypeID: data.invoiceTypeID, tail: data.tail })
+    console.log('🔍 Comparing with', existingSerials.length, 'user-created serials')
+    
+    // Step 2: Find matching serial with normalized year comparison
+    const matchingSerial = existingSerials.find(serial => {
+      const normalizedDbYear = normalizeYear(serial.year!)
+      
+      return (
+        serial.prefixID === data.prefixID &&
+        serial.serialStatusID === data.serialStatusID &&
+        normalizedDbYear === normalizedSearchYear &&
+        serial.invoiceTypeID === data.invoiceTypeID &&
+        serial.tail === data.tail
+      )
     })
     
-    // Step 2: Build expected serial string from input components
-    const expectedSerial = buildSerialString(data, prefixes, statuses, types)
-    console.log('🔍 Looking for serial:', expectedSerial)
-    
-    // Step 3: Find matching serial by comparing serial strings
-    const matchingSerial = existingSerials.find(s => s.serial === expectedSerial)
-    
-    // Step 4: If found, return existing serial
+    // Step 3: If found, return existing serial
     if (matchingSerial) {
-      console.log('✅ [getOrCreateSerial] Found existing serial:', matchingSerial.serialID, matchingSerial.serial)
+      const serialDisplay = matchingSerial.fullSerial || matchingSerial.serial || 'N/A'
+      console.log('✅ [getOrCreateSerial] Found existing serial:', matchingSerial.serialID, serialDisplay)
       return matchingSerial
     }
     
-    // Step 5: If not found, create new serial
+    // Step 4: If not found, create new serial
     console.log('🆕 [getOrCreateSerial] Serial not found, creating new one...')
     const newSerial = await createSerial(data)
-    console.log('✅ [getOrCreateSerial] Created new serial:', newSerial.serialID, newSerial.serial)
+    const newSerialDisplay = newSerial.fullSerial || newSerial.serial || 'N/A'
+    console.log('✅ [getOrCreateSerial] Created new serial:', newSerial.serialID, newSerialDisplay)
     return newSerial
     
   } catch (error) {

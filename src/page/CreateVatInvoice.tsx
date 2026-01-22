@@ -52,6 +52,7 @@ import {
   DeleteOutline,
   Warning,
   Add,
+  ArrowBack,
 } from '@mui/icons-material'
 import SendInvoiceEmailModal from '@/components/SendInvoiceEmailModal'
 import { DataGrid, GridColDef, GridRenderCellParams, GridRenderEditCellParams } from '@mui/x-data-grid'
@@ -1712,7 +1713,7 @@ const CreateVatInvoice: React.FC = () => {
     if (!selectedTemplate || !company) return null
 
     return {
-      companyLogo: null, // ⚠️ TODO: Backend chưa có field logo cho company
+      companyLogo: company.logoUrl || null, // ✅ Use logo from Company API
       companyName: company.companyName,
       companyTaxCode: company.taxCode,
       companyAddress: company.address,
@@ -2194,6 +2195,23 @@ const CreateVatInvoice: React.FC = () => {
           <Typography variant="h6" sx={{ fontWeight: 500 }}>
             {editMode ? '✏️ Chỉnh sửa hóa đơn' : 'Lập hóa đơn'}
           </Typography>
+          <Button
+            variant="outlined"
+            startIcon={<ArrowBack />}
+            onClick={() => navigate(-1)}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 500,
+              borderColor: '#e0e0e0',
+              color: '#666',
+              '&:hover': {
+                borderColor: '#1976d2',
+                backgroundColor: 'rgba(25, 118, 210, 0.04)',
+                color: '#1976d2',
+              },
+            }}>
+            Quay lại
+          </Button>
         </Stack>
       </Box>
 

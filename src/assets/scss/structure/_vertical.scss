@@ -18,7 +18,7 @@
     }
 
     .logo-lg {
-        margin-left: 6px;
+        margin-left: 40px;
         height: $logo-lg-height;
     }
 
@@ -33,7 +33,7 @@
     // Prevent logo from being squashed
     img {
         height: auto !important;
-        max-height: 40px;
+        max-height: 45px;
         width: auto !important;
         max-width: 100%;
         object-fit: contain;

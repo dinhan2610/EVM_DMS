@@ -153,7 +153,7 @@ const InvoiceDetail: React.FC = () => {
     total: invoice.totalAmount,
   } : undefined
 
-  // ✅ Logic actions menu - Khớp với InvoiceManagement
+  // ✅ Logic actions menu - Đồng bộ 100% với InvoiceManagement & InvoiceApproval
   const isIssued = invoice?.invoiceStatusID === INVOICE_INTERNAL_STATUS.ISSUED
   const isAdjusted = invoice?.invoiceStatusID === INVOICE_INTERNAL_STATUS.ADJUSTED
   const isAdjustmentInvoice = invoice?.invoiceType === INVOICE_TYPE.ADJUSTMENT
@@ -163,9 +163,11 @@ const InvoiceDetail: React.FC = () => {
   // HĐ điều chỉnh có thể điều chỉnh tiếp, HĐ thay thế có thể điều chỉnh
   const canAdjust = isIssued || isAdjusted
   
-  // ✅ Cho phép thay thế: ISSUED hoặc ADJUSTED, KHÔNG giới hạn invoiceType
-  // HĐ điều chỉnh có thể thay thế, HĐ thay thế có thể thay thế tiếp
-  const canReplace = isIssued || isAdjusted
+  // 🚫 KHÔNG cho phép thay thế nếu:
+  // 1. Hóa đơn là "Hóa đơn điều chỉnh" (invoiceType = 2)
+  // 2. Hóa đơn đã có trạng thái "Đã điều chỉnh" (status = 4)
+  // ✅ Chỉ cho phép thay thế: ISSUED hoặc ADJUSTED, NHƯNG không phải HĐ điều chỉnh và chưa bị điều chỉnh
+  const canReplace = (isIssued || isAdjusted) && !isAdjustmentInvoice && !isAdjusted
 
   useEffect(() => {
     const fetchInvoiceDetail = async () => {
@@ -333,7 +335,7 @@ const InvoiceDetail: React.FC = () => {
   }
 
   const handleBack = () => {
-    navigate('/invoices')
+    navigate(-1)
   }
 
   if (loading) {
@@ -562,8 +564,10 @@ const InvoiceDetail: React.FC = () => {
             <ListItemText
               primary="Tạo HĐ thay thế"
               secondary={
-                isAdjustmentInvoice
-                  ? 'Thay thế HĐ điều chỉnh (cho phép nhiều lần)'
+                !canReplace && isAdjustmentInvoice
+                  ? 'Không thể thay thế HĐ điều chỉnh. Chỉ điều chỉnh tiếp.'
+                  : !canReplace && isAdjusted
+                  ? 'HĐ đã điều chỉnh. Chỉ điều chỉnh tiếp, không thay thế.'
                   : isReplacementInvoice
                   ? 'Thay thế HĐ thay thế (cho phép nhiều lần)'
                   : 'Tạo hóa đơn thay thế'

@@ -25,6 +25,7 @@ import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined'
+import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { useNavigate } from 'react-router-dom'
 import IssueInvoiceModal from '@/components/IssueInvoiceModal'
 import type { InvoiceItem, CustomerInfo } from '@/types/invoiceTemplate'
@@ -177,13 +178,32 @@ const CreateInvoice = () => {
       <Box sx={{ width: '100%', backgroundColor: '#f5f5f5', minHeight: '100vh', py: 4 }}>
         <Box sx={{ width: '100%', px: { xs: 2, sm: 3, md: 4 } }}>
           {/* Header */}
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
-              Tạo Hóa đơn mới
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#666' }}>
-              Vui lòng điền đầy đủ thông tin để tạo hóa đơn
-            </Typography>
+          <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
+                Tạo Hóa đơn mới
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#666' }}>
+                Vui lòng điền đầy đủ thông tin để tạo hóa đơn
+              </Typography>
+            </Box>
+            <Button
+              variant="outlined"
+              startIcon={<ArrowBackIcon />}
+              onClick={() => navigate(-1)}
+              sx={{
+                textTransform: 'none',
+                fontWeight: 500,
+                borderColor: '#e0e0e0',
+                color: '#666',
+                '&:hover': {
+                  borderColor: '#1976d2',
+                  backgroundColor: 'rgba(25, 118, 210, 0.04)',
+                  color: '#1976d2',
+                },
+              }}>
+              Quay lại
+            </Button>
           </Box>
 
           {/* Creation Mode Selection */}

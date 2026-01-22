@@ -1612,13 +1612,11 @@ const CreateVatInvoice: React.FC = () => {
     if (!selectedTemplate || !company) return null
 
     return {
-      companyLogo: null, // ⚠️ TODO: Backend chưa có field logo cho company
+      companyLogo: company.logoUrl || null, // ✅ Use logo from Company API
       companyName: company.companyName,
       companyTaxCode: company.taxCode,
       companyAddress: company.address,
       companyPhone: company.contactPhone,
-      modelCode: selectedTemplate.serial,
-      templateCode: selectedTemplate.templateName,
     }
   }
 
@@ -3084,7 +3082,6 @@ const CreateVatInvoice: React.FC = () => {
                   blankRows={5}
                   visibility={DEFAULT_TEMPLATE_VISIBILITY}
                   bilingual={false}
-                  invoiceDate={new Date().toISOString()}
                   invoiceType="withCode"
                   symbol={DEFAULT_INVOICE_SYMBOL}
                   customerVisibility={{

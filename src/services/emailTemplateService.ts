@@ -1,5 +1,27 @@
 // src/services/emailTemplateService.ts
 
+/**
+ * Email Template Service
+ * 
+ * Manages email templates for invoice notifications, payment reminders, and minutes.
+ * 
+ * Available Placeholders:
+ * - {{CustomerName}}: Tên khách hàng
+ * - {{InvoiceNumber}}: Số hóa đơn
+ * - {{Serial}}: Ký hiệu hóa đơn
+ * - {{IssuedDate}}: Ngày phát hành
+ * - {{TotalAmount}}: Tổng tiền
+ * - {{LookupCode}}: Mã tra cứu hóa đơn
+ * - {{Message}}: Tin nhắn tùy chỉnh
+ * - {{AttachmentList}}: Danh sách file đính kèm (HTML list)
+ * - {{Reason}}: Lý do điều chỉnh/thu hồi
+ * 
+ * Template Categories:
+ * - invoice: Gửi hóa đơn
+ * - payment: Nhắc thanh toán
+ * - minutes: Biên bản (điều chỉnh/thu hồi)
+ */
+
 import axios from 'axios';
 import API_CONFIG from '@/config/api.config';
 
@@ -7,6 +29,9 @@ import API_CONFIG from '@/config/api.config';
 // INTERFACES
 // ============================
 
+/**
+ * Email Template entity from API
+ */
 export interface EmailTemplate {
   emailTemplateID: number;
   templateCode: string;
@@ -21,6 +46,10 @@ export interface EmailTemplate {
   updatedAt: string | null;
 }
 
+/**
+ * Request body for creating new email template
+ * POST /api/EmailTemplates
+ */
 export interface CreateEmailTemplateRequest {
   templateCode: string;
   languageCode: string;
@@ -31,8 +60,12 @@ export interface CreateEmailTemplateRequest {
   isActive: boolean;
 }
 
+/**
+ * Request body for updating email template
+ * PUT /api/EmailTemplates/{id}
+ * Note: emailTemplateID is in URL path, not in body
+ */
 export interface UpdateEmailTemplateRequest {
-  emailTemplateID: number;
   subject: string;
   bodyContent: string;
   category: string;
@@ -85,16 +118,37 @@ const handleApiError = (error: unknown, context: string): never => {
 // ============================
 
 /**
- * Get all email templates
- * GET /api/EmailTemplates
+ * Get all email templates with optional filtering
+ * GET /api/EmailTemplates?IsActive={true|false}
+ * 
+ * @param isActive - Filter by active status (optional)
+ * @returns Array of email templates
+ * 
+ * @example
+ * ```typescript
+ * // Get all templates
+ * const all = await getAllEmailTemplates();
+ * 
+ * // Get only active templates
+ * const active = await getAllEmailTemplates(true);
+ * 
+ * // Get only inactive templates
+ * const inactive = await getAllEmailTemplates(false);
+ * ```
  */
-export const getAllEmailTemplates = async (): Promise<EmailTemplate[]> => {
+export const getAllEmailTemplates = async (isActive?: boolean): Promise<EmailTemplate[]> => {
   try {
-    console.log('[getAllEmailTemplates] Fetching templates...');
+    const filterText = isActive !== undefined ? ` (IsActive=${isActive})` : '';
+    console.log(`[getAllEmailTemplates] Fetching templates${filterText}...`);
+    
+    const params = isActive !== undefined ? { IsActive: isActive } : {};
     
     const response = await axios.get<EmailTemplate[]>(
       '/api/EmailTemplates',
-      { headers: getAuthHeaders() }
+      { 
+        headers: getAuthHeaders(),
+        params 
+      }
     );
     
     console.log('[getAllEmailTemplates] Success:', response.data.length, 'templates');
@@ -107,6 +161,15 @@ export const getAllEmailTemplates = async (): Promise<EmailTemplate[]> => {
 /**
  * Get email template by ID
  * GET /api/EmailTemplates/{id}
+ * 
+ * @param id - Template ID
+ * @returns Email template details
+ * 
+ * @example
+ * ```typescript
+ * const template = await getEmailTemplateById(1);
+ * console.log(template.subject); // "🔔 [Hóa đơn] #{{InvoiceNumber}}..."
+ * ```
  */
 export const getEmailTemplateById = async (id: number): Promise<EmailTemplate> => {
   try {
@@ -117,7 +180,7 @@ export const getEmailTemplateById = async (id: number): Promise<EmailTemplate> =
       { headers: getAuthHeaders() }
     );
     
-    console.log('[getEmailTemplateById] Success:', response.data);
+    console.log('[getEmailTemplateById] Success:', response.data.name);
     return response.data;
   } catch (error) {
     return handleApiError(error, 'getEmailTemplateById');
@@ -127,6 +190,22 @@ export const getEmailTemplateById = async (id: number): Promise<EmailTemplate> =
 /**
  * Create new email template
  * POST /api/EmailTemplates
+ * 
+ * @param data - Template data (subject, bodyContent, category, name, languageCode, templateCode, isActive)
+ * @returns Created template with generated ID
+ * 
+ * @example
+ * ```typescript
+ * const newTemplate = await createEmailTemplate({
+ *   subject: "🔔 [Hóa đơn] #{{InvoiceNumber}} - {{CustomerName}}",
+ *   bodyContent: "<p>Xin chào {{CustomerName}},</p>...",
+ *   category: "invoice",
+ *   name: "New Invoice Notification",
+ *   languageCode: "vi",
+ *   templateCode: "INVOICE_NEW",
+ *   isActive: true
+ * });
+ * ```
  */
 export const createEmailTemplate = async (
   data: CreateEmailTemplateRequest
@@ -141,7 +220,7 @@ export const createEmailTemplate = async (
       { headers: getAuthHeaders() }
     );
     
-    console.log('[createEmailTemplate] Success:', response.data);
+    console.log('[createEmailTemplate] Success - Template ID:', response.data.emailTemplateID);
     return response.data;
   } catch (error) {
     console.error('[createEmailTemplate] Error details:', error);
@@ -156,13 +235,30 @@ export const createEmailTemplate = async (
 /**
  * Update existing email template
  * PUT /api/EmailTemplates/{id}
+ * 
+ * Note: Template ID is in URL path, not in request body
+ * 
+ * @param id - Template ID to update
+ * @param data - Updated template data (subject, bodyContent, category, name, isActive)
+ * @returns void
+ * 
+ * @example
+ * ```typescript
+ * await updateEmailTemplate(5, {
+ *   subject: "Updated subject",
+ *   bodyContent: "<p>Updated content</p>",
+ *   category: "invoice",
+ *   name: "Updated Template Name",
+ *   isActive: true
+ * });
+ * ```
  */
 export const updateEmailTemplate = async (
   id: number,
   data: UpdateEmailTemplateRequest
 ): Promise<void> => {
   try {
-    console.log('[updateEmailTemplate] Updating template:', id);
+    console.log('[updateEmailTemplate] Updating template ID:', id);
     console.log('[updateEmailTemplate] Request JSON:', JSON.stringify(data, null, 2));
     
     await axios.put(
@@ -171,7 +267,7 @@ export const updateEmailTemplate = async (
       { headers: getAuthHeaders() }
     );
     
-    console.log('[updateEmailTemplate] Success');
+    console.log('[updateEmailTemplate] Success - Template updated');
   } catch (error) {
     console.error('[updateEmailTemplate] Error details:', error);
     if (axios.isAxiosError(error)) {
@@ -185,17 +281,26 @@ export const updateEmailTemplate = async (
 /**
  * Delete email template
  * DELETE /api/EmailTemplates/{id}
+ * 
+ * @param id - Template ID to delete
+ * @returns void
+ * 
+ * @example
+ * ```typescript
+ * await deleteEmailTemplate(5);
+ * console.log('Template deleted successfully');
+ * ```
  */
 export const deleteEmailTemplate = async (id: number): Promise<void> => {
   try {
-    console.log('[deleteEmailTemplate] Deleting template:', id);
+    console.log('[deleteEmailTemplate] Deleting template ID:', id);
     
     await axios.delete(
       `/api/EmailTemplates/${id}`,
       { headers: getAuthHeaders() }
     );
     
-    console.log('[deleteEmailTemplate] Success');
+    console.log('[deleteEmailTemplate] Success - Template deleted');
   } catch (error) {
     return handleApiError(error, 'deleteEmailTemplate');
   }

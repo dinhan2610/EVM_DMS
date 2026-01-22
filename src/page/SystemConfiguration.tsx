@@ -28,6 +28,9 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined'
+import CloudUploadIcon from '@mui/icons-material/CloudUpload'
+import ImageIcon from '@mui/icons-material/Image'
+import DeleteIcon from '@mui/icons-material/Delete'
 import companyService from '@/services/companyService'
 
 // Interfaces
@@ -39,6 +42,7 @@ interface CompanyInfo {
   contactPhone: string
   accountNumber: string
   bankName: string
+  logoUrl?: string  // ✅ Logo URL
 }
 
 interface ApiConfig {
@@ -99,6 +103,11 @@ const SystemConfiguration = () => {
   const [showSecretKey, setShowSecretKey] = useState(false)
   const [showEmailPassword, setShowEmailPassword] = useState(false)
 
+  // State: Logo Upload
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+
   // State: Snackbar
   const [snackbar, setSnackbar] = useState<{
     open: boolean
@@ -124,6 +133,7 @@ const SystemConfiguration = () => {
           contactPhone: company.contactPhone,
           accountNumber: company.accountNumber,
           bankName: company.bankName,
+          logoUrl: company.logoUrl,  // ✅ Load logo URL
         }
         setCompanyInfo(companyData)
         setOriginalCompanyInfo(companyData)
@@ -234,6 +244,87 @@ const SystemConfiguration = () => {
   // Handlers: Email Config
   const handleEmailConfigChange = (field: keyof EmailConfig, value: string | boolean) => {
     setEmailConfig((prev) => ({ ...prev, [field]: value }))
+  }
+
+  // Handlers: Logo Upload
+  const handleLogoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setSnackbar({
+          open: true,
+          message: 'Vui lòng chọn file hình ảnh!',
+          severity: 'error',
+        })
+        return
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setSnackbar({
+          open: true,
+          message: 'Kích thước file không được vượt quá 5MB!',
+          severity: 'error',
+        })
+        return
+      }
+
+      setLogoFile(file)
+      
+      // Create preview
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleUploadLogo = async () => {
+    if (!logoFile) {
+      setSnackbar({
+        open: true,
+        message: 'Vui lòng chọn file logo!',
+        severity: 'error',
+      })
+      return
+    }
+
+    try {
+      setUploadingLogo(true)
+      const updated = await companyService.uploadLogo(logoFile)
+      
+      console.log('✅ Logo uploaded:', updated.logoUrl)
+      
+      // Update company info with new logo URL
+      setCompanyInfo((prev) => ({ ...prev, logoUrl: updated.logoUrl }))
+      setOriginalCompanyInfo((prev) => ({ ...prev, logoUrl: updated.logoUrl }))
+      
+      // Clear preview and file
+      setLogoFile(null)
+      setLogoPreview(null)
+      
+      setSnackbar({
+        open: true,
+        message: 'Đã tải lên logo thành công!',
+        severity: 'success',
+      })
+    } catch (error) {
+      console.error('❌ Error uploading logo:', error)
+      setSnackbar({
+        open: true,
+        message: 'Không thể tải lên logo',
+        severity: 'error',
+      })
+    } finally {
+      setUploadingLogo(false)
+    }
+  }
+
+  const handleRemoveLogoPreview = () => {
+    setLogoFile(null)
+    setLogoPreview(null)
   }
 
   const handleSaveEmailConfig = () => {
@@ -584,6 +675,128 @@ const SystemConfiguration = () => {
               />
             </Grid>
           </Grid>
+
+          {/* Logo Section */}
+          <Divider sx={{ my: 4 }} />
+          
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <ImageIcon color="primary" />
+              Logo công ty
+            </Typography>
+            
+            {/* Hiển thị logo hiện tại */}
+            {companyInfo.logoUrl && (
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                  Logo hiện tại:
+                </Typography>
+                <Box
+                  sx={{
+                    width: 200,
+                    height: 100,
+                    border: '2px dashed #e0e0e0',
+                    borderRadius: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                    bgcolor: '#fafafa',
+                  }}
+                >
+                  <img
+                    src={companyInfo.logoUrl}
+                    alt="Company Logo"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      objectFit: 'contain',
+                    }}
+                  />
+                </Box>
+              </Box>
+            )}
+
+            {/* Upload logo mới */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Button
+                  component="label"
+                  variant="outlined"
+                  startIcon={<CloudUploadIcon />}
+                  sx={{ textTransform: 'none', borderRadius: 2 }}
+                >
+                  Chọn logo mới
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={handleLogoChange}
+                  />
+                </Button>
+                
+                {logoFile && (
+                  <>
+                    <Button
+                      variant="contained"
+                      startIcon={<CloudUploadIcon />}
+                      onClick={handleUploadLogo}
+                      disabled={uploadingLogo}
+                      sx={{ textTransform: 'none', borderRadius: 2 }}
+                    >
+                      {uploadingLogo ? 'Đang tải lên...' : 'Tải lên'}
+                    </Button>
+                    <IconButton
+                      onClick={handleRemoveLogoPreview}
+                      size="small"
+                      color="error"
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </>
+                )}
+              </Box>
+
+              {/* Preview logo mới */}
+              {logoPreview && (
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                    Xem trước:
+                  </Typography>
+                  <Box
+                    sx={{
+                      width: 200,
+                      height: 100,
+                      border: '2px dashed #1976d2',
+                      borderRadius: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'hidden',
+                      bgcolor: '#f5f9ff',
+                    }}
+                  >
+                    <img
+                      src={logoPreview}
+                      alt="Preview"
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '100%',
+                        objectFit: 'contain',
+                      }}
+                    />
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    {logoFile?.name} ({(logoFile!.size / 1024).toFixed(2)} KB)
+                  </Typography>
+                </Box>
+              )}
+
+              <Typography variant="caption" color="text.secondary">
+                ℹ️ Chấp nhận: JPG, PNG, GIF. Kích thước tối đa: 5MB
+              </Typography>
+            </Box>
+          </Box>
         </Paper>
       )}
 

@@ -134,7 +134,7 @@ const debt: MenuItemType = {
   icon: 'mdi:account-cash',
   label: 'Công nợ',
   url: '/debt',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
+  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES, USER_ROLES.CUSTOMER],
 }
 
 const items: MenuItemType = {

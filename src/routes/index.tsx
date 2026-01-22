@@ -217,7 +217,11 @@ const appsRoutes: RoutesProps[] = [
   {
     name: 'Debt Management',
     path: '/debt',
-    element: <DebtManagement />,
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES, USER_ROLES.CUSTOMER]}>
+        <DebtManagement />
+      </ProtectedRoute>
+    ),
   },
   {
     name: 'Tax Error Notification Management',

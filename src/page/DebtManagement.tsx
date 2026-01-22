@@ -158,16 +158,6 @@ const DebtManagement = () => {
   // State - Data
   const [customers, setCustomers] = useState<CustomerDebt[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerDebt | null>(null)
-  const [selectedCustomerDetail, setSelectedCustomerDetail] = useState<{
-    summary: {
-      totalDebt: number;
-      overdueDebt: number;
-      totalPaid: number;
-      invoiceCount: number;
-      unpaidInvoiceCount: number;
-      lastPaymentDate: string | null;
-    };
-  } | null>(null)
   // ✅ NEW: Month/Year filter for monthly debt report
   const [selectedMonth, setSelectedMonth] = useState<number>(dayjs().month() + 1) // 1-12
   const [selectedYear, setSelectedYear] = useState<number>(dayjs().year())
@@ -287,7 +277,6 @@ const DebtManagement = () => {
       if (!selectedCustomer) {
         setInvoices([])
         setPaymentHistory([])
-        setSelectedCustomerDetail(null)
         setMonthlySummary(null)
         return
       }
@@ -388,18 +377,6 @@ const DebtManagement = () => {
         
         setInvoices(mappedInvoices)
         setPaymentHistory(mappedPayments)
-        
-        // ✅ Calculate summary from monthly debt data
-        setSelectedCustomerDetail({
-          summary: {
-            totalDebt: monthlySummary?.totalRemaining || 0,
-            overdueDebt: monthlySummary?.totalOverdue || 0,
-            totalPaid: monthlySummary?.totalPaid || 0,
-            invoiceCount: monthlyDebt.invoices.totalCount,
-            unpaidInvoiceCount: mappedInvoices.filter(i => i.paymentStatus !== 'Paid').length,
-            lastPaymentDate: mappedPayments.length > 0 ? mappedPayments[0].paymentDate : null,
-          }
-        })
         
         // ✅ Update invoice pagination from monthly debt API
         setInvoicePagination({
@@ -542,18 +519,6 @@ const DebtManagement = () => {
 
       setInvoices(mappedInvoices)
       setPaymentHistory(mappedPayments)
-      
-      // Calculate summary from monthly debt data
-      setSelectedCustomerDetail({
-        summary: {
-          totalDebt: monthlyDebt.summary.totalRemaining,
-          overdueDebt: monthlyDebt.summary.totalOverdue,
-          totalPaid: monthlyDebt.summary.totalPaid,
-          invoiceCount: monthlyDebt.invoices.totalCount,
-          unpaidInvoiceCount: mappedInvoices.filter(i => i.paymentStatus !== 'Paid').length,
-          lastPaymentDate: mappedPayments.length > 0 ? mappedPayments[0].paymentDate : null,
-        }
-      })
     } catch (error) {
       console.error('Failed to refresh customer detail:', error)
     }
@@ -1230,102 +1195,10 @@ const DebtManagement = () => {
                 </Box>
               </Box>
 
-              {/* ✅ NEW: Monthly Summary Statistics Cards */}
-              {monthlySummary && (
-                <Box sx={{ 
-                  px: 2.5, 
-                  py: 2, 
-                  borderBottom: '1px solid #e0e0e0', 
-                  backgroundColor: '#fff'
-                }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1.5, fontSize: '0.875rem' }}>
-                    📊 Tổng quan công nợ tháng {selectedMonth}/{selectedYear}
-                  </Typography>
-                  <Stack 
-                    direction="row" 
-                    spacing={2} 
-                    sx={{ 
-                      display: 'grid', 
-                      gridTemplateColumns: 'repeat(4, 1fr)', 
-                      gap: 2 
-                    }}
-                  >
-                    <Paper 
-                      elevation={0} 
-                      sx={{ 
-                        p: 2, 
-                        border: '1px solid #e3f2fd', 
-                        borderRadius: 2, 
-                        backgroundColor: '#e3f2fd',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <Typography variant="caption" sx={{ color: '#1565c0', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', mb: 0.5 }}>
-                        Tổng phải thu
-                      </Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 700, color: '#1565c0', fontSize: '1.4rem' }}>
-                        {formatCurrency(monthlySummary.totalReceivable)}
-                      </Typography>
-                    </Paper>
-                    <Paper 
-                      elevation={0} 
-                      sx={{ 
-                        p: 2, 
-                        border: '1px solid #e8f5e9', 
-                        borderRadius: 2, 
-                        backgroundColor: '#e8f5e9',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <Typography variant="caption" sx={{ color: '#2e7d32', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', mb: 0.5 }}>
-                        Đã thanh toán
-                      </Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 700, color: '#2e7d32', fontSize: '1.4rem' }}>
-                        {formatCurrency(monthlySummary.totalPaid)}
-                      </Typography>
-                    </Paper>
-                    <Paper 
-                      elevation={0} 
-                      sx={{ 
-                        p: 2, 
-                        border: '1px solid #fff3e0', 
-                        borderRadius: 2, 
-                        backgroundColor: '#fff3e0',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <Typography variant="caption" sx={{ color: '#e65100', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', mb: 0.5 }}>
-                        Còn lại
-                      </Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 700, color: '#e65100', fontSize: '1.4rem' }}>
-                        {formatCurrency(monthlySummary.totalRemaining)}
-                      </Typography>
-                    </Paper>
-                    <Paper 
-                      elevation={0} 
-                      sx={{ 
-                        p: 2, 
-                        border: '1px solid #ffebee', 
-                        borderRadius: 2, 
-                        backgroundColor: '#ffebee',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <Typography variant="caption" sx={{ color: '#c62828', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', mb: 0.5 }}>
-                        Quá hạn
-                      </Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 700, color: '#c62828', fontSize: '1.4rem' }}>
-                        {formatCurrency(monthlySummary.totalOverdue)}
-                      </Typography>
-                    </Paper>
-                  </Stack>
-                </Box>
-              )}
-
-              {/* Customer Info & KPI - Inline Compact */}
+              {/* Customer Info & KPI - Optimized with Monthly API Data */}
               <Box sx={{ 
                 px: 2.5, 
-                py: 2, 
+                py: 2.5, 
                 borderBottom: '1px solid #e0e0e0', 
                 backgroundColor: '#fff',
                 display: 'flex',
@@ -1360,7 +1233,7 @@ const DebtManagement = () => {
                   </Stack>
                 </Box>
 
-                {/* KPI Inline - Professional */}
+                {/* ✅ OPTIMIZED: KPI from Monthly API (monthlySummary) */}
                 <Stack 
                   direction="row" 
                   spacing={2.5} 
@@ -1372,7 +1245,7 @@ const DebtManagement = () => {
                       Tổng nợ
                     </Typography>
                     <Typography variant="h6" sx={{ fontWeight: 700, color: '#d32f2f', fontSize: '1.2rem', mt: 0.5 }}>
-                      {formatCurrency(selectedCustomer.totalDebt)}
+                      {formatCurrency(monthlySummary?.totalRemaining ?? 0)}
                     </Typography>
                   </Box>
                   <Box sx={{ textAlign: 'center', minWidth: 110 }}>
@@ -1380,7 +1253,7 @@ const DebtManagement = () => {
                       Đã thanh toán
                     </Typography>
                     <Typography variant="h6" sx={{ fontWeight: 700, color: '#2e7d32', fontSize: '1.2rem', mt: 0.5 }}>
-                      {formatCurrency(selectedCustomerDetail?.summary.totalPaid ?? 0)}
+                      {formatCurrency(monthlySummary?.totalPaid ?? 0)}
                     </Typography>
                   </Box>
                   <Box sx={{ textAlign: 'center', minWidth: 110 }}>
@@ -1388,12 +1261,12 @@ const DebtManagement = () => {
                       <Typography variant="caption" sx={{ color: '#666', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                         Quá hạn
                       </Typography>
-                      {selectedCustomer.overdueDebt > 0 && (
+                      {(monthlySummary?.totalOverdue ?? 0) > 0 && (
                         <WarningAmberIcon sx={{ fontSize: 13, color: '#ff9800' }} />
                       )}
                     </Box>
                     <Typography variant="h6" sx={{ fontWeight: 700, color: '#ff9800', fontSize: '1.2rem' }}>
-                      {formatCurrency(selectedCustomer.overdueDebt)}
+                      {formatCurrency(monthlySummary?.totalOverdue ?? 0)}
                     </Typography>
                   </Box>
                 </Stack>

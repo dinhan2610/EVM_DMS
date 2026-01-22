@@ -249,8 +249,11 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax,
   // ✅ Cho phép điều chỉnh: ISSUED hoặc ADJUSTED, KHÔNG giới hạn invoiceType
   const canAdjust = isIssued || isAdjusted
   
-  // ✅ Cho phép thay thế: ISSUED hoặc ADJUSTED, KHÔNG giới hạn invoiceType
-  const canReplace = isIssued || isAdjusted
+  // 🚫 KHÔNG cho phép thay thế nếu:
+  // 1. Hóa đơn là "Hóa đơn điều chỉnh" (invoiceType = 2)
+  // 2. Hóa đơn đã có trạng thái "Đã điều chỉnh" (status = 4)
+  // ✅ Chỉ cho phép thay thế: ISSUED hoặc ADJUSTED, NHƯNG không phải HĐ điều chỉnh và chưa bị điều chỉnh
+  const canReplace = (isIssued || isAdjusted) && !isAdjustmentInvoice && !isAdjusted
 
   const menuItems = [
     {
@@ -353,11 +356,13 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax,
         handleClose()
       },
       color: 'warning.main',
-      tooltip: isAdjustmentInvoice
-        ? 'Thay thế HĐ điều chỉnh (cho phép thay thế nhiều lần)'
+      tooltip: !canReplace && isAdjustmentInvoice
+        ? '🚫 Không thể thay thế hóa đơn điều chỉnh. Chỉ có thể điều chỉnh tiếp.'
+        : !canReplace && isAdjusted
+        ? '🚫 Hóa đơn đã điều chỉnh. Chỉ có thể điều chỉnh tiếp, không thể thay thế.'
         : isReplacementInvoice
         ? 'Thay thế HĐ thay thế (cho phép thay thế nhiều lần)'
-        : 'Tạo hóa đơn thay thế (không giới hạn số lần)',
+        : 'Tạo hóa đơn thay thế',
     },
     {
       label: 'Hủy',

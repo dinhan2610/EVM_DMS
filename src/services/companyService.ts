@@ -15,6 +15,7 @@ export interface Company {
   contactPhone: string;
   accountNumber: string;
   bankName: string;
+  logoUrl?: string;            // ✅ URL của logo công ty
   taxAuthorityCode?: string;  // ✅ Mã cơ quan thuế (6 digits: 100394, 100395) - Optional
 }
 
@@ -73,6 +74,36 @@ const companyService = {
       return response.data;
     } catch (error) {
       console.error('Error updating company:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Upload company logo
+   * @param file - Logo file to upload
+   * @returns Updated company with new logoUrl
+   */
+  uploadLogo: async (file: File): Promise<Company> => {
+    try {
+      const formData = new FormData();
+      formData.append('File', file);
+      formData.append('CompanyId', '1'); // Cố định company ID = 1
+
+      const response = await axios.post<Company>(
+        `${API_CONFIG.BASE_URL}/Company/1/logo`,
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'accept': '*/*',
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error uploading logo:', error);
       throw error;
     }
   }
