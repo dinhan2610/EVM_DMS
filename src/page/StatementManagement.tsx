@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -13,14 +13,12 @@ import {
   ListItemIcon,
   ListItemText,
   Divider,
-  Badge,
-  Tabs,
-  Tab,
   Fab,
   Zoom,
   Alert,
   Snackbar,
   Link as MuiLink,
+  CircularProgress,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import AddIcon from '@mui/icons-material/Add'
@@ -28,6 +26,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVert'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import EmailIcon from '@mui/icons-material/Email'
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
@@ -41,11 +40,21 @@ import {
   getStatementStatusColor,
   type StatementStatus,
 } from '@/constants/statementStatus'
+import type { StatementListItem } from '@/types/statement.types'
+import { 
+  fetchStatements, 
+  exportStatementPDF,
+  sendStatementEmail,
+  formatStatementPeriod,
+  formatStatementDate 
+} from '@/services/statementService'
+import CreateStatementModal from '@/components/CreateStatementModal'
 
 // ==================== INTERFACES ====================
 
 /**
- * Interface Statement - Bảng kê công nợ
+ * Interface Statement - Bảng kê công nợ (Legacy - for backward compatibility)
+ * @deprecated Use StatementListItem from @/types/statement.types
  */
 export interface Statement {
   id: string
@@ -59,129 +68,34 @@ export interface Statement {
   createdDate: string                 // Ngày tạo
 }
 
-// ==================== MOCK DATA ====================
+// Convert API response to legacy format for backward compatibility
+function convertToLegacyFormat(item: StatementListItem): Statement {
+  return {
+    id: String(item.statementID),
+    code: item.statementCode,
+    customerName: item.customerName,
+    period: formatStatementPeriod(item.statementDate),
+    totalAmount: item.totalAmount,
+    status: item.status as StatementStatus,
+    linkedInvoiceNumber: item.totalInvoices > 0 ? `${item.totalInvoices} HĐ` : null,
+    isEmailSent: false, // Not available from API
+    createdDate: formatStatementDate(item.statementDate),
+  }
+}
 
-const mockStatements: Statement[] = [
-  {
-    id: '1',
-    code: 'BK-1025-001',
-    customerName: 'Công ty TNHH Công nghệ ABC',
-    period: '10/2025',
-    totalAmount: 25000000,
-    status: STATEMENT_STATUS.DRAFT,
-    linkedInvoiceNumber: null,
-    isEmailSent: true,
-    createdDate: '2025-10-25',
-  },
-  {
-    id: '2',
-    code: 'BK-1025-002',
-    customerName: 'Công ty CP Viễn thông XYZ',
-    period: '10/2025',
-    totalAmount: 45000000,
-    status: STATEMENT_STATUS.INVOICED,
-    linkedInvoiceNumber: '0001234',
-    isEmailSent: true,
-    createdDate: '2025-10-26',
-  },
-  {
-    id: '3',
-    code: 'BK-1025-003',
-    customerName: 'Doanh nghiệp tư nhân Minh Tuấn',
-    period: '10/2025',
-    totalAmount: 12000000,
-    status: STATEMENT_STATUS.DRAFT,
-    linkedInvoiceNumber: null,
-    isEmailSent: false,
-    createdDate: '2025-10-27',
-  },
-  {
-    id: '4',
-    code: 'BK-1025-004',
-    customerName: 'Công ty TNHH Thương mại Quốc tế',
-    period: '10/2025',
-    totalAmount: 67000000,
-    status: STATEMENT_STATUS.INVOICED,
-    linkedInvoiceNumber: '0001235',
-    isEmailSent: true,
-    createdDate: '2025-10-28',
-  },
-  {
-    id: '5',
-    code: 'BK-0925-015',
-    customerName: 'Công ty CP Đầu tư Phát triển',
-    period: '09/2025',
-    totalAmount: 38000000,
-    status: STATEMENT_STATUS.INVOICED,
-    linkedInvoiceNumber: '0001180',
-    isEmailSent: true,
-    createdDate: '2025-09-25',
-  },
-  {
-    id: '6',
-    code: 'BK-1025-005',
-    customerName: 'Công ty TNHH Xây dựng Hoàng Gia',
-    period: '10/2025',
-    totalAmount: 92000000,
-    status: STATEMENT_STATUS.DRAFT,
-    linkedInvoiceNumber: null,
-    isEmailSent: true,
-    createdDate: '2025-10-29',
-  },
-  {
-    id: '7',
-    code: 'BK-1025-006',
-    customerName: 'Công ty CP Logistics Việt Nam',
-    period: '10/2025',
-    totalAmount: 15000000,
-    status: STATEMENT_STATUS.DRAFT,
-    linkedInvoiceNumber: null,
-    isEmailSent: false,
-    createdDate: '2025-10-30',
-  },
-  {
-    id: '8',
-    code: 'BK-0925-020',
-    customerName: 'Công ty TNHH Thời trang Trendy',
-    period: '09/2025',
-    totalAmount: 28000000,
-    status: STATEMENT_STATUS.INVOICED,
-    linkedInvoiceNumber: '0001199',
-    isEmailSent: true,
-    createdDate: '2025-09-28',
-  },
-  {
-    id: '9',
-    code: 'BK-1125-001',
-    customerName: 'Công ty CP Sản xuất Điện tử',
-    period: '11/2025',
-    totalAmount: 125000000,
-    status: STATEMENT_STATUS.DRAFT,
-    linkedInvoiceNumber: null,
-    isEmailSent: false,
-    createdDate: '2025-11-15',
-  },
-  {
-    id: '10',
-    code: 'BK-1025-007',
-    customerName: 'Công ty TNHH Dịch vụ Tài chính',
-    period: '10/2025',
-    totalAmount: 54000000,
-    status: STATEMENT_STATUS.INVOICED,
-    linkedInvoiceNumber: '0001250',
-    isEmailSent: true,
-    createdDate: '2025-10-31',
-  },
-];
+// ==================== MOCK DATA (No longer used - kept for reference) ====================
+// Mock data has been replaced with real API calls to /api/Statement
 
 // ==================== COMPONENT: ACTIONS MENU ====================
 
 interface StatementActionsMenuProps {
   statement: Statement
   onDelete: (id: string) => void
+  onExportPDF: (id: string, code: string) => void
+  onSendEmail: (id: string, code: string, customerName: string) => void
 }
 
-const StatementActionsMenu = ({ statement, onDelete }: StatementActionsMenuProps) => {
+const StatementActionsMenu = ({ statement, onDelete, onExportPDF, onSendEmail }: StatementActionsMenuProps) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
 
@@ -205,6 +119,16 @@ const StatementActionsMenu = ({ statement, onDelete }: StatementActionsMenuProps
         handleClose()
       },
       color: 'primary.main',
+    },
+    {
+      label: 'Xuất PDF',
+      icon: <PictureAsPdfIcon fontSize="small" />,
+      enabled: true,
+      action: () => {
+        onExportPDF(statement.id, statement.code)
+        handleClose()
+      },
+      color: 'error.main',
     },
     {
       label: 'Chỉnh sửa',
@@ -232,7 +156,7 @@ const StatementActionsMenu = ({ statement, onDelete }: StatementActionsMenuProps
       icon: <EmailIcon fontSize="small" />,
       enabled: true,
       action: () => {
-        console.log('Gửi email:', statement.id)
+        onSendEmail(statement.id, statement.code, statement.customerName)
         handleClose()
       },
       color: 'info.main',
@@ -368,11 +292,25 @@ const StatementManagement = () => {
   // Hooks
   const navigate = useNavigate()
 
-  // State
-  const [statements, setStatements] = useState<Statement[]>(mockStatements)
-  const [selectedTab, setSelectedTab] = useState<'all' | 'draft' | 'invoiced'>('all')
+  // API State
+  const [statements, setStatements] = useState<Statement[]>([])
+  const [loading, setLoading] = useState<boolean>(false)
+  const [error, setError] = useState<string | null>(null)
+  const [pagination, setPagination] = useState({
+    pageIndex: 1,
+    pageSize: 10,
+    totalPages: 0,
+    totalCount: 0,
+  })
+
+  // UI State
   const [selectedRowsCount, setSelectedRowsCount] = useState<number>(0)
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' | 'info' })
+  const [createModalOpen, setCreateModalOpen] = useState<boolean>(false)
+  const [snackbar, setSnackbar] = useState({ 
+    open: false, 
+    message: '', 
+    severity: 'success' as 'success' | 'error' | 'info' 
+  })
 
   // Filter state
   const [filters, setFilters] = useState<StatementFilterState>({
@@ -387,23 +325,150 @@ const StatementManagement = () => {
     linkedInvoice: 'ALL',
   })
 
+  // ==================== API FETCH ====================
+
+  // Fetch statements from API
+  const loadStatements = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const response = await fetchStatements({
+        pageIndex: pagination.pageIndex,
+        pageSize: pagination.pageSize,
+      })
+
+      // Convert API response to legacy format
+      const convertedStatements = response.items.map(convertToLegacyFormat)
+      setStatements(convertedStatements)
+      
+      setPagination(prev => ({
+        ...prev,
+        totalPages: response.totalPages,
+        totalCount: response.totalCount,
+      }))
+
+      console.log('✅ Loaded statements:', response.totalCount, 'items')
+    } catch (err) {
+      let errorMessage = 'Không thể tải danh sách bảng kê'
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as { response?: { data?: { message?: string } } }
+        errorMessage = axiosError.response?.data?.message || errorMessage
+      }
+      setError(errorMessage)
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: 'error',
+      })
+      console.error('❌ Error loading statements:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [pagination.pageIndex, pagination.pageSize])
+
+  // Load statements on component mount
+  useEffect(() => {
+    loadStatements()
+  }, [loadStatements])
+
+  // ==================== HANDLERS ====================
+
+  // Handle PDF export
+  const handleExportPDF = async (id: string, code: string) => {
+    try {
+      setSnackbar({
+        open: true,
+        message: `Đang xuất PDF cho ${code}...`,
+        severity: 'info',
+      })
+      
+      await exportStatementPDF(Number(id), `${code}.pdf`)
+      
+      setSnackbar({
+        open: true,
+        message: `✅ Đã xuất PDF thành công: ${code}.pdf`,
+        severity: 'success',
+      })
+    } catch (err) {
+      let errorMessage = 'Không thể xuất PDF'
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as { response?: { data?: { detail?: string; message?: string } } }
+        errorMessage = axiosError.response?.data?.detail || axiosError.response?.data?.message || errorMessage
+      }
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: 'error',
+      })
+      console.error('❌ Error exporting PDF:', err)
+    }
+  }
+
+  // Handle send email
+  const handleSendEmail = async (id: string, _code: string, customerName: string) => {
+    try {
+      setSnackbar({
+        open: true,
+        message: `Đang gửi email cho ${customerName}...`,
+        severity: 'info',
+      })
+      
+      await sendStatementEmail(Number(id))
+      
+      setSnackbar({
+        open: true,
+        message: `✅ Đã gửi email thành công cho ${customerName}`,
+        severity: 'success',
+      })
+    } catch (err) {
+      let errorMessage = 'Không thể gửi email'
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as { response?: { data?: { detail?: string; message?: string } } }
+        errorMessage = axiosError.response?.data?.detail || axiosError.response?.data?.message || errorMessage
+      }
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: 'error',
+      })
+      console.error('❌ Error sending email:', err)
+    }
+  }
+
+  // Handle create statement from modal
+  const handleCreateStatement = (customerId: number, month: number, year: number) => {
+    console.log('Creating statement:', { customerId, month, year })
+    
+    // Navigate to create statement page with query params
+    navigate(`/statements/new?customerId=${customerId}&month=${month}&year=${year}`)
+    
+    // Show success message
+    setSnackbar({
+      open: true,
+      message: 'Đang tạo bảng kê...',
+      severity: 'info',
+    })
+  }
+
   // ==================== FILTER LOGIC ====================
 
   // Filter statements based on selected tab AND filter criteria
   const filteredStatements = useMemo(() => {
     let result = statements
 
-    // Tab filtering
-    switch (selectedTab) {
-      case 'draft':
-        result = result.filter(s => s.status !== STATEMENT_STATUS.INVOICED)
-        break
-      case 'invoiced':
-        result = result.filter(s => s.status === STATEMENT_STATUS.INVOICED)
-        break
-      default:
-        break
-    }
+    // Tab filtering - currently fixed to 'all'
+    // If tabs UI is added back, this will filter by status
+    // switch (selectedTab) {
+    //   case 'draft':
+    //     result = result.filter(s => s.status !== STATEMENT_STATUS.INVOICED)
+    //     break
+    //   case 'invoiced':
+    //     result = result.filter(s => s.status === STATEMENT_STATUS.INVOICED)
+    //     break
+    //   default:
+    //     break
+    // }
 
     // Advanced filtering
     result = result.filter((statement) => {
@@ -470,17 +535,7 @@ const StatementManagement = () => {
     })
 
     return result
-  }, [statements, selectedTab, filters])
-
-  // Count badges
-  const countDraft = useMemo(() => 
-    statements.filter(s => s.status !== STATEMENT_STATUS.INVOICED).length, 
-    [statements]
-  )
-  const countInvoiced = useMemo(() => 
-    statements.filter(s => s.status === STATEMENT_STATUS.INVOICED).length, 
-    [statements]
-  )
+  }, [statements, filters])
 
   // ==================== HANDLERS ====================
 
@@ -503,12 +558,6 @@ const StatementManagement = () => {
       linkedInvoice: 'ALL',
     })
   }, [])
-
-  // Handle tab change
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: 'all' | 'draft' | 'invoiced') => {
-    setSelectedTab(newValue)
-    setSelectedRowsCount(0) // Clear count khi đổi tab
-  }
 
   // Handle delete
   const handleDelete = (id: string) => {
@@ -715,6 +764,8 @@ const StatementManagement = () => {
         <StatementActionsMenu 
           statement={params.row} 
           onDelete={handleDelete}
+          onExportPDF={handleExportPDF}
+          onSendEmail={handleSendEmail}
         />
       ),
     },
@@ -722,6 +773,17 @@ const StatementManagement = () => {
 
   return (
     <Box sx={{ p: 3 }}>
+      {/* Error Alert */}
+      {error && (
+        <Alert 
+          severity="error" 
+          onClose={() => setError(null)}
+          sx={{ mb: 3 }}
+        >
+          {error}
+        </Alert>
+      )}
+
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
@@ -732,7 +794,7 @@ const StatementManagement = () => {
         </Typography>
         {filteredStatements.length > 0 && (
           <Typography variant="body2" sx={{ color: '#1976d2', fontWeight: 500, mt: 0.5 }}>
-            📊 Hiển thị {filteredStatements.length} / {statements.length} bảng kê
+            📊 Hiển thị {filteredStatements.length} / {pagination.totalCount} bảng kê
           </Typography>
         )}
       </Box>
@@ -741,14 +803,14 @@ const StatementManagement = () => {
       <StatementFilter
         onFilterChange={handleFilterChange}
         onReset={handleResetFilter}
-        totalResults={statements.length}
+        totalResults={pagination.totalCount}
         filteredResults={filteredStatements.length}
         actionButton={
           <Button
             variant="contained"
             color="primary"
             startIcon={<AddIcon />}
-            onClick={() => navigate('/statements/new')}
+            onClick={() => setCreateModalOpen(true)}
             sx={{
               textTransform: 'none',
               fontWeight: 500,
@@ -773,82 +835,7 @@ const StatementManagement = () => {
           backgroundColor: '#fff',
         }}
       >
-        <Tabs
-          value={selectedTab}
-          onChange={handleTabChange}
-          sx={{
-            borderBottom: '1px solid #e0e0e0',
-            '& .MuiTab-root': {
-              textTransform: 'none',
-              fontWeight: 500,
-              fontSize: '0.9rem',
-              minHeight: 56,
-              px: 3,
-            },
-            '& .Mui-selected': {
-              color: 'primary.main',
-              fontWeight: 600,
-            },
-          }}
-        >
-          <Tab
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                Tất cả
-                <Chip 
-                  label={statements.length} 
-                  size="small" 
-                  sx={{ 
-                    height: 20, 
-                    fontSize: '0.7rem',
-                    fontWeight: 600,
-                  }} 
-                />
-              </Box>
-            }
-            value="all"
-          />
-          <Tab
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                Chưa xuất hóa đơn
-                <Badge
-                  badgeContent={countDraft}
-                  color="warning"
-                  sx={{
-                    '& .MuiBadge-badge': {
-                      fontWeight: 600,
-                      fontSize: '0.7rem',
-                    },
-                  }}
-                >
-                  <Box sx={{ width: 8 }} />
-                </Badge>
-              </Box>
-            }
-            value="draft"
-          />
-          <Tab
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                Đã xuất hóa đơn
-                <Badge
-                  badgeContent={countInvoiced}
-                  color="success"
-                  sx={{
-                    '& .MuiBadge-badge': {
-                      fontWeight: 600,
-                      fontSize: '0.7rem',
-                    },
-                  }}
-                >
-                  <Box sx={{ width: 8 }} />
-                </Badge>
-              </Box>
-            }
-            value="invoiced"
-          />
-        </Tabs>
+       
       </Paper>
 
       {/* Data Table */}
@@ -862,80 +849,56 @@ const StatementManagement = () => {
           overflow: 'hidden',
         }}
       >
-        <DataGrid
-          rows={filteredStatements}
-          columns={columns}
-          checkboxSelection
-          disableRowSelectionOnClick
-          onRowSelectionModelChange={(newSelection) => {
-            setSelectedRowsCount(newSelection.ids.size)
-          }}
-          initialState={{
-            pagination: {
-              paginationModel: { pageSize: 10, page: 0 },
-            },
-          }}
-          pageSizeOptions={[5, 10, 25, 50]}
-          sx={{
-            border: 'none',
-            '& .MuiDataGrid-cell': {
-              borderBottom: '1px solid #f0f0f0',
-            },
-            '& .MuiDataGrid-columnHeaders': {
-              backgroundColor: '#f8f9fa',
-              borderBottom: '2px solid #e0e0e0',
-              fontWeight: 600,
-            },
-            '& .MuiDataGrid-row:hover': {
-              backgroundColor: '#f8f9fa',
-            },
-            '& .MuiDataGrid-footerContainer': {
-              borderTop: '2px solid #e0e0e0',
-              backgroundColor: '#fafafa',
-              minHeight: '56px',
-              padding: '8px 16px',
-            },
-            '& .MuiTablePagination-root': {
-              overflow: 'visible',
-            },
-            '& .MuiTablePagination-toolbar': {
-              minHeight: '56px',
-              paddingLeft: '16px',
-              paddingRight: '8px',
-            },
-            '& .MuiTablePagination-selectLabel': {
-              margin: 0,
-              fontSize: '0.875rem',
-              fontWeight: 500,
-              color: '#666',
-            },
-            '& .MuiTablePagination-displayedRows': {
-              margin: 0,
-              fontSize: '0.875rem',
-              fontWeight: 500,
-              color: '#666',
-            },
-            '& .MuiTablePagination-select': {
-              paddingTop: '8px',
-              paddingBottom: '8px',
-              fontSize: '0.875rem',
-              fontWeight: 500,
-            },
-            '& .MuiTablePagination-actions': {
-              marginLeft: '20px',
-              '& .MuiIconButton-root': {
-                padding: '8px',
-                '&:hover': {
-                  backgroundColor: '#e3f2fd',
-                },
-                '&.Mui-disabled': {
-                  opacity: 0.3,
-                },
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <DataGrid
+            rows={filteredStatements}
+            columns={columns}
+            checkboxSelection
+            disableRowSelectionOnClick
+            onRowSelectionModelChange={(newSelection) => {
+              setSelectedRowsCount(Array.isArray(newSelection) ? newSelection.length : 0)
+            }}
+            paginationMode="server"
+            rowCount={pagination.totalCount}
+            paginationModel={{
+              page: pagination.pageIndex - 1, // DataGrid uses 0-based index
+              pageSize: pagination.pageSize,
+            }}
+            onPaginationModelChange={(model) => {
+              setPagination(prev => ({
+                ...prev,
+                pageIndex: model.page + 1, // Convert to 1-based for API
+                pageSize: model.pageSize,
+              }))
+            }}
+            pageSizeOptions={[5, 10, 25, 50]}
+            sx={{
+              border: 'none',
+              '& .MuiDataGrid-cell': {
+                borderBottom: '1px solid #f0f0f0',
               },
-            },
-          }}
-          autoHeight
-        />
+              '& .MuiDataGrid-columnHeaders': {
+                backgroundColor: '#f8f9fa',
+                borderBottom: '2px solid #e0e0e0',
+                fontWeight: 600,
+              },
+              '& .MuiDataGrid-row:hover': {
+                backgroundColor: '#f8f9fa',
+              },
+              '& .MuiDataGrid-footerContainer': {
+                borderTop: '2px solid #e0e0e0',
+                backgroundColor: '#fafafa',
+                minHeight: '56px',
+                padding: '8px 16px',
+              },
+            }}
+            autoHeight
+          />
+        )}
       </Paper>
 
       {/* Floating Action Button - Bulk Send Email */}
@@ -977,6 +940,13 @@ const StatementManagement = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* Create Statement Modal */}
+      <CreateStatementModal
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onCreate={handleCreateStatement}
+      />
     </Box>
   )
 }
