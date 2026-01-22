@@ -261,8 +261,6 @@ export default function TemplatePreviewPage() {
            false;
   }, [parsedLayout]);
 
-  const logoSize = useMemo(() => parsedLayout?.logoSize || 150, [parsedLayout]);
-
   if (isLoading) {
     return (
       <Box sx={{ bgcolor: '#f5f7fa', minHeight: '100vh', py: 3 }}>
@@ -362,7 +360,6 @@ export default function TemplatePreviewPage() {
                 symbol={symbol}
                 blankRows={blankRows}
                 bilingual={bilingual}
-                logoSize={logoSize}
               />
             </Box>
           </Box>

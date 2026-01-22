@@ -172,15 +172,14 @@ export function mapEditorStateToApiRequest(editorState: TemplateEditorState): an
  * const editorState = mapApiResponseToEditorState(layoutDef)
  * // Load into TemplateEditor
  */
-export function mapApiResponseToEditorState(apiResponse: LayoutDefinitionResponse): TemplateEditorState {
+export function mapApiResponseToEditorState(apiResponse: LayoutDefinitionResponse): Partial<TemplateEditorState> {
   return {
     table: apiResponse.table,
     company: apiResponse.company,
     settings: apiResponse.settings,
-    modelCode: apiResponse.modelCode,
-    background: apiResponse.background,
-    invoiceDate: apiResponse.invoiceDate,
-    templateCode: apiResponse.templateCode,
+    background: {
+      frame: apiResponse.background?.frame || '',
+    },
   }
 }
 
@@ -410,13 +409,13 @@ export function createLayoutDefinitionResponse(editorState: TemplateEditorState)
         customerTaxCode: false,
       },
     },
-    modelCode: editorState.modelCode || '01GTKT',
-    background: editorState.background || {
-      frame: '',
+    modelCode: '01GTKT',
+    background: {
+      frame: editorState.background?.frame || '',
       custom: null,
     },
-    invoiceDate: editorState.invoiceDate || new Date().toISOString(),
-    templateCode: editorState.templateCode || '',
+    invoiceDate: new Date().toISOString(),
+    templateCode: '',
   }
 }
 

@@ -200,7 +200,6 @@ const EmailTemplateManagement = () => {
       if (selectedTemplate) {
         // Update existing
         await emailTemplateService.updateEmailTemplate(selectedTemplate.emailTemplateID, {
-          emailTemplateID: selectedTemplate.emailTemplateID,
           name: editForm.name,
           subject: editForm.subject,
           bodyContent: editForm.bodyContent,
