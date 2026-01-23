@@ -16,6 +16,24 @@ import type {
   StatementListItem,
 } from '@/types/statement.types';
 
+// ==================== EMAIL INTERFACES ====================
+
+export interface SendStatementEmailRequest {
+  statementId: number;
+  recipientEmail: string;
+  ccEmails?: string[];
+  bccEmails?: string[];
+  subject: string;
+  message: string;
+  includePdf: boolean;
+  rootPath?: string;
+}
+
+export interface SendStatementEmailResponse {
+  success: boolean;
+  message: string;
+}
+
 // ==================== API ENDPOINTS ====================
 
 const STATEMENT_ENDPOINTS = {
@@ -26,6 +44,8 @@ const STATEMENT_ENDPOINTS = {
   GENERATE_BATCH: '/api/Statement/generate-batch',
   SEND_REMINDERS: '/api/Statement/send-monthly-reminders',
   SEND_EMAIL: (id: number) => `/api/Statement/${id}/send-email`,
+  CREATE_PAYMENT: (id: number) => `/api/Statement/${id}/payments`,
+  GET_PAYMENTS: (id: number) => `/api/Statement/${id}/payments`,
 };
 
 // ==================== LIST STATEMENTS ====================
@@ -247,21 +267,204 @@ export async function sendMonthlyReminders(): Promise<void> {
 /**
  * Send email for a specific statement to customer
  * 
- * @param id - Statement ID
- * @returns void
+ * @param statementId - Statement ID
+ * @param statementCode - Statement code (e.g., "ST-1-012026")
+ * @param customerName - Customer name
+ * @param customerEmail - Customer email address
+ * @param period - Statement period (e.g., "01/2026")
+ * @returns SendStatementEmailResponse
  * 
  * Example:
  * ```typescript
- * await sendStatementEmail(123);
+ * await sendStatementEmail(123, 'ST-1-012026', 'Công ty ABC', 'abc@example.com', '01/2026');
  * // Email sent to customer for statement #123
  * ```
  */
-export async function sendStatementEmail(id: number): Promise<void> {
+export async function sendStatementEmail(
+  statementId: number,
+  statementCode: string,
+  customerName: string,
+  customerEmail: string,
+  period: string
+): Promise<SendStatementEmailResponse> {
   try {
     const token = localStorage.getItem(API_CONFIG.TOKEN_KEY);
-    await axios.post(
-      STATEMENT_ENDPOINTS.SEND_EMAIL(id),
-      {},
+    
+    // Tạo subject và message tự động
+    const subject = `Thông báo bảng kê cước - Kỳ ${period} - ${statementCode}`;
+    const message = `Kính gửi Quý khách hàng ${customerName},\n\nChúng tôi xin gửi đến Quý khách bảng kê cước cho kỳ ${period}.\n\nMã bảng kê: ${statementCode}\n\nVui lòng xem chi tiết trong file đính kèm.\n\nTrân trọng!`;
+    
+    const requestBody: SendStatementEmailRequest = {
+      statementId,
+      recipientEmail: customerEmail,
+      ccEmails: [],
+      bccEmails: [],
+      subject,
+      message,
+      includePdf: true,
+      rootPath: '',
+    };
+    
+    const response = await axios.post<SendStatementEmailResponse>(
+      STATEMENT_ENDPOINTS.SEND_EMAIL(statementId),
+      requestBody,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    console.log(`✅ Statement email sent successfully for ID: ${statementId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`❌ Error sending statement email (ID: ${statementId}):`, error);
+    throw error;
+  }
+}
+
+// ==================== CREATE STATEMENT PAYMENT ====================
+
+/**
+ * Create payment record for a statement
+ * POST /api/Statement/{id}/payments
+ * 
+ * @param statementId - Statement ID
+ * @param paymentData - Payment information
+ * @returns Payment response with updated statement amounts
+ * 
+ * Example:
+ * ```typescript
+ * const payment = await createStatementPayment(1, {
+ *   statementId: 1,
+ *   amount: 1500000000,
+ *   paymentMethod: 'Chuyển khoản',
+ *   transactionCode: 'TXN123456',
+ *   note: 'Thanh toán kỳ 01/2026',
+ *   paymentDate: '2026-01-23T10:30:00Z',
+ *   createdBy: 5,
+ * });
+ * console.log('Remaining amount:', payment.remainingAmount);
+ * ```
+ */
+export interface CreateStatementPaymentRequest {
+  statementId: number;
+  amount: number;
+  paymentMethod: string;
+  transactionCode?: string;
+  note?: string;
+  paymentDate: string; // ISO format: "2026-01-23T10:30:00Z"
+  createdBy: number;
+}
+
+export interface StatementPaymentResponse {
+  paymentId: number;
+  statementId: number;
+  amount: number;
+  paymentMethod: string;
+  transactionCode: string | null;
+  note: string | null;
+  paymentDate: string;
+  createdBy: number;
+  createdAt: string;
+  // Updated statement amounts
+  remainingAmount?: number;
+  paidAmount?: number;
+  totalAmount?: number;
+}
+
+export async function createStatementPayment(
+  statementId: number,
+  paymentData: CreateStatementPaymentRequest
+): Promise<StatementPaymentResponse> {
+  try {
+    console.log('[createStatementPayment] Creating payment for statement:', statementId)
+    console.log('[createStatementPayment] Payment data:', JSON.stringify(paymentData, null, 2))
+    
+    const token = localStorage.getItem(API_CONFIG.TOKEN_KEY);
+    const response = await axios.post<StatementPaymentResponse>(
+      STATEMENT_ENDPOINTS.CREATE_PAYMENT(statementId),
+      paymentData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    console.log('✅ Statement payment created successfully');
+    console.log('[createStatementPayment] Response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error(`❌ Error creating statement payment (ID: ${statementId}):`, error);
+    if (axios.isAxiosError(error)) {
+      console.error('[createStatementPayment] Response status:', error.response?.status);
+      console.error('[createStatementPayment] Response data:', error.response?.data);
+    }
+    throw error;
+  }
+}
+
+// ==================== GET STATEMENT PAYMENTS ====================
+
+/**
+ * Statement Payment Record from API
+ */
+export interface StatementPaymentRecord {
+  statementPaymentId: number;
+  paymentId: number;
+  invoiceId: number;
+  invoiceNumber: number;
+  appliedAmount: number;           // Số tiền thanh toán
+  invoiceRemainingAfter: number;   // Số tiền còn nợ sau thanh toán
+  paymentDate: string;             // ISO format
+  paymentMethod: string;           // "Chuyển khoản", "Tiền mặt", etc.
+  transactionCode: string | null;
+  note: string | null;
+  createdBy: number;
+}
+
+/**
+ * Statement Payment History Response
+ * GET /api/Statement/{id}/payments
+ */
+export interface StatementPaymentHistoryResponse {
+  statementId: number;
+  totalAmount: number;             // Tổng tiền bảng kê
+  paidAmount: number;              // Đã thanh toán
+  balanceDue: number;              // Còn nợ
+  statusId: number;                // 1=Draft, 2=Pending, 3=Sent, 4=PartiallyPaid, 5=Paid
+  status: string;                  // "Partially Paid", "Paid", etc.
+  payments: StatementPaymentRecord[]; // Lịch sử thanh toán
+}
+
+/**
+ * Get payment history for a statement
+ * GET /api/Statement/{id}/payments
+ * 
+ * @param id - Statement ID
+ * @returns Payment history with summary and list of payments
+ * 
+ * Example:
+ * ```typescript
+ * const history = await getStatementPayments(1);
+ * console.log('Total:', history.totalAmount);
+ * console.log('Paid:', history.paidAmount);
+ * console.log('Balance:', history.balanceDue);
+ * console.log('Payments:', history.payments.length);
+ * ```
+ */
+export async function getStatementPayments(
+  id: number
+): Promise<StatementPaymentHistoryResponse> {
+  try {
+    console.log('[getStatementPayments] Fetching payment history for statement:', id)
+    
+    const token = localStorage.getItem(API_CONFIG.TOKEN_KEY);
+    const response = await axios.get<StatementPaymentHistoryResponse>(
+      STATEMENT_ENDPOINTS.GET_PAYMENTS(id),
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -269,9 +472,22 @@ export async function sendStatementEmail(id: number): Promise<void> {
       }
     );
 
-    console.log(`✅ Statement email sent successfully for ID: ${id}`);
+    console.log('✅ Statement payment history fetched successfully');
+    console.log('[getStatementPayments] Summary:', {
+      totalAmount: response.data.totalAmount,
+      paidAmount: response.data.paidAmount,
+      balanceDue: response.data.balanceDue,
+      status: response.data.status,
+      paymentCount: response.data.payments.length,
+    });
+    
+    return response.data;
   } catch (error) {
-    console.error(`❌ Error sending statement email (ID: ${id}):`, error);
+    console.error(`❌ Error fetching statement payments (ID: ${id}):`, error);
+    if (axios.isAxiosError(error)) {
+      console.error('[getStatementPayments] Response status:', error.response?.status);
+      console.error('[getStatementPayments] Response data:', error.response?.data);
+    }
     throw error;
   }
 }

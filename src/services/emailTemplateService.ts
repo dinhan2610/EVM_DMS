@@ -63,9 +63,10 @@ export interface CreateEmailTemplateRequest {
 /**
  * Request body for updating email template
  * PUT /api/EmailTemplates/{id}
- * Note: emailTemplateID is in URL path, not in body
+ * Note: emailTemplateID is in both URL path AND body (set to 0 in body)
  */
 export interface UpdateEmailTemplateRequest {
+  emailTemplateID: number; // Set to 0, not used by API but expected in body
   subject: string;
   bodyContent: string;
   category: string;
@@ -306,6 +307,35 @@ export const deleteEmailTemplate = async (id: number): Promise<void> => {
   }
 };
 
+/**
+ * Get base content (HTML template) by template code
+ * GET /api/EmailTemplates/base-content/{templateCode}
+ * 
+ * @param templateCode - Template code (e.g., "INVOICE_SEND", "PAYMENT_REMINDER")
+ * @returns HTML content string with placeholders
+ * 
+ * @example
+ * ```typescript
+ * const html = await getBaseContent('INVOICE_SEND');
+ * // Returns: "<!DOCTYPE html><html>...{{CustomerName}}...{{InvoiceNumber}}...</html>"
+ * ```
+ */
+export const getBaseContent = async (templateCode: string): Promise<string> => {
+  try {
+    console.log('[getBaseContent] Fetching base content for:', templateCode);
+    
+    const response = await axios.get<string>(
+      `/api/EmailTemplates/base-content/${templateCode}`,
+      { headers: getAuthHeaders() }
+    );
+    
+    console.log('[getBaseContent] ✅ Success - Content length:', response.data.length);
+    return response.data;
+  } catch (error) {
+    return handleApiError(error, 'getBaseContent');
+  }
+};
+
 // ============================
 // EXPORT DEFAULT SERVICE
 // ============================
@@ -316,6 +346,7 @@ const emailTemplateService = {
   createEmailTemplate,
   updateEmailTemplate,
   deleteEmailTemplate,
+  getBaseContent,
 };
 
 export default emailTemplateService;

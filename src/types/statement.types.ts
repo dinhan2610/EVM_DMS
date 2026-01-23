@@ -12,15 +12,38 @@
 /**
  * Statement List Item - Single statement in list view
  * API: GET /api/Statement
+ * 
+ * Response structure:
+ * {
+ *   statementID: 1,
+ *   statementCode: "ST-1-012026",
+ *   customerName: "Công Ty TNHH Dịch Vụ MTP",
+ *   statementDate: "2026-01-23T02:51:28.940159Z",
+ *   period: "01/2026",
+ *   openingBalance: 0,
+ *   newCharges: 2275290100,
+ *   paidAmount: 1500000000,
+ *   totalAmount: 775290100,
+ *   totalInvoices: 3,
+ *   status: "Sent",
+ *   statusID: 3,
+ *   isOverdue: false
+ * }
  */
 export interface StatementListItem {
   statementID: number;              // ID bảng kê
-  statementCode: string;            // Mã bảng kê (VD: "BK202512-0002")
+  statementCode: string;            // Mã bảng kê (VD: "ST-1-012026")
   customerName: string;             // Tên khách hàng
-  statementDate: string;            // Ngày bảng kê (ISO format: "2025-12-11T00:00:00")
-  totalAmount: number;              // Tổng tiền
+  statementDate: string;            // Ngày bảng kê (ISO format: "2026-01-23T02:51:28.940159Z")
+  period: string;                   // Kỳ cước (VD: "01/2026")
+  openingBalance: number;           // Số dư đầu kỳ
+  newCharges: number;               // Phí phát sinh mới
+  paidAmount: number;               // Số tiền đã thanh toán
+  totalAmount: number;              // Tổng tiền (còn nợ)
   totalInvoices: number;            // Số lượng hóa đơn
-  status: string;                   // Trạng thái (VD: "Partially Paid", "Unpaid", "Paid")
+  status: string;                   // Trạng thái text (VD: "Sent", "Draft", "Paid")
+  statusID: number;                 // ID trạng thái (1=Draft, 2=Pending, 3=Sent, 4=Paid)
+  isOverdue: boolean;               // Có quá hạn không
 }
 
 /**

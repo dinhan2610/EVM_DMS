@@ -12,32 +12,26 @@ import {
   MenuItem,
   ListItemIcon,
   ListItemText,
-  Divider,
   Fab,
   Zoom,
   Alert,
   Snackbar,
-  Link as MuiLink,
   CircularProgress,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import AddIcon from '@mui/icons-material/Add'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
+import HistoryIcon from '@mui/icons-material/History'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import EmailIcon from '@mui/icons-material/Email'
-import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined'
 import SendIcon from '@mui/icons-material/Send'
-import { Link } from 'react-router-dom'
-import dayjs from 'dayjs'
+import PaymentIcon from '@mui/icons-material/Payment'
 import StatementFilter, { StatementFilterState } from '@/components/StatementFilter'
 import {
-  STATEMENT_STATUS,
-  STATEMENT_STATUS_LABELS,
   getStatementStatusColor,
+  getStatementStatusLabel,
   type StatementStatus,
 } from '@/constants/statementStatus'
 import type { StatementListItem } from '@/types/statement.types'
@@ -45,10 +39,17 @@ import {
   fetchStatements, 
   exportStatementPDF,
   sendStatementEmail,
-  formatStatementPeriod,
-  formatStatementDate 
+  createStatementPayment,
+  getStatementPayments,
+  type CreateStatementPaymentRequest,
+  type StatementPaymentRecord,
 } from '@/services/statementService'
 import CreateStatementModal from '@/components/CreateStatementModal'
+import StatementPaymentModal, { 
+  type StatementPaymentFormData,
+} from '@/components/StatementPaymentModal'
+import StatementPaymentHistoryModal from '@/components/StatementPaymentHistoryModal'
+import { useAuthContext } from '@/context/useAuthContext'
 
 // ==================== INTERFACES ====================
 
@@ -58,14 +59,20 @@ import CreateStatementModal from '@/components/CreateStatementModal'
  */
 export interface Statement {
   id: string
-  code: string                        // Mã Bảng kê (VD: BK-1025-001)
+  code: string                        // Mã Bảng kê (VD: ST-1-012026)
   customerName: string                // Tên khách hàng
-  period: string                      // Kỳ cước (VD: "10/2025")
-  totalAmount: number                 // Tổng thanh toán
+  period: string                      // Kỳ cước (VD: "01/2026")
+  totalAmount: number                 // Tổng thanh toán (còn nợ)
   status: StatementStatus             // Trạng thái
   linkedInvoiceNumber: string | null  // Số hóa đơn đã gắn
   isEmailSent: boolean                // Đã gửi email báo cước chưa
   createdDate: string                 // Ngày tạo
+  // New fields from API (optional for backward compatibility)
+  openingBalance?: number             // Số dư đầu kỳ
+  newCharges?: number                 // Phí phát sinh mới
+  paidAmount?: number                 // Số tiền đã thanh toán
+  statusID?: number                   // ID trạng thái (1=Draft, 2=Pending, 3=Sent, 4=Paid)
+  isOverdue?: boolean                 // Có quá hạn không
 }
 
 // Convert API response to legacy format for backward compatibility
@@ -74,12 +81,17 @@ function convertToLegacyFormat(item: StatementListItem): Statement {
     id: String(item.statementID),
     code: item.statementCode,
     customerName: item.customerName,
-    period: formatStatementPeriod(item.statementDate),
-    totalAmount: item.totalAmount,
-    status: item.status as StatementStatus,
-    linkedInvoiceNumber: item.totalInvoices > 0 ? `${item.totalInvoices} HĐ` : null,
-    isEmailSent: false, // Not available from API
-    createdDate: formatStatementDate(item.statementDate),
+    period: item.period, // Now directly from API response (e.g., "01/2026")
+    totalAmount: item.totalAmount, // This is the remaining amount (c\u00f2n n\u1ee3)
+    status: item.status as StatementStatus, // e.g., "Sent", "Draft", "Paid"
+    linkedInvoiceNumber: item.totalInvoices > 0 ? `${item.totalInvoices} H\u0110` : null,
+    isEmailSent: item.statusID >= 3, // statusID=3 means "Sent", so email was sent
+    createdDate: item.statementDate, // Use statementDate as createdDate
+    // New fields from API\n    openingBalance: item.openingBalance,
+    newCharges: item.newCharges,
+    paidAmount: item.paidAmount,
+    statusID: item.statusID,
+    isOverdue: item.isOverdue,
   }
 }
 
@@ -90,12 +102,13 @@ function convertToLegacyFormat(item: StatementListItem): Statement {
 
 interface StatementActionsMenuProps {
   statement: Statement
-  onDelete: (id: string) => void
   onExportPDF: (id: string, code: string) => void
   onSendEmail: (id: string, code: string, customerName: string) => void
+  onUpdatePayment: (id: string) => void
+  onViewHistory: (id: string) => void
 }
 
-const StatementActionsMenu = ({ statement, onDelete, onExportPDF, onSendEmail }: StatementActionsMenuProps) => {
+const StatementActionsMenu = ({ statement, onExportPDF, onSendEmail, onUpdatePayment, onViewHistory }: StatementActionsMenuProps) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
 
@@ -107,13 +120,10 @@ const StatementActionsMenu = ({ statement, onDelete, onExportPDF, onSendEmail }:
     setAnchorEl(null)
   }
 
-  const isDraft = statement.status === STATEMENT_STATUS.DRAFT
-
   const menuItems = [
     {
       label: 'Xem chi tiết',
       icon: <VisibilityOutlinedIcon fontSize="small" />,
-      enabled: true,
       action: () => {
         console.log('Xem chi tiết:', statement.id)
         handleClose()
@@ -123,7 +133,6 @@ const StatementActionsMenu = ({ statement, onDelete, onExportPDF, onSendEmail }:
     {
       label: 'Xuất PDF',
       icon: <PictureAsPdfIcon fontSize="small" />,
-      enabled: true,
       action: () => {
         onExportPDF(statement.id, statement.code)
         handleClose()
@@ -131,46 +140,31 @@ const StatementActionsMenu = ({ statement, onDelete, onExportPDF, onSendEmail }:
       color: 'error.main',
     },
     {
-      label: 'Chỉnh sửa',
-      icon: <EditOutlinedIcon fontSize="small" />,
-      enabled: isDraft,
+      label: 'Cập nhật thanh toán',
+      icon: <PaymentIcon fontSize="small" />,
       action: () => {
-        console.log('Chỉnh sửa:', statement.id)
+        onUpdatePayment(statement.id)
         handleClose()
       },
-      color: 'primary.main',
+      color: '#2e7d32',
     },
     {
-      label: 'Xuất hóa đơn',
-      icon: <DescriptionOutlinedIcon fontSize="small" />,
-      enabled: isDraft,
+      label: 'Lịch sử thanh toán',
+      icon: <HistoryIcon fontSize="small" />,
       action: () => {
-        console.log('Xuất hóa đơn cho:', statement.id)
+        onViewHistory(statement.id)
         handleClose()
       },
-      color: 'success.main',
+      color: '#9c27b0',
     },
-    { divider: true },
     {
       label: 'Gửi email',
       icon: <EmailIcon fontSize="small" />,
-      enabled: true,
       action: () => {
         onSendEmail(statement.id, statement.code, statement.customerName)
         handleClose()
       },
       color: 'info.main',
-    },
-    { divider: true },
-    {
-      label: 'Xóa',
-      icon: <DeleteOutlineIcon fontSize="small" />,
-      enabled: isDraft,
-      action: () => {
-        onDelete(statement.id)
-        handleClose()
-      },
-      color: 'error.main',
     },
   ]
 
@@ -233,52 +227,40 @@ const StatementActionsMenu = ({ statement, onDelete, onExportPDF, onSendEmail }:
           },
         }}
       >
-        {menuItems.map((item, index) => {
-          if ('divider' in item) {
-            return <Divider key={`divider-${index}`} sx={{ my: 1 }} />
-          }
-
-          return (
-            <MenuItem
-              key={item.label}
-              onClick={item.enabled ? item.action : undefined}
-              disabled={!item.enabled}
+        {menuItems.map((item) => (
+          <MenuItem
+            key={item.label}
+            onClick={item.action}
+            sx={{
+              py: 1.25,
+              px: 2.5,
+              gap: 1.5,
+              transition: 'all 0.2s ease',
+              '&:hover': {
+                backgroundColor: 'action.hover',
+                transform: 'translateX(4px)',
+              },
+            }}
+          >
+            <ListItemIcon
               sx={{
-                py: 1.25,
-                px: 2.5,
-                gap: 1.5,
-                transition: 'all 0.2s ease',
-                '&:hover': item.enabled ? {
-                  backgroundColor: 'action.hover',
-                  transform: 'translateX(4px)',
-                } : {},
-                '&.Mui-disabled': {
-                  opacity: 0.4,
-                },
-                cursor: item.enabled ? 'pointer' : 'not-allowed',
+                color: item.color,
+                minWidth: 28,
+                transition: 'color 0.2s ease',
               }}
             >
-              <ListItemIcon
-                sx={{
-                  color: item.enabled ? item.color : 'text.disabled',
-                  minWidth: 28,
-                  transition: 'color 0.2s ease',
-                }}
-              >
-                {item.icon}
-              </ListItemIcon>
-              <ListItemText
-                primary={item.label}
-                primaryTypographyProps={{
-                  fontSize: '0.875rem',
-                  fontWeight: item.enabled ? 500 : 400,
-                  letterSpacing: '0.01em',
-                  color: item.enabled ? 'text.primary' : 'text.disabled',
-                }}
-              />
-            </MenuItem>
-          )
-        })}
+              {item.icon}
+            </ListItemIcon>
+            <ListItemText
+              primary={item.label}
+              primaryTypographyProps={{
+                fontSize: '0.875rem',
+                fontWeight: 500,
+                letterSpacing: '0.01em',
+              }}
+            />
+          </MenuItem>
+        ))}
       </Menu>
     </>
   )
@@ -291,6 +273,7 @@ const StatementManagement = () => {
   
   // Hooks
   const navigate = useNavigate()
+  const { user } = useAuthContext()
 
   // API State
   const [statements, setStatements] = useState<Statement[]>([])
@@ -306,6 +289,12 @@ const StatementManagement = () => {
   // UI State
   const [selectedRowsCount, setSelectedRowsCount] = useState<number>(0)
   const [createModalOpen, setCreateModalOpen] = useState<boolean>(false)
+  const [paymentModalOpen, setPaymentModalOpen] = useState<boolean>(false)
+  const [selectedStatementForPayment, setSelectedStatementForPayment] = useState<Statement | null>(null)
+  const [selectedStatementPayments, setSelectedStatementPayments] = useState<StatementPaymentRecord[]>([])
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState<boolean>(false)
+  const [historyModalOpen, setHistoryModalOpen] = useState<boolean>(false)
+  const [selectedStatementForHistory, setSelectedStatementForHistory] = useState<Statement | null>(null)
   const [snackbar, setSnackbar] = useState({ 
     open: false, 
     message: '', 
@@ -315,14 +304,9 @@ const StatementManagement = () => {
   // Filter state
   const [filters, setFilters] = useState<StatementFilterState>({
     searchText: '',
-    dateFrom: null,
-    dateTo: null,
-    periodFrom: '',
-    periodTo: '',
+    period: '',
     status: [],
     customer: null,
-    emailSentStatus: 'ALL',
-    linkedInvoice: 'ALL',
   })
 
   // ==================== API FETCH ====================
@@ -333,9 +317,35 @@ const StatementManagement = () => {
     setError(null)
     
     try {
+      console.log('[StatementManagement] Fetching statements from API...')
+      console.log('[StatementManagement] Pagination:', {
+        pageIndex: pagination.pageIndex,
+        pageSize: pagination.pageSize,
+      })
+      
       const response = await fetchStatements({
         pageIndex: pagination.pageIndex,
         pageSize: pagination.pageSize,
+      })
+      
+      console.log('[StatementManagement] API Response:', {
+        totalItems: response.items.length,
+        totalCount: response.totalCount,
+        totalPages: response.totalPages,
+        pageIndex: response.pageIndex,
+        hasPreviousPage: response.hasPreviousPage,
+        hasNextPage: response.hasNextPage,
+        sampleItem: response.items[0] ? {
+          statementCode: response.items[0].statementCode,
+          period: response.items[0].period,
+          openingBalance: response.items[0].openingBalance,
+          newCharges: response.items[0].newCharges,
+          paidAmount: response.items[0].paidAmount,
+          totalAmount: response.items[0].totalAmount,
+          statusID: response.items[0].statusID,
+          status: response.items[0].status,
+          isOverdue: response.items[0].isOverdue,
+        } : null,
       })
 
       // Convert API response to legacy format
@@ -406,21 +416,40 @@ const StatementManagement = () => {
   }
 
   // Handle send email
-  const handleSendEmail = async (id: string, _code: string, customerName: string) => {
+  const handleSendEmail = async (id: string, code: string, customerName: string) => {
     try {
+      // Tìm statement để lấy thông tin đầy đủ
+      const statement = statements.find(s => s.id === id)
+      if (!statement) {
+        throw new Error('Không tìm thấy thông tin bảng kê')
+      }
+      
+      // Email khách hàng - giả định có field này, nếu không có thì cần thêm vào Statement interface
+      // Tạm thời dùng email demo, production cần lấy từ statement data
+      const customerEmail = `${customerName.toLowerCase().replace(/\s+/g, '')}@example.com`
+      
       setSnackbar({
         open: true,
-        message: `Đang gửi email cho ${customerName}...`,
+        message: `📧 Đang gửi email cho ${customerName}...`,
         severity: 'info',
       })
       
-      await sendStatementEmail(Number(id))
+      await sendStatementEmail(
+        Number(id),
+        code,
+        customerName,
+        customerEmail,
+        statement.period
+      )
       
       setSnackbar({
         open: true,
-        message: `✅ Đã gửi email thành công cho ${customerName}`,
+        message: `✅ Đã gửi email thành công cho ${customerName}!`,
         severity: 'success',
       })
+      
+      // Reload statements to update email status
+      await loadStatements()
     } catch (err) {
       let errorMessage = 'Không thể gửi email'
       if (err && typeof err === 'object' && 'response' in err) {
@@ -429,10 +458,102 @@ const StatementManagement = () => {
       }
       setSnackbar({
         open: true,
-        message: errorMessage,
+        message: `❌ ${errorMessage}`,
         severity: 'error',
       })
       console.error('❌ Error sending email:', err)
+    }
+  }
+
+  // Handle open payment modal
+  const handleOpenPaymentModal = async (statement: Statement) => {
+    console.log('[handleOpenPaymentModal] Opening payment modal for:', statement.code)
+    setSelectedStatementForPayment(statement)
+    setPaymentModalOpen(true)
+    
+    // Fetch payment history for this statement
+    try {
+      const paymentHistory = await getStatementPayments(Number(statement.id))
+      setSelectedStatementPayments(paymentHistory.payments)
+      console.log(`[Statement ${statement.id}] Payment history:`, paymentHistory.payments.length, 'payments')
+    } catch (error) {
+      console.error('Failed to fetch statement payments:', error)
+      setSelectedStatementPayments([])
+    }
+  }
+
+  // Handle view payment history
+  const handleViewHistory = (id: string) => {
+    const statement = statements.find(s => s.id === id)
+    if (statement) {
+      console.log('[handleViewHistory] Opening history modal for:', statement.code)
+      setSelectedStatementForHistory(statement)
+      setHistoryModalOpen(true)
+    }
+  }
+
+  // Handle payment submit
+  const handlePaymentSubmit = async (formData: StatementPaymentFormData) => {
+    if (!selectedStatementForPayment || !user) {
+      console.error('Missing statement or user')
+      return
+    }
+
+    setIsSubmittingPayment(true)
+
+    try {
+      const paymentRequest: CreateStatementPaymentRequest = {
+        statementId: Number(selectedStatementForPayment.id),
+        amount: formData.amount,
+        paymentMethod: formData.paymentMethod,
+        transactionCode: formData.transactionCode || undefined,
+        note: formData.note || undefined,
+        paymentDate: formData.paymentDate.toISOString(),
+        createdBy: parseInt(user.id),
+      }
+
+      console.log('[handlePaymentSubmit] Submitting payment:', paymentRequest)
+
+      const response = await createStatementPayment(
+        Number(selectedStatementForPayment.id),
+        paymentRequest
+      )
+
+      // Calculate display values
+      const remainingAmount = response.remainingAmount ?? 0
+      const isPaidFull = remainingAmount === 0
+      const statusText = isPaidFull ? 'Trả toàn bộ ✓' : 'Trả một phần'
+      const statusIcon = isPaidFull ? '✅' : '💰'
+
+      setSnackbar({
+        open: true,
+        message: `${statusIcon} ${statusText}\n💰 Số tiền thanh toán: ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(formData.amount)}\n📊 Còn lại: ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(remainingAmount)}`,
+        severity: isPaidFull ? 'success' : 'info',
+      })
+
+      // Close modal and refresh
+      setPaymentModalOpen(false)
+      setSelectedStatementForPayment(null)
+      
+      // Reload statements to show updated amounts
+      await loadStatements()
+
+    } catch (error) {
+      console.error('❌ Payment failed:', error)
+      let errorMessage = 'Không thể ghi nhận thanh toán'
+      
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { detail?: string; message?: string } } }
+        errorMessage = axiosError.response?.data?.detail || axiosError.response?.data?.message || errorMessage
+      }
+      
+      setSnackbar({
+        open: true,
+        message: `❌ ${errorMessage}`,
+        severity: 'error',
+      })
+    } finally {
+      setIsSubmittingPayment(false)
     }
   }
 
@@ -479,58 +600,28 @@ const StatementManagement = () => {
         statement.customerName.toLowerCase().includes(filters.searchText.toLowerCase()) ||
         statement.linkedInvoiceNumber?.toLowerCase().includes(filters.searchText.toLowerCase())
 
-      // 2️⃣ Date range (ngày tạo)
-      const matchesDateFrom =
-        !filters.dateFrom ||
-        dayjs(statement.createdDate).isAfter(filters.dateFrom, 'day') ||
-        dayjs(statement.createdDate).isSame(filters.dateFrom, 'day')
-      const matchesDateTo =
-        !filters.dateTo ||
-        dayjs(statement.createdDate).isBefore(filters.dateTo, 'day') ||
-        dayjs(statement.createdDate).isSame(filters.dateTo, 'day')
+      // 2️⃣ Period (kỳ cước - exact match)
+      const matchesPeriod =
+        !filters.period ||
+        statement.period === filters.period
 
-      // 3️⃣ Period range (kỳ cước)
-      const matchesPeriodFrom =
-        !filters.periodFrom ||
-        statement.period >= filters.periodFrom
-      const matchesPeriodTo =
-        !filters.periodTo ||
-        statement.period <= filters.periodTo
-
-      // 4️⃣ Status
+      // 3️⃣ Status
       const matchesStatus =
         filters.status.length === 0 ||
         filters.status.includes('ALL') ||
         filters.status.includes(statement.status)
 
-      // 5️⃣ Customer
+      // 4️⃣ Customer
       const matchesCustomer =
         !filters.customer ||
         filters.customer === 'ALL' ||
         statement.customerName === filters.customer
 
-      // 6️⃣ Email sent status
-      const matchesEmailSent =
-        filters.emailSentStatus === 'ALL' ||
-        (filters.emailSentStatus === 'SENT' && statement.isEmailSent) ||
-        (filters.emailSentStatus === 'NOT_SENT' && !statement.isEmailSent)
-
-      // 7️⃣ Invoice linked status
-      const matchesInvoiceLinked =
-        filters.linkedInvoice === 'ALL' ||
-        (filters.linkedInvoice === 'LINKED' && statement.linkedInvoiceNumber !== null) ||
-        (filters.linkedInvoice === 'NOT_LINKED' && statement.linkedInvoiceNumber === null)
-
       return (
         matchesSearch &&
-        matchesDateFrom &&
-        matchesDateTo &&
-        matchesPeriodFrom &&
-        matchesPeriodTo &&
+        matchesPeriod &&
         matchesStatus &&
-        matchesCustomer &&
-        matchesEmailSent &&
-        matchesInvoiceLinked
+        matchesCustomer
       )
     })
 
@@ -548,26 +639,13 @@ const StatementManagement = () => {
   const handleResetFilter = useCallback(() => {
     setFilters({
       searchText: '',
-      dateFrom: null,
-      dateTo: null,
-      periodFrom: '',
-      periodTo: '',
+      period: '',
       status: [],
       customer: null,
-      emailSentStatus: 'ALL',
-      linkedInvoice: 'ALL',
     })
   }, [])
 
-  // Handle delete
-  const handleDelete = (id: string) => {
-    setStatements(prev => prev.filter(s => s.id !== id))
-    setSnackbar({ 
-      open: true, 
-      message: 'Đã xóa bảng kê thành công', 
-      severity: 'success' 
-    })
-  }
+  // NOTE: handleDelete removed - no longer needed (Delete functionality removed from menu)
 
   // Handle bulk send email
   const handleBulkSendEmail = () => {
@@ -629,7 +707,7 @@ const StatementManagement = () => {
       flex: 1,
       minWidth: 220,
       sortable: true,
-      align: 'center',
+      align: 'left',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<Statement>) => (
         <Typography
@@ -637,10 +715,7 @@ const StatementManagement = () => {
           sx={{
             fontWeight: 500,
             color: '#2c3e50',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100%',
+            paddingLeft: 2,
           }}>
           {params.value}
         </Typography>
@@ -649,7 +724,7 @@ const StatementManagement = () => {
     {
       field: 'period',
       headerName: 'Kỳ cước',
-      width: 120,
+      width: 100,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -657,25 +732,67 @@ const StatementManagement = () => {
         <Typography
           variant="body2"
           sx={{
-            fontWeight: 500,
+            fontWeight: 600,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             height: '100%',
+            color: '#1976d2',
           }}>
           {params.value}
         </Typography>
       ),
     },
     {
-      field: 'totalAmount',
+      field: 'totalAmountOriginal',
       headerName: 'Tổng tiền',
-      width: 170,
+      width: 150,
+      sortable: true,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<Statement>) => {
+        const totalOriginal = (params.row.openingBalance || 0) + (params.row.newCharges || 0)
+        return (
+          <Typography sx={{ 
+            fontWeight: 600, 
+            color: '#1976d2',
+            fontSize: '0.95rem',
+          }}>
+            {formatCurrency(totalOriginal)}
+          </Typography>
+        )
+      },
+    },
+    {
+      field: 'paidAmount',
+      headerName: 'Đã trả',
+      width: 150,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<Statement>) => (
-        <Typography sx={{ fontWeight: 600 }}>
+        <Typography sx={{ 
+          fontWeight: 600, 
+          color: '#2e7d32',
+          fontSize: '0.95rem',
+        }}>
+          {formatCurrency((params.row.paidAmount || 0) as number)}
+        </Typography>
+      ),
+    },
+    {
+      field: 'totalAmount',
+      headerName: 'Còn nợ',
+      width: 150,
+      sortable: true,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<Statement>) => (
+        <Typography sx={{ 
+          fontWeight: 700, 
+          color: params.value > 0 ? '#d32f2f' : '#2e7d32',
+          fontSize: '0.95rem',
+        }}>
           {formatCurrency(params.value as number)}
         </Typography>
       ),
@@ -683,71 +800,20 @@ const StatementManagement = () => {
     {
       field: 'status',
       headerName: 'Trạng thái',
-      width: 150,
+      width: 160,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<Statement>) => {
         const status = params.value as StatementStatus
+        const statusLabel = getStatementStatusLabel(status)
+        
         return (
           <Chip
-            label={STATEMENT_STATUS_LABELS[status]}
+            label={statusLabel}
             color={getStatementStatusColor(status)}
             size="small"
-            sx={{ fontWeight: 600 }}
-          />
-        )
-      },
-    },
-    {
-      field: 'linkedInvoiceNumber',
-      headerName: 'Hóa đơn',
-      width: 140,
-      sortable: true,
-      align: 'center',
-      headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams<Statement>) => {
-        const invoiceNumber = params.value as string | null
-        if (!invoiceNumber) {
-          return (
-            <Typography variant="body2" sx={{ color: '#bdbdbd' }}>-</Typography>
-          )
-        }
-        return (
-          <MuiLink
-            component={Link}
-            to={`/invoices/${invoiceNumber}`}
-            sx={{
-              fontWeight: 600,
-              fontSize: '0.875rem',
-              textDecoration: 'none',
-              color: 'primary.main',
-              '&:hover': {
-                textDecoration: 'underline',
-              },
-            }}
-          >
-            {invoiceNumber}
-          </MuiLink>
-        )
-      },
-    },
-    {
-      field: 'isEmailSent',
-      headerName: 'Email',
-      width: 120,
-      sortable: true,
-      align: 'center',
-      headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams<Statement>) => {
-        const isSent = params.value as boolean
-        return (
-          <Chip
-            label={isSent ? 'Đã gửi' : 'Chưa gửi'}
-            color={isSent ? 'success' : 'default'}
-            size="small"
-            variant={isSent ? 'filled' : 'outlined'}
-            sx={{ fontWeight: 600 }}
+            sx={{ fontWeight: 600, minWidth: 130 }}
           />
         )
       },
@@ -763,9 +829,13 @@ const StatementManagement = () => {
       renderCell: (params: GridRenderCellParams<Statement>) => (
         <StatementActionsMenu 
           statement={params.row} 
-          onDelete={handleDelete}
           onExportPDF={handleExportPDF}
           onSendEmail={handleSendEmail}
+          onUpdatePayment={(id) => {
+            const statement = statements.find(s => s.id === id)
+            if (statement) handleOpenPaymentModal(statement)
+          }}
+          onViewHistory={handleViewHistory}
         />
       ),
     },
@@ -792,11 +862,7 @@ const StatementManagement = () => {
         <Typography variant="body2" sx={{ color: '#666' }}>
           Quản lý và theo dõi các bảng kê cước, công nợ khách hàng
         </Typography>
-        {filteredStatements.length > 0 && (
-          <Typography variant="body2" sx={{ color: '#1976d2', fontWeight: 500, mt: 0.5 }}>
-            📊 Hiển thị {filteredStatements.length} / {pagination.totalCount} bảng kê
-          </Typography>
-        )}
+       
       </Box>
 
       {/* Statement Filter */}
@@ -813,10 +879,13 @@ const StatementManagement = () => {
             onClick={() => setCreateModalOpen(true)}
             sx={{
               textTransform: 'none',
-              fontWeight: 500,
+              fontWeight: 600,
+              height: 42,
+              minWidth: 160,
               boxShadow: '0 2px 8px rgba(28, 132, 238, 0.24)',
               '&:hover': {
                 boxShadow: '0 4px 12px rgba(28, 132, 238, 0.32)',
+                transform: 'translateY(-1px)',
               },
             }}
           >
@@ -876,14 +945,22 @@ const StatementManagement = () => {
               }))
             }}
             pageSizeOptions={[5, 10, 25, 50]}
+            localeText={{
+              footerRowSelected: (count) => `${count} hàng được chọn`,
+            }}
             sx={{
               border: 'none',
               '& .MuiDataGrid-cell': {
                 borderBottom: '1px solid #f0f0f0',
+                display: 'flex',
+                alignItems: 'center',
               },
               '& .MuiDataGrid-columnHeaders': {
                 backgroundColor: '#f8f9fa',
                 borderBottom: '2px solid #e0e0e0',
+                fontWeight: 600,
+              },
+              '& .MuiDataGrid-columnHeaderTitle': {
                 fontWeight: 600,
               },
               '& .MuiDataGrid-row:hover': {
@@ -894,6 +971,23 @@ const StatementManagement = () => {
                 backgroundColor: '#fafafa',
                 minHeight: '56px',
                 padding: '8px 16px',
+              },
+              '& .MuiTablePagination-root': {
+                marginLeft: 'auto',
+                overflow: 'visible',
+              },
+              '& .MuiTablePagination-toolbar': {
+                minHeight: '52px',
+                paddingLeft: '8px',
+                paddingRight: '8px',
+                display: 'flex',
+                alignItems: 'center',
+              },
+              '& .MuiTablePagination-selectLabel': {
+                margin: 0,
+              },
+              '& .MuiTablePagination-displayedRows': {
+                margin: 0,
               },
             }}
             autoHeight
@@ -941,12 +1035,47 @@ const StatementManagement = () => {
         </Alert>
       </Snackbar>
 
+      {/* Statement Payment Modal */}
+      <StatementPaymentModal
+        open={paymentModalOpen}
+        onClose={() => {
+          setPaymentModalOpen(false)
+          setSelectedStatementForPayment(null)
+          setSelectedStatementPayments([])
+        }}
+        onSubmit={handlePaymentSubmit}
+        statement={selectedStatementForPayment ? {
+          statementID: Number(selectedStatementForPayment.id),
+          statementCode: selectedStatementForPayment.code,
+          customerName: selectedStatementForPayment.customerName,
+          totalAmount: selectedStatementForPayment.totalAmount,
+          paidAmount: selectedStatementForPayment.paidAmount || 0,
+          openingBalance: selectedStatementForPayment.openingBalance || 0,
+          newCharges: selectedStatementForPayment.newCharges || 0,
+        } : null}
+        paymentHistory={selectedStatementPayments}
+        isSubmitting={isSubmittingPayment}
+      />
+
       {/* Create Statement Modal */}
       <CreateStatementModal
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
         onCreate={handleCreateStatement}
       />
+      {/* Payment History Modal */}
+      {selectedStatementForHistory && (
+        <StatementPaymentHistoryModal
+          open={historyModalOpen}
+          onClose={() => {
+            setHistoryModalOpen(false)
+            setSelectedStatementForHistory(null)
+          }}
+          statementId={selectedStatementForHistory.id}
+          statementCode={selectedStatementForHistory.code}
+          customerName={selectedStatementForHistory.customerName}
+        />
+      )}
     </Box>
   )
 }

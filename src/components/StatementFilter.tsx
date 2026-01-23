@@ -19,14 +19,11 @@ import {
   Tooltip,
   Badge,
 } from '@mui/material'
-import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import SearchIcon from '@mui/icons-material/Search'
 import FilterListIcon from '@mui/icons-material/FilterList'
 import ClearIcon from '@mui/icons-material/Clear'
-import { Dayjs } from 'dayjs'
-import 'dayjs/locale/vi'
 import customerService from '@/services/customerService'
 import { STATEMENT_STATUS, STATEMENT_STATUS_LABELS } from '@/constants/statementStatus'
 
@@ -34,14 +31,9 @@ import { STATEMENT_STATUS, STATEMENT_STATUS_LABELS } from '@/constants/statement
 
 export interface StatementFilterState {
   searchText: string
-  dateFrom: Dayjs | null
-  dateTo: Dayjs | null
-  periodFrom: string // Kỳ cước từ (VD: "01/2025")
-  periodTo: string // Kỳ cước đến (VD: "12/2025")
+  period: string // Kỳ cước (VD: "1/2026", "01/2026")
   status: string[]
   customer: string | null
-  emailSentStatus: string // Trạng thái gửi email ("ALL", "SENT", "NOT_SENT")
-  linkedInvoice: string // Trạng thái gắn hóa đơn ("ALL", "LINKED", "NOT_LINKED")
 }
 
 interface StatementFilterProps {
@@ -54,24 +46,15 @@ interface StatementFilterProps {
 
 // ==================== DATA ====================
 
-// Trạng thái Bảng kê
+// Trạng thái Bảng kê (7 statuses)
 const allStatuses = [
   { value: STATEMENT_STATUS.DRAFT, label: STATEMENT_STATUS_LABELS[STATEMENT_STATUS.DRAFT] },
-  { value: STATEMENT_STATUS.INVOICED, label: STATEMENT_STATUS_LABELS[STATEMENT_STATUS.INVOICED] },
-]
-
-// Trạng thái gửi email
-const emailStatusOptions = [
-  { value: 'ALL', label: 'Tất cả' },
-  { value: 'SENT', label: 'Đã gửi email' },
-  { value: 'NOT_SENT', label: 'Chưa gửi email' },
-]
-
-// Trạng thái gắn hóa đơn
-const invoiceLinkedOptions = [
-  { value: 'ALL', label: 'Tất cả' },
-  { value: 'LINKED', label: 'Đã gắn HĐ' },
-  { value: 'NOT_LINKED', label: 'Chưa gắn HĐ' },
+  { value: STATEMENT_STATUS.PUBLISHED, label: STATEMENT_STATUS_LABELS[STATEMENT_STATUS.PUBLISHED] },
+  { value: STATEMENT_STATUS.SENT, label: STATEMENT_STATUS_LABELS[STATEMENT_STATUS.SENT] },
+  { value: STATEMENT_STATUS.PARTIALLY_PAID, label: STATEMENT_STATUS_LABELS[STATEMENT_STATUS.PARTIALLY_PAID] },
+  { value: STATEMENT_STATUS.PAID, label: STATEMENT_STATUS_LABELS[STATEMENT_STATUS.PAID] },
+  { value: STATEMENT_STATUS.CANCELLED, label: STATEMENT_STATUS_LABELS[STATEMENT_STATUS.CANCELLED] },
+  { value: STATEMENT_STATUS.REFUNDED, label: STATEMENT_STATUS_LABELS[STATEMENT_STATUS.REFUNDED] },
 ]
 
 // ==================== MAIN COMPONENT ====================
@@ -90,14 +73,9 @@ const StatementFilter: React.FC<StatementFilterProps> = ({
 
   const [filters, setFilters] = useState<StatementFilterState>({
     searchText: '',
-    dateFrom: null,
-    dateTo: null,
-    periodFrom: '',
-    periodTo: '',
+    period: '',
     status: [],
     customer: null,
-    emailSentStatus: 'ALL',
-    linkedInvoice: 'ALL',
   })
 
   // Ref để track first mount
@@ -135,14 +113,9 @@ const StatementFilter: React.FC<StatementFilterProps> = ({
     let count = 0
 
     if (filters.searchText && filters.searchText.trim() !== '') count++
-    if (filters.dateFrom) count++
-    if (filters.dateTo) count++
-    if (filters.periodFrom && filters.periodFrom.trim() !== '') count++
-    if (filters.periodTo && filters.periodTo.trim() !== '') count++
+    if (filters.period && filters.period.trim() !== '') count++
     if (filters.status.length > 0 && !filters.status.includes('ALL')) count++
     if (filters.customer && filters.customer !== 'ALL') count++
-    if (filters.emailSentStatus && filters.emailSentStatus !== 'ALL') count++
-    if (filters.linkedInvoice && filters.linkedInvoice !== 'ALL') count++
 
     return count
   }, [filters])
@@ -159,17 +132,8 @@ const StatementFilter: React.FC<StatementFilterProps> = ({
     if (onFilterChange) {
       onFilterChange(filters)
     }
-  }, [
-    filters.dateFrom,
-    filters.dateTo,
-    filters.periodFrom,
-    filters.periodTo,
-    filters.status,
-    filters.customer,
-    filters.emailSentStatus,
-    filters.linkedInvoice,
-    onFilterChange,
-  ])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.period, filters.status, filters.customer])
 
   // Debounced search
   useEffect(() => {
@@ -186,11 +150,12 @@ const StatementFilter: React.FC<StatementFilterProps> = ({
     return () => {
       clearTimeout(handler)
     }
-  }, [filters.searchText, onFilterChange])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.searchText])
 
   // ==================== HANDLERS ====================
 
-  const handleChange = (field: keyof StatementFilterState, value: string | string[] | Dayjs | null) => {
+  const handleChange = (field: keyof StatementFilterState, value: string | string[] | null) => {
     setFilters((prev) => {
       // Xử lý Status multi-select với "Chọn tất cả"
       if (field === 'status') {
@@ -236,14 +201,9 @@ const StatementFilter: React.FC<StatementFilterProps> = ({
   const handleReset = () => {
     setFilters({
       searchText: '',
-      dateFrom: null,
-      dateTo: null,
-      periodFrom: '',
-      periodTo: '',
+      period: '',
       status: [],
       customer: null,
-      emailSentStatus: 'ALL',
-      linkedInvoice: 'ALL',
     })
 
     if (onReset) {
@@ -258,320 +218,292 @@ const StatementFilter: React.FC<StatementFilterProps> = ({
   // ==================== RENDER ====================
 
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        mb: 3,
-        border: '1px solid #e0e0e0',
-        borderRadius: 2,
-        backgroundColor: '#fff',
-      }}
-    >
-      {/* Search Bar + Filter Button + Action Button */}
-      <Box
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <Paper
+        elevation={0}
         sx={{
-          p: 2,
-          display: 'flex',
-          gap: 2,
-          alignItems: 'center',
-          flexWrap: 'wrap',
-        }}
-      >
-        {/* Search Input */}
-        <TextField
-          placeholder="🔍 Tìm theo mã bảng kê, khách hàng, số HĐ..."
-          value={filters.searchText}
-          onChange={(e) => handleChange('searchText', e.target.value)}
-          size="small"
-          sx={{
-            minWidth: 300,
-            flex: 1,
-            '& .MuiOutlinedInput-root': {
-              backgroundColor: '#f8f9fa',
-              '&:hover': {
-                backgroundColor: '#f0f2f5',
-              },
-              '&.Mui-focused': {
-                backgroundColor: '#fff',
-              },
-            },
-          }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon sx={{ color: '#666' }} />
-              </InputAdornment>
-            ),
-            endAdornment: filters.searchText && (
-              <InputAdornment position="end">
-                <Tooltip title="Xóa tìm kiếm">
-                  <Button
-                    size="small"
-                    onClick={() => handleChange('searchText', '')}
-                    sx={{ minWidth: 'auto', p: 0.5 }}
-                  >
-                    <ClearIcon fontSize="small" />
-                  </Button>
-                </Tooltip>
-              </InputAdornment>
-            ),
-          }}
-        />
-
-        {/* Filter Button with Badge */}
-        <Badge
-          badgeContent={getActiveFilterCount()}
-          color="primary"
-          sx={{
-            '& .MuiBadge-badge': {
-              right: -3,
-              top: 13,
-              border: '2px solid #fff',
-              padding: '0 4px',
-            },
-          }}
-        >
-          <Button
-            variant={advancedOpen ? 'contained' : 'outlined'}
-            startIcon={<FilterListIcon />}
-            onClick={handleToggleAdvanced}
-            sx={{
-              textTransform: 'none',
-              fontWeight: 500,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Bộ lọc
-          </Button>
-        </Badge>
-
-        {/* Action Button (Tạo Bảng kê mới) */}
-        {actionButton && <Box sx={{ ml: 'auto' }}>{actionButton}</Box>}
-      </Box>
-
-      {/* Advanced Filters */}
-      <Collapse in={advancedOpen}>
-        <Divider />
-        <Box sx={{ p: 3, backgroundColor: '#f8f9fa' }}>
-          {/* Row 1: Date Range + Period Range */}
-          <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-            <Box sx={{ minWidth: 200, flex: 1 }}>
-              <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="vi">
-                <DatePicker
-                  label="📅 Ngày tạo từ"
-                  value={filters.dateFrom}
-                  onChange={(date) => handleChange('dateFrom', date)}
-                  slotProps={{
-                    textField: {
-                      fullWidth: true,
-                      size: 'small',
-                      placeholder: 'Chọn ngày bắt đầu',
-                    },
-                  }}
-                />
-              </LocalizationProvider>
-            </Box>
-
-            <Box sx={{ minWidth: 200, flex: 1 }}>
-              <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="vi">
-                <DatePicker
-                  label="📅 Ngày tạo đến"
-                  value={filters.dateTo}
-                  onChange={(date) => handleChange('dateTo', date)}
-                  slotProps={{
-                    textField: {
-                      fullWidth: true,
-                      size: 'small',
-                      placeholder: 'Chọn ngày kết thúc',
-                    },
-                  }}
-                />
-              </LocalizationProvider>
-            </Box>
-
-            <Box sx={{ minWidth: 200, flex: 1 }}>
-              <TextField
-                fullWidth
-                size="small"
-                label="📊 Kỳ cước từ"
-                placeholder="VD: 01/2025"
-                value={filters.periodFrom}
-                onChange={(e) => handleChange('periodFrom', e.target.value)}
-                helperText="Định dạng: MM/YYYY"
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    backgroundColor: '#fff',
-                  },
-                }}
-              />
-            </Box>
-
-            <Box sx={{ minWidth: 200, flex: 1 }}>
-              <TextField
-                fullWidth
-                size="small"
-                label="📊 Kỳ cước đến"
-                placeholder="VD: 12/2025"
-                value={filters.periodTo}
-                onChange={(e) => handleChange('periodTo', e.target.value)}
-                helperText="Định dạng: MM/YYYY"
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    backgroundColor: '#fff',
-                  },
-                }}
-              />
-            </Box>
-          </Box>
-
-          {/* Row 2: Status + Email Status + Invoice Linked */}
-          <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-            <Box sx={{ minWidth: 200, flex: 1 }}>
-              <FormControl fullWidth size="small">
-                <InputLabel id="status-label">🏷️ Trạng thái</InputLabel>
-                <Select
-                  labelId="status-label"
-                  multiple
-                  value={filters.status}
-                  onChange={(e) => handleChange('status', e.target.value)}
-                  input={<OutlinedInput label="🏷️ Trạng thái" />}
-                  renderValue={(selected) => {
-                    if (selected.includes('ALL')) {
-                      return 'Tất cả trạng thái'
-                    }
-                    return selected
-                      .filter((v) => v !== 'ALL')
-                      .map((v) => STATEMENT_STATUS_LABELS[v as keyof typeof STATEMENT_STATUS_LABELS])
-                      .join(', ')
-                  }}
-                  sx={{
-                    backgroundColor: '#fff',
-                  }}
-                >
-                  {/* Option "Chọn tất cả" */}
-                  <MenuItem value="ALL">
-                    <Checkbox checked={filters.status.includes('ALL')} />
-                    <ListItemText
-                      primary="✓ Chọn tất cả"
-                      sx={{ fontWeight: 600, color: '#1976d2' }}
-                    />
-                  </MenuItem>
-                  <Divider />
-                  {allStatuses.map((status) => (
-                    <MenuItem key={status.value} value={status.value}>
-                      <Checkbox checked={filters.status.includes(status.value)} />
-                      <ListItemText primary={status.label} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-
-            <Box sx={{ minWidth: 200, flex: 1 }}>
-              <FormControl fullWidth size="small">
-                <InputLabel id="email-status-label">📧 Gửi email</InputLabel>
-                <Select
-                  labelId="email-status-label"
-                  value={filters.emailSentStatus}
-                  onChange={(e) => handleChange('emailSentStatus', e.target.value)}
-                  label="📧 Gửi email"
-                  sx={{
-                    backgroundColor: '#fff',
-                  }}
-                >
-                  {emailStatusOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-
-            <Box sx={{ minWidth: 200, flex: 1 }}>
-              <FormControl fullWidth size="small">
-                <InputLabel id="invoice-linked-label">🔗 Gắn hóa đơn</InputLabel>
-                <Select
-                  labelId="invoice-linked-label"
-                  value={filters.linkedInvoice}
-                  onChange={(e) => handleChange('linkedInvoice', e.target.value)}
-                  label="🔗 Gắn hóa đơn"
-                  sx={{
-                    backgroundColor: '#fff',
-                  }}
-                >
-                  {invoiceLinkedOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-          </Box>
-
-          {/* Row 3: Customer Autocomplete */}
-          <Box sx={{ mb: 2 }}>
-            <Autocomplete
-              fullWidth
+          p: 3,
+          mb: 3,
+          borderRadius: 2,
+          border: '1px solid #e0e0e0',
+          backgroundColor: '#fff',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+          transition: 'box-shadow 0.3s ease',
+          '&:hover': {
+            boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+          },
+        }}>
+        {/* Phần tìm kiếm và nút lọc - LUÔN TRÊN 1 HÀNG */}
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          {/* 1. Thanh Tìm kiếm */}
+          <Box sx={{ flex: '1 1 auto', maxWidth: 480, minWidth: 200 }}>
+            <TextField
               size="small"
-              options={customers}
-              value={customers.find((c) => c.value === filters.customer) || null}
-              onChange={(_, newValue) => handleChange('customer', newValue?.value || null)}
-              getOptionLabel={(option) => option.label}
-              loading={isLoadingCustomers}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="👤 Khách hàng"
-                  placeholder="Chọn khách hàng..."
-                  InputProps={{
-                    ...params.InputProps,
-                    sx: { backgroundColor: '#fff' },
-                  }}
-                />
-              )}
+              fullWidth
+              variant="outlined"
+              placeholder="Tìm theo mã bảng kê, tên khách hàng, số HĐ..."
+              value={filters.searchText}
+              onChange={(e) => handleChange('searchText', e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: '#1976d2', fontSize: '1.3rem' }} />
+                  </InputAdornment>
+                ),
+              }}
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  backgroundColor: '#fff',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: 2,
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    backgroundColor: '#f0f2f5',
+                    '& fieldset': {
+                      borderColor: '#1976d2',
+                    },
+                  },
+                  '&.Mui-focused': {
+                    backgroundColor: '#fff',
+                    boxShadow: '0 0 0 3px rgba(25, 118, 210, 0.1)',
+                    '& fieldset': {
+                      borderColor: '#1976d2',
+                      borderWidth: '2px',
+                    },
+                  },
                 },
               }}
             />
           </Box>
 
-          {/* Action Buttons */}
-          <Box
-            sx={{
-              mt: 3,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: 2,
-            }}
-          >
-            {/* Results Display */}
-            <Typography variant="body2" sx={{ color: '#666' }}>
-              Hiển thị <strong style={{ color: '#1976d2' }}>{filteredResults}</strong> /{' '}
-              {totalResults} kết quả
-            </Typography>
+          {/* 2. Nút Lọc */}
+          <Tooltip title={advancedOpen ? 'Thu gọn bộ lọc' : 'Mở rộng bộ lọc'} arrow>
+            <Box sx={{ flex: '0 0 auto', minWidth: 120 }}>
+              <Badge 
+                badgeContent={getActiveFilterCount()} 
+                color="primary"
+                invisible={getActiveFilterCount() === 0}
+                sx={{
+                  '& .MuiBadge-badge': {
+                    fontWeight: 700,
+                    minWidth: 20,
+                    height: 20,
+                    borderRadius: '10px',
+                  },
+                }}>
+                <Button
+                  fullWidth
+                  variant={advancedOpen ? 'contained' : 'outlined'}
+                  color="primary"
+                  size="medium"
+                  startIcon={<FilterListIcon sx={{ fontSize: '1.2rem' }} />}
+                  onClick={handleToggleAdvanced}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '0.95rem',
+                    height: 42,
+                    borderRadius: 2,
+                    borderWidth: advancedOpen ? '0' : '1.5px',
+                    boxShadow: advancedOpen ? '0 2px 12px rgba(25, 118, 210, 0.3)' : 'none',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-1px)',
+                      boxShadow: advancedOpen
+                        ? '0 4px 16px rgba(25, 118, 210, 0.4)'
+                        : '0 2px 8px rgba(25, 118, 210, 0.2)',
+                    },
+                  }}>
+                  Lọc
+                </Button>
+              </Badge>
+            </Box>
+          </Tooltip>
 
-            {/* Reset Button */}
-            <Button
-              variant="outlined"
-              startIcon={<ClearIcon />}
-              onClick={handleReset}
-              sx={{
-                textTransform: 'none',
-                fontWeight: 500,
-              }}
-            >
-              Đặt lại bộ lọc
-            </Button>
-          </Box>
+          {/* 3. Nút Action (ví dụ: Tạo Bảng kê mới) */}
+          {actionButton && (
+            <Box sx={{ flex: '0 0 auto', ml: 'auto' }}>
+              {actionButton}
+            </Box>
+          )}
         </Box>
-      </Collapse>
-    </Paper>
+
+        {/* === BỘ LỌC NÂNG CAO === */}
+        <Collapse in={advancedOpen} timeout="auto">
+          <Box sx={{ pt: 3, mt: 3 }}>
+            {/* Tiêu đề */}
+            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Divider sx={{ flex: 1, borderColor: '#e3f2fd' }} />
+            </Box>
+
+            {/* Row: 3 filters chính */}
+           
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
+              {/* Kỳ cước */}
+              <Box sx={{ flex: '1 1 30%', minWidth: 200 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Kỳ cước"
+                  placeholder="VD: 1/2026 hoặc 01/2026"
+                  value={filters.period}
+                  onChange={(e) => handleChange('period', e.target.value)}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      backgroundColor: '#f8f9fa',
+                      borderRadius: 1.5,
+                      transition: 'all 0.3s',
+                      '&:hover': {
+                        backgroundColor: '#f0f2f5',
+                        '& fieldset': {
+                          borderColor: '#1976d2',
+                        },
+                      },
+                      '&.Mui-focused': {
+                        backgroundColor: '#fff',
+                        boxShadow: '0 0 0 2px rgba(25, 118, 210, 0.1)',
+                      },
+                    },
+                  }}
+                />
+              </Box>
+
+              {/* Trạng thái bảng kê */}
+              <Box sx={{ flex: '1 1 30%', minWidth: 200 }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel id="status-label">Trạng thái</InputLabel>
+                  <Select
+                    labelId="status-label"
+                    multiple
+                    value={filters.status}
+                    onChange={(e) => handleChange('status', e.target.value)}
+                    input={<OutlinedInput label="Trạng thái" />}
+                    renderValue={(selected) => {
+                      if (selected.includes('ALL')) {
+                        return 'Tất cả trạng thái'
+                      }
+                      return selected
+                        .filter((v) => v !== 'ALL')
+                        .map((v) => STATEMENT_STATUS_LABELS[v as keyof typeof STATEMENT_STATUS_LABELS])
+                        .join(', ')
+                    }}
+                    sx={{
+                      backgroundColor: '#f8f9fa',
+                      borderRadius: 1.5,
+                      transition: 'all 0.3s',
+                      '&:hover': {
+                        backgroundColor: '#f0f2f5',
+                        '& fieldset': {
+                          borderColor: '#1976d2',
+                        },
+                      },
+                      '&.Mui-focused': {
+                        backgroundColor: '#fff',
+                        boxShadow: '0 0 0 2px rgba(25, 118, 210, 0.1)',
+                      },
+                    }}
+                  >
+                    {/* Option "Chọn tất cả" */}
+                    <MenuItem value="ALL">
+                      <Checkbox checked={filters.status.includes('ALL')} />
+                      <ListItemText
+                        primary="Chọn tất cả"
+                        sx={{ fontWeight: 600, color: '#1976d2' }}
+                      />
+                    </MenuItem>
+                    <Divider />
+                    {allStatuses.map((status) => (
+                      <MenuItem key={status.value} value={status.value}>
+                        <Checkbox checked={filters.status.includes(status.value)} />
+                        <ListItemText primary={status.label} />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+
+              {/* Khách hàng */}
+              <Box sx={{ flex: '1 1 30%', minWidth: 200 }}>
+                <Autocomplete
+                  fullWidth
+                  size="small"
+                  options={customers}
+                  value={customers.find((c) => c.value === filters.customer) || null}
+                  onChange={(_, newValue) => handleChange('customer', newValue?.value || null)}
+                  getOptionLabel={(option) => option.label}
+                  loading={isLoadingCustomers}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Khách hàng"
+                      placeholder="Chọn khách hàng..."
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          backgroundColor: '#f8f9fa',
+                          borderRadius: 1.5,
+                          transition: 'all 0.3s',
+                          '&:hover': {
+                            backgroundColor: '#f0f2f5',
+                            '& fieldset': {
+                              borderColor: '#1976d2',
+                            },
+                          },
+                          '&.Mui-focused': {
+                            backgroundColor: '#fff',
+                            boxShadow: '0 0 0 2px rgba(25, 118, 210, 0.1)',
+                          },
+                        },
+                      }}
+                    />
+                  )}
+                />
+              </Box>
+            </Box>
+
+            {/* Footer: Reset & Results */}
+            <Box
+              sx={{
+                pt: 2,
+                mt: 3,
+                borderTop: '1px solid #e3f2fd',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: '#1976d2',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                }}>
+                Hiển thị {filteredResults} / {totalResults} kết quả
+              </Typography>
+
+              <Button
+                variant="outlined"
+                size="small"
+                color="error"
+                startIcon={<ClearIcon />}
+                onClick={handleReset}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 500,
+                  borderRadius: 1.5,
+                  transition: 'all 0.3s',
+                  '&:hover': {
+                    transform: 'translateY(-1px)',
+                    boxShadow: '0 2px 8px rgba(211, 47, 47, 0.2)',
+                  },
+                }}>
+                Đặt lại bộ lọc
+              </Button>
+            </Box>
+          </Box>
+        </Collapse>
+      </Paper>
+    </LocalizationProvider>
   )
 }
 

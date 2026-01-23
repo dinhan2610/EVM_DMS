@@ -25,6 +25,7 @@ import {
   Tabs,
   Tab,
   Badge,
+  CircularProgress,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import ReactQuill from 'react-quill'
@@ -34,6 +35,7 @@ import SearchIcon from '@mui/icons-material/Search'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import VisibilityIcon from '@mui/icons-material/Visibility'
+import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import CheckCircle from '@mui/icons-material/CheckCircle'
 import Cancel from '@mui/icons-material/Cancel'
 import SaveIcon from '@mui/icons-material/Save'
@@ -47,16 +49,19 @@ import emailTemplateService, { EmailTemplate } from '@/services/emailTemplateSer
 
 // ==================== MOCK DATA ====================
 
-// Danh sách biến động đơn giản (8 biến thiết yếu) - Dùng {{InvoiceNumber}} như API
+// ✅ UPDATED: Match with API variables from backend
 const AVAILABLE_VARIABLES = [
   { key: '{{CustomerName}}', label: 'Tên khách hàng', example: 'Công ty ABC' },
   { key: '{{CustomerEmail}}', label: 'Email KH', example: 'info@abc.com' },
   { key: '{{InvoiceNumber}}', label: 'Số hóa đơn', example: 'C24TAA-001' },
-  { key: '{{InvoiceDate}}', label: 'Ngày HĐ', example: '01/12/2024' },
+  { key: '{{Serial}}', label: 'Ký hiệu hóa đơn', example: '1C26TKN' },
+  { key: '{{IssuedDate}}', label: 'Ngày phát hành', example: '23/01/2026' },
   { key: '{{TotalAmount}}', label: 'Tổng tiền', example: '30.000.000' },
-  { key: '{{CompanyName}}', label: 'Tên công ty', example: 'Công ty Điện lực' },
+  { key: '{{LookupCode}}', label: 'Mã tra cứu', example: 'ABC123XYZ' },
+  { key: '{{CompanyName}}', label: 'Tên công ty', example: 'Công ty KNS' },
   { key: '{{CompanyPhone}}', label: 'SĐT công ty', example: '1900 1234' },
   { key: '{{Message}}', label: 'Lời nhắn', example: 'Vui lòng kiểm tra hóa đơn đính kèm' },
+  { key: '{{Reason}}', label: 'Lý do điều chỉnh/thu hồi', example: 'Sai thông tin khách hàng' },
   { key: '{{AttachmentList}}', label: 'Danh sách file đính kèm', example: '<li>invoice.pdf</li>' },
 ]
 
@@ -78,7 +83,7 @@ const EmailTemplateManagement = () => {
   const [templates, setTemplates] = useState<EmailTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [searchText, setSearchText] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState<'all' | 'invoice' | 'payment' | 'statement' | 'system'>('all')
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'invoice' | 'payment' | 'minutes' | 'system'>('all')
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
   
   // Modal states
@@ -86,6 +91,10 @@ const EmailTemplateManagement = () => {
   const [openPreviewModal, setOpenPreviewModal] = useState(false)
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null)
+  const [baseContent, setBaseContent] = useState<string>('')
+  const [loadingPreview, setLoadingPreview] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [viewMode, setViewMode] = useState<'detail' | 'preview'>('detail') // 'detail' = raw, 'preview' = with examples
   
   // Form states
   const [editForm, setEditForm] = useState({ 
@@ -154,13 +163,15 @@ const EmailTemplateManagement = () => {
       all: templates.length,
       invoice: templates.filter((t) => t.category === 'invoice').length,
       payment: templates.filter((t) => t.category === 'payment').length,
-      statement: templates.filter((t) => t.category === 'statement').length,
+      minutes: templates.filter((t) => t.category === 'minutes').length,
       system: templates.filter((t) => t.category === 'system').length,
     }
   }, [templates])
 
-  // Handle create new
+  // Handle create new template - Reset form to defaults
   const handleCreateNew = () => {
+    console.log('[handleCreateNew] Opening create modal')
+    
     setSelectedTemplate(null)
     setEditForm({ 
       templateCode: '',
@@ -171,14 +182,17 @@ const EmailTemplateManagement = () => {
       category: 'invoice',
       isActive: true 
     })
+    setSaving(false) // Reset saving state
     setOpenEditModal(true)
   }
 
-  // Handle edit
+  // Handle edit - Load template data into form
   const handleEdit = (template: EmailTemplate) => {
+    console.log('[handleEdit] Editing template:', template.name, '(ID:', template.emailTemplateID, ')')
+    
     setSelectedTemplate(template)
     setEditForm({
-      templateCode: template.templateCode,
+      templateCode: template.templateCode, // Read-only when editing
       languageCode: template.languageCode,
       name: template.name,
       subject: template.subject,
@@ -186,56 +200,144 @@ const EmailTemplateManagement = () => {
       category: template.category,
       isActive: template.isActive,
     })
+    setSaving(false) // Reset saving state
     setOpenEditModal(true)
   }
 
-  // Handle save
+  // Handle save with comprehensive validation and error handling
   const handleSave = async () => {
-    if (!editForm.name || !editForm.subject || !editForm.bodyContent) {
-      setSnackbar({ open: true, message: 'Vui lòng điền đầy đủ thông tin!', severity: 'error' })
+    // === STEP 1: CLIENT-SIDE VALIDATION ===
+    const errors: string[] = []
+    
+    if (!editForm.name?.trim()) errors.push('Tên mẫu email')
+    if (!editForm.subject?.trim()) errors.push('Tiêu đề email')
+    if (!editForm.bodyContent?.trim() || editForm.bodyContent === '<p><br></p>') errors.push('Nội dung HTML')
+    if (!editForm.category?.trim()) errors.push('Danh mục')
+    if (!editForm.languageCode?.trim()) errors.push('Ngôn ngữ')
+    if (!selectedTemplate && !editForm.templateCode?.trim()) errors.push('Mã template')
+    
+    if (errors.length > 0) {
+      setSnackbar({ 
+        open: true, 
+        message: `Vui lòng điền đầy đủ: ${errors.join(', ')}`, 
+        severity: 'error' 
+      })
       return
     }
 
+    // === STEP 2: VALIDATE TEMPLATE CODE FORMAT (CREATE ONLY) ===
+    if (!selectedTemplate) {
+      const templateCodeRegex = /^[A-Z0-9_]+$/
+      if (!templateCodeRegex.test(editForm.templateCode)) {
+        setSnackbar({ 
+          open: true, 
+          message: 'Mã template chỉ được chứa chữ IN HOA, số và gạch dưới', 
+          severity: 'error' 
+        })
+        return
+      }
+    }
+
+    // === STEP 3: SAVE TO API ===
+    setSaving(true)
     try {
       if (selectedTemplate) {
-        // Update existing
-        await emailTemplateService.updateEmailTemplate(selectedTemplate.emailTemplateID, {
-          name: editForm.name,
-          subject: editForm.subject,
-          bodyContent: editForm.bodyContent,
-          category: editForm.category,
+        // === UPDATE EXISTING TEMPLATE ===
+        console.log('[handleSave] Updating template ID:', selectedTemplate.emailTemplateID)
+        
+        // API expects: PUT /api/EmailTemplates/{id}
+        // Body: { emailTemplateID: 0, subject, bodyContent, category, name, isActive }
+        const updateData = {
+          emailTemplateID: 0, // Not used by API, but expected in body for consistency
+          subject: editForm.subject.trim(),
+          bodyContent: editForm.bodyContent.trim(),
+          category: editForm.category.trim(),
+          name: editForm.name.trim(),
           isActive: editForm.isActive,
-        })
-        setSnackbar({ open: true, message: 'Đã cập nhật mẫu email!', severity: 'success' })
-      } else {
-        // Create new
-        if (!editForm.templateCode) {
-          setSnackbar({ open: true, message: 'Vui lòng nhập mã template!', severity: 'error' })
-          return
         }
         
-        await emailTemplateService.createEmailTemplate({
-          templateCode: editForm.templateCode,
-          languageCode: editForm.languageCode,
-          name: editForm.name,
-          subject: editForm.subject,
-          bodyContent: editForm.bodyContent,
-          category: editForm.category,
-          isActive: editForm.isActive,
+        console.log('[handleSave] Update payload:', JSON.stringify(updateData, null, 2))
+        
+        await emailTemplateService.updateEmailTemplate(
+          selectedTemplate.emailTemplateID,
+          updateData
+        )
+        
+        setSnackbar({ 
+          open: true, 
+          message: `✅ Đã cập nhật mẫu "${editForm.name}"!`, 
+          severity: 'success' 
         })
-        setSnackbar({ open: true, message: 'Đã tạo mẫu email mới!', severity: 'success' })
+      } else {
+        // === CREATE NEW TEMPLATE ===
+        console.log('[handleSave] Creating new template:', editForm.templateCode)
+        
+        // API expects: POST /api/EmailTemplates
+        // Body: { templateCode, languageCode, subject, category, bodyContent, name, isActive }
+        const createData = {
+          templateCode: editForm.templateCode.trim(),
+          languageCode: editForm.languageCode.trim(),
+          subject: editForm.subject.trim(),
+          category: editForm.category.trim(),
+          bodyContent: editForm.bodyContent.trim(),
+          name: editForm.name.trim(),
+          isActive: editForm.isActive,
+        }
+        
+        console.log('[handleSave] Create payload:', JSON.stringify(createData, null, 2))
+        
+        await emailTemplateService.createEmailTemplate(createData)
+        
+        setSnackbar({ 
+          open: true, 
+          message: `✅ Đã tạo mẫu "${editForm.name}" thành công!`, 
+          severity: 'success' 
+        })
       }
       
-      // Reload templates
+      // === STEP 4: RELOAD & CLOSE ===
       await loadTemplates()
       setOpenEditModal(false)
-    } catch (error) {
+      setSelectedTemplate(null)
+      setEditForm({
+        templateCode: '',
+        languageCode: 'vi',
+        name: '',
+        subject: '',
+        bodyContent: '',
+        category: 'invoice',
+        isActive: true,
+      })
+      
+    } catch (error: unknown) {
       console.error('❌ Error saving template:', error)
+      
+      // Parse error message
+      let errorMessage = 'Lỗi khi lưu mẫu email'
+      
+      if (error instanceof Error && error.message) {
+        if (error.message.includes('duplicate') || error.message.includes('already exists')) {
+          errorMessage = `Mã template "${editForm.templateCode}" đã tồn tại. Vui lòng sử dụng mã khác.`
+        } else if (error.message.includes('400')) {
+          errorMessage = 'Dữ liệu không hợp lệ. Vui lòng kiểm tra lại thông tin.'
+        } else if (error.message.includes('401')) {
+          errorMessage = 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.'
+        } else if (error.message.includes('403')) {
+          errorMessage = 'Bạn không có quyền thực hiện thao tác này.'
+        } else if (error.message.includes('404')) {
+          errorMessage = 'Không tìm thấy mẫu email này.'
+        } else {
+          errorMessage = error.message
+        }
+      }
+      
       setSnackbar({ 
         open: true, 
-        message: 'Lỗi khi lưu mẫu email', 
+        message: `❌ ${errorMessage}`, 
         severity: 'error' 
       })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -272,10 +374,39 @@ const EmailTemplateManagement = () => {
     setSelectedTemplate(null)
   }
 
-  // Handle preview
-  const handlePreview = (template: EmailTemplate) => {
+  // Handle view current template detail - Show current bodyContent WITHOUT variable replacement
+  const handleViewDetail = (template: EmailTemplate) => {
     setSelectedTemplate(template)
+    setBaseContent('') // Clear base content to use bodyContent
+    setViewMode('detail') // Raw view - no variable replacement
     setOpenPreviewModal(true)
+  }
+
+  // Handle preview base template - Fetch base content from API WITH example data
+  const handlePreviewBase = async (template: EmailTemplate) => {
+    try {
+      setLoadingPreview(true)
+      setSelectedTemplate(template)
+      setViewMode('preview') // Preview mode - replace variables with examples
+      setOpenPreviewModal(true)
+      
+      // Fetch base content HTML from API
+      const content = await emailTemplateService.getBaseContent(template.templateCode)
+      setBaseContent(content)
+      
+      console.log('✅ Base content loaded:', content.length, 'characters')
+    } catch (error) {
+      console.error('❌ Error loading base content:', error)
+      setSnackbar({
+        open: true,
+        message: 'Không thể tải nội dung mẫu gốc',
+        severity: 'error',
+      })
+      // Fallback to current bodyContent if API fails
+      setBaseContent(template.bodyContent)
+    } finally {
+      setLoadingPreview(false)
+    }
   }
 
   // Insert variable
@@ -295,16 +426,17 @@ const EmailTemplateManagement = () => {
     {
       field: 'stt',
       headerName: 'STT',
-      width: 80,
+      width: 70,
       align: 'center',
       headerAlign: 'center',
       sortable: false,
       renderCell: (params: GridRenderCellParams) => {
-        const index = filteredTemplates.findIndex((t) => t.emailTemplateID === params.row.emailTemplateID)
+        // ✅ FIX: Use params.api to get correct row index with pagination
+        const rowIndex = params.api.getRowIndexRelativeToVisibleRows(params.row.emailTemplateID)
         return (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-            <Typography variant="body2" sx={{ fontWeight: 600, color: '#333', fontSize: '0.875rem' }}>
-              {index + 1}
+            <Typography variant="body2" sx={{ fontWeight: 600, color: '#546e7a', fontSize: '0.875rem' }}>
+              {rowIndex + 1}
             </Typography>
           </Box>
         )
@@ -313,9 +445,8 @@ const EmailTemplateManagement = () => {
     {
       field: 'name',
       headerName: 'Tên mẫu email',
-      flex: 1,
-      minWidth: 250,
-      align: 'center',
+      flex: 2,
+      minWidth: 280,
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', py: 2 }}>
@@ -343,14 +474,15 @@ const EmailTemplateManagement = () => {
     {
       field: 'category',
       headerName: 'Loại',
-      width: 140,
+      flex: 1,
+      minWidth: 120,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const categoryLabels: Record<string, string> = {
           invoice: 'Hóa đơn',
           payment: 'Thanh toán',
-          statement: 'Bảng kê',
+          minutes: 'Biên bản',
           system: 'Hệ thống',
         }
         const categoryColors: Record<string, string> = {
@@ -362,7 +494,7 @@ const EmailTemplateManagement = () => {
         const categoryIcons: Record<string, JSX.Element> = {
           invoice: <ReceiptIcon sx={{ fontSize: 16 }} />,
           payment: <PaymentIcon sx={{ fontSize: 16 }} />,
-          statement: <DescriptionIcon sx={{ fontSize: 16 }} />,
+          minutes: <DescriptionIcon sx={{ fontSize: 16 }} />,
           system: <SettingsIcon sx={{ fontSize: 16 }} />,
         }
         return (
@@ -386,7 +518,8 @@ const EmailTemplateManagement = () => {
     {
       field: 'isActive',
       headerName: 'Trạng thái',
-      width: 140,
+      flex: 1,
+      minWidth: 130,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
@@ -404,42 +537,142 @@ const EmailTemplateManagement = () => {
     {
       field: 'actions',
       headerName: 'Thao tác',
-      width: 150,
+      width: 200,
       align: 'center',
       headerAlign: 'center',
       sortable: false,
       renderCell: (params: GridRenderCellParams) => {
         const isSystem = params.row.isSystemTemplate
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, width: '100%', height: '100%' }}>
-            <Tooltip title="Xem trước" arrow>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, width: '100%', height: '100%' }}>
+            {/* View Current Detail */}
+            <Tooltip 
+              title={
+                <Box sx={{ p: 0.5 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 600, display: 'block' }}>
+                    Xem chi tiết
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontSize: '0.7rem', display: 'block', opacity: 0.9 }}>
+                    HTML gốc với biến động
+                  </Typography>
+                </Box>
+              }
+              arrow
+              placement="top"
+            >
               <IconButton
                 size="small"
-                onClick={() => handlePreview(params.row)}
-                sx={{ color: '#1976d2', '&:hover': { backgroundColor: alpha('#1976d2', 0.08) } }}
+                onClick={() => handleViewDetail(params.row)}
+                sx={{ 
+                  color: '#1976d2',
+                  transition: 'all 0.2s ease',
+                  '&:hover': { 
+                    backgroundColor: alpha('#1976d2', 0.12),
+                    transform: 'scale(1.1)',
+                    color: '#1565c0',
+                  },
+                  '&:active': {
+                    transform: 'scale(0.95)',
+                  }
+                }}
               >
                 <VisibilityIcon fontSize="small" />
               </IconButton>
             </Tooltip>
             
+            {/* Preview Base Template */}
+            <Tooltip 
+              title={
+                <Box sx={{ p: 0.5 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 600, display: 'block' }}>
+                    Xem trước mẫu gốc
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontSize: '0.7rem', display: 'block', opacity: 0.9 }}>
+                    Base Template với dữ liệu mẫu
+                  </Typography>
+                </Box>
+              }
+              arrow
+              placement="top"
+            >
+              <IconButton
+                size="small"
+                onClick={() => handlePreviewBase(params.row)}
+                sx={{ 
+                  color: '#9c27b0',
+                  transition: 'all 0.2s ease',
+                  '&:hover': { 
+                    backgroundColor: alpha('#9c27b0', 0.12),
+                    transform: 'scale(1.1)',
+                    color: '#7b1fa2',
+                  },
+                  '&:active': {
+                    transform: 'scale(0.95)',
+                  }
+                }}
+              >
+                <PlayArrowIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            
             {isSystem ? (
-              <Tooltip title="Mẫu hệ thống - Chỉ xem, không chỉnh sửa" arrow>
+              <Tooltip 
+                title={
+                  <Box sx={{ p: 0.5 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+                      Mẫu hệ thống
+                    </Typography>
+                    <Typography variant="caption" sx={{ fontSize: '0.7rem', display: 'block' }}>
+                      Chỉ xem, không thể chỉnh sửa
+                    </Typography>
+                  </Box>
+                } 
+                arrow
+              >
                 <span>
                   <IconButton
                     size="small"
                     disabled
-                    sx={{ color: '#ccc' }}
+                    sx={{ 
+                      color: '#bdbdbd',
+                      cursor: 'not-allowed',
+                      opacity: 0.5,
+                    }}
                   >
                     <EditOutlinedIcon fontSize="small" />
                   </IconButton>
                 </span>
               </Tooltip>
             ) : (
-              <Tooltip title="Chỉnh sửa" arrow>
+              <Tooltip 
+                title={
+                  <Box sx={{ p: 0.5 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, display: 'block' }}>
+                      Chỉnh sửa mẫu email
+                    </Typography>
+                    <Typography variant="caption" sx={{ fontSize: '0.7rem', display: 'block', opacity: 0.9 }}>
+                      Sửa nội dung, tiêu đề, trạng thái
+                    </Typography>
+                  </Box>
+                }
+                arrow
+                placement="top"
+              >
                 <IconButton
                   size="small"
                   onClick={() => handleEdit(params.row)}
-                  sx={{ color: '#ed6c02', '&:hover': { backgroundColor: alpha('#ed6c02', 0.08) } }}
+                  sx={{ 
+                    color: '#ed6c02',
+                    transition: 'all 0.2s ease',
+                    '&:hover': { 
+                      backgroundColor: alpha('#ed6c02', 0.12),
+                      transform: 'scale(1.1)',
+                      color: '#e65100',
+                    },
+                    '&:active': {
+                      transform: 'scale(0.95)',
+                    }
+                  }}
                 >
                   <EditOutlinedIcon fontSize="small" />
                 </IconButton>
@@ -447,23 +680,63 @@ const EmailTemplateManagement = () => {
             )}
             
             {isSystem ? (
-              <Tooltip title="Mẫu hệ thống - Không thể xóa" arrow>
+              <Tooltip 
+                title={
+                  <Box sx={{ p: 0.5 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+                      Mẫu hệ thống
+                    </Typography>
+                    <Typography variant="caption" sx={{ fontSize: '0.7rem', display: 'block' }}>
+                      Không thể xóa
+                    </Typography>
+                  </Box>
+                }
+                arrow
+              >
                 <span>
                   <IconButton
                     size="small"
                     disabled
-                    sx={{ color: '#ccc' }}
+                    sx={{ 
+                      color: '#bdbdbd',
+                      cursor: 'not-allowed',
+                      opacity: 0.5,
+                    }}
                   >
                     <DeleteOutlineIcon fontSize="small" />
                   </IconButton>
                 </span>
               </Tooltip>
             ) : (
-              <Tooltip title="Xóa" arrow>
+              <Tooltip 
+                title={
+                  <Box sx={{ p: 0.5 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', color: '#ff5252' }}>
+                      Xóa mẫu email
+                    </Typography>
+                    <Typography variant="caption" sx={{ fontSize: '0.7rem', display: 'block', opacity: 0.9 }}>
+                      Thao tác này không thể hoàn tác
+                    </Typography>
+                  </Box>
+                }
+                arrow
+                placement="top"
+              >
                 <IconButton
                   size="small"
                   onClick={() => handleDeleteClick(params.row)}
-                  sx={{ color: '#d32f2f', '&:hover': { backgroundColor: alpha('#d32f2f', 0.08) } }}
+                  sx={{ 
+                    color: '#d32f2f',
+                    transition: 'all 0.2s ease',
+                    '&:hover': { 
+                      backgroundColor: alpha('#d32f2f', 0.12),
+                      transform: 'scale(1.1)',
+                      color: '#c62828',
+                    },
+                    '&:active': {
+                      transform: 'scale(0.95)',
+                    }
+                  }}
                 >
                   <DeleteOutlineIcon fontSize="small" />
                 </IconButton>
@@ -601,13 +874,13 @@ const EmailTemplateManagement = () => {
                 }
               />
               <Tab
-                value="statement"
+                value="minutes"
                 label={
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <DescriptionIcon sx={{ fontSize: 18 }} />
-                    <span>Bảng kê</span>
+                    <span>Biên bản</span>
                     <Badge 
-                      badgeContent={categoryCounts.statement} 
+                      badgeContent={categoryCounts.minutes} 
                       color="info"
                       sx={{
                         '& .MuiBadge-badge': {
@@ -727,166 +1000,253 @@ const EmailTemplateManagement = () => {
           fullWidth
         >
           <DialogTitle sx={{ borderBottom: '1px solid #e0e0e0', pb: 2 }}>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              {selectedTemplate ? 'Chỉnh sửa Mẫu Email' : 'Tạo Mẫu Email Mới'}
-            </Typography>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+                {selectedTemplate ? 'Chỉnh sửa Mẫu Email' : 'Tạo Mẫu Email Mới'}
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#666' }}>
+                {selectedTemplate 
+                  ? `Đang chỉnh sửa: ${selectedTemplate.name}`
+                  : 'Tạo mẫu email tự động cho hệ thống'
+                }
+              </Typography>
+            </Box>
           </DialogTitle>
           <DialogContent sx={{ pt: 3 }}>
-            <Stack spacing={2.5}>
-              {/* Mã template (chỉ hiện khi tạo mới) */}
-              {!selectedTemplate && (
-                <TextField
-                  label="Mã template"
-                  fullWidth
-                  value={editForm.templateCode}
-                  onChange={(e) => setEditForm({ ...editForm, templateCode: e.target.value.toUpperCase() })}
-                  placeholder="VD: INVOICE_SEND, PAYMENT_REMINDER"
-                  size="small"
-                  required
-                  helperText="Mã unique để xác định mẫu email (chữ in hoa, không dấu)"
-                />
-              )}
-
-              {/* Ngôn ngữ */}
-              <FormControl size="small" fullWidth>
-                <InputLabel>Ngôn ngữ</InputLabel>
-                <Select
-                  value={editForm.languageCode}
-                  onChange={(e) => setEditForm({ ...editForm, languageCode: e.target.value })}
-                  label="Ngôn ngữ"
-                >
-                  <MenuItem value="vi">Tiếng Việt (vi)</MenuItem>
-                  <MenuItem value="en">English (en)</MenuItem>
-                </Select>
-              </FormControl>
-
-              {/* Danh mục */}
-              <FormControl size="small" fullWidth>
-                <InputLabel>Danh mục</InputLabel>
-                <Select
-                  value={editForm.category}
-                  onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                  label="Danh mục"
-                >
-                  <MenuItem value="invoice">Hóa đơn</MenuItem>
-                  <MenuItem value="payment">Thanh toán</MenuItem>
-                  <MenuItem value="statement">Sao kê</MenuItem>
-                  <MenuItem value="system">Hệ thống</MenuItem>
-                </Select>
-              </FormControl>
-
-              {/* Tên mẫu */}
-              <TextField
-                label="Tên mẫu email"
-                fullWidth
-                value={editForm.name}
-                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                placeholder="VD: Thông báo hóa đơn mới"
-                size="small"
-                required
-              />
-
-              {/* Tiêu đề email */}
-              <TextField
-                label="Tiêu đề email"
-                fullWidth
-                value={editForm.subject}
-                onChange={(e) => setEditForm({ ...editForm, subject: e.target.value })}
-                placeholder="VD: Hóa đơn {{InvoiceNumber}} - {{CompanyName}}"
-                size="small"
-              />
-
-              {/* Biến động - Dropdown chèn nhanh */}
+            <Stack spacing={3}>
+              {/* === SECTION 1: Thông tin cơ bản === */}
               <Box>
-                <Typography variant="caption" sx={{ fontWeight: 600, color: '#666', mb: 1, display: 'block' }}>
-                  CHÈN BIẾN ĐỘNG
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <SettingsIcon sx={{ fontSize: 18 }} />
+                  Thông tin cơ bản
                 </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {AVAILABLE_VARIABLES.map((variable) => (
-                    <Tooltip key={variable.key} title={`VD: ${variable.example}`} arrow>
-                      <Chip
-                        label={variable.label}
-                        size="small"
-                        onClick={() => insertVariable(variable.key)}
-                        sx={{
-                          cursor: 'pointer',
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          backgroundColor: alpha('#1976d2', 0.08),
-                          color: '#1976d2',
-                          border: `1px solid ${alpha('#1976d2', 0.2)}`,
-                          '&:hover': {
-                            backgroundColor: alpha('#1976d2', 0.15),
-                            transform: 'translateY(-1px)',
-                          },
+                <Stack spacing={2}>
+                  {/* Mã template - Chỉ hiện khi tạo mới */}
+                  {!selectedTemplate && (
+                    <TextField
+                      label="Mã template *"
+                      fullWidth
+                      value={editForm.templateCode}
+                      onChange={(e) => setEditForm({ ...editForm, templateCode: e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '') })}
+                      placeholder="INVOICE_SEND"
+                      size="small"
+                      required
+                      error={!selectedTemplate && !editForm.templateCode}
+                      helperText="Mã duy nhất để xác định mẫu (chữ in hoa, số, gạch dưới). Ví dụ: INVOICE_SEND, PAYMENT_REMINDER"
+                      InputProps={{
+                        sx: { fontFamily: 'monospace', fontSize: '0.9rem' }
+                      }}
+                    />
+                  )}
+
+                  {/* Tên mẫu */}
+                  <TextField
+                    label="Tên mẫu email *"
+                    fullWidth
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    placeholder="Thông báo hóa đơn mới"
+                    size="small"
+                    required
+                    error={!editForm.name}
+                    helperText="Tên hiển thị trong danh sách quản lý"
+                  />
+
+                  {/* Row: Ngôn ngữ + Danh mục */}
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                    <FormControl size="small" fullWidth required error={!editForm.languageCode}>
+                      <InputLabel>Ngôn ngữ *</InputLabel>
+                      <Select
+                        value={editForm.languageCode}
+                        onChange={(e) => setEditForm({ ...editForm, languageCode: e.target.value })}
+                        label="Ngôn ngữ *"
+                      >
+                        <MenuItem value="vi">🇻🇳 Tiếng Việt</MenuItem>
+                        <MenuItem value="en">🇬🇧 English</MenuItem>
+                      </Select>
+                    </FormControl>
+
+                    <FormControl size="small" fullWidth required error={!editForm.category}>
+                      <InputLabel>Danh mục *</InputLabel>
+                      <Select
+                        value={editForm.category}
+                        onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                        label="Danh mục *"
+                      >
+                        <MenuItem value="invoice">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <ReceiptIcon sx={{ fontSize: 16 }} />
+                            Hóa đơn
+                          </Box>
+                        </MenuItem>
+                        <MenuItem value="payment">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <PaymentIcon sx={{ fontSize: 16 }} />
+                            Thanh toán
+                          </Box>
+                        </MenuItem>
+                        <MenuItem value="minutes">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <DescriptionIcon sx={{ fontSize: 16 }} />
+                            Biên bản
+                          </Box>
+                        </MenuItem>
+                        <MenuItem value="system">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <SettingsIcon sx={{ fontSize: 16 }} />
+                            Hệ thống
+                          </Box>
+                        </MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Box>
+
+                  {/* Trạng thái */}
+                  <FormControl size="small" fullWidth>
+                    <InputLabel>Trạng thái</InputLabel>
+                    <Select
+                      value={editForm.isActive ? 'active' : 'inactive'}
+                      onChange={(e) => setEditForm({ ...editForm, isActive: e.target.value === 'active' })}
+                      label="Trạng thái"
+                    >
+                      <MenuItem value="active">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <CheckCircle sx={{ fontSize: 18, color: '#2e7d32' }} />
+                          Đang sử dụng
+                        </Box>
+                      </MenuItem>
+                      <MenuItem value="inactive">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Cancel sx={{ fontSize: 18, color: '#999' }} />
+                          Không sử dụng
+                        </Box>
+                      </MenuItem>
+                    </Select>
+                  </FormControl>
+                </Stack>
+              </Box>
+
+              {/* === SECTION 2: Nội dung email === */}
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <DescriptionIcon sx={{ fontSize: 18 }} />
+                  Nội dung email
+                </Typography>
+                <Stack spacing={2}>
+                  {/* Tiêu đề email */}
+                  <TextField
+                    label="Tiêu đề email *"
+                    fullWidth
+                    value={editForm.subject}
+                    onChange={(e) => setEditForm({ ...editForm, subject: e.target.value })}
+                    placeholder="🔔 [Hóa đơn] #{{InvoiceNumber}} - {{CompanyName}}"
+                    size="small"
+                    required
+                    error={!editForm.subject}
+                    helperText="Có thể sử dụng biến động như {{InvoiceNumber}}, {{CustomerName}}"
+                    multiline
+                    rows={2}
+                  />
+
+                  {/* Biến động */}
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#666', mb: 1, display: 'block' }}>
+                      BIẾN ĐỘNG KHẢ DỤNG (Click để chèn vào nội dung)
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      {AVAILABLE_VARIABLES.map((variable) => (
+                        <Tooltip key={variable.key} title={`Ví dụ: ${variable.example}`} arrow placement="top">
+                          <Chip
+                            label={variable.label}
+                            size="small"
+                            onClick={() => insertVariable(variable.key)}
+                            sx={{
+                              cursor: 'pointer',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              backgroundColor: alpha('#1976d2', 0.08),
+                              color: '#1976d2',
+                              border: `1px solid ${alpha('#1976d2', 0.2)}`,
+                              transition: 'all 0.2s',
+                              '&:hover': {
+                                backgroundColor: alpha('#1976d2', 0.15),
+                                transform: 'translateY(-2px)',
+                                boxShadow: '0 2px 8px rgba(25, 118, 210, 0.2)',
+                              },
+                            }}
+                          />
+                        </Tooltip>
+                      ))}
+                    </Box>
+                  </Box>
+
+                  {/* Nội dung HTML */}
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#666', mb: 1, display: 'block' }}>
+                      NỘI DUNG HTML *
+                    </Typography>
+                    <Box 
+                      sx={{ 
+                        border: '1px solid #e0e0e0', 
+                        borderRadius: 1, 
+                        overflow: 'hidden',
+                        '& .ql-editor': {
+                          minHeight: '300px',
+                          maxHeight: '400px',
+                        }
+                      }}
+                    >
+                      <ReactQuill
+                        ref={quillRef}
+                        theme="snow"
+                        value={editForm.bodyContent}
+                        onChange={(value) => setEditForm({ ...editForm, bodyContent: value })}
+                        placeholder="Nhập nội dung email hoặc dán HTML..."
+                        modules={{
+                          toolbar: [
+                            [{ header: [1, 2, 3, false] }],
+                            ['bold', 'italic', 'underline', 'strike'],
+                            [{ color: [] }, { background: [] }],
+                            [{ list: 'ordered' }, { list: 'bullet' }],
+                            [{ align: [] }],
+                            ['link', 'image'],
+                            ['code-block'],
+                            ['clean'],
+                          ],
                         }}
                       />
-                    </Tooltip>
-                  ))}
-                </Box>
-              </Box>
-
-              {/* Nội dung email - WYSIWYG Editor */}
-              <Box>
-                <Typography variant="caption" sx={{ fontWeight: 600, color: '#666', mb: 1, display: 'block' }}>
-                  NỘI DUNG EMAIL
-                </Typography>
-                <Box sx={{ border: '1px solid #e0e0e0', borderRadius: 1, overflow: 'hidden' }}>
-                  <ReactQuill
-                    ref={quillRef}
-                    theme="snow"
-                    value={editForm.bodyContent}
-                    onChange={(value) => setEditForm({ ...editForm, bodyContent: value })}
-                    style={{ height: '300px' }}
-                    modules={{
-                      toolbar: [
-                        [{ header: [1, 2, 3, false] }],
-                        ['bold', 'italic', 'underline'],
-                        [{ color: [] }, { background: [] }],
-                        [{ list: 'ordered' }, { list: 'bullet' }],
-                        [{ align: [] }],
-                        ['link'],
-                        ['clean'],
-                      ],
-                    }}
-                  />
-                </Box>
-              </Box>
-
-              {/* Trạng thái */}
-              <Box sx={{ pt: 2 }}>
-                <FormControl size="small" fullWidth>
-                  <InputLabel>Trạng thái</InputLabel>
-                  <Select
-                    value={editForm.isActive ? 'active' : 'inactive'}
-                    onChange={(e) => setEditForm({ ...editForm, isActive: e.target.value === 'active' })}
-                    label="Trạng thái"
-                  >
-                    <MenuItem value="active">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <CheckCircle sx={{ fontSize: 18, color: '#2e7d32' }} />
-                        Đang sử dụng
-                      </Box>
-                    </MenuItem>
-                    <MenuItem value="inactive">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Cancel sx={{ fontSize: 18, color: '#999' }} />
-                        Không sử dụng
-                      </Box>
-                    </MenuItem>
-                  </Select>
-                </FormControl>
+                    </Box>
+                    {!editForm.bodyContent && (
+                      <Typography variant="caption" sx={{ color: '#d32f2f', mt: 0.5, display: 'block' }}>
+                        Nội dung không được để trống
+                      </Typography>
+                    )}
+                  </Box>
+                </Stack>
               </Box>
             </Stack>
           </DialogContent>
-          <DialogActions sx={{ borderTop: '1px solid #e0e0e0', p: 2, gap: 1 }}>
-            <Button onClick={() => setOpenEditModal(false)} sx={{ textTransform: 'none' }}>
+          <DialogActions sx={{ borderTop: '1px solid #e0e0e0', p: 2.5, gap: 1, backgroundColor: '#fafafa' }}>
+            <Button 
+              onClick={() => setOpenEditModal(false)} 
+              sx={{ textTransform: 'none' }}
+            >
               Hủy
             </Button>
+            <Box sx={{ flex: 1 }} />
             <Button
               variant="outlined"
               startIcon={<VisibilityIcon />}
               onClick={() => {
+                // Validate required fields before preview
+                if (!editForm.name || !editForm.subject || !editForm.bodyContent) {
+                  setSnackbar({ 
+                    open: true, 
+                    message: 'Vui lòng điền đầy đủ thông tin bắt buộc!', 
+                    severity: 'error' 
+                  })
+                  return
+                }
                 setOpenEditModal(false)
                 setSelectedTemplate({ 
                   emailTemplateID: selectedTemplate?.emailTemplateID || 0,
@@ -901,6 +1261,7 @@ const EmailTemplateManagement = () => {
                   createdAt: selectedTemplate?.createdAt || '',
                   updatedAt: selectedTemplate?.updatedAt || null,
                 } as EmailTemplate)
+                setViewMode('preview')
                 setOpenPreviewModal(true)
               }}
               sx={{ textTransform: 'none' }}
@@ -909,11 +1270,24 @@ const EmailTemplateManagement = () => {
             </Button>
             <Button
               variant="contained"
-              startIcon={<SaveIcon />}
+              startIcon={saving ? <CircularProgress size={16} sx={{ color: 'white' }} /> : <SaveIcon />}
               onClick={handleSave}
-              sx={{ textTransform: 'none' }}
+              disabled={
+                saving || 
+                !editForm.name || 
+                !editForm.subject || 
+                !editForm.bodyContent || 
+                (!selectedTemplate && !editForm.templateCode)
+              }
+              sx={{ 
+                textTransform: 'none',
+                minWidth: 140,
+              }}
             >
-              Lưu mẫu
+              {saving 
+                ? 'Đang lưu...' 
+                : (selectedTemplate ? 'Cập nhật mẫu' : 'Tạo mẫu mới')
+              }
             </Button>
           </DialogActions>
         </Dialog>
@@ -927,10 +1301,24 @@ const EmailTemplateManagement = () => {
         >
           <DialogTitle sx={{ borderBottom: '1px solid #e0e0e0', pb: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Xem trước Email
-              </Typography>
-              <IconButton size="small" onClick={() => setOpenPreviewModal(false)}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  {baseContent ? 'Xem trước Mẫu Gốc (Base Template)' : 'Xem Chi tiết Mẫu Hiện tại'}
+                </Typography>
+                {baseContent && (
+                  <Chip 
+                    label="Base" 
+                    size="small" 
+                    color="secondary"
+                    sx={{ fontSize: '0.7rem', height: 20 }}
+                  />
+                )}
+              </Box>
+              <IconButton size="small" onClick={() => {
+                setOpenPreviewModal(false)
+                setBaseContent('')
+                setViewMode('detail')
+              }}>
                 <CloseIcon />
               </IconButton>
             </Box>
@@ -943,25 +1331,54 @@ const EmailTemplateManagement = () => {
                   Tiêu đề:
                 </Typography>
                 <Typography variant="body1" sx={{ fontWeight: 600, color: '#1a1a1a' }}>
-                  {replaceVariables(selectedTemplate?.subject || editForm.subject)}
+                  {viewMode === 'preview' 
+                    ? replaceVariables(selectedTemplate?.subject || editForm.subject)
+                    : (selectedTemplate?.subject || editForm.subject)
+                  }
                 </Typography>
               </Paper>
 
-              {/* Preview Content */}
-              <Box
-                sx={{
-                  backgroundColor: '#fff',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: 2,
-                  p: 3,
-                  overflow: 'hidden',
-                }}
-                dangerouslySetInnerHTML={{ __html: replaceVariables(selectedTemplate?.bodyContent || editForm.bodyContent) }}
-              />
+              {/* Preview Content - Use baseContent from API or bodyContent */}
+              {loadingPreview ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
+                  <CircularProgress />
+                </Box>
+              ) : (
+                <>
+                  {viewMode === 'detail' && (
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      <strong>Chế độ Xem Chi tiết:</strong> Hiển thị HTML gốc với placeholders
+                    </Alert>
+                  )}
+                  {viewMode === 'preview' && baseContent && (
+                    <Alert severity="success" sx={{ mb: 2 }}>
+                      <strong>Chế độ Preview:</strong> Hiển thị mẫu gốc với dữ liệu mẫu
+                    </Alert>
+                  )}
+                  <Box
+                    sx={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #e0e0e0',
+                      borderRadius: 2,
+                      p: 3,
+                      overflow: 'hidden',
+                    }}
+                    dangerouslySetInnerHTML={{ 
+                      __html: viewMode === 'preview' 
+                        ? replaceVariables(baseContent || selectedTemplate?.bodyContent || editForm.bodyContent)
+                        : (baseContent || selectedTemplate?.bodyContent || editForm.bodyContent)
+                    }}
+                  />
+                </>
+              )}
             </Box>
           </DialogContent>
           <DialogActions sx={{ borderTop: '1px solid #e0e0e0', p: 2 }}>
-            <Button onClick={() => setOpenPreviewModal(false)} variant="contained" sx={{ textTransform: 'none' }}>
+            <Button onClick={() => {
+              setOpenPreviewModal(false)
+              setBaseContent('')
+              setViewMode('detail')
+            }} variant="contained" sx={{ textTransform: 'none' }}>
               Đóng
             </Button>
           </DialogActions>
