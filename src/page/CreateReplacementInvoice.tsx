@@ -43,7 +43,6 @@ import {
   Visibility,
   Close,
   Save,
-  Publish,
   Print,
   KeyboardArrowUp,
   KeyboardArrowDown,
@@ -1682,45 +1681,9 @@ const CreateVatInvoice: React.FC = () => {
         return
       }
       
-      // 1. Validate template
-      if (!selectedTemplate) {
-        setSnackbar({
-          open: true,
-          message: '⚠️ Vui lòng chọn mẫu hóa đơn',
-          severity: 'warning'
-        })
-        return
-      }
-
-      // Validate templateID exists
-      if (!selectedTemplate.templateID || selectedTemplate.templateID <= 0) {
-        setSnackbar({
-          open: true,
-          message: `❌ Template không hợp lệ (ID: ${selectedTemplate.templateID}). Vui lòng chọn template khác.`,
-          severity: 'error'
-        })
-        console.error('❌ Invalid template:', selectedTemplate)
-        return
-      }
-
-      // 2. Validate buyer information
-      if (!buyerCompanyName || !buyerAddress) {
-        setSnackbar({
-          open: true,
-          message: '⚠️ Vui lòng điền đầy đủ Tên đơn vị và Địa chỉ người mua',
-          severity: 'warning'
-        })
-        return
-      }
-
-      if (!buyerTaxCode || buyerTaxCode.trim() === '') {
-        setSnackbar({
-          open: true,
-          message: '⚠️ Vui lòng nhập Mã số thuế người mua',
-          severity: 'warning'
-        })
-        return
-      }
+      // ✅ BỎ VALIDATION: Template và thông tin người mua
+      // - Template: User có thể đổi mẫu hóa đơn nếu muốn
+      // - Thông tin người mua: Đã copy từ hóa đơn gốc, user có thể sửa nếu sai
 
       // 3. Validate items
       if (items.length === 0) {
@@ -1759,16 +1722,9 @@ const CreateVatInvoice: React.FC = () => {
         return
       }
       
-      // 5. ✅ Validate payment method cho hóa đơn >20 triệu (theo quy định khấu trừ thuế)
-      const TWENTY_MILLION = 20000000
-      if (totals.total > TWENTY_MILLION && paymentMethod !== 'Chuyển khoản') {
-        setSnackbar({
-          open: true,
-          message: `⚠️ Hóa đơn trên 20 triệu đồng (${(totals.total / 1000000).toFixed(1)}M) phải chọn "Chuyển khoản" để được khấu trừ thuế theo quy định`,
-          severity: 'warning'
-        })
-        return
-      }
+      // ✅ BỎ VALIDATION: Payment method theo số tiền
+      // - Hình thức thanh toán là string từ hóa đơn gốc, không cần validate
+      // - User có thể đổi nếu cần thiết
 
       // ========== SUBMIT ==========
       
@@ -1780,7 +1736,7 @@ const CreateVatInvoice: React.FC = () => {
       console.log('👤 Current userId from token:', currentUserId);
       
       const backendRequest = mapToBackendInvoiceRequest(
-        selectedTemplate.templateID,
+        selectedTemplate?.templateID || 0,
         {
           customerID: buyerCustomerID, // ✅ Truyền customer ID
           taxCode: buyerTaxCode,
@@ -1866,10 +1822,10 @@ const CreateVatInvoice: React.FC = () => {
         severity: 'success'
       })
 
-      // Navigate to invoice list after 2 seconds (để user đọc message)
+      // Auto quay về trang trước sau khi tạo thành công
       setTimeout(() => {
-        navigate('/invoices')
-      }, 2000)
+        navigate(-1)
+      }, 1500)
 
     } catch (error: unknown) {
       console.error('❌ Error creating invoice:', error)
@@ -1916,14 +1872,9 @@ const CreateVatInvoice: React.FC = () => {
     }
   }
 
-  // ⭐ Lưu nháp (invoiceStatusID = 1)
+  // ⭐ Tạo hóa đơn thay thế (invoiceStatusID = 1 - Nháp)
   const handleSaveDraft = async () => {
-    await handleSubmitInvoice(1, 'Lưu hóa đơn nháp')
-  }
-
-  // ⭐ Gửi duyệt (invoiceStatusID = 6)
-  const handleSubmitForApproval = async () => {
-    await handleSubmitInvoice(6, 'Gửi hóa đơn chờ duyệt')
+    await handleSubmitInvoice(1, 'Tạo hóa đơn thay thế')
   }
 
   // ⭐ Xử lý hủy bỏ - Hiển thị dialog xác nhận
@@ -2274,14 +2225,6 @@ const CreateVatInvoice: React.FC = () => {
                 minWidth: 300,
                 maxWidth: 350,
               }}>
-              {isReplacementMode && (
-                <Box sx={{ mb: 1, p: 1, backgroundColor: '#e3f2fd', borderRadius: 1, border: '1px solid #1976d2' }}>
-                  <Typography variant="caption" sx={{ color: '#0d47a1', display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.75rem' }}>
-                    <Info sx={{ fontSize: 14 }} />
-                    Mẫu hóa đơn và thông tin người mua được giữ nguyên từ hóa đơn gốc
-                  </Typography>
-                </Box>
-              )}
               <Stack spacing={1.5}>
                 <Stack direction="row" spacing={1.5} alignItems="center">
                   <Typography variant="caption" sx={{ minWidth: 55, fontSize: '0.8125rem' }}>
@@ -2297,7 +2240,7 @@ const CreateVatInvoice: React.FC = () => {
                     fullWidth 
                     variant="outlined" 
                     sx={{ fontSize: '0.8125rem' }}
-                    disabled={templatesLoading || templates.length === 0 || isReplacementMode} // ✅ Disable trong replacement mode
+                    disabled={templatesLoading || templates.length === 0}
                   >
                     {templatesLoading ? (
                       <MenuItem value="">Đang tải...</MenuItem>
@@ -2476,14 +2419,6 @@ const CreateVatInvoice: React.FC = () => {
               <Divider sx={{ my: 1.5 }} />
 
               {/* Thông tin người mua */}
-              {isReplacementMode && (
-                <Box sx={{ mb: 1, p: 1, backgroundColor: '#fff3cd', borderRadius: 1, border: '1px solid #ffc107' }}>
-                  <Typography variant="caption" sx={{ color: '#856404', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Warning sx={{ fontSize: 16 }} />
-                    Hóa đơn thay thế: Thông tin người mua được sao chép từ hóa đơn gốc và không thể chỉnh sửa
-                  </Typography>
-                </Box>
-              )}
               <Stack spacing={0.8}>
                 <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexWrap: 'wrap' }}>
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
@@ -2496,7 +2431,6 @@ const CreateVatInvoice: React.FC = () => {
                     value={buyerTaxCode}
                     onChange={(e) => handleTaxCodeChange(e.target.value)}
                     onBlur={handleTaxCodeBlur}
-                    disabled={isReplacementMode} // ✅ Disable trong replacement mode
                     sx={{ width: 160, fontSize: '0.8125rem' }}
                     error={customerNotFound}
                     helperText={customerNotFound ? 'Không tìm thấy' : ''}
@@ -2507,7 +2441,7 @@ const CreateVatInvoice: React.FC = () => {
                         </InputAdornment>
                       ) : (
                         <InputAdornment position="end">
-                          <IconButton size="small" edge="end" disabled={isReplacementMode}>
+                          <IconButton size="small" edge="end">
                             <ExpandMore fontSize="small" />
                           </IconButton>
                         </InputAdornment>
@@ -2519,7 +2453,7 @@ const CreateVatInvoice: React.FC = () => {
                     startIcon={<Public sx={{ fontSize: 16 }} />} 
                     sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25 }}
                     onClick={() => handleTaxCodeLookup(buyerTaxCode)}
-                    disabled={!buyerTaxCode || isSearchingCustomer || isReplacementMode} // ✅ Disable trong replacement mode
+                    disabled={!buyerTaxCode || isSearchingCustomer}
                   >
                     {isSearchingCustomer ? 'Đang tìm...' : 'Lấy thông tin'}
                   </Button>
@@ -2527,7 +2461,6 @@ const CreateVatInvoice: React.FC = () => {
                     size="small" 
                     startIcon={<VerifiedUser sx={{ fontSize: 16 }} />} 
                     sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25, whiteSpace: 'nowrap' }}
-                    disabled={isReplacementMode} // ✅ Disable trong replacement mode
                   >
                     KT tình trạng hoạt động
                   </Button>
@@ -2544,12 +2477,11 @@ const CreateVatInvoice: React.FC = () => {
                     variant="standard"
                     value={buyerCompanyName}
                     onChange={(e) => setBuyerCompanyName(e.target.value)}
-                    disabled={isReplacementMode} // ✅ Disable trong replacement mode
                     sx={{ fontSize: '0.8125rem' }}
                     InputProps={{
                       endAdornment: (
                         <InputAdornment position="end">
-                          <IconButton size="small" edge="end" disabled={isReplacementMode}>
+                          <IconButton size="small" edge="end">
                             <ExpandMore fontSize="small" />
                           </IconButton>
                         </InputAdornment>
@@ -2569,7 +2501,6 @@ const CreateVatInvoice: React.FC = () => {
                     variant="standard"
                     value={buyerAddress}
                     onChange={(e) => setBuyerAddress(e.target.value)}
-                    disabled={isReplacementMode} // ✅ Disable trong replacement mode
                     sx={{ fontSize: '0.8125rem' }}
                   />
                 </Stack>
@@ -2584,7 +2515,6 @@ const CreateVatInvoice: React.FC = () => {
                     variant="standard" 
                     value={buyerName} 
                     onChange={(e) => setBuyerName(e.target.value)} 
-                    disabled={isReplacementMode} // ✅ Disable trong replacement mode
                     sx={{ width: 160, fontSize: '0.8125rem' }} 
                   />
                   <Typography variant="caption" sx={{ minWidth: 50, fontSize: '0.8125rem' }}>
@@ -2596,7 +2526,6 @@ const CreateVatInvoice: React.FC = () => {
                     variant="standard" 
                     value={buyerEmail} 
                     onChange={(e) => setBuyerEmail(e.target.value)} 
-                    disabled={isReplacementMode} // ✅ Disable trong replacement mode
                     sx={{ flex: 1, fontSize: '0.8125rem' }} 
                   />
                 </Stack>
@@ -2610,7 +2539,6 @@ const CreateVatInvoice: React.FC = () => {
                     variant="standard" 
                     value={buyerPhone} 
                     onChange={(e) => setBuyerPhone(e.target.value)} 
-                    disabled={isReplacementMode} // ✅ Disable trong replacement mode
                     sx={{ width: 160, fontSize: '0.8125rem' }} 
                   />
                   <Typography variant="caption" sx={{ minWidth: 80, fontSize: '0.8125rem' }}>
@@ -2621,7 +2549,6 @@ const CreateVatInvoice: React.FC = () => {
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value)}
                     variant="standard"
-                    disabled={isReplacementMode} // ✅ Disable trong replacement mode
                     MenuProps={{
                       PaperProps: {
                         sx: {
@@ -3122,19 +3049,8 @@ const CreateVatInvoice: React.FC = () => {
                 onClick={handleSaveDraft}
                 disabled={isSubmitting}
                 sx={{ textTransform: 'none', backgroundColor: '#1976d2', fontSize: '0.8125rem', py: 0.5 }}>
-                {isSubmitting ? (editMode ? 'Đang cập nhật...' : 'Đang lưu...') : (editMode ? 'Cập nhật' : 'Lưu nháp')}
+                {isSubmitting ? 'Đang tạo...' : 'Tạo hóa đơn thay thế'}
               </Button>
-              {!editMode && (
-                <Button
-                  size="small"
-                  variant="contained"
-                  startIcon={<Publish fontSize="small" />}
-                  onClick={handleSubmitForApproval}
-                  disabled={isSubmitting}
-                  sx={{ textTransform: 'none', backgroundColor: '#2e7d32', minWidth: 140, fontSize: '0.8125rem', py: 0.5 }}>
-                  Gửi cho KT Trưởng
-                </Button>
-              )}
             </Stack>
           </Stack>
         </Paper>

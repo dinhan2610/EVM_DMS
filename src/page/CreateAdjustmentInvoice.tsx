@@ -972,6 +972,12 @@ const CreateVatInvoice: React.FC = () => {
         setReferenceText(refText)
         console.log('📌 Generated reference text:', refText)
         
+        // ✅ Auto-fill Customer ID từ hóa đơn gốc
+        if (data.customerID) {
+          setBuyerCustomerID(data.customerID)
+          console.log('🎯 Customer ID from original invoice:', data.customerID)
+        }
+        
         // ✅ Auto-fill thông tin khách hàng từ hóa đơn gốc (READ-ONLY)
         setBuyerName(data.contactPerson || '')
         setBuyerEmail(data.customerEmail || '')  // ✅ Fix: API trả về customerEmail, không phải contactEmail
@@ -1145,6 +1151,7 @@ const CreateVatInvoice: React.FC = () => {
   ])
 
   // State cho thông tin người mua (Read-only from original invoice, used for preview only)
+  const [buyerCustomerID, setBuyerCustomerID] = useState(0) // ✅ Customer ID từ hóa đơn gốc (used in line 1679)
   const [buyerTaxCode, setBuyerTaxCode] = useState('')
   const [buyerCompanyName, setBuyerCompanyName] = useState('')
   const [buyerAddress, setBuyerAddress] = useState('')
@@ -1152,6 +1159,9 @@ const CreateVatInvoice: React.FC = () => {
   const [buyerEmail, setBuyerEmail] = useState('')
   const [buyerPhone, setBuyerPhone] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('Tiền mặt') // Hình thức thanh toán
+  
+  // Mark buyerCustomerID as used to suppress false positive TS warning
+  void buyerCustomerID
   
   // Function: Tự động tìm và điền thông tin khách hàng theo MST
   // NOTE: Currently unused but kept for future lookup feature - Customer info auto-filled from original invoice
@@ -1390,29 +1400,29 @@ const CreateVatInvoice: React.FC = () => {
   }
 
   // Thêm hàng mới
-  // const handleAddRow = () => {
-  //   const newId = items.length > 0 ? Math.max(...items.map((item) => item.id)) + 1 : 1
-  //   const newItem: InvoiceItem = {
-  //     id: newId,
-  //     stt: items.length + 1,
-  //     type: 'Hàng hóa, dịch vụ',
-  //     code: '',
-  //     name: '',
-  //     unit: '',
-  //     quantity: 1,
-  //     priceAfterTax: 0,
-  //     discountPercent: 0,
-  //     discountAmount: 0,
-  //     vatRate: 0,              // ✅ Thuế suất mặc định 0%
-  //     totalAfterTax: 0,
-  //     originalQuantity: 0,
-  //     adjustmentQuantity: 0,
-  //     originalPrice: 0,
-  //     adjustmentPrice: 0,
-  //     adjustmentAmount: 0,
-  //   }
-  //   setItems([...items, newItem])
-  // }
+  const handleAddRow = () => {
+    const newId = items.length > 0 ? Math.max(...items.map((item) => item.id)) + 1 : 1
+    const newItem: InvoiceItem = {
+      id: newId,
+      stt: items.length + 1,
+      type: 'Hàng hóa, dịch vụ',
+      code: '',
+      name: '',
+      unit: '',
+      quantity: 1,
+      priceAfterTax: 0,
+      discountPercent: 0,
+      discountAmount: 0,
+      vatRate: 0,              // ✅ Thuế suất mặc định 0%
+      totalAfterTax: 0,
+      originalQuantity: 0,
+      adjustmentQuantity: 0,
+      originalPrice: 0,
+      adjustmentPrice: 0,
+      adjustmentAmount: 0,
+    }
+    setItems([...items, newItem])
+  }
 
   // Tính toán tổng tiền
   const calculateTotals = (currentItems: InvoiceItem[]) => {
@@ -1595,10 +1605,10 @@ const CreateVatInvoice: React.FC = () => {
       }
 
       // Validate templateID exists
-      if (!selectedTemplate.templateID || selectedTemplate.templateID <= 0) {
+      if (!selectedTemplate || !selectedTemplate.templateID || selectedTemplate.templateID <= 0) {
         setSnackbar({
           open: true,
-          message: `❌ Template không hợp lệ (ID: ${selectedTemplate.templateID}). Vui lòng chọn template khác.`,
+          message: `❌ Template không hợp lệ (ID: ${selectedTemplate?.templateID}). Vui lòng chọn template khác.`,
           severity: 'error'
         })
         console.error('❌ Invalid template:', selectedTemplate)
@@ -1667,7 +1677,7 @@ const CreateVatInvoice: React.FC = () => {
 
       // Map frontend state sang backend request
       const backendRequest = mapToBackendInvoiceRequest(
-        selectedTemplate.templateID,
+        selectedTemplate?.templateID || 0,
         {
           customerID: buyerCustomerID, // ✅ Truyền customer ID
           taxCode: buyerTaxCode,
@@ -1870,7 +1880,7 @@ const CreateVatInvoice: React.FC = () => {
       
       const requestData: CreateAdjustmentInvoiceRequest = {
         originalInvoiceId: Number(originalInvoiceId),
-        templateId: selectedTemplate.templateID,
+        templateId: selectedTemplate?.templateID || 0,
         referenceText: referenceText.trim(),
         adjustmentReason: adjustmentReason.trim(),
         performedBy: userId,
@@ -2856,6 +2866,25 @@ const CreateVatInvoice: React.FC = () => {
           <Stack direction="row" spacing={1} sx={{ mb: 2, alignItems: 'stretch' }}>
             <Button
               size="small"
+              variant="outlined"
+              onClick={handleAddRow}
+              startIcon={<Add fontSize="small" />}
+              sx={{
+                textTransform: 'none',
+                color: '#1976d2',
+                borderColor: '#1976d2',
+                fontSize: '0.8125rem',
+                py: 0.5,
+                px: 1.5,
+                '&:hover': { 
+                  bgcolor: 'rgba(25, 118, 210, 0.04)',
+                  borderColor: '#1976d2'
+                }
+              }}>
+              Thêm dòng
+            </Button>
+            <Button
+              size="small"
               variant="text"
               onClick={() => setShowInvoiceNotes(!showInvoiceNotes)}
               startIcon={showInvoiceNotes ? <i className="ri-subtract-line" /> : <i className="ri-add-line" />}
@@ -3094,7 +3123,7 @@ const CreateVatInvoice: React.FC = () => {
                   paymentMethod={paymentMethod}
                   invoiceNumber={undefined} // ⚠️ KHÔNG CÓ MÃ HÓA ĐƠN - chưa tạo
                   taxAuthorityCode={null} // ⚠️ KHÔNG CÓ MÃ CQT - chưa đồng bộ
-                  backgroundFrame={selectedTemplate.frameUrl || ''}
+                  backgroundFrame={selectedTemplate?.frameUrl || ''}
                   notes={invoiceNotes || null}
                 />
               </Box>

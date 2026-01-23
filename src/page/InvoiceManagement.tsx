@@ -1027,8 +1027,7 @@ const InvoiceManagement = () => {
     {
       field: 'symbol',
       headerName: 'Ký hiệu',
-      flex: 0.8,
-      minWidth: 100,
+      width: 110,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -1036,13 +1035,13 @@ const InvoiceManagement = () => {
         const value = params.value as string
         if (!value) {
           return (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-              <Typography variant="body2" sx={{ color: '#bdbdbd' }}>-</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
+              <Typography variant="body2" sx={{ color: '#bdbdbd', fontSize: '0.875rem' }}>-</Typography>
             </Box>
           )
         }
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
             <Typography
               variant="body2"
               sx={{
@@ -1060,15 +1059,15 @@ const InvoiceManagement = () => {
     {
       field: 'customerName',
       headerName: 'Khách hàng',
-      flex: 1.5,
-      minWidth: 180,
+      flex: 1.8,
+      minWidth: 200,
       sortable: true,
       align: 'left',
       headerAlign: 'left',
       renderCell: (params: GridRenderCellParams) => {
         const value = params.value as string
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 2, py: 1.5 }}>
             <Tooltip title={value} arrow placement="top">
               <Typography
                 variant="body2"
@@ -1090,8 +1089,7 @@ const InvoiceManagement = () => {
     {
       field: 'taxCode',
       headerName: 'Mã số thuế',
-      flex: 1,
-      minWidth: 120,
+      width: 135,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -1099,13 +1097,13 @@ const InvoiceManagement = () => {
         const value = params.value as string
         if (!value) {
           return (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-              <Typography variant="body2" sx={{ color: '#bdbdbd' }}>-</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
+              <Typography variant="body2" sx={{ color: '#bdbdbd', fontSize: '0.875rem' }}>-</Typography>
             </Box>
           )
         }
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
             <Typography
               variant="body2"
               sx={{
@@ -1123,15 +1121,14 @@ const InvoiceManagement = () => {
     {
       field: 'issueDate',
       headerName: 'Ngày phát hành',
-      flex: 1,
-      minWidth: 130,
+      width: 140,
       sortable: true,
       type: 'date',
       align: 'center',
       headerAlign: 'center',
       valueGetter: (value: string) => new Date(value),
       renderCell: (params: GridRenderCellParams) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
           <Typography
             variant="body2"
             sx={{
@@ -1147,8 +1144,7 @@ const InvoiceManagement = () => {
     {
       field: 'internalStatus',
       headerName: 'Trạng thái',
-      flex: 1,
-      minWidth: 140,
+      width: 150,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -1220,7 +1216,7 @@ const InvoiceManagement = () => {
         ) : chipElement
         
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
             {content}
           </Box>
         )
@@ -1229,8 +1225,7 @@ const InvoiceManagement = () => {
     {
       field: 'taxStatus',
       headerName: 'Trạng thái CQT',
-      flex: 1.2,
-      minWidth: 160,
+      width: 170,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -1259,7 +1254,7 @@ const InvoiceManagement = () => {
         )
         
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
             <Tooltip title={tooltipContent} arrow placement="top">
               <Chip 
                 label={params.value as string} 
@@ -1293,8 +1288,7 @@ const InvoiceManagement = () => {
     {
       field: 'invoiceType',
       headerName: 'Loại HĐ',
-      flex: 1,
-      minWidth: 200,
+      width: 210,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -1582,13 +1576,12 @@ const InvoiceManagement = () => {
     {
       field: 'amount',
       headerName: 'Tổng tiền',
-      flex: 1,
-      minWidth: 130,
+      width: 150,
       sortable: true,
       align: 'right',
-      headerAlign: 'center',
+      headerAlign: 'right',
       renderCell: (params: GridRenderCellParams) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%', pr: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%', pr: 3, py: 1.5 }}>
           <Typography
             variant="body2"
             sx={{
@@ -1614,7 +1607,7 @@ const InvoiceManagement = () => {
         const invoice = params.row as Invoice
         
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 0.5, py: 1.5 }}>
             {/* Icon 1: Xem chi tiết */}
             <Tooltip title="Xem chi tiết" arrow placement="top">
               <IconButton
@@ -1814,26 +1807,52 @@ const InvoiceManagement = () => {
               onPaginationModelChange={setPaginationModel}
               pageSizeOptions={[5, 10, 25, 50, 100]}
               autoHeight={false}
-              getRowHeight={() => 'auto'}
+              rowHeight={64}
+              columnHeaderHeight={56}
               density="comfortable"
               sx={{
                 border: 'none',
                 '& .MuiDataGrid-cell': {
                   borderBottom: '1px solid #f0f0f0',
+                  padding: '0',
+                  display: 'flex',
+                  alignItems: 'center',
                 },
                 '& .MuiDataGrid-columnHeaders': {
                   backgroundColor: '#f8f9fa',
                   borderBottom: '2px solid #e0e0e0',
-                  fontWeight: 600,
                 },
-                '& .MuiDataGrid-row:hover': {
-                  backgroundColor: '#f8f9fa',
+                '& .MuiDataGrid-columnHeader': {
+                  padding: '0 16px',
+                  '&.MuiDataGrid-columnHeader--checkbox': {
+                    padding: '0 8px',
+                  },
+                },
+                '& .MuiDataGrid-columnHeaderCheckbox': {
+                  padding: '0',
+                },
+                '& .MuiDataGrid-columnHeaderTitle': {
+                  fontWeight: 700,
+                  fontSize: '0.875rem',
+                  color: '#1a1a1a',
+                  letterSpacing: '0.01em',
+                },
+                '& .MuiDataGrid-row': {
+                  '&:hover': {
+                    backgroundColor: '#f8f9fa',
+                  },
+                  '&.Mui-selected': {
+                    backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(25, 118, 210, 0.12)',
+                    },
+                  },
                 },
                 '& .MuiDataGrid-footerContainer': {
                   borderTop: '2px solid #e0e0e0',
                   backgroundColor: '#fafafa',
-                  minHeight: '56px',
-                  padding: '8px 16px',
+                  minHeight: '64px',
+                  padding: '12px 24px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -1842,22 +1861,15 @@ const InvoiceManagement = () => {
                   overflow: 'visible',
                 },
                 '& .MuiTablePagination-toolbar': {
-                  minHeight: '56px',
+                  minHeight: '64px',
                   paddingLeft: '16px',
-                  paddingRight: '8px',
-                  flexWrap: 'nowrap',
+                  paddingRight: '16px',
                 },
-                '& .MuiTablePagination-selectLabel': {
-                  margin: 0,
+                '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
                   fontSize: '0.875rem',
                   fontWeight: 500,
                   color: '#666',
-                },
-                '& .MuiTablePagination-displayedRows': {
                   margin: 0,
-                  fontSize: '0.875rem',
-                  fontWeight: 500,
-                  color: '#666',
                 },
                 '& .MuiTablePagination-select': {
                   paddingTop: '8px',
