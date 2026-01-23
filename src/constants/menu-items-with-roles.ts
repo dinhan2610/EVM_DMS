@@ -77,7 +77,7 @@ const adminCustomers: MenuItemType = {
   icon: 'iconamoon:profile-circle-duotone',
   label: 'Quản lý Khách hàng',
   url: '/admin/customers',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
+  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD],
 }
 
 // === INVOICE MENUS (Flattened) ===
@@ -126,7 +126,7 @@ const statements: MenuItemType = {
   icon: 'iconamoon:folder-duotone',
   label: 'Bảng kê',
   url: '/statements',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
+  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES],
 }
 
 const debt: MenuItemType = {
@@ -134,7 +134,7 @@ const debt: MenuItemType = {
   icon: 'mdi:account-cash',
   label: 'Công nợ',
   url: '/debt',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES, USER_ROLES.CUSTOMER],
+  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES],
 }
 
 const items: MenuItemType = {
@@ -151,6 +151,14 @@ const taxErrorNotifications: MenuItemType = {
   label: 'Thông báo sai sót',
   url: '/tax-error-notifications',
   roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
+}
+
+const adjustmentReplacementRecords: MenuItemType = {
+  key: 'adjustment-replacement-records',
+  icon: 'mdi:file-document-edit-outline',
+  label: 'Biên bản ĐC/TT',
+  url: '/adjustment-replacement-records',
+  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES],
 }
 
 // === SALES MENUS (Flattened) ===
@@ -225,6 +233,7 @@ export const getMenuItemsByRole = (userRole?: string): MenuItemType[] => {
     debt,
     items,
     taxErrorNotifications,
+    adjustmentReplacementRecords,
     // Sales menus
     salesCustomers,
     salesCreateOrder,
@@ -275,6 +284,7 @@ export const MENU_ITEMS: MenuItemType[] = [
   debt,
   items,
   taxErrorNotifications,
+  adjustmentReplacementRecords,
   // Sales menus
   salesCustomers,
   salesCreateOrder,

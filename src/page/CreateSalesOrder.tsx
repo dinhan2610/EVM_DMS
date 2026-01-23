@@ -7,7 +7,7 @@ import productService, { Product } from '@/services/productService'
 import companyService, { Company } from '@/services/companyService'
 import { mapToBackendInvoiceRequest } from '@/utils/invoiceAdapter'
 import { numberToWords } from '@/utils/numberToWords'
-import { getUserIdFromToken } from '@/utils/tokenUtils'
+import { getUserIdFromToken, getRoleFromToken } from '@/utils/tokenUtils'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
 import type { ProductItem, CustomerInfo, TemplateConfigProps} from '@/types/invoiceTemplate'
 import { DEFAULT_TEMPLATE_VISIBILITY, DEFAULT_INVOICE_SYMBOL } from '@/types/invoiceTemplate'
@@ -33,6 +33,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Autocomplete,
 } from '@mui/material'
 import {
   HelpOutline,
@@ -786,6 +787,17 @@ function CreateSalesOrder() {
   // Product states
   const [products, setProducts] = useState<Product[]>([])
   
+  // ✅ Customer states - Chỉ load khách hàng của sale hiện tại
+  const [customers, setCustomers] = useState<Array<{
+    customerID: number
+    customerName: string
+    taxCode: string
+    address: string
+    contactEmail: string
+    contactPhone: string
+  }>>([])
+  const [isLoadingCustomers, setIsLoadingCustomers] = useState(true)
+  
   // Company states
   const [company, setCompany] = useState<Company | null>(null)
   
@@ -848,9 +860,93 @@ function CreateSalesOrder() {
       }
     }
     
+    // ✅ Load khách hàng của sale hiện tại - CHỈ KHÁCH HÀNG THUỘC VỀ SALE NÀY
+    const loadSaleCustomers = async () => {
+      try {
+        setIsLoadingCustomers(true)
+        
+        // ✅ Verify user role
+        const userRole = getRoleFromToken()
+        const userId = getUserIdFromToken()
+        
+        console.log('🔐 [Sales Customer Filter] User Role:', userRole)
+        console.log('👤 [Sales Customer Filter] User ID:', userId)
+        
+        if (!userId) {
+          console.warn('⚠️ No user ID found in token - Cannot load customers')
+          setSnackbar({
+            open: true,
+            message: '⚠️ Không thể xác định tài khoản. Vui lòng đăng nhập lại.',
+            severity: 'warning',
+          })
+          return
+        }
+        
+        // ✅ IMPORTANT: This page is for SALES role only
+        // API sẽ filter khách hàng theo saleId parameter
+        console.log('📍 API Call: GET /api/Customer?saleId=' + userId)
+        console.log('🎯 Expected: Chỉ lấy khách hàng có saleId = ' + userId)
+        
+        // ✅ CHỈ gọi API với saleId parameter - Backend sẽ filter
+        const data = await customerService.getCustomersBySaleId(userId)
+        
+        console.log('✅ [Sales Customer Filter] API Response:', data.length, 'customers')
+        
+        // 🚨 CRITICAL FIX: Backend API đang trả cả saleID=0, phải filter lại ở client
+        // Backend bug: GET /api/Customer?saleId=3 trả về cả customers có saleID=0
+        const filteredData = data.filter(customer => customer.saleID === userId)
+        
+        console.log('🔍 [Client-side Filter] Before:', data.length, 'customers')
+        console.log('🔍 [Client-side Filter] After:', filteredData.length, 'customers')
+        console.log('⚠️ [Backend Bug] Filtered out:', data.length - filteredData.length, 'customers with wrong saleID')
+        
+        if (filteredData.length < data.length) {
+          console.warn('🚨 Backend API bug detected: Returning customers with saleID !== ' + userId)
+          console.warn('🐛 Wrong customers:', data.filter(c => c.saleID !== userId).map(c => ({
+            customerID: c.customerID,
+            name: c.customerName,
+            saleID: c.saleID,
+          })))
+        }
+        
+        console.log('🆔 Customer IDs:', filteredData.map(c => c.customerID))
+        console.log('🏢 Customer Names:', filteredData.map(c => c.customerName))
+        console.log('🔢 MST Codes:', filteredData.map(c => c.taxCode))
+        
+        // ✅ Double-check: Tất cả customers phải thuộc về sale này
+        if (import.meta.env.DEV && filteredData.length > 0) {
+          const allBelongToSale = filteredData.every(c => c.saleID === userId)
+          console.log('✅ All customers belong to sale ID:', userId, '→', allBelongToSale)
+          console.log('🔒 Security: Sale chỉ thấy KHÁCH HÀNG CỦA MÌNH, không thấy khách của sale khác')
+        }
+        
+        setCustomers(filteredData) // ✅ Dùng filtered data
+        
+        if (filteredData.length === 0) {
+          setSnackbar({
+            open: true,
+            message: '⚠️ Bạn chưa có khách hàng nào. Vui lòng liên hệ quản lý để được phân khách hàng.',
+            severity: 'warning',
+          })
+        } else {
+          console.log(`✅ Loaded ${filteredData.length} customers for sale "${userRole}" (ID: ${userId})`)
+        }
+      } catch (error) {
+        console.error('❌ [Sales Customer Filter] Error:', error)
+        setSnackbar({
+          open: true,
+          message: '❌ Không thể tải danh sách khách hàng của bạn',
+          severity: 'error',
+        })
+      } finally {
+        setIsLoadingCustomers(false)
+      }
+    }
+    
     loadTemplates()
     loadProducts()
     loadCompany()
+    loadSaleCustomers() // ✅ Gọi API load khách hàng
   }, [])
 
   // ✅ Load invoice data when in edit mode
@@ -1060,6 +1156,7 @@ function CreateSalesOrder() {
   const [customerNotFound, setCustomerNotFound] = useState(false)
   
   // Function: Tự động tìm và điền thông tin khách hàng theo MST
+  // ✅ CHỈ TÌM TRONG DANH SÁCH KHÁCH HÀNG CỦA SALE HIỆN TẠI (không search toàn hệ thống)
   const handleTaxCodeLookup = async (taxCode: string) => {
     if (!taxCode || taxCode.trim().length < 10) {
       setCustomerNotFound(false)
@@ -1070,43 +1167,46 @@ function CreateSalesOrder() {
       setIsSearchingCustomer(true)
       setCustomerNotFound(false)
       
-      // ✅ Gọi API findCustomerByTaxCode để tìm kiếm trực tiếp
-      const foundCustomer = await customerService.findCustomerByTaxCode(taxCode.trim())
+      console.log('🔍 [MST Lookup] Searching in YOUR customers only')
+      console.log('📊 Total customers available:', customers.length)
+      console.log('🔎 Searching for MST:', taxCode)
+      
+      // ✅ CHỈ tìm trong danh sách khách hàng của sale (client-side, secure)
+      const foundCustomer = customers.find(c => c.taxCode === taxCode.trim())
       
       if (foundCustomer) {
         // Tự động điền thông tin
-        setBuyerCustomerID(foundCustomer.customerID) // ✅ Lưu customer ID
+        setBuyerCustomerID(foundCustomer.customerID)
         setBuyerCompanyName(foundCustomer.customerName)
         setBuyerAddress(foundCustomer.address)
         setBuyerEmail(foundCustomer.contactEmail)
         setBuyerPhone(foundCustomer.contactPhone)
-        // buyerName để trống cho người dùng tự nhập
         
-        console.log('✅ Found customer:', foundCustomer.customerName)
+        console.log('✅ [MST Lookup] Found:', foundCustomer.customerName, '(ID:', foundCustomer.customerID, ')')
         setSnackbar({
           open: true,
-          message: `Đã tìm thấy khách hàng: ${foundCustomer.customerName}`,
+          message: `✅ Tìm thấy: ${foundCustomer.customerName}`,
           severity: 'success',
         })
       } else {
-        // Không tìm thấy - xóa các field
-        setBuyerCustomerID(0) // ✅ Reset customer ID
+        // Không tìm thấy trong danh sách của sale
+        setBuyerCustomerID(0)
         setBuyerCompanyName('')
         setBuyerAddress('')
         setBuyerEmail('')
         setBuyerPhone('')
-        // buyerName stays as user entered
         setCustomerNotFound(true)
         
-        console.log('⚠️ Customer not found for tax code:', taxCode)
+        console.log('⚠️ [MST Lookup] NOT FOUND in your customer list')
+        console.log('💡 Available MST codes:', customers.map(c => c.taxCode))
         setSnackbar({
           open: true,
-          message: 'Không tìm thấy khách hàng với MST này. Vui lòng nhập thủ công.',
+          message: `🚫 MST "${taxCode}" không thuộc khách hàng của bạn (${customers.length} KH). Vui lòng kiểm tra lại hoặc liên hệ quản lý.`,
           severity: 'warning',
         })
       }
     } catch (error) {
-      console.error('❌ Error looking up customer:', error)
+      console.error('❌ [MST Lookup] Error:', error)
       setSnackbar({
         open: true,
         message: 'Lỗi khi tra cứu thông tin khách hàng',
@@ -2132,22 +2232,87 @@ function CreateSalesOrder() {
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
                     Tên đơn vị:
                   </Typography>
-                  <TextField
-                    size="small"
+                  <Autocomplete
                     fullWidth
-                    placeholder="CÔNG TY CỔ PHẦN MISA"
-                    variant="standard"
-                    value={buyerCompanyName}
-                    onChange={(e) => setBuyerCompanyName(e.target.value)}
-                    sx={{ fontSize: '0.8125rem' }}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton size="small" edge="end">
-                            <ExpandMore fontSize="small" />
-                          </IconButton>
-                        </InputAdornment>
-                      ),
+                    freeSolo
+                    options={customers}
+                    getOptionLabel={(option) => {
+                      if (typeof option === 'string') return option
+                      return option.customerName
+                    }}
+                    value={customers.find(c => c.customerID === buyerCustomerID) || null}
+                    inputValue={buyerCompanyName}
+                    onInputChange={(_, newValue) => {
+                      setBuyerCompanyName(newValue)
+                    }}
+                    onChange={(_, newValue) => {
+                      if (newValue && typeof newValue !== 'string') {
+                        // Auto-fill tất cả thông tin khi chọn từ dropdown
+                        setBuyerCustomerID(newValue.customerID)
+                        setBuyerCompanyName(newValue.customerName)
+                        setBuyerTaxCode(newValue.taxCode)
+                        setBuyerAddress(newValue.address)
+                        setBuyerEmail(newValue.contactEmail)
+                        setBuyerPhone(newValue.contactPhone)
+                        setCustomerNotFound(false)
+                        
+                        console.log('✅ Chọn khách hàng:', newValue.customerName)
+                        setSnackbar({
+                          open: true,
+                          message: `Đã chọn khách hàng: ${newValue.customerName}`,
+                          severity: 'success',
+                        })
+                      } else if (newValue === null) {
+                        // Clear khi xóa
+                        setBuyerCustomerID(0)
+                        setBuyerCompanyName('')
+                        setBuyerTaxCode('')
+                        setBuyerAddress('')
+                        setBuyerEmail('')
+                        setBuyerPhone('')
+                        setCustomerNotFound(false)
+                      }
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        size="small"
+                        placeholder="Tìm theo tên công ty..."
+                        variant="standard"
+                        sx={{ fontSize: '0.8125rem' }}
+                        helperText={
+                          isLoadingCustomers 
+                            ? '⏳ Đang tải khách hàng của bạn...' 
+                            : customers.length > 0 
+                            ? `👥 ${customers.length} khách hàng (chỉ của bạn)` 
+                            : '⚠️ Bạn chưa có khách hàng nào'
+                        }
+                      />
+                    )}
+                    renderOption={(props, option) => (
+                      <li {...props} key={option.customerID}>
+                        <Box sx={{ width: '100%' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {option.customerName}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                            MST: {option.taxCode} | {option.address}
+                          </Typography>
+                        </Box>
+                      </li>
+                    )}
+                    noOptionsText="Không tìm thấy khách hàng"
+                    filterOptions={(options, { inputValue }) => {
+                      const search = inputValue.toLowerCase()
+                      return options.filter(option => 
+                        option.customerName.toLowerCase().includes(search) ||
+                        option.taxCode.includes(search)
+                      )
+                    }}
+                    sx={{
+                      '& .MuiAutocomplete-inputRoot': {
+                        fontSize: '0.8125rem',
+                      },
                     }}
                   />
                 </Stack>

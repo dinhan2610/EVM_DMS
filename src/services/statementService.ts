@@ -34,6 +34,16 @@ export interface SendStatementEmailResponse {
   message: string;
 }
 
+export interface SendDebtReminderRequest {
+  statementId: number;
+  includePdf: boolean;
+}
+
+export interface SendDebtReminderResponse {
+  success: boolean;
+  message: string;
+}
+
 // ==================== API ENDPOINTS ====================
 
 const STATEMENT_ENDPOINTS = {
@@ -44,6 +54,7 @@ const STATEMENT_ENDPOINTS = {
   GENERATE_BATCH: '/api/Statement/generate-batch',
   SEND_REMINDERS: '/api/Statement/send-monthly-reminders',
   SEND_EMAIL: (id: number) => `/api/Statement/${id}/send-email`,
+  SEND_DEBT_REMINDER: (id: number) => `/api/Statement/${id}/send-debt-reminder`,
   CREATE_PAYMENT: (id: number) => `/api/Statement/${id}/payments`,
   GET_PAYMENTS: (id: number) => `/api/Statement/${id}/payments`,
 };
@@ -126,6 +137,49 @@ export async function fetchStatementDetail(
     return response.data;
   } catch (error) {
     console.error(`❌ Error fetching statement detail (ID: ${id}):`, error);
+    throw error;
+  }
+}
+
+// ==================== SEND DEBT REMINDER ====================
+
+/**
+ * Send debt reminder email for a statement
+ * 
+ * @param id - Statement ID
+ * @param includePdf - Include PDF attachment (default: true)
+ * @returns SendDebtReminderResponse with success status
+ * 
+ * Example:
+ * ```typescript
+ * const result = await sendDebtReminder(1, true);
+ * console.log(result.message); // "Đã gửi email nhắc nợ thành công"
+ * ```
+ */
+export async function sendDebtReminder(
+  id: number,
+  includePdf: boolean = true
+): Promise<SendDebtReminderResponse> {
+  try {
+    const token = localStorage.getItem(API_CONFIG.TOKEN_KEY);
+    const response = await axios.post<SendDebtReminderResponse>(
+      STATEMENT_ENDPOINTS.SEND_DEBT_REMINDER(id),
+      {
+        statementId: id,
+        includePdf,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    console.log(`✅ Debt reminder sent successfully for statement ID: ${id}`);
+    return response.data;
+  } catch (error) {
+    console.error(`❌ Error sending debt reminder (ID: ${id}):`, error);
     throw error;
   }
 }

@@ -47,6 +47,7 @@ import { useAuthContext } from '@/context/useAuthContext'
 import { getCustomersBySaleId } from '@/services/customerService'
 import { USER_ROLES } from '@/constants/roles'
 
+
 // ==================== HELPER FUNCTIONS ====================
 
 const formatCurrency = (amount: number): string => {
@@ -252,14 +253,33 @@ const DebtManagement = () => {
         let allowedCustomerIds: number[] | null = null
         
         if (user?.role === USER_ROLES.SALES && user?.id) {
-          console.log('👤 Sales role detected, fetching customers for saleId:', user.id)
+          console.log('👤 [Debt - Sales Filter] Role:', user.role, 'User ID:', user.id)
+          console.log('📍 API Call: GET /api/Customer?saleId=' + user.id)
+          
           try {
             const saleCustomers = await getCustomersBySaleId(Number(user.id))
-            // Filter customers with saleID matching user.id
-            allowedCustomerIds = saleCustomers
-              .filter(c => c.saleID === Number(user.id))
-              .map(c => c.customerID)
-            console.log('✅ Allowed customerIds for this Sales:', allowedCustomerIds)
+            console.log('📊 [Debt - Sales Filter] API returned:', saleCustomers.length, 'customers')
+            
+            // 🔥 CRITICAL: Backend bug - filter client-side
+            const filteredCustomers = saleCustomers.filter(c => c.saleID === Number(user.id))
+            
+            console.log('🔍 [Debt - Client Filter] Before:', saleCustomers.length, 'customers')
+            console.log('🔍 [Debt - Client Filter] After:', filteredCustomers.length, 'customers')
+            console.log('⚠️ [Debt - Backend Bug] Filtered out:', saleCustomers.length - filteredCustomers.length, 'wrong saleID')
+            
+            if (filteredCustomers.length < saleCustomers.length) {
+              console.warn('🚨 Backend API bug: Returning customers with saleID !=', user.id)
+              console.warn('🐛 Wrong customers:', saleCustomers.filter(c => c.saleID !== Number(user.id)).map(c => ({
+                customerID: c.customerID,
+                name: c.customerName,
+                saleID: c.saleID,
+              })))
+            }
+            
+            allowedCustomerIds = filteredCustomers.map(c => c.customerID)
+            
+            console.log('✅ [Debt - Sales Filter] Allowed customer IDs:', allowedCustomerIds)
+            console.log('🎯 [Debt - Sales Filter] Customer names:', filteredCustomers.map(c => c.customerName))
           } catch (error) {
             console.error('❌ Failed to fetch sales customers:', error)
             // Continue with empty list - will show no customers
@@ -277,11 +297,16 @@ const DebtManagement = () => {
         
         // Defensive: Ensure data is an array
         let customerData = Array.isArray(response.data) ? response.data : []
+        console.log('📊 [Debt Summary] Total customers with debt:', customerData.length)
         
         // ✅ Step 3: Filter by allowedCustomerIds if Sales role
         if (allowedCustomerIds !== null) {
+          const beforeFilter = customerData.length
           customerData = customerData.filter(c => allowedCustomerIds!.includes(c.customerId))
-          console.log(`🔍 Filtered debt by Sales customers:`, customerData.length)
+          console.log(`🔒 [Debt - Security Filter] Sales can only see their customers`)
+          console.log(`🔍 [Debt - Filter Result] Before: ${beforeFilter}, After: ${customerData.length}`)
+          console.log(`✅ [Debt - Filtered] Customer IDs:`, customerData.map(c => c.customerId))
+          console.log(`✅ [Debt - Filtered] Customer Names:`, customerData.map(c => c.customerName))
         }
         
         // ✅ Step 4: Filter by customerId from URL if provided

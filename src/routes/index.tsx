@@ -25,6 +25,7 @@ import {
   CreateStatement,
   DebtManagement,
   TaxErrorNotificationManagement,
+  AdjustmentReplacementRecordManagement,
   TemplateManagement,
   TemplateEditor,
   TemplatePreview,
@@ -196,7 +197,11 @@ const appsRoutes: RoutesProps[] = [
   {
     name: 'Statement Management',
     path: '/statements',
-    element: <StatementManagement />,
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES]}>
+        <StatementManagement />
+      </ProtectedRoute>
+    ),
   },
   {
     name: 'Create Statement',
@@ -212,7 +217,7 @@ const appsRoutes: RoutesProps[] = [
     name: 'Debt Management',
     path: '/debt',
     element: (
-      <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES, USER_ROLES.CUSTOMER]}>
+      <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES]}>
         <DebtManagement />
       </ProtectedRoute>
     ),
@@ -221,6 +226,15 @@ const appsRoutes: RoutesProps[] = [
     name: 'Tax Error Notification Management',
     path: '/tax-error-notifications',
     element: <TaxErrorNotificationManagement />,
+  },
+  {
+    name: 'Adjustment Replacement Record Management',
+    path: '/adjustment-replacement-records',
+    element: (
+      <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES]}>
+        <AdjustmentReplacementRecordManagement />
+      </ProtectedRoute>
+    ),
   },
   {
     name: 'Invoice Approval',

@@ -24,6 +24,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVert'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import HistoryIcon from '@mui/icons-material/History'
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import EmailIcon from '@mui/icons-material/Email'
 import SendIcon from '@mui/icons-material/Send'
@@ -39,6 +40,7 @@ import {
   fetchStatements, 
   exportStatementPDF,
   sendStatementEmail,
+  sendDebtReminder,
   createStatementPayment,
   getStatementPayments,
   type CreateStatementPaymentRequest,
@@ -50,6 +52,8 @@ import StatementPaymentModal, {
 } from '@/components/StatementPaymentModal'
 import StatementPaymentHistoryModal from '@/components/StatementPaymentHistoryModal'
 import { useAuthContext } from '@/context/useAuthContext'
+import { getCustomersBySaleId } from '@/services/customerService'
+import { USER_ROLES } from '@/constants/roles'
 
 // ==================== INTERFACES ====================
 
@@ -104,11 +108,12 @@ interface StatementActionsMenuProps {
   statement: Statement
   onExportPDF: (id: string, code: string) => void
   onSendEmail: (id: string, code: string, customerName: string) => void
+  onSendDebtReminder: (id: string, code: string, customerName: string) => void
   onUpdatePayment: (id: string) => void
   onViewHistory: (id: string) => void
 }
 
-const StatementActionsMenu = ({ statement, onExportPDF, onSendEmail, onUpdatePayment, onViewHistory }: StatementActionsMenuProps) => {
+const StatementActionsMenu = ({ statement, onExportPDF, onSendEmail, onSendDebtReminder, onUpdatePayment, onViewHistory }: StatementActionsMenuProps) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
 
@@ -165,6 +170,15 @@ const StatementActionsMenu = ({ statement, onExportPDF, onSendEmail, onUpdatePay
         handleClose()
       },
       color: 'info.main',
+    },
+    {
+      label: 'Nhắc nợ',
+      icon: <NotificationsActiveIcon fontSize="small" />,
+      action: () => {
+        onSendDebtReminder(statement.id, statement.code, statement.customerName)
+        handleClose()
+      },
+      color: '#ff6f00',
     },
   ]
 
@@ -317,8 +331,50 @@ const StatementManagement = () => {
     setError(null)
     
     try {
-      console.log('[StatementManagement] Fetching statements from API...')
-      console.log('[StatementManagement] Pagination:', {
+      console.log('📊 [Statement - Load] Starting fetch...')
+      console.log('👤 [Statement - User] Role:', user?.role, 'ID:', user?.id)
+      
+      // ✅ Step 1: Get allowed customer names for Sales role
+      let allowedNames: string[] | null = null
+      
+      if (user?.role === USER_ROLES.SALES && user?.id) {
+        console.log('🔐 [Statement - Sales Filter] Fetching customers for Sale ID:', user.id)
+        console.log('📡 API Call: GET /api/Customer?saleId=' + user.id)
+        
+        try {
+          const saleCustomers = await getCustomersBySaleId(Number(user.id))
+          console.log('📊 [Statement - Sales Filter] API returned:', saleCustomers.length, 'customers')
+          
+          // 🔥 CRITICAL: Backend bug - filter client-side
+          const filteredCustomers = saleCustomers.filter(c => c.saleID === Number(user.id))
+          
+          console.log('🔍 [Statement - Client Filter] Before:', saleCustomers.length, 'customers')
+          console.log('🔍 [Statement - Client Filter] After:', filteredCustomers.length, 'customers')
+          console.log('⚠️ [Statement - Backend Bug] Filtered out:', saleCustomers.length - filteredCustomers.length, 'wrong saleID')
+          
+          if (filteredCustomers.length < saleCustomers.length) {
+            console.warn('🚨 Backend API bug: Returning customers with saleID !=', user.id)
+            console.warn('🐛 Wrong customers:', saleCustomers.filter(c => c.saleID !== Number(user.id)).map(c => ({
+              customerID: c.customerID,
+              name: c.customerName,
+              saleID: c.saleID,
+            })))
+          }
+          
+          allowedNames = filteredCustomers.map(c => c.customerName)
+          
+          console.log('✅ [Statement - Sales Filter] Allowed customers:', allowedNames.length)
+          console.log('🎯 [Statement - Sales Filter] Customer names:', allowedNames)
+        } catch (error) {
+          console.error('❌ Failed to fetch sales customers:', error)
+          // Continue with empty list - will show no statements
+          allowedNames = []
+        }
+      }
+      
+      // ✅ Step 2: Fetch all statements from API
+      console.log('📡 [Statement - API] Fetching statements...')
+      console.log('📄 [Statement - Pagination]:', {
         pageIndex: pagination.pageIndex,
         pageSize: pagination.pageSize,
       })
@@ -328,7 +384,7 @@ const StatementManagement = () => {
         pageSize: pagination.pageSize,
       })
       
-      console.log('[StatementManagement] API Response:', {
+      console.log('📊 [Statement - API Response]:', {
         totalItems: response.items.length,
         totalCount: response.totalCount,
         totalPages: response.totalPages,
@@ -337,28 +393,37 @@ const StatementManagement = () => {
         hasNextPage: response.hasNextPage,
         sampleItem: response.items[0] ? {
           statementCode: response.items[0].statementCode,
+          customerName: response.items[0].customerName,
           period: response.items[0].period,
-          openingBalance: response.items[0].openingBalance,
-          newCharges: response.items[0].newCharges,
-          paidAmount: response.items[0].paidAmount,
           totalAmount: response.items[0].totalAmount,
-          statusID: response.items[0].statusID,
           status: response.items[0].status,
-          isOverdue: response.items[0].isOverdue,
         } : null,
       })
 
-      // Convert API response to legacy format
-      const convertedStatements = response.items.map(convertToLegacyFormat)
+      // ✅ Step 3: Convert API response to legacy format
+      let convertedStatements = response.items.map(convertToLegacyFormat)
+      
+      // ✅ Step 4: Filter by allowedCustomerNames if Sales role
+      if (allowedNames !== null) {
+        const beforeFilter = convertedStatements.length
+        convertedStatements = convertedStatements.filter(s => 
+          allowedNames!.includes(s.customerName)
+        )
+        console.log('🔒 [Statement - Security Filter] Sales can only see their customers')
+        console.log('🔍 [Statement - Filter Result] Before:', beforeFilter, 'After:', convertedStatements.length)
+        console.log('✅ [Statement - Filtered] Statement codes:', convertedStatements.map(s => s.code))
+        console.log('✅ [Statement - Filtered] Customer names:', convertedStatements.map(s => s.customerName))
+      }
+      
       setStatements(convertedStatements)
       
       setPagination(prev => ({
         ...prev,
         totalPages: response.totalPages,
-        totalCount: response.totalCount,
+        totalCount: allowedNames !== null ? convertedStatements.length : response.totalCount,
       }))
 
-      console.log('✅ Loaded statements:', response.totalCount, 'items')
+      console.log('✅ [Statement - Load Complete]:', convertedStatements.length, 'items')
     } catch (err) {
       let errorMessage = 'Không thể tải danh sách bảng kê'
       if (err && typeof err === 'object' && 'response' in err) {
@@ -375,7 +440,7 @@ const StatementManagement = () => {
     } finally {
       setLoading(false)
     }
-  }, [pagination.pageIndex, pagination.pageSize])
+  }, [pagination.pageIndex, pagination.pageSize, user?.role, user?.id])
 
   // Load statements on component mount
   useEffect(() => {
@@ -462,6 +527,37 @@ const StatementManagement = () => {
         severity: 'error',
       })
       console.error('❌ Error sending email:', err)
+    }
+  }
+
+  // Handle send debt reminder
+  const handleSendDebtReminder = async (id: string, _code: string, customerName: string) => {
+    try {
+      setSnackbar({
+        open: true,
+        message: `🔔 Đang gửi email nhắc nợ cho ${customerName}...`,
+        severity: 'info',
+      })
+      
+      await sendDebtReminder(Number(id), true)
+      
+      setSnackbar({
+        open: true,
+        message: `✅ Đã gửi email nhắc nợ thành công cho ${customerName}!`,
+        severity: 'success',
+      })
+    } catch (err) {
+      let errorMessage = 'Không thể gửi email nhắc nợ'
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as { response?: { data?: { detail?: string; message?: string } } }
+        errorMessage = axiosError.response?.data?.detail || axiosError.response?.data?.message || errorMessage
+      }
+      setSnackbar({
+        open: true,
+        message: `❌ ${errorMessage}`,
+        severity: 'error',
+      })
+      console.error('❌ Error sending debt reminder:', err)
     }
   }
 
@@ -831,6 +927,7 @@ const StatementManagement = () => {
           statement={params.row} 
           onExportPDF={handleExportPDF}
           onSendEmail={handleSendEmail}
+          onSendDebtReminder={handleSendDebtReminder}
           onUpdatePayment={(id) => {
             const statement = statements.find(s => s.id === id)
             if (statement) handleOpenPaymentModal(statement)

@@ -24,6 +24,7 @@ export const StatementManagement = lazy(() => import('@/page/StatementManagement
 export const CreateStatement = lazy(() => import('@/page/CreateStatement'))
 export const DebtManagement = lazy(() => import('@/page/DebtManagement'))
 export const TaxErrorNotificationManagement = lazy(() => import('@/page/TaxErrorNotificationManagement'))
+export const AdjustmentReplacementRecordManagement = lazy(() => import('@/page/AdjustmentReplacementRecordManagement'))
 export const TemplateManagement = lazy(() => import('@/page/TemplateManagement'))
 export const TemplateEditor = lazy(() => import('@/page/TemplateEditor'))
 export const TemplatePreview = lazy(() => import('@/page/TemplatePreviewPage'))
