@@ -857,7 +857,12 @@ const CreateVatInvoice: React.FC = () => {
         
         const invoice = await invoiceService.getInvoiceById(parseInt(editInvoiceId))
         console.log('✅ Invoice data loaded:', invoice)
-        console.log('💳 Payment method from backend:', invoice.paymentMethod)
+        console.log('� Contact fields from backend:', {
+          contactEmail: invoice.contactEmail,
+          contactPerson: invoice.contactPerson,  // ✅ CHECK: Backend có trả về không?
+          contactPhone: invoice.contactPhone,
+        })
+        console.log('�💳 Payment method from backend:', invoice.paymentMethod)
         
         // Set template
         const template = templates.find(t => t.templateID === invoice.templateID)
@@ -878,22 +883,28 @@ const CreateVatInvoice: React.FC = () => {
         setBuyerCustomerID(invoice.customerID)
         setBuyerTaxCode(invoice.taxCode || customerData?.taxCode || '')
         setBuyerCompanyName(invoice.customerName || customerData?.customerName || '')
-        setBuyerAddress(invoice.customerAddress || customerData?.address || '') // ✅ Fix: customerAddress
-        setBuyerName(invoice.contactPerson || customerData?.contactPerson || '')
+        setBuyerAddress(invoice.customerAddress || customerData?.address || '')
+        setBuyerName(invoice.contactPerson || '')  // ✅ Backend đã trả về field này
         setBuyerEmail(invoice.contactEmail || customerData?.contactEmail || '')
-        setBuyerPhone(invoice.contactPhone || customerData?.contactPhone || '')
+        setBuyerPhone(invoice.contactPhone || customerData?.contactPhone || '')  // ✅ Backend đã trả về field này
         
         // Normalize payment method value (ensure it matches the dropdown options)
-        const validPaymentMethods = ['Tiền mặt', 'Chuyển khoản', 'Đổi trừ công nợ', 'Khác']
-        let normalizedPaymentMethod = 'Tiền mặt' // Default
+        // Normalize payment method value (map old values sang new values)
+        const validPaymentMethods = ['Tiền mặt/Chuyển khoản', 'Chuyển khoản', 'Tiền mặt', 'Đối trừ công nợ']
+        let normalizedPaymentMethod = 'Tiền mặt/Chuyển khoản' // Default
         
         // Check if backend returned valid value (not 'string' literal or null/undefined)
-        if (invoice.paymentMethod && 
-            invoice.paymentMethod !== 'string' && 
-            validPaymentMethods.includes(invoice.paymentMethod)) {
-          normalizedPaymentMethod = invoice.paymentMethod
-        } else if (invoice.paymentMethod && invoice.paymentMethod !== 'string') {
-          console.warn('⚠️ Invalid payment method from backend:', invoice.paymentMethod)
+        if (invoice.paymentMethod && invoice.paymentMethod !== 'string') {
+          // Map old values sang new values
+          if (validPaymentMethods.includes(invoice.paymentMethod)) {
+            normalizedPaymentMethod = invoice.paymentMethod
+          } else if (invoice.paymentMethod === 'Đổi trừ công nợ') {
+            normalizedPaymentMethod = 'Đối trừ công nợ' // Fix typo
+          } else if (invoice.paymentMethod === 'Khác') {
+            normalizedPaymentMethod = 'Tiền mặt/Chuyển khoản' // Fallback
+          } else {
+            console.warn('⚠️ Invalid payment method from backend:', invoice.paymentMethod)
+          }
         }
         
         console.log('✅ Normalized payment method:', normalizedPaymentMethod)
@@ -1053,7 +1064,7 @@ const CreateVatInvoice: React.FC = () => {
         setBuyerAddress(invoiceData.address || '')
         setBuyerEmail(invoiceData.contactEmail || '')
         setBuyerPhone(invoiceData.contactPhone || '')
-        setBuyerName(invoiceData.contactPerson || '')
+        // setBuyerName - Không autofill, để người dùng tự nhập
         // ✅ Map payment method từ English sang Vietnamese
         const mappedPaymentMethod = invoiceData.paymentMethod 
           ? (['Banking', 'Cash', 'DebtOffset', 'Other'].includes(invoiceData.paymentMethod)
@@ -1145,7 +1156,7 @@ const CreateVatInvoice: React.FC = () => {
   const [buyerName, setBuyerName] = useState('')
   const [buyerEmail, setBuyerEmail] = useState('')
   const [buyerPhone, setBuyerPhone] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState('Tiền mặt') // Hình thức thanh toán
+  const [paymentMethod, setPaymentMethod] = useState('Tiền mặt/Chuyển khoản') // Hình thức thanh toán - Default khuyến nghị
   
   // State cho customer lookup
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false)
@@ -1393,7 +1404,7 @@ const CreateVatInvoice: React.FC = () => {
       setBuyerAddress(customer.address)
       setBuyerEmail(customer.contactEmail)
       setBuyerPhone(customer.contactPhone)
-      setBuyerName(customer.contactPerson)
+      // setBuyerName - Không autofill, để người dùng tự nhập
       
       setSnackbar({
         open: true,
@@ -1808,6 +1819,17 @@ const CreateVatInvoice: React.FC = () => {
         })
         return
       }
+      
+      // 5. ✅ Validate payment method cho hóa đơn >20 triệu (theo quy định khấu trừ thuế)
+      const TWENTY_MILLION = 20000000
+      if (totals.total > TWENTY_MILLION && paymentMethod !== 'Chuyển khoản') {
+        setSnackbar({
+          open: true,
+          message: `⚠️ Hóa đơn trên 20 triệu đồng (${(totals.total / 1000000).toFixed(1)}M) phải chọn "Chuyển khoản" để được khấu trừ thuế theo quy định`,
+          severity: 'warning'
+        })
+        return
+      }
 
       // ========== SUBMIT ==========
       
@@ -1832,6 +1854,17 @@ const CreateVatInvoice: React.FC = () => {
       console.log('🏷️  salesID (người tạo request):', salesIDValue || 'KHÔNG GỬI (không có Sale)');
       console.log('🔗 requestID (link với request):', requestIDValue || 'KHÔNG GỬI (tạo trực tiếp)');
       console.log('============================================');
+      
+      // 🔍 Log buyer info trước khi mapping
+      console.log('👤 Buyer Info Before Mapping:', {
+        buyerCustomerID,
+        buyerTaxCode,
+        buyerCompanyName,
+        buyerAddress,
+        buyerName,  // ✅ CHECK: Người mua hàng có giá trị không?
+        buyerEmail,
+        buyerPhone,
+      });
       
       const backendRequest = mapToBackendInvoiceRequest(
         selectedTemplate.templateID,
@@ -1870,7 +1903,11 @@ const CreateVatInvoice: React.FC = () => {
       console.log('  - taxAmount (VAT):', backendRequest.taxAmount?.toLocaleString('vi-VN'));
       console.log('  - totalAmount:', backendRequest.totalAmount?.toLocaleString('vi-VN'));
       console.log('  - paymentMethod:', backendRequest.paymentMethod);
-      console.log('👥 User & Link:');
+      console.log('� Contact Info:');
+      console.log('  - contactEmail:', backendRequest.contactEmail);
+      console.log('  - contactPerson (Người mua hàng):', backendRequest.contactPerson || '❌ RỖNG');  // ✅ CHECK
+      console.log('  - contactPhone:', backendRequest.contactPhone);
+      console.log('�👥 User & Link:');
       console.log('  - performedBy:', backendRequest.performedBy, `(${typeof backendRequest.performedBy})`);
       console.log('  - salesID:', backendRequest.salesID ?? '❌ KHÔNG GỬI', backendRequest.salesID ? `(${typeof backendRequest.salesID})` : '');
       console.log('  - requestID:', backendRequest.requestID ?? '❌ KHÔNG GỬI', backendRequest.requestID ? `(${typeof backendRequest.requestID})` : '');
@@ -2596,7 +2633,7 @@ const CreateVatInvoice: React.FC = () => {
                       },
                     }}
                     sx={{
-                      width: 120,
+                      width: 180,
                       fontSize: '0.8125rem',
                       transition: 'all 0.3s ease',
                       '& .MuiSelect-select': {
@@ -2620,7 +2657,7 @@ const CreateVatInvoice: React.FC = () => {
                       },
                     }}>
                     <MenuItem
-                      value="Tiền mặt"
+                      value="Tiền mặt/Chuyển khoản"
                       sx={{
                         fontSize: '0.8125rem',
                         borderRadius: 1,
@@ -2635,7 +2672,7 @@ const CreateVatInvoice: React.FC = () => {
                           },
                         },
                       }}>
-                      Tiền mặt
+                      Tiền mặt/Chuyển khoản
                     </MenuItem>
                     <MenuItem
                       value="Chuyển khoản"
@@ -2656,7 +2693,7 @@ const CreateVatInvoice: React.FC = () => {
                       Chuyển khoản
                     </MenuItem>
                     <MenuItem
-                      value="Đổi trừ công nợ"
+                      value="Tiền mặt"
                       sx={{
                         fontSize: '0.8125rem',
                         borderRadius: 1,
@@ -2671,10 +2708,10 @@ const CreateVatInvoice: React.FC = () => {
                           },
                         },
                       }}>
-                      Đổi trừ công nợ
+                      Tiền mặt
                     </MenuItem>
                     <MenuItem
-                      value="Khác"
+                      value="Đối trừ công nợ"
                       sx={{
                         fontSize: '0.8125rem',
                         borderRadius: 1,
@@ -2689,7 +2726,7 @@ const CreateVatInvoice: React.FC = () => {
                           },
                         },
                       }}>
-                      Khác
+                      Đối trừ công nợ
                     </MenuItem>
                   </Select>
                 </Stack>
@@ -3014,13 +3051,31 @@ const CreateVatInvoice: React.FC = () => {
 
                 <Divider />
 
-                <Stack direction="row" justifyContent="space-between">
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.875rem' }}>
                     Tổng tiền thanh toán:
                   </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.875rem' }}>
-                    {totals.total.toLocaleString('vi-VN')}
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.875rem' }}>
+                      {totals.total.toLocaleString('vi-VN')}
+                    </Typography>
+                    {/* ✅ Cảnh báo nếu >20M mà không chọn "Chuyển khoản" */}
+                    {totals.total > 20000000 && paymentMethod !== 'Chuyển khoản' && (
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          fontSize: '0.65rem', 
+                          color: '#ed6c02',
+                          backgroundColor: '#fff4e5',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          fontWeight: 600,
+                          whiteSpace: 'nowrap'
+                        }}>
+                        ⚠️ Phải CK
+                      </Typography>
+                    )}
+                  </Box>
                 </Stack>
 
                 {/* Số tiền viết bằng chữ */}

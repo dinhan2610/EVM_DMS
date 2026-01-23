@@ -260,7 +260,15 @@ const StatementPaymentHistoryModal: React.FC<StatementPaymentHistoryModalProps> 
                           </Box>
                         )}
 
-                       
+                        {/* ✅ Hiển thị số hóa đơn */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" sx={{ color: '#666', minWidth: 130 }}>
+                            Hóa đơn số:
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976d2' }}>
+                            {String(payment.invoiceNumber).padStart(7, '0')}
+                          </Typography>
+                        </Box>
 
                         {payment.note && (
                           <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
@@ -273,18 +281,19 @@ const StatementPaymentHistoryModal: React.FC<StatementPaymentHistoryModalProps> 
                           </Box>
                         )}
 
+                        {/* ✅ Hiển thị còn nợ của BẢNG KÊ sau TT (không phải hóa đơn) */}
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Typography variant="body2" sx={{ color: '#666', minWidth: 130 }}>
-                            Còn nợ sau TT:
+                            Còn nợ bảng kê:
                           </Typography>
                           <Typography
                             variant="body2"
                             sx={{
                               fontWeight: 600,
-                              color: payment.invoiceRemainingAfter > 0 ? '#d32f2f' : '#2e7d32',
+                              color: payment.statementBalanceAfter > 0 ? '#d32f2f' : '#2e7d32',
                             }}
                           >
-                            {formatCurrency(payment.invoiceRemainingAfter)}
+                            {formatCurrency(payment.statementBalanceAfter)}
                           </Typography>
                         </Box>
                       </Box>

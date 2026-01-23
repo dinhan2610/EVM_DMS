@@ -307,6 +307,17 @@ export function mapToBackendInvoiceRequest(
     itemsCount: items.length,
   });
   
+  // 🔍 Log buyerInfo để debug
+  console.log('👤 Buyer Info:', {
+    customerID: buyerInfo.customerID,
+    taxCode: buyerInfo.taxCode,
+    companyName: buyerInfo.companyName,
+    address: buyerInfo.address,
+    buyerName: buyerInfo.buyerName,  // ✅ CHECK: Người mua hàng
+    email: buyerInfo.email,
+    phone: buyerInfo.phone,
+  });
+  
   // ✅ CRITICAL: Logic phân biệt 2 mode tạo hóa đơn
   // 
   // MODE 1: TẠO TRỰC TIẾP (Accountant tự tạo)

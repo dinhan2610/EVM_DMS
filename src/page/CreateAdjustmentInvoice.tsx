@@ -47,7 +47,6 @@ import {
   Print,
   KeyboardArrowUp,
   KeyboardArrowDown,
-  DeleteOutline,
   Warning,
   Add,
   Undo, // ✅ Icon trả hàng
@@ -903,6 +902,27 @@ const CreateVatInvoice: React.FC = () => {
     existingItem: InvoiceItem | null
   }>({ open: false, rowId: '', product: null, existingItem: null })
 
+  // ✅ State cho Dialog xác nhận hủy bỏ
+  const [cancelDialog, setCancelDialog] = useState(false)
+
+  // ✅ Handlers cho nút Hủy bỏ
+  const handleCancelClick = () => {
+    setCancelDialog(true)
+  }
+
+  const handleConfirmCancel = () => {
+    setCancelDialog(false)
+    if (originalInvoiceId) {
+      navigate(`/invoices/${originalInvoiceId}`)
+    } else {
+      navigate('/invoices')
+    }
+  }
+
+  const handleCancelDialogClose = () => {
+    setCancelDialog(false)
+  }
+
   // Load templates on mount
   useEffect(() => {
     // Fetch hóa đơn gốc nếu có ID
@@ -918,6 +938,23 @@ const CreateVatInvoice: React.FC = () => {
         console.log('📄 Original invoice loaded:', data)
         setOriginalInvoice(data)
         
+        // ✅ Fetch template info để lấy Mẫu số và Ký hiệu
+        let templateName = 'N/A'
+        let templateSerial = 'N/A'
+        if (data.templateID) {
+          try {
+            const templates = await invoiceService.getAllTemplates()
+            const template = templates.find(t => t.templateID === data.templateID)
+            if (template) {
+              templateName = template.templateName || 'N/A'
+              templateSerial = template.serial || 'N/A'
+              console.log('📝 Template info:', { templateName, templateSerial })
+            }
+          } catch (templateError) {
+            console.warn('⚠️ Could not fetch template info:', templateError)
+          }
+        }
+        
         // ✅ TẠO DÒNG THAM CHIẾU BẮT BUỘC (Legal requirement)
         // Fix: signDate hoặc createdAt, không phải invoiceDate
         const invoiceDateStr = data.signDate || data.createdAt || new Date().toISOString()
@@ -930,16 +967,22 @@ const CreateVatInvoice: React.FC = () => {
           invoiceDate.setTime(Date.now())
         }
         
-        // Note: InvoiceListItem doesn't have templateName/serial, will show N/A
-        // These fields need to be fetched separately if needed for display
-        const refText = `Điều chỉnh ${adjustmentType} cho hóa đơn Mẫu số N/A Ký hiệu N/A Số ${String(data.invoiceNumber).padStart(7, '0')} ngày ${invoiceDate.getDate()} tháng ${invoiceDate.getMonth() + 1} năm ${invoiceDate.getFullYear()}`
+        // ✅ Generate reference text với thông tin template thực
+        const refText = `Điều chỉnh ${adjustmentType} cho hóa đơn Mẫu số ${templateName} Ký hiệu ${templateSerial} Số ${String(data.invoiceNumber).padStart(7, '0')} ngày ${invoiceDate.getDate()} tháng ${invoiceDate.getMonth() + 1} năm ${invoiceDate.getFullYear()}`
         setReferenceText(refText)
         console.log('📌 Generated reference text:', refText)
         
         // ✅ Auto-fill thông tin khách hàng từ hóa đơn gốc (READ-ONLY)
         setBuyerName(data.contactPerson || '')
-        setBuyerEmail(data.contactEmail || '')
+        setBuyerEmail(data.customerEmail || '')  // ✅ Fix: API trả về customerEmail, không phải contactEmail
         setBuyerPhone(data.contactPhone || '')
+        console.log('📧 Email from original invoice:', data.customerEmail)
+        
+        // ✅ Load hình thức thanh toán từ hóa đơn gốc (READ-ONLY)
+        if (data.paymentMethod) {
+          setPaymentMethod(data.paymentMethod)
+          console.log('💳 Payment method from original invoice:', data.paymentMethod)
+        }
         
         // ✅ Fetch thông tin customer đầy đủ từ customerID
         if (data.customerID) {
@@ -1370,18 +1413,6 @@ const CreateVatInvoice: React.FC = () => {
   //   }
   //   setItems([...items, newItem])
   // }
-
-  // Xóa hàng
-  const handleDeleteRow = (id: number) => {
-    if (items.length === 1) {
-      // Không cho xóa nếu chỉ còn 1 dòng
-      return
-    }
-    const updatedItems = items
-      .filter((item) => item.id !== id)
-      .map((item, index) => ({ ...item, stt: index + 1 })) // Cập nhật lại STT
-    setItems(updatedItems)
-  }
 
   // Tính toán tổng tiền
   const calculateTotals = (currentItems: InvoiceItem[]) => {
@@ -2189,27 +2220,6 @@ const CreateVatInvoice: React.FC = () => {
               <Undo sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
-          
-          {/* Nút xóa dòng */}
-          <IconButton
-            size="small"
-            onClick={() => handleDeleteRow(params.row.id)}
-            disabled={items.length === 1}
-            sx={{
-              padding: '4px',
-              color: items.length === 1 ? '#ccc' : '#d32f2f',
-              transition: 'all 0.2s',
-              '&:hover': {
-                backgroundColor: items.length === 1 ? 'transparent' : '#ffebee',
-                color: items.length === 1 ? '#ccc' : '#c62828',
-              },
-              '&.Mui-disabled': {
-                color: '#ccc',
-              },
-            }}
-          >
-            <DeleteOutline sx={{ fontSize: 16 }} />
-          </IconButton>
         </Box>
       ),
     },
@@ -2562,129 +2572,17 @@ const CreateVatInvoice: React.FC = () => {
                   <Typography variant="caption" sx={{ minWidth: 80, fontSize: '0.8125rem' }}>
                     Hình thức TT:
                   </Typography>
-                  <Select
+                  <TextField
                     size="small"
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
                     variant="standard"
-                    MenuProps={{
-                      PaperProps: {
-                        sx: {
-                          mt: 0.5,
-                          boxShadow: '0 4px 12px rgba(25, 118, 210, 0.15)',
-                          border: '1.5px solid #1976d2',
-                          borderRadius: 1.5,
-                          '& .MuiList-root': {
-                            padding: '4px',
-                          },
-                        },
-                      },
-                      anchorOrigin: {
-                        vertical: 'bottom',
-                        horizontal: 'left',
-                      },
-                      transformOrigin: {
-                        vertical: 'top',
-                        horizontal: 'left',
-                      },
+                    value={paymentMethod}
+                    disabled
+                    sx={{ 
+                      width: 150, 
+                      fontSize: '0.8125rem', 
+                      '& .MuiInputBase-input.Mui-disabled': { WebkitTextFillColor: '#666' } 
                     }}
-                    sx={{
-                      width: 120,
-                      fontSize: '0.8125rem',
-                      transition: 'all 0.3s ease',
-                      '& .MuiSelect-select': {
-                        transition: 'all 0.3s ease',
-                      },
-                      '&:before': {
-                        borderBottomColor: '#e0e0e0',
-                        transition: 'border-color 0.3s ease',
-                      },
-                      '&:hover:before': {
-                        borderBottomColor: '#1976d2 !important',
-                      },
-                      '&:after': {
-                        borderBottomColor: '#1976d2',
-                        borderBottomWidth: '2px',
-                      },
-                      '&.Mui-focused': {
-                        '& .MuiSelect-select': {
-                          backgroundColor: 'rgba(25, 118, 210, 0.04)',
-                        },
-                      },
-                    }}>
-                    <MenuItem
-                      value="Tiền mặt"
-                      sx={{
-                        fontSize: '0.8125rem',
-                        borderRadius: 1,
-                        transition: 'all 0.2s ease',
-                        '&:hover': {
-                          backgroundColor: '#e3f2fd',
-                        },
-                        '&.Mui-selected': {
-                          backgroundColor: '#bbdefb',
-                          '&:hover': {
-                            backgroundColor: '#90caf9',
-                          },
-                        },
-                      }}>
-                      Tiền mặt
-                    </MenuItem>
-                    <MenuItem
-                      value="Chuyển khoản"
-                      sx={{
-                        fontSize: '0.8125rem',
-                        borderRadius: 1,
-                        transition: 'all 0.2s ease',
-                        '&:hover': {
-                          backgroundColor: '#e3f2fd',
-                        },
-                        '&.Mui-selected': {
-                          backgroundColor: '#bbdefb',
-                          '&:hover': {
-                            backgroundColor: '#90caf9',
-                          },
-                        },
-                      }}>
-                      Chuyển khoản
-                    </MenuItem>
-                    <MenuItem
-                      value="Đổi trừ công nợ"
-                      sx={{
-                        fontSize: '0.8125rem',
-                        borderRadius: 1,
-                        transition: 'all 0.2s ease',
-                        '&:hover': {
-                          backgroundColor: '#e3f2fd',
-                        },
-                        '&.Mui-selected': {
-                          backgroundColor: '#bbdefb',
-                          '&:hover': {
-                            backgroundColor: '#90caf9',
-                          },
-                        },
-                      }}>
-                      Đổi trừ công nợ
-                    </MenuItem>
-                    <MenuItem
-                      value="Khác"
-                      sx={{
-                        fontSize: '0.8125rem',
-                        borderRadius: 1,
-                        transition: 'all 0.2s ease',
-                        '&:hover': {
-                          backgroundColor: '#e3f2fd',
-                        },
-                        '&.Mui-selected': {
-                          backgroundColor: '#bbdefb',
-                          '&:hover': {
-                            backgroundColor: '#90caf9',
-                          },
-                        },
-                      }}>
-                      Khác
-                    </MenuItem>
-                  </Select>
+                  />
                 </Stack>
               </Stack>
             </Box>
@@ -3078,7 +2976,7 @@ const CreateVatInvoice: React.FC = () => {
                 size="small"
                 variant="outlined"
                 startIcon={<Close fontSize="small" />}
-                onClick={() => navigate('/invoices')}
+                onClick={handleCancelClick}
                 sx={{ textTransform: 'none', color: '#666', borderColor: '#ccc', fontSize: '0.8125rem', py: 0.5 }}>
                 Hủy bỏ
               </Button>
@@ -3281,6 +3179,48 @@ const CreateVatInvoice: React.FC = () => {
               sx={{ textTransform: 'none', backgroundColor: '#2e7d32' }}
             >
               Thêm dòng mới
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* ✅ Dialog xác nhận hủy bỏ */}
+        <Dialog
+          open={cancelDialog}
+          onClose={handleCancelDialogClose}
+          maxWidth="xs"
+          fullWidth
+        >
+          <DialogTitle sx={{ pb: 1 }}>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Close sx={{ color: '#f57c00' }} />
+              Xác nhận hủy bỏ
+            </Box>
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary">
+              Bạn có chắc chắn muốn hủy bỏ việc tạo hóa đơn điều chỉnh?
+              {originalInvoiceId && (
+                <><br /><br />Bạn sẽ được quay lại trang chi tiết hóa đơn gốc.</>
+              )}
+            </Typography>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              onClick={handleCancelDialogClose}
+              variant="outlined"
+              size="small"
+              sx={{ textTransform: 'none' }}
+            >
+              Tiếp tục chỉnh sửa
+            </Button>
+            <Button
+              onClick={handleConfirmCancel}
+              variant="contained"
+              size="small"
+              color="error"
+              sx={{ textTransform: 'none' }}
+            >
+              Hủy bỏ
             </Button>
           </DialogActions>
         </Dialog>

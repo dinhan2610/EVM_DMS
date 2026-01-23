@@ -16,6 +16,8 @@ import {
   Divider,
   Autocomplete,
   Alert,
+  Select,
+  MenuItem,
 } from '@mui/material'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
@@ -84,6 +86,7 @@ const CreateInvoice = () => {
   const [invoiceDetails, setInvoiceDetails] = useState<LocalInvoiceDetails>(initialInvoiceDetails)
   const [items, setItems] = useState<InvoiceItem[]>([{ ...initialItemState, id: '1' } as InvoiceItem])
   const [issueModalOpen, setIssueModalOpen] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState('Tiền mặt/Chuyển khoản') // ✅ Hình thức thanh toán - Default khuyến nghị
 
   // Handlers for Customer Info
   const handleCustomerInfoChange = (field: keyof CustomerInfo, value: string) => {
@@ -123,6 +126,12 @@ const CreateInvoice = () => {
 
   // Form Actions
   const handleSaveDraft = () => {
+    // ✅ Validation: Kiểm tra hình thức thanh toán cho hóa đơn >20M
+    if (totalAmount > 20000000 && paymentMethod !== 'Chuyển khoản') {
+      alert(`⚠️ Hóa đơn trên 20 triệu đồng (${(totalAmount / 1000000).toFixed(1)}M) phải chọn "Chuyển khoản" để được khấu trừ thuế theo quy định`)
+      return
+    }
+    
     const formData = {
       creationMode,
       selectedContract,
@@ -132,9 +141,11 @@ const CreateInvoice = () => {
       subtotal,
       taxAmount,
       totalAmount,
+      paymentMethod, // ✅ Thêm payment method vào request
       status: 'Nháp',
     }
     console.log('Lưu nháp:', formData)
+    console.log('💳 Payment Method:', paymentMethod)
     // API call để lưu nháp
     alert('Đã lưu nháp thành công!')
   }
@@ -155,6 +166,12 @@ const CreateInvoice = () => {
     autoSendOnlyWithEmail: boolean
     language: string
   }) => {
+    // ✅ Validation: Kiểm tra hình thức thanh toán cho hóa đơn >20M
+    if (totalAmount > 20000000 && paymentMethod !== 'Chuyển khoản') {
+      alert(`⚠️ Hóa đơn trên 20 triệu đồng (${(totalAmount / 1000000).toFixed(1)}M) phải chọn "Chuyển khoản" để được khấu trừ thuế theo quy định`)
+      return
+    }
+    
     const formData = {
       creationMode,
       selectedContract,
@@ -164,10 +181,12 @@ const CreateInvoice = () => {
       subtotal,
       taxAmount,
       totalAmount,
+      paymentMethod, // ✅ Thêm payment method vào request
       status: 'Đã phát hành',
       issueData,
     }
     console.log('Ký & Phát hành:', formData)
+    console.log('💳 Payment Method:', paymentMethod)
     // API call để ký và phát hành với thông tin từ modal
     alert('Đã ký và phát hành thành công!')
     navigate('/invoices')
@@ -379,6 +398,81 @@ const CreateInvoice = () => {
                         onChange={(e) => handleInvoiceDetailsChange('notes', e.target.value)}
                       />
                     </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <FormControl fullWidth>
+                        <Typography variant="caption" sx={{ mb: 0.5, color: '#666', fontWeight: 500 }}>
+                          Hình thức thanh toán *
+                        </Typography>
+                        <Select
+                          value={paymentMethod}
+                          onChange={(e) => setPaymentMethod(e.target.value)}
+                          size="small"
+                          sx={{
+                            '& .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#e0e0e0',
+                            },
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#1976d2',
+                            },
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#1976d2',
+                              borderWidth: '2px',
+                            },
+                          }}
+                          MenuProps={{
+                            PaperProps: {
+                              sx: {
+                                mt: 0.5,
+                                boxShadow: '0 4px 12px rgba(25, 118, 210, 0.15)',
+                                border: '1.5px solid #1976d2',
+                                borderRadius: 1.5,
+                                maxHeight: 400,
+                              },
+                            },
+                          }}>
+                          <MenuItem value="Tiền mặt/Chuyển khoản">
+                            <Box>
+                              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                Tiền mặt/Chuyển khoản
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#2e7d32', fontSize: '0.7rem' }}>
+                                ✅ Khuyến nghị (99% trường hợp)
+                              </Typography>
+                            </Box>
+                          </MenuItem>
+                          <MenuItem value="Chuyển khoản">
+                            <Box>
+                              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                Chuyển khoản
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#d32f2f', fontSize: '0.7rem' }}>
+                                🔴 Bắt buộc nếu hóa đơn &gt;20 triệu (khấu trừ thuế)
+                              </Typography>
+                            </Box>
+                          </MenuItem>
+                          <MenuItem value="Tiền mặt">
+                            <Box>
+                              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                Tiền mặt
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#666', fontSize: '0.7rem' }}>
+                                💵 Chỉ dùng cho khách lẻ, thu tiền ngay tại quầy
+                              </Typography>
+                            </Box>
+                          </MenuItem>
+                          <MenuItem value="Đối trừ công nợ">
+                            <Box>
+                              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                Đối trừ công nợ
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#666', fontSize: '0.7rem' }}>
+                                🔄 Dùng cho trường hợp hàng đổi hàng
+                              </Typography>
+                            </Box>
+                          </MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
                   </Grid>
                 </Box>
               </Paper>
@@ -509,9 +603,27 @@ const CreateInvoice = () => {
                   <Typography variant="h6" sx={{ fontWeight: 700 }}>
                     Tổng cộng:
                   </Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 700, color: '#1976d2' }}>
-                    {formatCurrency(totalAmount)}
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#1976d2' }}>
+                      {formatCurrency(totalAmount)}
+                    </Typography>
+                    {/* ✅ Cảnh báo nếu >20M mà không chọn "Chuyển khoản" */}
+                    {totalAmount > 20000000 && paymentMethod !== 'Chuyển khoản' && (
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          fontSize: '0.7rem', 
+                          color: '#ed6c02',
+                          backgroundColor: '#fff4e5',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          fontWeight: 600,
+                          whiteSpace: 'nowrap'
+                        }}>
+                        ⚠️ Phải chuyển khoản
+                      </Typography>
+                    )}
+                  </Box>
                 </Box>
               </Stack>
             </Box>

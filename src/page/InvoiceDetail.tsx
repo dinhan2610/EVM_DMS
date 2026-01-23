@@ -33,69 +33,78 @@ import {
 } from '@mui/icons-material'
 import { Timeline, TimelineItem, TimelineSeparator, TimelineConnector, TimelineContent, TimelineDot, TimelineOppositeContent } from '@mui/lab'
 import { useParams, useNavigate } from 'react-router-dom'
-import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
 import InvoicePreviewModal from '@/components/invoices/InvoicePreviewModal'
 import TaxErrorNotificationModal from '@/components/TaxErrorNotificationModal_v2'
 import Spinner from '@/components/Spinner'
 import invoiceService, { InvoiceListItem, INVOICE_TYPE } from '@/services/invoiceService'
 import invoiceHistoryService, { InvoiceHistory } from '@/services/invoiceHistoryService'
-import templateService, { TemplateResponse } from '@/services/templateService'
-import { getAllCustomers, Customer } from '@/services/customerService'
 import companyService, { Company } from '@/services/companyService'
-import type { ProductItem, TemplateConfigProps, CustomerInfo } from '@/types/invoiceTemplate'
-import { DEFAULT_TEMPLATE_VISIBILITY, DEFAULT_INVOICE_SYMBOL } from '@/types/invoiceTemplate'
 import { INVOICE_INTERNAL_STATUS } from '@/constants/invoiceStatus'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
 /**
- * Map backend invoice data to ProductItem[] for InvoiceTemplatePreview
- * ✅ Include full data: vatAmount from backend
+ * 🔧 HELPER: Process HTML preview from backend API
+ * - Detects missing buyer name and injects from frontend data
+ * - Adds CSS overrides for page width and highlighting
+ * - Validates HTML structure
+ * @param html - Raw HTML from backend
+ * @param invoiceData - Invoice data from frontend (for injection)
+ * @returns Processed HTML with injections and boolean indicating if buyer name was missing
  */
-const mapInvoiceToProducts = (invoice: InvoiceListItem): ProductItem[] => {
-  return invoice.invoiceItems.map((item, index) => {
-    const unitPrice = item.amount / item.quantity
-    const vatRate = item.amount > 0 ? Math.round((item.vatAmount / item.amount) * 100) : 0
+const processInvoiceHTML = (
+  html: string, 
+  invoiceData: InvoiceListItem
+): { processedHtml: string; hasMissingBuyerName: boolean } => {
+  let processedHtml = html
+  
+  // 1️⃣ DETECT MISSING BUYER NAME trong HTML
+  // Pattern: <span ...>Họ tên người mua hàng...</span><span ...></span> (empty second span)
+  const buyerNamePattern = /Họ tên người mua hàng[^<]*<\/span>\s*<span[^>]*>\s*<\/span>/i
+  const hasMissingBuyerName = buyerNamePattern.test(html)
+  
+  if (hasMissingBuyerName) {
+    console.warn('⚠️ [processInvoiceHTML] Detected missing buyer name in HTML')
     
-    return {
-      stt: index + 1,
-      name: item.productName || `Product ${item.productId}`,
-      unit: item.unit || 'Cái',
-      quantity: item.quantity,
-      unitPrice: unitPrice,
-      total: item.amount,
-      vatRate: vatRate,
-      vatAmount: item.vatAmount,
+    // Inject buyer name from contactPerson field if available
+    if (invoiceData.contactPerson && invoiceData.contactPerson.trim()) {
+      processedHtml = processedHtml.replace(
+        /(Họ tên người mua hàng[^<]*<\/span>\s*<span[^>]*>)\s*(<\/span>)/i,
+        `$1${invoiceData.contactPerson}$2`
+      )
+      console.log(`✅ [processInvoiceHTML] Injected buyer name: "${invoiceData.contactPerson}"`)
     }
-  })
-}
-
-/**
- * Map template to TemplateConfigProps
- */
-const mapTemplateToConfig = (template: TemplateResponse, company: Company | null): TemplateConfigProps => {
-  return {
-    companyLogo: template.logoUrl || null, // Logo công ty
-    companyName: company?.companyName || 'Đang tải...',
-    companyTaxCode: company?.taxCode || '0000000000',
-    companyAddress: company?.address || 'Đang tải...',
-    companyPhone: company?.contactPhone || '0000000000',
-
-
   }
-}
-
-/**
- * Map customer to CustomerInfo (for InvoiceTemplatePreview)
- */
-const mapCustomerToCustomerInfo = (customer: Customer, invoice?: InvoiceListItem): CustomerInfo => {
-  return {
-    name: customer.customerName,
-    email: customer.contactEmail,
-    taxCode: customer.taxCode,
-    address: customer.address,
-    phone: customer.contactPhone,
-    buyerName: invoice?.contactPerson || '',
+  
+  // 2️⃣ CSS OVERRIDE for page width and styling
+  const cssOverride = `
+    <style>
+      .page-container {
+        width: 209mm !important;
+      }
+      /* Highlight injected fields (for debugging) */
+      .frontend-injected {
+        background-color: #fff3cd;
+        padding: 2px 4px;
+        border-radius: 2px;
+      }
+    </style>
+  `
+  
+  // 3️⃣ INSERT CSS before </head> tag
+  if (processedHtml.includes('</head>')) {
+    processedHtml = processedHtml.replace('</head>', `${cssOverride}</head>`)
+  } else if (processedHtml.includes('</body>')) {
+    processedHtml = processedHtml.replace('</body>', `${cssOverride}</body>`)
+  } else {
+    processedHtml += cssOverride
   }
+  
+  // 4️⃣ VALIDATION: Check if HTML is valid
+  if (!processedHtml.includes('<html') && !processedHtml.includes('<body')) {
+    throw new Error('Invalid HTML structure from backend')
+  }
+  
+  return { processedHtml, hasMissingBuyerName }
 }
 
 const InvoiceDetail: React.FC = () => {
@@ -107,16 +116,15 @@ const InvoiceDetail: React.FC = () => {
   
   // States
   const [invoice, setInvoice] = useState<InvoiceListItem | null>(null)
-  const [template, setTemplate] = useState<TemplateResponse | null>(null)
-  const [customer, setCustomer] = useState<Customer | null>(null)
   const [company, setCompany] = useState<Company | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   
+  // HTML Preview states
   const [htmlPreview, setHtmlPreview] = useState<string>('')
   const [loadingHtml, setLoadingHtml] = useState(false)
-  const [useHtmlView, setUseHtmlView] = useState(true)
+  const [htmlMissingBuyerName, setHtmlMissingBuyerName] = useState(false)
   
   // State for Actions menu
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
@@ -129,29 +137,6 @@ const InvoiceDetail: React.FC = () => {
   const [showHistoryModal, setShowHistoryModal] = useState(false)
   const [historyData, setHistoryData] = useState<InvoiceHistory[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
-
-  // Derived data
-  
-  // ✨ Xác định xem có nên dùng HTML view không:
-  // - Hóa đơn đã phát hành (invoiceNumber > 0): Dùng HTML
-  // - Hóa đơn điều chỉnh/thay thế/hủy/giải trình (invoiceType > 1): Dùng HTML từ API
-  // - Hóa đơn nháp hoàn toàn mới (invoiceType = 1 && invoiceNumber = 0): Dùng React
-  const isIssuedInvoice = invoice && (
-    invoice.invoiceNumber > 0 || 
-    (invoice.invoiceType && invoice.invoiceType > 1)
-  )
-  
-  const products = invoice ? mapInvoiceToProducts(invoice) : []
-  const templateConfig = template ? mapTemplateToConfig(template, company) : null
-  const customerInfo = customer && invoice ? mapCustomerToCustomerInfo(customer, invoice) : null
-  
-  const invoiceTotals = invoice ? {
-    subtotal: invoice.subtotalAmount,
-    discount: 0, // Backend không trả discount riêng
-    subtotalAfterDiscount: invoice.subtotalAmount,
-    tax: invoice.vatAmount,
-    total: invoice.totalAmount,
-  } : undefined
 
   // ✅ Logic actions menu - Đồng bộ 100% với InvoiceManagement & InvoiceApproval
   const isIssued = invoice?.invoiceStatusID === INVOICE_INTERNAL_STATUS.ISSUED
@@ -201,57 +186,43 @@ const InvoiceDetail: React.FC = () => {
         console.log('📝 Full invoice data:', JSON.stringify(invoiceData, null, 2))
         setInvoice(invoiceData)
         
-        // Load template data
-        const templateData = await templateService.getTemplateById(invoiceData.templateID)
-        setTemplate(templateData)
-        
-        // ✨ Load HTML preview cho:
-        // 1. Hóa đơn đã phát hành (invoiceNumber > 0)
-        // 2. Hóa đơn điều chỉnh/thay thế/hủy/giải trình (invoiceType > 1)
-        const shouldLoadHtml = invoiceData.invoiceNumber > 0 || (invoiceData.invoiceType && invoiceData.invoiceType > 1)
-        
-        if (shouldLoadHtml && useHtmlView) {
-          setLoadingHtml(true)
-          try {
-            let html = await invoiceService.getInvoiceHTML(Number(id))
-            
-            const cssOverride = `
-              <style>
-                .page-container {
-                  width: 209mm !important;
-                }
-              </style>
-            `
-            
-            // Insert CSS before </head> tag, or before </body> if no </head>
-            if (html.includes('</head>')) {
-              html = html.replace('</head>', `${cssOverride}</head>`)
-            } else if (html.includes('</body>')) {
-              html = html.replace('</body>', `${cssOverride}</body>`)
-            } else {
-              // Fallback: append to end
-              html += cssOverride
-            }
-            
-            setHtmlPreview(html)
-            const typeLabel = invoiceData.invoiceType > 1 ? ` (Type: ${invoiceData.invoiceType})` : ''
-            console.log(`✅ [InvoiceDetail] HTML preview loaded${typeLabel} with CSS override (width: 209mm)`)
-          } catch (htmlError) {
-            console.error('⚠️ [InvoiceDetail] HTML preview failed, fallback to React:', htmlError)
-            setUseHtmlView(false) // Fallback to React component
-          } finally {
-            setLoadingHtml(false)
-          }
-        }
-        
-        // Load customer data
-        const customers = await getAllCustomers()
-        const matchedCustomer = customers.find(c => c.customerID === invoiceData.customerID)
-        setCustomer(matchedCustomer || null)
-        
-        // Load company data
+        // Load company data for invoice info display
         const companyData = await companyService.getDefaultCompany()
         setCompany(companyData)
+        
+        // ✨ ALWAYS try to load HTML preview from backend API
+        // Backend có thể generate HTML cho BẤT KỲ invoice nào (draft hoặc issued)
+        // API: GET /api/Invoice/preview-by-invoice/{id}
+        // Nếu API lỗi → Fallback to error message
+        
+        console.log('🎯 [InvoiceDetail] Loading HTML preview from backend for invoice:', {
+          invoiceID: invoiceData.invoiceID,
+          invoiceNumber: invoiceData.invoiceNumber,
+          invoiceType: invoiceData.invoiceType
+        })
+        
+        setLoadingHtml(true)
+        try {
+          const rawHtml = await invoiceService.getInvoiceHTML(Number(id))
+          
+          // ==================== HTML PROCESSING & OPTIMIZATION ====================
+          const { processedHtml, hasMissingBuyerName } = processInvoiceHTML(rawHtml, invoiceData)
+          
+          setHtmlPreview(processedHtml)
+          setHtmlMissingBuyerName(hasMissingBuyerName)
+          
+          // Logging
+          const typeLabel = invoiceData.invoiceType > 1 ? ` (Type: ${invoiceData.invoiceType})` : ''
+          const injectedLabel = hasMissingBuyerName && invoiceData.contactPerson ? ' [✓ Buyer name injected]' : ''
+          console.log(`✅ [InvoiceDetail] HTML preview processed${typeLabel}${injectedLabel} (width: 209mm)`)
+          
+        } catch (htmlError) {
+          console.error('⚠️ [InvoiceDetail] HTML preview failed:', htmlError)
+          setError('Không thể tải HTML preview từ backend. Vui lòng thử lại sau.')
+          setHtmlMissingBuyerName(false)
+        } finally {
+          setLoadingHtml(false)
+        }
         
       } catch (err) {
         console.error('Failed to load invoice:', err)
@@ -262,7 +233,7 @@ const InvoiceDetail: React.FC = () => {
     }
 
     fetchInvoiceDetail()
-  }, [id, useHtmlView])
+  }, [id])
 
   // Update title when invoice data loads
   useEffect(() => {
@@ -272,7 +243,7 @@ const InvoiceDetail: React.FC = () => {
   }, [invoice?.invoiceNumber, setTitle])
 
   const handlePrint = () => {
-    if (isIssuedInvoice && useHtmlView && htmlPreview) {
+    if (htmlPreview) {
       const printWindow = window.open('', '_blank')
       if (printWindow) {
         printWindow.document.write(htmlPreview)
@@ -284,7 +255,7 @@ const InvoiceDetail: React.FC = () => {
         alert('❌ Popup bị chặn. Vui lòng cho phép popup.')
       }
     } else {
-      window.print()
+      alert('❌ Chưa có HTML preview để in')
     }
   }
 
@@ -347,7 +318,7 @@ const InvoiceDetail: React.FC = () => {
   }
 
   // Error state
-  if (error || !invoice || !templateConfig) {
+  if (error || !invoice) {
     return (
       <Box sx={{ p: 3 }}>
         <Alert severity="error">{error || 'Không tìm thấy hóa đơn'}</Alert>
@@ -377,21 +348,19 @@ const InvoiceDetail: React.FC = () => {
             Quay lại
           </Button>
           
-          {isIssuedInvoice && (
-            <Button
-              variant="outlined"
-              startIcon={<Download />}
-              onClick={async () => {
-                try {
-                  await invoiceService.saveInvoicePDF(invoice.invoiceID, invoice.invoiceNumber)
-                } catch (err) {
-                  alert('Không thể tải PDF: ' + (err instanceof Error ? err.message : 'Unknown'))
-                }
-              }}
-              sx={{ textTransform: 'none' }}>
-              Tải PDF
-            </Button>
-          )}
+          <Button
+            variant="outlined"
+            startIcon={<Download />}
+            onClick={async () => {
+              try {
+                await invoiceService.saveInvoicePDF(invoice.invoiceID, invoice.invoiceNumber)
+              } catch (err) {
+                alert('Không thể tải PDF: ' + (err instanceof Error ? err.message : 'Unknown'))
+              }
+            }}
+            sx={{ textTransform: 'none' }}>
+            Tải PDF
+          </Button>
           
           <Button
             variant="contained"
@@ -601,18 +570,33 @@ const InvoiceDetail: React.FC = () => {
             },
           }}
         >
-          {isIssuedInvoice && useHtmlView && loadingHtml && (
+          {/* Loading State */}
+          {loadingHtml && (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}>
               <Stack alignItems="center" spacing={2}>
                 <CircularProgress />
                 <Typography variant="body2" color="text.secondary">
-                  Đang tải preview chính thức...
+                  Đang tải HTML preview từ backend...
                 </Typography>
               </Stack>
             </Box>
           )}
           
-          {isIssuedInvoice && useHtmlView && !loadingHtml && htmlPreview && (
+          {/* Warning banner nếu HTML thiếu buyer name */}
+          {!loadingHtml && htmlPreview && htmlMissingBuyerName && invoice.contactPerson && (
+            <Alert 
+              severity="warning" 
+              icon={<ErrorOutlineIcon />}
+              sx={{ mb: 2 }}
+            >
+              <Typography variant="body2">
+                ⚠️ <strong>Backend HTML thiếu thông tin:</strong> "Họ tên người mua hàng" đã được bổ sung từ dữ liệu frontend: <strong>{invoice.contactPerson}</strong>
+              </Typography>
+            </Alert>
+          )}
+          
+          {/* HTML Preview Display */}
+          {!loadingHtml && htmlPreview && (
             <Box 
               sx={{ 
                 border: '1px solid #e0e0e0',
@@ -622,7 +606,6 @@ const InvoiceDetail: React.FC = () => {
                 mb: 2,
               }}
             >
-             
               <iframe
                 srcDoc={htmlPreview}
                 style={{
@@ -632,7 +615,7 @@ const InvoiceDetail: React.FC = () => {
                   border: 'none',
                   display: 'block',
                 }}
-                title={`Invoice ${invoice.invoiceNumber} Preview`}
+                title={`Invoice ${invoice?.invoiceNumber || invoice?.invoiceID} Preview`}
                 onLoad={(e) => {
                   const iframe = e.target as HTMLIFrameElement
                   if (iframe.contentWindow) {
@@ -648,52 +631,15 @@ const InvoiceDetail: React.FC = () => {
             </Box>
           )}
           
-          {(!isIssuedInvoice || !useHtmlView || !htmlPreview) && (
-            <>
-              {isIssuedInvoice && !useHtmlView && (
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  📄 Đang xem giao diện React (tương tác). Click "📋 Xem PDF" để xem preview chính thức.
-                </Alert>
-              )}
-              <InvoiceTemplatePreview
-                config={templateConfig}
-                products={products}
-                totals={invoiceTotals}
-                blankRows={5}
-                visibility={DEFAULT_TEMPLATE_VISIBILITY}
-                bilingual={false}
-
-                invoiceType="withCode"
-                symbol={DEFAULT_INVOICE_SYMBOL}
-                customerVisibility={{
-                  customerName: true,
-                  customerTaxCode: true,
-                  customerAddress: true,
-                  customerPhone: true,
-                  customerEmail: true,
-                  paymentMethod: true,
-                }}
-                customerInfo={customerInfo || undefined}
-                paymentMethod={invoice.paymentMethod}
-                invoiceNumber={
-                  (invoice.invoiceStatusID === INVOICE_INTERNAL_STATUS.DRAFT || !invoice.invoiceNumber || invoice.invoiceNumber === 0) 
-                    ? undefined 
-                    : invoice.invoiceNumber
-                }
-                taxAuthorityCode={invoice.taxAuthorityCode}
-                backgroundFrame={template?.frameUrl || ''}
-                notes={invoice.notes}
-              />
-            </>
+          {/* Error State - No HTML */}
+          {!loadingHtml && !htmlPreview && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              ❌ Không thể tải HTML preview từ backend. Vui lòng kiểm tra API hoặc thử lại sau.
+            </Alert>
           )}
         </Box>
       </Box>
 
-      
-
-       
-
-       
       </Box>
 
       {invoice && invoice.invoiceNumber > 0 && (

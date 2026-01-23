@@ -823,6 +823,9 @@ const CreateVatInvoice: React.FC = () => {
     existingItem: InvoiceItem | null
   }>({ open: false, rowId: '', product: null, existingItem: null })
 
+  // ✅ State cho Dialog xác nhận hủy bỏ
+  const [cancelDialog, setCancelDialog] = useState(false)
+
   // Load templates on mount
   useEffect(() => {
     const loadTemplates = async () => {
@@ -880,6 +883,10 @@ const CreateVatInvoice: React.FC = () => {
         
         const invoice = await invoiceService.getInvoiceById(originalInvoiceId)
         console.log('✅ Original invoice loaded:', invoice)
+        console.log('📞 Phone fields check:', {
+          contactPhone: invoice.contactPhone,
+          customerData: invoice.customerID
+        })
         
         // ⚠️ Lưu lại hóa đơn gốc
         setOriginalInvoice(invoice)
@@ -894,59 +901,90 @@ const CreateVatInvoice: React.FC = () => {
         
         // 2. Customer info - copy từ hóa đơn cũ
         let customerData = null
-        if (invoice.customerID && !invoice.customerName) {
+        if (invoice.customerID) {
           console.log('📥 Fetching customer data for ID:', invoice.customerID)
           const customers = await customerService.getAllCustomers()
           customerData = customers.find(c => c.customerID === invoice.customerID)
+          console.log('👤 Customer data loaded:', customerData)
         }
+        
+        console.log('📋 Setting buyer info:', {
+          phone_invoice: invoice.contactPhone,
+          phone_customer: customerData?.contactPhone,
+          email_invoice: invoice.customerEmail,
+          email_customer: customerData?.contactEmail,
+        })
         
         setBuyerCustomerID(invoice.customerID)
         setBuyerTaxCode(invoice.taxCode || customerData?.taxCode || '')
         setBuyerCompanyName(invoice.customerName || customerData?.customerName || '')
         setBuyerAddress(invoice.customerAddress || customerData?.address || '')
         setBuyerName(invoice.contactPerson || customerData?.contactPerson || '')
-        setBuyerEmail(invoice.contactEmail || customerData?.contactEmail || '')
-        setBuyerPhone(invoice.contactPhone || customerData?.contactPhone || '')
+        setBuyerEmail(invoice.customerEmail || customerData?.contactEmail || '') // ✅ Fix: customerEmail
+        setBuyerPhone(invoice.contactPhone || customerData?.contactPhone || '') // ✅ Fix: Fallback to customer
         
-        // 3. Payment method - copy từ hóa đơn cũ
-        const validPaymentMethods = ['Tiền mặt', 'Chuyển khoản', 'Đổi trừ công nợ', 'Khác']
-        let normalizedPaymentMethod = 'Tiền mặt'
-        if (invoice.paymentMethod && invoice.paymentMethod !== 'string' && validPaymentMethods.includes(invoice.paymentMethod)) {
-          normalizedPaymentMethod = invoice.paymentMethod
+        // 3. Payment method - copy từ hóa đơn cũ (normalize về 4 options mới)
+        const validPaymentMethods = ['Tiền mặt/Chuyển khoản', 'Chuyển khoản', 'Tiền mặt', 'Đối trừ công nợ']
+        let normalizedPaymentMethod = 'Tiền mặt/Chuyển khoản' // Default
+        
+        if (invoice.paymentMethod && invoice.paymentMethod !== 'string') {
+          // Map old values sang new values
+          if (validPaymentMethods.includes(invoice.paymentMethod)) {
+            normalizedPaymentMethod = invoice.paymentMethod
+          } else if (invoice.paymentMethod === 'Đổi trừ công nợ') {
+            normalizedPaymentMethod = 'Đối trừ công nợ' // Fix typo
+          } else if (invoice.paymentMethod === 'Khác') {
+            normalizedPaymentMethod = 'Tiền mặt/Chuyển khoản' // Fallback
+          }
         }
         setPaymentMethod(normalizedPaymentMethod)
         
         // 4. Notes - KHÔNG copy (để user nhập mới)
         setInvoiceNotes('')
         
-        // 5. Items - copy từ hóa đơn cũ
-        const mappedItems: InvoiceItem[] = invoice.invoiceItems
-          .filter(item => item.productId && item.quantity > 0)
-          .map((item, index) => {
-            const quantity = item.quantity || 1
-            const amount = item.amount || 0
-            const vatAmount = item.vatAmount || 0
-            const priceBeforeVat = quantity > 0 ? amount / quantity : 0
-            const vatRate = vatAmount > 0 && amount > 0 ? Math.round((vatAmount / amount) * 100) : 0
-            const priceAfterVat = priceBeforeVat > 0 ? priceBeforeVat * (1 + vatRate / 100) : 0
-            const totalAfterVat = amount + vatAmount
-            
-            return {
-              id: index + 1,
-              stt: index + 1,
-              productId: item.productId,
-              type: item.productName || 'Hàng hóa',
-              code: '',
-              name: item.productName || '',
-              unit: item.unit || '',
-              quantity: quantity,
-              priceAfterTax: priceAfterVat,
-              discountPercent: 0,
-              discountAmount: 0,
-              totalAfterTax: totalAfterVat,
-              vatRate,
-            }
-          })
+        // 5. Items - copy từ hóa đơn cũ và load thông tin đầy đủ từ Product
+        const mappedItems: InvoiceItem[] = await Promise.all(
+          invoice.invoiceItems
+            .filter(item => item.productId && item.quantity > 0)
+            .map(async (item, index) => {
+              const quantity = item.quantity || 1
+              const amount = item.amount || 0
+              const vatAmount = item.vatAmount || 0
+              const priceBeforeVat = quantity > 0 ? amount / quantity : 0
+              const vatRate = vatAmount > 0 && amount > 0 ? Math.round((vatAmount / amount) * 100) : 0
+              const priceAfterVat = priceBeforeVat > 0 ? priceBeforeVat * (1 + vatRate / 100) : 0
+              const totalAfterVat = amount + vatAmount
+              
+              // ✅ Load product info để lấy mã hàng (code)
+              let productCode = ''
+              let productType = item.productName || 'Hàng hóa'
+              try {
+                if (item.productId) {
+                  const product = await productService.getProductById(item.productId)
+                  productCode = product.code || ''
+                  productType = product.description || productType
+                }
+              } catch (error) {
+                console.warn(`⚠️ Could not load product ${item.productId}:`, error)
+              }
+              
+              return {
+                id: index + 1,
+                stt: index + 1,
+                productId: item.productId,
+                type: productType,
+                code: productCode, // ✅ Fix: Load từ Product
+                name: item.productName || '',
+                unit: item.unit || '',
+                quantity: quantity,
+                priceAfterTax: priceAfterVat,
+                discountPercent: 0,
+                discountAmount: 0,
+                totalAfterTax: totalAfterVat,
+                vatRate,
+              }
+            })
+        )
         
         if (mappedItems.length === 0) {
           mappedItems.push({
@@ -1030,16 +1068,21 @@ const CreateVatInvoice: React.FC = () => {
         setBuyerPhone(invoice.contactPhone || customerData?.contactPhone || '')
         
         // Normalize payment method value (ensure it matches the dropdown options)
-        const validPaymentMethods = ['Tiền mặt', 'Chuyển khoản', 'Đổi trừ công nợ', 'Khác']
-        let normalizedPaymentMethod = 'Tiền mặt' // Default
+        const validPaymentMethods = ['Tiền mặt/Chuyển khoản', 'Chuyển khoản', 'Tiền mặt', 'Đối trừ công nợ']
+        let normalizedPaymentMethod = 'Tiền mặt/Chuyển khoản' // Default
         
         // Check if backend returned valid value (not 'string' literal or null/undefined)
-        if (invoice.paymentMethod && 
-            invoice.paymentMethod !== 'string' && 
-            validPaymentMethods.includes(invoice.paymentMethod)) {
-          normalizedPaymentMethod = invoice.paymentMethod
-        } else if (invoice.paymentMethod && invoice.paymentMethod !== 'string') {
-          console.warn('⚠️ Invalid payment method from backend:', invoice.paymentMethod)
+        if (invoice.paymentMethod && invoice.paymentMethod !== 'string') {
+          // Map old values sang new values
+          if (validPaymentMethods.includes(invoice.paymentMethod)) {
+            normalizedPaymentMethod = invoice.paymentMethod
+          } else if (invoice.paymentMethod === 'Đổi trừ công nợ') {
+            normalizedPaymentMethod = 'Đối trừ công nợ' // Fix typo
+          } else if (invoice.paymentMethod === 'Khác') {
+            normalizedPaymentMethod = 'Tiền mặt/Chuyển khoản' // Fallback
+          } else {
+            console.warn('⚠️ Invalid payment method from backend:', invoice.paymentMethod)
+          }
         }
         
         console.log('✅ Normalized payment method:', normalizedPaymentMethod)
@@ -1198,7 +1241,7 @@ const CreateVatInvoice: React.FC = () => {
   const [buyerName, setBuyerName] = useState('')
   const [buyerEmail, setBuyerEmail] = useState('')
   const [buyerPhone, setBuyerPhone] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState('Tiền mặt') // Hình thức thanh toán
+  const [paymentMethod, setPaymentMethod] = useState('Tiền mặt/Chuyển khoản') // Hình thức thanh toán - Default khuyến nghị
   
   // State cho customer lookup
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false)
@@ -1715,6 +1758,17 @@ const CreateVatInvoice: React.FC = () => {
         })
         return
       }
+      
+      // 5. ✅ Validate payment method cho hóa đơn >20 triệu (theo quy định khấu trừ thuế)
+      const TWENTY_MILLION = 20000000
+      if (totals.total > TWENTY_MILLION && paymentMethod !== 'Chuyển khoản') {
+        setSnackbar({
+          open: true,
+          message: `⚠️ Hóa đơn trên 20 triệu đồng (${(totals.total / 1000000).toFixed(1)}M) phải chọn "Chuyển khoản" để được khấu trừ thuế theo quy định`,
+          severity: 'warning'
+        })
+        return
+      }
 
       // ========== SUBMIT ==========
       
@@ -1870,6 +1924,29 @@ const CreateVatInvoice: React.FC = () => {
   // ⭐ Gửi duyệt (invoiceStatusID = 6)
   const handleSubmitForApproval = async () => {
     await handleSubmitInvoice(6, 'Gửi hóa đơn chờ duyệt')
+  }
+
+  // ⭐ Xử lý hủy bỏ - Hiển thị dialog xác nhận
+  const handleCancelClick = () => {
+    setCancelDialog(true)
+  }
+
+  // ⭐ Xác nhận hủy bỏ - Navigate back
+  const handleConfirmCancel = () => {
+    setCancelDialog(false)
+    // Navigate back to invoice list or previous page
+    if (isReplacementMode) {
+      // Nếu đang tạo hóa đơn thay thế, quay lại trang chi tiết hóa đơn gốc
+      navigate(`/invoices/${originalInvoiceId}`)
+    } else {
+      // Nếu đang edit hoặc tạo mới, quay lại danh sách
+      navigate(-1)
+    }
+  }
+
+  // ⭐ Hủy dialog xác nhận
+  const handleCancelDialogClose = () => {
+    setCancelDialog(false)
   }
 
   // Đóng snackbar
@@ -2164,9 +2241,7 @@ const CreateVatInvoice: React.FC = () => {
               </Box>
               
               <Divider sx={{ my: 0.5, borderColor: '#ffcc80' }} />
-              <Typography variant="caption" sx={{ color: '#d84315', fontStyle: 'italic', fontWeight: 600 }}>
-                ⚠️ Hóa đơn gốc sẽ tự động chuyển sang trạng thái <strong>"Đã thay thế"</strong> (ID: 5) sau khi hóa đơn thay thế được phát hành thành công.
-              </Typography>
+             
               <Typography variant="caption" sx={{ color: '#bf360c', display: 'block', mt: 0.5 }}>
                 Sau khi thay thế, hóa đơn gốc sẽ không thể chỉnh sửa, ký, hoặc gửi CQT nữa.
               </Typography>
@@ -2199,6 +2274,14 @@ const CreateVatInvoice: React.FC = () => {
                 minWidth: 300,
                 maxWidth: 350,
               }}>
+              {isReplacementMode && (
+                <Box sx={{ mb: 1, p: 1, backgroundColor: '#e3f2fd', borderRadius: 1, border: '1px solid #1976d2' }}>
+                  <Typography variant="caption" sx={{ color: '#0d47a1', display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.75rem' }}>
+                    <Info sx={{ fontSize: 14 }} />
+                    Mẫu hóa đơn và thông tin người mua được giữ nguyên từ hóa đơn gốc
+                  </Typography>
+                </Box>
+              )}
               <Stack spacing={1.5}>
                 <Stack direction="row" spacing={1.5} alignItems="center">
                   <Typography variant="caption" sx={{ minWidth: 55, fontSize: '0.8125rem' }}>
@@ -2214,7 +2297,7 @@ const CreateVatInvoice: React.FC = () => {
                     fullWidth 
                     variant="outlined" 
                     sx={{ fontSize: '0.8125rem' }}
-                    disabled={templatesLoading || templates.length === 0}
+                    disabled={templatesLoading || templates.length === 0 || isReplacementMode} // ✅ Disable trong replacement mode
                   >
                     {templatesLoading ? (
                       <MenuItem value="">Đang tải...</MenuItem>
@@ -2393,6 +2476,14 @@ const CreateVatInvoice: React.FC = () => {
               <Divider sx={{ my: 1.5 }} />
 
               {/* Thông tin người mua */}
+              {isReplacementMode && (
+                <Box sx={{ mb: 1, p: 1, backgroundColor: '#fff3cd', borderRadius: 1, border: '1px solid #ffc107' }}>
+                  <Typography variant="caption" sx={{ color: '#856404', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Warning sx={{ fontSize: 16 }} />
+                    Hóa đơn thay thế: Thông tin người mua được sao chép từ hóa đơn gốc và không thể chỉnh sửa
+                  </Typography>
+                </Box>
+              )}
               <Stack spacing={0.8}>
                 <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexWrap: 'wrap' }}>
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
@@ -2405,6 +2496,7 @@ const CreateVatInvoice: React.FC = () => {
                     value={buyerTaxCode}
                     onChange={(e) => handleTaxCodeChange(e.target.value)}
                     onBlur={handleTaxCodeBlur}
+                    disabled={isReplacementMode} // ✅ Disable trong replacement mode
                     sx={{ width: 160, fontSize: '0.8125rem' }}
                     error={customerNotFound}
                     helperText={customerNotFound ? 'Không tìm thấy' : ''}
@@ -2415,7 +2507,7 @@ const CreateVatInvoice: React.FC = () => {
                         </InputAdornment>
                       ) : (
                         <InputAdornment position="end">
-                          <IconButton size="small" edge="end">
+                          <IconButton size="small" edge="end" disabled={isReplacementMode}>
                             <ExpandMore fontSize="small" />
                           </IconButton>
                         </InputAdornment>
@@ -2427,11 +2519,16 @@ const CreateVatInvoice: React.FC = () => {
                     startIcon={<Public sx={{ fontSize: 16 }} />} 
                     sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25 }}
                     onClick={() => handleTaxCodeLookup(buyerTaxCode)}
-                    disabled={!buyerTaxCode || isSearchingCustomer}
+                    disabled={!buyerTaxCode || isSearchingCustomer || isReplacementMode} // ✅ Disable trong replacement mode
                   >
                     {isSearchingCustomer ? 'Đang tìm...' : 'Lấy thông tin'}
                   </Button>
-                  <Button size="small" startIcon={<VerifiedUser sx={{ fontSize: 16 }} />} sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25, whiteSpace: 'nowrap' }}>
+                  <Button 
+                    size="small" 
+                    startIcon={<VerifiedUser sx={{ fontSize: 16 }} />} 
+                    sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25, whiteSpace: 'nowrap' }}
+                    disabled={isReplacementMode} // ✅ Disable trong replacement mode
+                  >
                     KT tình trạng hoạt động
                   </Button>
                 </Stack>
@@ -2447,11 +2544,12 @@ const CreateVatInvoice: React.FC = () => {
                     variant="standard"
                     value={buyerCompanyName}
                     onChange={(e) => setBuyerCompanyName(e.target.value)}
+                    disabled={isReplacementMode} // ✅ Disable trong replacement mode
                     sx={{ fontSize: '0.8125rem' }}
                     InputProps={{
                       endAdornment: (
                         <InputAdornment position="end">
-                          <IconButton size="small" edge="end">
+                          <IconButton size="small" edge="end" disabled={isReplacementMode}>
                             <ExpandMore fontSize="small" />
                           </IconButton>
                         </InputAdornment>
@@ -2471,6 +2569,7 @@ const CreateVatInvoice: React.FC = () => {
                     variant="standard"
                     value={buyerAddress}
                     onChange={(e) => setBuyerAddress(e.target.value)}
+                    disabled={isReplacementMode} // ✅ Disable trong replacement mode
                     sx={{ fontSize: '0.8125rem' }}
                   />
                 </Stack>
@@ -2479,18 +2578,41 @@ const CreateVatInvoice: React.FC = () => {
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
                     Người mua hàng:
                   </Typography>
-                  <TextField size="small" placeholder="Kế toán A" variant="standard" value={buyerName} onChange={(e) => setBuyerName(e.target.value)} sx={{ width: 160, fontSize: '0.8125rem' }} />
+                  <TextField 
+                    size="small" 
+                    placeholder="Kế toán A" 
+                    variant="standard" 
+                    value={buyerName} 
+                    onChange={(e) => setBuyerName(e.target.value)} 
+                    disabled={isReplacementMode} // ✅ Disable trong replacement mode
+                    sx={{ width: 160, fontSize: '0.8125rem' }} 
+                  />
                   <Typography variant="caption" sx={{ minWidth: 50, fontSize: '0.8125rem' }}>
                     Email:
                   </Typography>
-                  <TextField size="small" placeholder="hoadon@gmail.com" variant="standard" value={buyerEmail} onChange={(e) => setBuyerEmail(e.target.value)} sx={{ flex: 1, fontSize: '0.8125rem' }} />
+                  <TextField 
+                    size="small" 
+                    placeholder="hoadon@gmail.com" 
+                    variant="standard" 
+                    value={buyerEmail} 
+                    onChange={(e) => setBuyerEmail(e.target.value)} 
+                    disabled={isReplacementMode} // ✅ Disable trong replacement mode
+                    sx={{ flex: 1, fontSize: '0.8125rem' }} 
+                  />
                 </Stack>
 
                 <Stack direction="row" spacing={1.5} alignItems="center">
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
                     Số điện thoại:
                   </Typography>
-                  <TextField size="small" variant="standard" value={buyerPhone} onChange={(e) => setBuyerPhone(e.target.value)} sx={{ width: 160, fontSize: '0.8125rem' }} />
+                  <TextField 
+                    size="small" 
+                    variant="standard" 
+                    value={buyerPhone} 
+                    onChange={(e) => setBuyerPhone(e.target.value)} 
+                    disabled={isReplacementMode} // ✅ Disable trong replacement mode
+                    sx={{ width: 160, fontSize: '0.8125rem' }} 
+                  />
                   <Typography variant="caption" sx={{ minWidth: 80, fontSize: '0.8125rem' }}>
                     Hình thức TT:
                   </Typography>
@@ -2499,6 +2621,7 @@ const CreateVatInvoice: React.FC = () => {
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value)}
                     variant="standard"
+                    disabled={isReplacementMode} // ✅ Disable trong replacement mode
                     MenuProps={{
                       PaperProps: {
                         sx: {
@@ -2521,7 +2644,7 @@ const CreateVatInvoice: React.FC = () => {
                       },
                     }}
                     sx={{
-                      width: 120,
+                      width: 180,
                       fontSize: '0.8125rem',
                       transition: 'all 0.3s ease',
                       '& .MuiSelect-select': {
@@ -2545,7 +2668,7 @@ const CreateVatInvoice: React.FC = () => {
                       },
                     }}>
                     <MenuItem
-                      value="Tiền mặt"
+                      value="Tiền mặt/Chuyển khoản"
                       sx={{
                         fontSize: '0.8125rem',
                         borderRadius: 1,
@@ -2560,7 +2683,9 @@ const CreateVatInvoice: React.FC = () => {
                           },
                         },
                       }}>
-                      Tiền mặt
+                      <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+                        Tiền mặt/Chuyển khoản
+                      </Typography>
                     </MenuItem>
                     <MenuItem
                       value="Chuyển khoản"
@@ -2578,10 +2703,12 @@ const CreateVatInvoice: React.FC = () => {
                           },
                         },
                       }}>
-                      Chuyển khoản
+                      <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+                        Chuyển khoản
+                      </Typography>
                     </MenuItem>
                     <MenuItem
-                      value="Đổi trừ công nợ"
+                      value="Tiền mặt"
                       sx={{
                         fontSize: '0.8125rem',
                         borderRadius: 1,
@@ -2596,10 +2723,12 @@ const CreateVatInvoice: React.FC = () => {
                           },
                         },
                       }}>
-                      Đổi trừ công nợ
+                      <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+                        Tiền mặt
+                      </Typography>
                     </MenuItem>
                     <MenuItem
-                      value="Khác"
+                      value="Đối trừ công nợ"
                       sx={{
                         fontSize: '0.8125rem',
                         borderRadius: 1,
@@ -2614,7 +2743,9 @@ const CreateVatInvoice: React.FC = () => {
                           },
                         },
                       }}>
-                      Khác
+                      <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+                        Đối trừ công nợ
+                      </Typography>
                     </MenuItem>
                   </Select>
                 </Stack>
@@ -2939,7 +3070,7 @@ const CreateVatInvoice: React.FC = () => {
 
                 <Divider />
 
-                <Stack direction="row" justifyContent="space-between">
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.875rem' }}>
                     Tổng tiền thanh toán:
                   </Typography>
@@ -2980,6 +3111,7 @@ const CreateVatInvoice: React.FC = () => {
                 size="small"
                 variant="outlined"
                 startIcon={<Close fontSize="small" />}
+                onClick={handleCancelClick}
                 sx={{ textTransform: 'none', color: '#666', borderColor: '#ccc', fontSize: '0.8125rem', py: 0.5 }}>
                 Hủy bỏ
               </Button>
@@ -3181,6 +3313,56 @@ const CreateVatInvoice: React.FC = () => {
               sx={{ textTransform: 'none', backgroundColor: '#2e7d32' }}
             >
               Thêm dòng mới
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* ✅ Dialog xác nhận hủy bỏ */}
+        <Dialog
+          open={cancelDialog}
+          onClose={handleCancelDialogClose}
+          maxWidth="xs"
+          fullWidth
+        >
+          <DialogTitle sx={{ pb: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Warning sx={{ color: '#ed6c02', fontSize: 28 }} />
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                Xác nhận hủy bỏ
+              </Typography>
+            </Box>
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              {isReplacementMode 
+                ? 'Bạn có chắc chắn muốn hủy tạo hóa đơn thay thế này không?'
+                : editMode
+                ? 'Bạn có chắc chắn muốn hủy chỉnh sửa hóa đơn này không?'
+                : 'Bạn có chắc chắn muốn hủy tạo hóa đơn này không?'
+              }
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.875rem' }}>
+              Mọi thay đổi chưa lưu sẽ bị mất.
+            </Typography>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+            <Button
+              onClick={handleCancelDialogClose}
+              variant="outlined"
+              size="small"
+              sx={{ textTransform: 'none' }}
+            >
+              Quay lại
+            </Button>
+            <Button
+              onClick={handleConfirmCancel}
+              variant="contained"
+              size="small"
+              color="error"
+              startIcon={<Close />}
+              sx={{ textTransform: 'none' }}
+            >
+              Xác nhận hủy
             </Button>
           </DialogActions>
         </Dialog>

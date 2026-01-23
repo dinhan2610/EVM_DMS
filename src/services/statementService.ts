@@ -411,14 +411,17 @@ export async function createStatementPayment(
 
 /**
  * Statement Payment Record from API
+ * ✅ Updated: 23/01/2026 - Added statementPaidAfter, statementBalanceAfter
  */
 export interface StatementPaymentRecord {
   statementPaymentId: number;
   paymentId: number;
   invoiceId: number;
-  invoiceNumber: number;
-  appliedAmount: number;           // Số tiền thanh toán
-  invoiceRemainingAfter: number;   // Số tiền còn nợ sau thanh toán
+  invoiceNumber: number;           // Số hóa đơn
+  appliedAmount: number;           // Số tiền thanh toán cho bảng kê
+  invoiceRemainingAfter: number;   // Số tiền còn nợ của HÓA ĐƠN sau thanh toán
+  statementPaidAfter: number;      // ✅ Tổng đã thanh toán của BẢNG KÊ SAU giao dịch
+  statementBalanceAfter: number;   // ✅ Số tiền còn nợ của BẢNG KÊ SAU giao dịch
   paymentDate: string;             // ISO format
   paymentMethod: string;           // "Chuyển khoản", "Tiền mặt", etc.
   transactionCode: string | null;
