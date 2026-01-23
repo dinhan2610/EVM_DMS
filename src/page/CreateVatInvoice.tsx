@@ -1819,17 +1819,6 @@ const CreateVatInvoice: React.FC = () => {
         })
         return
       }
-      
-      // 5. ✅ Validate payment method cho hóa đơn >20 triệu (theo quy định khấu trừ thuế)
-      const TWENTY_MILLION = 20000000
-      if (totals.total > TWENTY_MILLION && paymentMethod !== 'Chuyển khoản') {
-        setSnackbar({
-          open: true,
-          message: `⚠️ Hóa đơn trên 20 triệu đồng (${(totals.total / 1000000).toFixed(1)}M) phải chọn "Chuyển khoản" để được khấu trừ thuế theo quy định`,
-          severity: 'warning'
-        })
-        return
-      }
 
       // ========== SUBMIT ==========
       
@@ -3055,27 +3044,9 @@ const CreateVatInvoice: React.FC = () => {
                   <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.875rem' }}>
                     Tổng tiền thanh toán:
                   </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.875rem' }}>
-                      {totals.total.toLocaleString('vi-VN')}
-                    </Typography>
-                    {/* ✅ Cảnh báo nếu >20M mà không chọn "Chuyển khoản" */}
-                    {totals.total > 20000000 && paymentMethod !== 'Chuyển khoản' && (
-                      <Typography 
-                        variant="caption" 
-                        sx={{ 
-                          fontSize: '0.65rem', 
-                          color: '#ed6c02',
-                          backgroundColor: '#fff4e5',
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          fontWeight: 600,
-                          whiteSpace: 'nowrap'
-                        }}>
-                        ⚠️ Phải CK
-                      </Typography>
-                    )}
-                  </Box>
+                  <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.875rem' }}>
+                    {totals.total.toLocaleString('vi-VN')}
+                  </Typography>
                 </Stack>
 
                 {/* Số tiền viết bằng chữ */}

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Box,
   Typography,
@@ -44,6 +44,8 @@ import { CustomerDebt, DebtInvoice, PaymentRecord, PAYMENT_METHODS } from '@/typ
 import { paymentService } from '@/services/paymentService'
 import { debtService } from '@/services/debtService'
 import { useAuthContext } from '@/context/useAuthContext'
+import { getCustomersBySaleId } from '@/services/customerService'
+import { USER_ROLES } from '@/constants/roles'
 
 // ==================== HELPER FUNCTIONS ====================
 
@@ -155,9 +157,13 @@ const DebtManagement = () => {
   
   // Navigation
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   
   // Auth context
   const { user } = useAuthContext()
+  
+  // ✅ Read customerID from URL params (?customerId=X)
+  const urlCustomerId = searchParams.get('customerId')
   
   // State - Data
   const [customers, setCustomers] = useState<CustomerDebt[]>([])
@@ -235,11 +241,33 @@ const DebtManagement = () => {
   
   /**
    * Fetch customer debt summary on mount
+   * ✅ UPDATED: Filter by saleId for Sales role, filter by customerId from URL params
    */
   useEffect(() => {
     const fetchCustomerDebts = async () => {
       try {
         setIsLoading(true)
+        
+        // ✅ Step 1: Get allowed customer IDs for Sales role
+        let allowedCustomerIds: number[] | null = null
+        
+        if (user?.role === USER_ROLES.SALES && user?.id) {
+          console.log('👤 Sales role detected, fetching customers for saleId:', user.id)
+          try {
+            const saleCustomers = await getCustomersBySaleId(Number(user.id))
+            // Filter customers with saleID matching user.id
+            allowedCustomerIds = saleCustomers
+              .filter(c => c.saleID === Number(user.id))
+              .map(c => c.customerID)
+            console.log('✅ Allowed customerIds for this Sales:', allowedCustomerIds)
+          } catch (error) {
+            console.error('❌ Failed to fetch sales customers:', error)
+            // Continue with empty list - will show no customers
+            allowedCustomerIds = []
+          }
+        }
+        
+        // ✅ Step 2: Fetch debt summary
         const response = await debtService.getCustomerDebtSummary({
           PageIndex: 1,
           PageSize: 100, // Get all customers
@@ -248,12 +276,28 @@ const DebtManagement = () => {
         })
         
         // Defensive: Ensure data is an array
-        const customerData = Array.isArray(response.data) ? response.data : []
-        setCustomers(customerData)
+        let customerData = Array.isArray(response.data) ? response.data : []
+        
+        // ✅ Step 3: Filter by allowedCustomerIds if Sales role
+        if (allowedCustomerIds !== null) {
+          customerData = customerData.filter(c => allowedCustomerIds!.includes(c.customerId))
+          console.log(`🔍 Filtered debt by Sales customers:`, customerData.length)
+        }
+        
+        // ✅ Step 4: Filter by customerId from URL if provided
+        let filteredCustomers = customerData
+        if (urlCustomerId) {
+          const targetId = Number(urlCustomerId)
+          filteredCustomers = customerData.filter(c => c.customerId === targetId)
+          console.log(`🔍 Filtered customers by URL customerId=${targetId}:`, filteredCustomers.length)
+        }
+        
+        setCustomers(filteredCustomers)
         
         // Auto-select first customer if exists
-        if (customerData.length > 0 && !selectedCustomer) {
-          setSelectedCustomer(customerData[0])
+        if (filteredCustomers.length > 0 && !selectedCustomer) {
+          setSelectedCustomer(filteredCustomers[0])
+          console.log('✅ Auto-selected customer:', filteredCustomers[0].customerName)
         }
       } catch (error) {
         console.error('Failed to fetch customer debts:', error)
@@ -270,7 +314,7 @@ const DebtManagement = () => {
 
     fetchCustomerDebts()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [urlCustomerId, user?.id, user?.role])
 
   /**
    * Fetch customer debt detail when selected customer, month/year, or pagination changes

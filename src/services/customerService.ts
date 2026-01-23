@@ -9,6 +9,7 @@ import API_CONFIG from '@/config/api.config';
 
 export interface Customer {
   customerID: number;
+  saleID: number;           // ✅ ID của nhân viên sales phụ trách (0 = chưa assign)
   customerName: string;
   taxCode: string;
   address: string;
@@ -109,6 +110,43 @@ export const getAllCustomers = async (): Promise<Customer[]> => {
     return customers;
   } catch (error) {
     return handleApiError(error, 'getAllCustomers');
+  }
+};
+
+/**
+ * Paginated response from Customer API
+ */
+export interface CustomerPaginatedResponse {
+  items: Customer[];
+  pageIndex: number;
+  totalPages: number;
+  totalCount: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
+/**
+ * Get customers by Sale ID (for Sales role)
+ * GET /api/Customer?saleId={saleId}
+ * 
+ * @param saleId - ID của nhân viên Sales
+ * @returns Danh sách khách hàng của Sales đó
+ */
+export const getCustomersBySaleId = async (saleId: number): Promise<Customer[]> => {
+  try {
+    console.log('[getCustomersBySaleId] Fetching customers for saleId:', saleId);
+    
+    const response = await axios.get<CustomerPaginatedResponse>(
+      `/api/Customer?saleId=${saleId}`,
+      { headers: getAuthHeaders() }
+    );
+    
+    const customers = response.data.items || [];
+    
+    console.log('[getCustomersBySaleId] Success:', customers.length, 'customers for saleId:', saleId);
+    return customers;
+  } catch (error) {
+    return handleApiError(error, 'getCustomersBySaleId');
   }
 };
 
@@ -248,6 +286,7 @@ export const findCustomerByTaxCode = async (taxCode: string): Promise<Customer |
 
 const customerService = {
   getAllCustomers,
+  getCustomersBySaleId,  // ✅ Thêm function mới
   createCustomer,
   updateCustomer,
   setCustomerActive,

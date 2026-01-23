@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   Box,
@@ -24,12 +24,15 @@ import AddIcon from '@mui/icons-material/Add'
 import SearchIcon from '@mui/icons-material/Search'
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/vi'
 import CustomerHistoryDrawer from '../components/CustomerHistoryDrawer'
+import { useAuthContext } from '@/context/useAuthContext'
+import { Customer, getCustomersBySaleId } from '@/services/customerService'
 
 dayjs.extend(relativeTime)
 dayjs.locale('vi')
@@ -38,86 +41,39 @@ dayjs.locale('vi')
 
 export interface ISalesCustomer {
   id: string
+  customerID: number
+  saleID: number
   taxCode: string
   name: string
   address: string
   phone: string
   email: string
-  currentMonthRevenue: number // Doanh số tháng này
-  lastOrderDate: string | null // Ngày mua gần nhất
+  contactPerson: string
+  isActive: boolean
+  currentMonthRevenue: number // Doanh số tháng này (TODO: cần API riêng)
+  lastOrderDate: string | null // Ngày mua gần nhất (TODO: cần API riêng)
   status: 'Potential' | 'Active' | 'Churned'
 }
 
-// ==================== MOCK DATA ====================
-
-const MOCK_CUSTOMERS: ISalesCustomer[] = [
-  {
-    id: '1',
-    taxCode: '0123456789',
-    name: 'Công ty TNHH Hải Âu',
-    address: 'Thủ Đức - Hồ Chí Minh',
-    phone: '0935994475',
-    email: 'haiau@gmail.com',
-    currentMonthRevenue: 125000000,
-    lastOrderDate: '2026-01-08',
-    status: 'Active',
-  },
-  {
-    id: '2',
-    taxCode: '0987654321',
-    name: 'Công ty CP Công nghệ ABC',
-    address: 'Quận 1 - TP.HCM',
-    phone: '0912345678',
-    email: 'abc@tech.vn',
-    currentMonthRevenue: 85000000,
-    lastOrderDate: '2026-01-09',
-    status: 'Active',
-  },
-  {
-    id: '3',
-    taxCode: '0111222333',
-    name: 'Công ty TNHH Thương mại XYZ',
-    address: 'Quận 7 - TP.HCM',
-    phone: '0923456789',
-    email: 'xyz@trading.com',
-    currentMonthRevenue: 0,
-    lastOrderDate: '2025-11-15',
-    status: 'Churned',
-  },
-  {
-    id: '4',
-    taxCode: '0444555666',
-    name: 'Công ty CP Đầu tư Phát triển',
-    address: 'Bình Thạnh - TP.HCM',
-    phone: '0934567890',
-    email: 'investment@company.vn',
-    currentMonthRevenue: 45000000,
-    lastOrderDate: '2026-01-05',
-    status: 'Active',
-  },
-  {
-    id: '5',
-    taxCode: '0777888999',
-    name: 'Công ty TNHH Logistics DEF',
-    address: 'Quận 2 - TP.HCM',
-    phone: '0945678901',
-    email: 'def@logistics.com',
+// ✅ Map Customer từ API sang ISalesCustomer cho UI
+const mapCustomerToSalesCustomer = (customer: Customer): ISalesCustomer => {
+  return {
+    id: String(customer.customerID),
+    customerID: customer.customerID,
+    saleID: customer.saleID,
+    taxCode: customer.taxCode,
+    name: customer.customerName,
+    address: customer.address,
+    phone: customer.contactPhone,
+    email: customer.contactEmail,
+    contactPerson: customer.contactPerson,
+    isActive: customer.isActive,
+    // TODO: Các field này cần API riêng để lấy thống kê
     currentMonthRevenue: 0,
     lastOrderDate: null,
-    status: 'Potential',
-  },
-  {
-    id: '6',
-    taxCode: '0555666777',
-    name: 'Công ty CP Sản xuất GHI',
-    address: 'Quận 9 - TP.HCM',
-    phone: '0956789012',
-    email: 'ghi@manufacturing.vn',
-    currentMonthRevenue: 95000000,
-    lastOrderDate: '2026-01-07',
-    status: 'Active',
-  },
-]
+    status: customer.isActive ? 'Active' : 'Potential',
+  }
+}
 
 // ==================== MAIN COMPONENT ====================
 
@@ -125,9 +81,12 @@ const SalesCustomerPage = () => {
   usePageTitle('Khách hàng của tôi')
   
   const navigate = useNavigate()
+  const { user } = useAuthContext()
   
   // State
-  const [customers] = useState<ISalesCustomer[]>(MOCK_CUSTOMERS)
+  const [customers, setCustomers] = useState<ISalesCustomer[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchText, setSearchText] = useState('')
   const [openAddModal, setOpenAddModal] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -143,6 +102,45 @@ const SalesCustomerPage = () => {
   })
   const [isSearchingTaxCode, setIsSearchingTaxCode] = useState(false)
   const [taxCodeError, setTaxCodeError] = useState('')
+
+  // ✅ Load customers từ API
+  const loadCustomers = useCallback(async () => {
+    if (!user?.id) {
+      console.warn('⚠️ No user ID found')
+      setError('Không tìm thấy thông tin người dùng')
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const saleId = Number(user.id)
+      console.log('📥 Loading customers for saleId:', saleId)
+      
+      const customersData = await getCustomersBySaleId(saleId)
+      
+      // ✅ FILTER: Chỉ lấy customers có saleID khớp với user đang đăng nhập
+      // Backend có thể trả về tất cả, nên cần filter ở client
+      const filteredCustomers = customersData.filter(c => c.saleID === saleId)
+      const mappedCustomers = filteredCustomers.map(mapCustomerToSalesCustomer)
+      
+      console.log('✅ Total customers from API:', customersData.length)
+      console.log('✅ Filtered customers (saleID === ' + saleId + '):', mappedCustomers.length)
+      setCustomers(mappedCustomers)
+    } catch (err) {
+      console.error('❌ Error loading customers:', err)
+      setError('Không thể tải danh sách khách hàng')
+    } finally {
+      setLoading(false)
+    }
+  }, [user?.id])
+
+  // Load customers on mount
+  useEffect(() => {
+    loadCustomers()
+  }, [loadCustomers])
   
   // Filtered customers
   const filteredCustomers = useMemo(() => {
@@ -155,48 +153,6 @@ const SalesCustomerPage = () => {
       )
     })
   }, [customers, searchText])
-  
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(amount)
-  }
-  
-  // Format last order date
-  const formatLastOrderDate = (date: string | null) => {
-    if (!date) return 'Chưa có đơn'
-    return dayjs(date).fromNow()
-  }
-  
-  // Get status color
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Active':
-        return 'success'
-      case 'Potential':
-        return 'info'
-      case 'Churned':
-        return 'default'
-      default:
-        return 'default'
-    }
-  }
-  
-  // Get status label
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'Active':
-        return 'Đang hoạt động'
-      case 'Potential':
-        return 'Tiềm năng'
-      case 'Churned':
-        return 'Mất khách'
-      default:
-        return status
-    }
-  }
   
   // Handle search tax code
   const handleSearchTaxCode = async () => {
@@ -242,6 +198,11 @@ const SalesCustomerPage = () => {
     setDrawerOpen(true)
   }
   
+  // ✅ Handle view debt (navigate to debt management with customerId)
+  const handleViewDebt = (customer: ISalesCustomer) => {
+    navigate(`/debt-management?customerId=${customer.customerID}`)
+  }
+  
   // Handle close add modal
   const handleCloseAddModal = () => {
     setOpenAddModal(false)
@@ -250,46 +211,61 @@ const SalesCustomerPage = () => {
     setTaxCodeError('')
   }
   
-  // DataGrid columns
+  // DataGrid columns - ✅ Match 100% với CustomerManagement
   const columns: GridColDef[] = [
     {
-      field: 'customer',
-      headerName: 'Khách hàng',
+      field: 'customerName',
+      headerName: 'Tên Khách hàng',
       flex: 1,
-      minWidth: 250,
+      minWidth: 200,
       align: 'left',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<ISalesCustomer>) => (
-        <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', pl: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', height: '100%', pl: 2 }}>
           <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.875rem', color: '#2c3e50' }}>
             {params.row.name}
-          </Typography>
-          <Typography variant="caption" sx={{ color: '#546e7a', fontSize: '0.75rem', letterSpacing: '0.02em' }}>
-            MST: {params.row.taxCode}
           </Typography>
         </Box>
       ),
     },
     {
-      field: 'performance',
-      headerName: 'Hiệu suất',
-      width: 200,
+      field: 'taxCode',
+      headerName: 'Mã số thuế',
+      width: 150,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<ISalesCustomer>) => (
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 700,
-              fontSize: '0.875rem',
-              color: params.row.currentMonthRevenue > 0 ? '#2e7d32' : '#999',
-            }}
-          >
-            {formatCurrency(params.row.currentMonthRevenue)}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          <Typography variant="body2" sx={{ fontSize: '0.875rem', letterSpacing: '0.02em', fontWeight: 500, color: '#546e7a' }}>
+            {params.row.taxCode}
           </Typography>
-          <Typography variant="caption" sx={{ color: '#546e7a', fontSize: '0.75rem' }}>
-            {formatLastOrderDate(params.row.lastOrderDate)}
+        </Box>
+      ),
+    },
+    {
+      field: 'email',
+      headerName: 'Email',
+      width: 220,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<ISalesCustomer>) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          <Typography variant="body2" sx={{ fontSize: '0.875rem', color: '#546e7a' }}>
+            {params.row.email}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      field: 'phone',
+      headerName: 'Số điện thoại',
+      width: 140,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<ISalesCustomer>) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          <Typography variant="body2" sx={{ fontSize: '0.875rem', letterSpacing: '0.02em', fontWeight: 500, color: '#1976d2' }}>
+            {params.row.phone}
           </Typography>
         </Box>
       ),
@@ -297,15 +273,16 @@ const SalesCustomerPage = () => {
     {
       field: 'status',
       headerName: 'Trạng thái',
-      width: 150,
+      width: 130,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams<ISalesCustomer>) => (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
           <Chip
-            label={getStatusLabel(params.row.status)}
-            color={getStatusColor(params.row.status)}
+            label={params.row.isActive ? 'Hoạt động' : 'Ngừng hoạt động'}
+            color={params.row.isActive ? 'success' : 'default'}
             size="small"
+            variant={params.row.isActive ? 'filled' : 'outlined'}
             sx={{ fontWeight: 500, fontSize: '0.8125rem' }}
           />
         </Box>
@@ -314,43 +291,47 @@ const SalesCustomerPage = () => {
     {
       field: 'actions',
       headerName: 'Hành động',
+      type: 'actions',
       width: 150,
       align: 'center',
       headerAlign: 'center',
       sortable: false,
       renderCell: (params: GridRenderCellParams<ISalesCustomer>) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, width: '100%', height: '100%' }}>
-          <Tooltip title="Lên đơn" arrow>
-            <IconButton
-              size="small"
-              sx={{
-                color: '#1976d2',
-                bgcolor: 'rgba(25, 118, 210, 0.08)',
-                '&:hover': {
-                  bgcolor: 'rgba(25, 118, 210, 0.16)',
-                },
-              }}
-              onClick={() => handleCreateInvoice(params.row)}
-            >
-              <ShoppingCartIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          
-          <Tooltip title="Xem lịch sử" arrow>
-            <IconButton
-              size="small"
-              sx={{
-                color: '#ed6c02',
-                bgcolor: 'rgba(237, 108, 2, 0.08)',
-                '&:hover': {
-                  bgcolor: 'rgba(237, 108, 2, 0.16)',
-                },
-              }}
-              onClick={() => handleViewHistory(params.row)}
-            >
-              <VisibilityOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          <Stack direction="row" spacing={0.5}>
+            {/* Lên đơn Button */}
+            <Tooltip title="Lên đơn" arrow>
+              <IconButton
+                size="small"
+                color="primary"
+                onClick={() => handleCreateInvoice(params.row)}
+              >
+                <ShoppingCartIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            
+            {/* Xem lịch sử Button */}
+            <Tooltip title="Xem lịch sử" arrow>
+              <IconButton
+                size="small"
+                color="warning"
+                onClick={() => handleViewHistory(params.row)}
+              >
+                <VisibilityOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            
+            {/* ✅ Xem công nợ Button */}
+            <Tooltip title="Xem công nợ" arrow>
+              <IconButton
+                size="small"
+                color="error"
+                onClick={() => handleViewDebt(params.row)}
+              >
+                <AccountBalanceIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Stack>
         </Box>
       ),
     },
@@ -428,64 +409,110 @@ const SalesCustomerPage = () => {
         />
       </Paper>
 
-      <Paper
-        sx={{
-          borderRadius: 2,
-          border: '1px solid',
-          borderColor: 'divider',
-          overflow: 'hidden',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-        }}
-      >
-        <DataGrid
-          rows={filteredCustomers}
-          columns={columns}
-          initialState={{
-            pagination: {
-              paginationModel: { pageSize: 10 },
-            },
-          }}
-          pageSizeOptions={[10, 25, 50]}
-          disableRowSelectionOnClick
-          getRowHeight={() => 72}
+      {/* Loading State */}
+      {loading && (
+        <Paper
           sx={{
-            border: 0,
-            '& .MuiDataGrid-columnHeaders': {
-              bgcolor: 'grey.50',
-              borderBottom: '2px solid',
-              borderColor: 'divider',
-              fontSize: '0.875rem',
-              fontWeight: 600,
-            },
-            '& .MuiDataGrid-cell': {
-              borderBottom: '1px solid',
-              borderColor: 'divider',
-            },
-            '& .MuiDataGrid-row:hover': {
-              bgcolor: 'action.hover',
-            },
-            '& .MuiDataGrid-footerContainer': {
-              borderTop: '2px solid',
-              borderColor: 'divider',
-              minHeight: '56px',
-              '& .MuiTablePagination-root': {
-                overflow: 'visible',
-              },
-              '& .MuiTablePagination-toolbar': {
-                minHeight: '56px',
-                paddingLeft: 2,
-                paddingRight: 2,
-              },
-              '& .MuiTablePagination-selectLabel': {
-                margin: 0,
-              },
-              '& .MuiTablePagination-displayedRows': {
-                margin: 0,
-              },
-            },
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: 'divider',
+            overflow: 'hidden',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            p: 4,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: 300,
           }}
-        />
-      </Paper>
+        >
+          <Box sx={{ textAlign: 'center' }}>
+            <CircularProgress size={40} />
+            <Typography variant="body2" sx={{ mt: 2, color: 'text.secondary' }}>
+              Đang tải danh sách khách hàng...
+            </Typography>
+          </Box>
+        </Paper>
+      )}
+
+      {/* Error State */}
+      {error && !loading && (
+        <Alert 
+          severity="error" 
+          sx={{ mb: 2, borderRadius: 2 }}
+          action={
+            <Button color="inherit" size="small" onClick={loadCustomers}>
+              Thử lại
+            </Button>
+          }
+        >
+          {error}
+        </Alert>
+      )}
+
+      {/* Data Grid */}
+      {!loading && !error && (
+        <Paper
+          sx={{
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: 'divider',
+            overflow: 'hidden',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          }}
+        >
+          <DataGrid
+            rows={filteredCustomers}
+            columns={columns}
+            initialState={{
+              pagination: {
+                paginationModel: { pageSize: 10 },
+              },
+            }}
+            pageSizeOptions={[10, 25, 50]}
+            disableRowSelectionOnClick
+            getRowHeight={() => 72}
+            localeText={{
+              noRowsLabel: 'Chưa có khách hàng nào',
+            }}
+            sx={{
+              border: 0,
+              '& .MuiDataGrid-columnHeaders': {
+                bgcolor: 'grey.50',
+                borderBottom: '2px solid',
+                borderColor: 'divider',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+              },
+              '& .MuiDataGrid-cell': {
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+              },
+              '& .MuiDataGrid-row:hover': {
+                bgcolor: 'action.hover',
+              },
+              '& .MuiDataGrid-footerContainer': {
+                borderTop: '2px solid',
+                borderColor: 'divider',
+                minHeight: '56px',
+                '& .MuiTablePagination-root': {
+                  overflow: 'visible',
+                },
+                '& .MuiTablePagination-toolbar': {
+                  minHeight: '56px',
+                  paddingLeft: 2,
+                  paddingRight: 2,
+                },
+                '& .MuiTablePagination-selectLabel': {
+                  margin: 0,
+                },
+                '& .MuiTablePagination-displayedRows': {
+                  margin: 0,
+                },
+              },
+            }}
+          />
+        </Paper>
+      )}
       
       {/* Add Customer Modal */}
       <Dialog
