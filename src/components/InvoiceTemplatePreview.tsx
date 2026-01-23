@@ -117,10 +117,31 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
     );
   };
 
-  // **Helper: Format date (Vietnamese only, no bilingual)**
+  // **Helper: Format date (with bilingual support)**
   const formatDate = (dateStr?: string) => {
     const date = dateStr ? new Date(dateStr) : new Date();
-    return `Ngày ${date.getDate()} tháng ${date.getMonth() + 1} năm ${date.getFullYear()}`;
+    const day = date.getDate();
+    const month = date.getMonth() + 1;
+    const year = date.getFullYear();
+    
+    const vietnameseDate = `Ngày ${day} tháng ${month} năm ${year}`;
+    
+    if (!bilingual) {
+      return vietnameseDate;
+    }
+    
+    // English date format: "Date 23 month 01 year 2026"
+    const monthPadded = month.toString().padStart(2, '0');
+    const englishDate = `Date ${day} month ${monthPadded} year ${year}`;
+    
+    return (
+      <Box component="span">
+        {vietnameseDate}
+        <Box component="span" sx={{ fontSize: '0.85em', fontStyle: 'italic', ml: 0.5, display: 'block', mt: 0.2 }}>
+          ({englishDate})
+        </Box>
+      </Box>
+    );
   };
 
   // **Helper: Render Table Header (2 lines bilingual)**
@@ -164,8 +185,8 @@ const InvoiceTemplatePreview: React.FC<InvoiceTemplatePreviewProps> = ({
               margin: '0 auto',
               padding: '1.5cm 1.2cm',
               width: '100%',
-              maxWidth: '210mm', // A4 width standard
-              minHeight: '297mm', // A4 height standard
+              maxWidth: '250mm', // A4 width standard
+              minHeight: '320mm', // A4 height standard
               boxSizing: 'border-box',
               bgcolor: 'white',
               overflow: 'visible',

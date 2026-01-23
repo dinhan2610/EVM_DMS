@@ -26,7 +26,6 @@ import {
   DebtManagement,
   TaxErrorNotificationManagement,
   TemplateManagement,
-  TemplateSelection,
   TemplateEditor,
   TemplatePreview,
   EmailTemplateManagement,
@@ -141,11 +140,6 @@ const appsRoutes: RoutesProps[] = [
         <EmailTemplateManagement />
       </ProtectedRoute>
     ),
-  },
-  {
-    name: 'Select Template',
-    path: '/admin/templates/select',
-    element: <TemplateSelection />,
   },
   {
     name: 'Create Template',

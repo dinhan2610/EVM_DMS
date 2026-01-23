@@ -13,7 +13,6 @@ export const StatementManagement = lazy(() => import('@/page/StatementManagement
 export const CreateStatement = lazy(() => import('@/page/CreateStatement'))
 export const DebtManagement = lazy(() => import('@/page/DebtManagement'))
 export const TemplateManagement = lazy(() => import('@/page/TemplateManagement'))
-export const TemplateSelection = lazy(() => import('@/page/TemplateSelection'))
 export const TemplateEditor = lazy(() => import('@/page/TemplateEditor'))
 export const TemplatePreview = lazy(() => import('@/page/TemplatePreviewPage'))
 

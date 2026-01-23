@@ -422,6 +422,48 @@ export const getTemplatePreviewHtml = async (
   }
 }
 
+/**
+ * Get template preview as PDF (Binary)
+ * 
+ * API: GET /api/InvoiceTemplate/preview-template/{id}
+ * Returns: application/pdf (binary)
+ * 
+ * @param templateId - Template ID
+ * @returns Blob object for PDF display/download
+ */
+export const getTemplatePreviewPdf = async (
+  templateId: number
+): Promise<Blob> => {
+  try {
+    console.log('[getTemplatePreviewPdf] Fetching PDF preview for template:', templateId)
+    
+    const response = await axios.get(
+      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.TEMPLATE.PREVIEW_HTML(templateId)}`,
+      {
+        headers: getAuthHeaders(),
+        responseType: 'blob', // ✅ Important: Get as blob for PDF binary data
+      }
+    )
+    
+    // Verify it's actually a PDF
+    const contentType = response.headers['content-type'] || response.data.type
+    if (!contentType.includes('pdf')) {
+      console.warn('[getTemplatePreviewPdf] Response is not PDF:', contentType)
+      throw new Error('Server did not return a PDF file')
+    }
+    
+    console.log('[getTemplatePreviewPdf] Success, PDF size:', response.data.size, 'bytes')
+    return response.data
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      console.error('[getTemplatePreviewPdf] Template not found')
+      throw new Error('Template không tồn tại')
+    }
+    
+    return handleApiError(error, 'getTemplatePreviewPdf')
+  }
+}
+
 // ==================== TEMPLATE API FUNCTIONS ====================
 
 /**
@@ -696,6 +738,8 @@ const templateService = {
   createTemplate,
   getAllTemplates,
   getTemplateById,
+  getTemplatePreviewHtml,
+  getTemplatePreviewPdf,
   updateTemplate,
   uploadLogo,
 }

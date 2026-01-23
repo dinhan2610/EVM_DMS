@@ -62,11 +62,15 @@ export interface CreateTemplateApiRequest {
 
 /**
  * Update Template Request Body
+ * 
+ * ✅ CRITICAL: Backend expects layoutDefinition as OBJECT (same as CREATE)
+ * Axios will automatically stringify the entire request body
+ * Do NOT manually stringify layoutDefinition
  */
 export interface UpdateTemplateApiRequest {
   templateID: number
   templateName: string
-  layoutDefinition: string // ✅ JSON STRING for update
+  layoutDefinition: any // ✅ OBJECT (Axios will stringify) - NOT string!
   templateFrameID: number
   logoUrl: string | null
   isActive: boolean

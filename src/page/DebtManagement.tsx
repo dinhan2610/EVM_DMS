@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Typography,
@@ -151,6 +152,9 @@ const getPaymentStatusLabel = (status: DebtInvoice['paymentStatus']): string => 
 
 const DebtManagement = () => {
   usePageTitle('Quản lý công nợ')
+  
+  // Navigation
+  const navigate = useNavigate()
   
   // Auth context
   const { user } = useAuthContext()
@@ -329,6 +333,7 @@ const DebtManagement = () => {
           
           return {
             id: inv.invoiceId,
+            invoiceId: inv.invoiceId, // ✅ Add invoiceId for navigation
             invoiceNo: String(inv.invoiceId), // Use invoiceId as invoice number
             invoiceStatusId: 0, // Not provided by monthly debt API
             invoiceStatus: inv.status, // Keep original status string
@@ -481,6 +486,7 @@ const DebtManagement = () => {
         
         return {
           id: inv.invoiceId,
+          invoiceId: inv.invoiceId, // ✅ Add invoiceId for navigation
           invoiceNo: String(inv.invoiceId),
           invoiceStatusId: 0,
           invoiceStatus: inv.status,
@@ -741,6 +747,19 @@ const DebtManagement = () => {
     }
   }, [selectedInvoice, paymentData, user, refreshCustomerList, refreshCustomerDetail]) // setFormErrors is stable, no need to include
 
+  /**
+   * Handle invoice row click - Navigate to invoice detail page
+   * ✅ NEW: Click on invoice row to view invoice detail
+   */
+  const handleInvoiceRowClick = useCallback((invoiceId: number) => {
+    if (!invoiceId) {
+      console.warn('[DebtManagement] Cannot navigate: invoiceId is missing')
+      return
+    }
+    console.log(`[DebtManagement] 🔗 Navigating to invoice detail: /invoices/${invoiceId}`)
+    navigate(`/invoices/${invoiceId}`)
+  }, [navigate])
+
   // DataGrid columns for invoices
   const invoiceColumns: GridColDef[] = useMemo(
     () => [
@@ -752,11 +771,39 @@ const DebtManagement = () => {
         headerAlign: 'center',
         renderCell: (params: GridRenderCellParams) => {
           const invoiceNo = params.value as string | null
+          const invoice = params.row as DebtInvoice
           return (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: invoiceNo ? '#1976d2' : '#999' }}>
-                {invoiceNo || '(Chưa có số)'}
-              </Typography>
+            <Box 
+              sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                height: '100%',
+                cursor: invoice.invoiceId ? 'pointer' : 'default',
+              }}
+              onClick={(e) => {
+                if (invoice.invoiceId) {
+                  e.stopPropagation() // Prevent row selection
+                  handleInvoiceRowClick(invoice.invoiceId)
+                }
+              }}
+            >
+              <Tooltip title={invoice.invoiceId ? 'Click để xem chi tiết hóa đơn' : 'Chưa có số hóa đơn'} arrow>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    fontWeight: 600, 
+                    color: invoiceNo ? '#1976d2' : '#999',
+                    textDecoration: invoice.invoiceId ? 'underline' : 'none',
+                    '&:hover': invoice.invoiceId ? {
+                      color: '#1565c0',
+                      textDecoration: 'underline',
+                    } : {},
+                  }}
+                >
+                  {invoiceNo || '(Chưa có số)'}
+                </Typography>
+              </Tooltip>
             </Box>
           )
         },
@@ -879,7 +926,10 @@ const DebtManagement = () => {
               <Tooltip title="Ghi nhận thanh toán">
                 <IconButton
                   size="small"
-                  onClick={() => handlePaymentClick(invoice)}
+                  onClick={(e) => {
+                    e.stopPropagation() // Prevent row click
+                    handlePaymentClick(invoice)
+                  }}
                   sx={{
                     color: '#2e7d32',
                     '&:hover': {
@@ -895,7 +945,7 @@ const DebtManagement = () => {
         },
       },
     ],
-    [handlePaymentClick]
+    [handlePaymentClick, handleInvoiceRowClick]
   )
 
   // DataGrid columns for payment history
@@ -1156,7 +1206,7 @@ const DebtManagement = () => {
                 gap: 2
               }}>
                 <Typography variant="body2" sx={{ fontWeight: 600, color: '#666', fontSize: '0.8125rem' }}>
-                  📅 Kỳ báo cáo:
+                  Kỳ báo cáo:
                 </Typography>
                 <FormControl size="small" sx={{ minWidth: 120 }}>
                   <InputLabel>Tháng</InputLabel>
@@ -1341,6 +1391,12 @@ const DebtManagement = () => {
                         disableRowSelectionOnClick
                         loading={isLoadingDetail}
                         paginationMode="server"
+                        onRowClick={(params) => {
+                          const invoice = params.row as DebtInvoice
+                          if (invoice.invoiceId) {
+                            handleInvoiceRowClick(invoice.invoiceId)
+                          }
+                        }}
                         rowCount={invoicePagination.totalCount}
                         paginationModel={{
                           page: invoicePagination.pageIndex - 1, // MUI uses 0-based, API uses 1-based
@@ -1363,6 +1419,9 @@ const DebtManagement = () => {
                             backgroundColor: '#f8f9fa',
                             borderBottom: '2px solid #e0e0e0',
                             fontWeight: 600,
+                          },
+                          '& .MuiDataGrid-row': {
+                            cursor: 'pointer',
                           },
                           '& .MuiDataGrid-row:hover': {
                             backgroundColor: '#f8f9fa',

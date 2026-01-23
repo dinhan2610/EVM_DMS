@@ -1,386 +1,268 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Box, 
-  Container, 
   Button, 
   Stack, 
-  Fade,
-  Skeleton,
   Alert,
-  Snackbar,
+  
 } from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview';
-import PageTitle from '@/components/PageTitle';
-import templateService, { TemplateResponse } from '@/services/templateService';
-import type { InvoiceSymbol, ProductItem } from '@/types/invoiceTemplate';
+import {
+  ArrowBack,
+  Print,
+  Download,
+} from '@mui/icons-material';
+import Spinner from '@/components/Spinner';
+import templateService from '@/services/templateService';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 /**
- * Enhanced Template Preview Page với UX/UI tối ưu
+ * Template Preview Page - Xem chi tiết mẫu hóa đơn
  * 
- * Features:
- * - Loading states với Skeleton
- * - Smooth animations
- * - Responsive breadcrumbs
- * - Enhanced print button
- * - Mock data generator
+ * UI Design: Giống 100% InvoiceDetail.tsx
+ * - Simple layout with padding (p: 3)
+ * - Toolbar buttons at top: Back, Download, Print (không có zoom controls)
+ * - Info section với Alert
+ * - Centered iframe với maxWidth: '21cm'
+ * - No fixed positioning, no fancy animations
+ * - Iframe auto-height với onLoad handler
+ * 
+ * API: GET /api/InvoiceTemplate/preview-template/{id}
+ * Returns: HTML string (text/html)
  */
 export default function TemplatePreviewPage() {
   const { templateId } = useParams<{ templateId: string }>();
   const navigate = useNavigate();
-  const [products] = useState<ProductItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [template, setTemplate] = useState<TemplateResponse | null>(null);
+  const { setTitle } = usePageTitle('Xem trước mẫu hóa đơn');
+  
+  const [loading, setLoading] = useState(true);
+  const [previewHtml, setPreviewHtml] = useState<string>('');
+  const [templateName, setTemplateName] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
-    open: false,
-    message: '',
-    severity: 'success',
-  });
 
-  // Fetch template from API
+  // Fetch template preview HTML from API
   useEffect(() => {
-    const fetchTemplate = async () => {
+    const fetchPreview = async () => {
       if (!templateId) {
         setError('Template ID không hợp lệ');
-        setIsLoading(false);
+        setLoading(false);
         return;
       }
 
-      setIsLoading(true);
+      setLoading(true);
       setError(null);
       try {
-        const response = await templateService.getTemplateById(parseInt(templateId));
-        setTemplate(response);
+        // ✅ Fetch template detail first (always works)
+        const templateDetail = await templateService.getTemplateById(parseInt(templateId));
+        setTemplateName(templateDetail.templateName);
+        
+        // ✅ Try to fetch preview HTML (may fail if template is inactive)
+        try {
+          const html = await templateService.getTemplatePreviewHtml(parseInt(templateId));
+          
+          // Override CSS để remove scrollbars trong iframe
+          const htmlWithOverrides = html.replace(
+            '</head>',
+            `<style>
+              /* Remove all scrollbars from iframe content */
+              html, body {
+                overflow: hidden !important;
+                max-width: 100% !important;
+                width: 209mm !important; /* Slightly less than 21cm to prevent overflow */
+              }
+              body > * {
+                max-width: 100% !important;
+              }
+            </style></head>`
+          );
+          
+          setPreviewHtml(htmlWithOverrides);
+        } catch (previewError) {
+          // ✅ Preview HTML failed (template inactive or backend error)
+          console.warn('Cannot load preview HTML:', previewError);
+          setError(
+            'Không thể tải preview HTML. ' +
+            (templateDetail.isActive 
+              ? 'Vui lòng thử lại sau.' 
+              : 'Mẫu đang ở trạng thái "Không dùng" nên không thể xem preview.')
+          );
+        }
       } catch (err) {
         const error = err as Error;
-        setError(error.message || 'Không thể tải mẫu hóa đơn');
-        setSnackbar({
-          open: true,
-          message: error.message || 'Không thể tải mẫu hóa đơn',
-          severity: 'error',
-        });
+        setError(error.message || 'Không thể tải thông tin mẫu hóa đơn');
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
     };
 
-    fetchTemplate();
+    fetchPreview();
   }, [templateId]);
 
-  // **OPTIMIZED: Parse layoutDefinition ONCE and memoize**
-  // ✅ Handle both JSON string AND object (BE might return either)
-  const parsedLayout = useMemo(() => {
-    if (!template || !template.layoutDefinition) {
-      console.warn('⚠️ No template or layoutDefinition')
-      return null;
+  // Update page title when template loads
+  useEffect(() => {
+    if (templateName) {
+      setTitle(`${templateName} - Xem trước mẫu`);
     }
+  }, [templateName, setTitle]);
 
-    console.log('🔍 Raw layoutDefinition type:', typeof template.layoutDefinition)
-    console.log('🔍 Raw layoutDefinition:', template.layoutDefinition)
-
-    // If already an object, return as-is
-    if (typeof template.layoutDefinition === 'object') {
-      console.log('✅ layoutDefinition is object:', template.layoutDefinition)
-      return template.layoutDefinition;
-    }
-
-    // If string, parse it
-    try {
-      const parsed = JSON.parse(template.layoutDefinition);
-      console.log('✅ Parsed layoutDefinition:', parsed)
-      return parsed;
-    } catch (err) {
-      console.error('❌ Error parsing layoutDefinition:', err);
-      console.error('❌ Failed to parse:', template.layoutDefinition);
-      return null;
-    }
-  }, [template]);
-
-  // Extract all data from parsed layout
-  const config = useMemo(() => {
-    if (!parsedLayout) {
-      console.warn('⚠️ No parsedLayout, using defaults')
-      return null;
-    }
-
-    // ✅ Handle BOTH naming conventions: camelCase (FE) and PascalCase (BE/C#)
-    const displaySettings = parsedLayout.displaySettings || parsedLayout.DisplaySettings
-    const customerSettings = parsedLayout.customerSettings || parsedLayout.CustomerSettings
-
-    console.log('🔍 parsedLayout structure:', {
-      hasCompany: !!parsedLayout.company,
-      hasTable: !!parsedLayout.table,
-      hasSettings: !!parsedLayout.settings,
-      hasDisplaySettings: !!displaySettings,
-      hasCustomerSettings: !!customerSettings,
-      keys: Object.keys(parsedLayout),
-    })
-
-    // ✅ Extract from FULL schema (company, table) OR use defaults (NOT templateName)
-    const companyName = parsedLayout.company?.name || 'Công ty ABC'  // ❌ Không dùng template?.templateName
-    const companyAddress = parsedLayout.company?.address || ''
-    const companyPhone = parsedLayout.company?.phone || ''
-    const companyTaxCode = parsedLayout.company?.taxCode || ''
-    
-    console.log('🔍 Extracted company data:', {
-      companyName,
-      companyAddress,
-      companyPhone,
-      companyTaxCode,
-      hasOldSchema: !!displaySettings,
-      hasFullSchema: !!parsedLayout.company,
-    })
-
-    return {
-      companyName,
-      companyAddress,
-      companyPhone,
-      companyEmail: parsedLayout.company?.fields?.find((f: { id: string; value: string }) => f.id === 'email')?.value || '',
-      companyTaxCode,
-      companyWebsite: parsedLayout.company?.fields?.find((f: { id: string; value: string }) => f.id === 'website')?.value || '',
-      companyLogo: template?.logoUrl || '/logo.png',
-      invoiceNumber: 'HD-PREVIEW-001',
-      invoiceDate: new Date().toLocaleDateString('vi-VN'),
-      invoiceSymbol: template?.serial || '',
-      invoiceSerial: template?.serial || '',
-      modelCode: parsedLayout.modelCode || '',
-      templateCode: parsedLayout.templateCode || template?.serial || '',
-    };
-  }, [parsedLayout, template]);
-
-  const backgroundFrame = useMemo(() => {
-    if (!template) return '';
-    return template.frameUrl || parsedLayout?.background?.frame || '';
-  }, [template, parsedLayout]);
-
-  const visibility = useMemo(() => {
-    if (!parsedLayout) return {
-      showLogo: true,
-      showSignature: true,
-      showCompanyInfo: true,
-    };
-
-    // ✅ Handle BOTH schemas and naming conventions
-    const settings = parsedLayout.settings || {}
-    const displaySettings = parsedLayout.displaySettings || parsedLayout.DisplaySettings || {}
-    
-    return {
-      showLogo: settings.visibility?.showLogo ?? displaySettings.showLogo ?? displaySettings.ShowLogo ?? true,
-      showSignature: settings.visibility?.showSignature ?? displaySettings.showSignature ?? displaySettings.ShowSignature ?? true,
-      showCompanyName: settings.visibility?.showCompanyName ?? displaySettings.showCompanyName ?? displaySettings.ShowCompanyName ?? true,
-      showCompanyPhone: settings.visibility?.showCompanyPhone ?? displaySettings.showPhone ?? displaySettings.ShowPhone ?? true,
-      showCompanyAddress: settings.visibility?.showCompanyAddress ?? displaySettings.showAddress ?? displaySettings.ShowAddress ?? true,
-      showCompanyTaxCode: settings.visibility?.showCompanyTaxCode ?? displaySettings.showTaxCode ?? displaySettings.ShowTaxCode ?? false,
-      showCompanyBankAccount: settings.visibility?.showCompanyBankAccount ?? displaySettings.showBankAccount ?? displaySettings.ShowBankAccount ?? true,
-    };
-  }, [parsedLayout]);
-
-  const customerVisibility = useMemo(() => {
-    if (!parsedLayout) return {
-      customerName: false,
-      customerTaxCode: false,
-      customerAddress: false,
-      customerPhone: false,
-      customerEmail: false,
-      paymentMethod: false,
-    };
-
-    // ✅ Handle BOTH schemas and naming conventions
-    const settings = parsedLayout.settings || {}
-    const customerSettings = parsedLayout.customerSettings || parsedLayout.CustomerSettings || {}
-    
-    return {
-      customerName: settings.customerVisibility?.customerName ?? customerSettings.showName ?? customerSettings.ShowName ?? false,
-      customerTaxCode: settings.customerVisibility?.customerTaxCode ?? customerSettings.showTaxCode ?? customerSettings.ShowTaxCode ?? false,
-      customerAddress: settings.customerVisibility?.customerAddress ?? customerSettings.showAddress ?? customerSettings.ShowAddress ?? false,
-      customerPhone: settings.customerVisibility?.customerPhone ?? customerSettings.showPhone ?? customerSettings.ShowPhone ?? false,
-      customerEmail: settings.customerVisibility?.customerEmail ?? customerSettings.showEmail ?? customerSettings.ShowEmail ?? false,
-      paymentMethod: settings.customerVisibility?.paymentMethod ?? customerSettings.showPaymentMethod ?? customerSettings.ShowPaymentMethod ?? false,
-    };
-  }, [parsedLayout]);
-
-  const invoiceType = useMemo(() => {
-    return parsedLayout?.invoiceType || 'withCode';
-  }, [parsedLayout]);
-
-  const symbol = useMemo((): InvoiceSymbol => {
-    if (!template) {
-      return {
-        invoiceType: '1' as const,
-        taxCode: 'C' as const,
-        year: new Date().getFullYear().toString().slice(-2),
-        invoiceForm: 'T' as const,
-        management: 'AA',
+  // Handle print - giống InvoiceDetail
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(previewHtml);
+      printWindow.document.close();
+      printWindow.onload = () => {
+        printWindow.print();
       };
+    } else {
+      alert('❌ Popup bị chặn. Vui lòng cho phép popup.');
     }
+  };
 
-    // Parse serial from template (e.g., "1C25TAA")
-    const serial = template.serial || '';
-    if (serial.length >= 6) {
-      return {
-        invoiceType: serial[0] as InvoiceSymbol['invoiceType'],
-        taxCode: serial[1] as InvoiceSymbol['taxCode'],
-        year: serial.substring(2, 4),
-        invoiceForm: serial[4] as InvoiceSymbol['invoiceForm'],
-        management: serial.substring(5),
-      };
-    }
-    
-    // Fallback to layout or default
-    return parsedLayout?.symbol || {
-      invoiceType: '1' as const,
-      taxCode: 'C' as const,
-      year: new Date().getFullYear().toString().slice(-2),
-      invoiceForm: 'T' as const,
-      management: 'AA',
-    };
-  }, [template, parsedLayout]);
+  // Handle download PDF - giống InvoiceDetail
+  const handleDownload = () => {
+    alert('💡 Sử dụng chức năng In và chọn "Lưu dưới dạng PDF" trong hộp thoại in');
+    handlePrint();
+  };
 
-  const blankRows = useMemo(() => {
-    if (!parsedLayout) return 8;
-    
-    // ✅ Handle BOTH schemas and naming conventions
-    const tableSettings = parsedLayout.tableSettings || parsedLayout.TableSettings || {}
-    return parsedLayout.table?.rowCount ?? 
-           parsedLayout.blankRows ?? 
-           tableSettings.minRows ?? 
-           tableSettings.MinRows ?? 
-           8;
-  }, [parsedLayout]);
-  
-  const bilingual = useMemo(() => {
-    if (!parsedLayout) return false;
-    
-    // ✅ Handle BOTH schemas and naming conventions
-    const displaySettings = parsedLayout.displaySettings || parsedLayout.DisplaySettings || {}
-    return parsedLayout.settings?.bilingual ?? 
-           displaySettings.isBilingual ?? 
-           displaySettings.IsBilingual ?? 
-           false;
-  }, [parsedLayout]);
+  const handleBack = () => {
+    navigate(-1);
+  };
 
-  if (isLoading) {
+  // Loading state - giống InvoiceDetail với Spinner
+  if (loading) {
     return (
-      <Box sx={{ bgcolor: '#f5f7fa', minHeight: '100vh', py: 3 }}>
-        <PageTitle title={`Xem trước mẫu #${templateId}`} />
-        <Container maxWidth="xl">
-          <Stack spacing={3}>
-            <Skeleton variant="rectangular" height={60} sx={{ borderRadius: 2 }} />
-            <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 2 }} />
-            <Skeleton variant="rectangular" height={600} sx={{ borderRadius: 2 }} />
-          </Stack>
-        </Container>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <Spinner />
       </Box>
     );
   }
 
-  if (error || !template || !config) {
+  // Error state - giống InvoiceDetail
+  if (error || !previewHtml) {
     return (
-      <Box sx={{ bgcolor: '#f5f7fa', minHeight: '100vh', py: 3 }}>
-        <PageTitle title={`Xem trước mẫu #${templateId}`} />
-        <Container maxWidth="xl">
-          <Alert severity="error" sx={{ mt: 3 }}>
-            {error || 'Không thể tải mẫu hóa đơn'}
-          </Alert>
-          <Button
-            variant="outlined"
-            startIcon={<ArrowBackIcon />}
-            onClick={() => navigate('/admin/templates')}
-            sx={{ mt: 2 }}>
-            Quay Lại
-          </Button>
-        </Container>
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">{error || 'Không thể tải mẫu hóa đơn'}</Alert>
+        <Button onClick={handleBack} sx={{ mt: 2 }}>Quay lại</Button>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ bgcolor: '#f5f7fa', minHeight: '100vh', py: { xs: 2, md: 3 } }}>
-      <PageTitle title={`Xem trước mẫu #${templateId}`} />
-
-      <Container maxWidth={false} sx={{ maxWidth: '1400px', mx: 'auto' }}>
-        {/* Page Header với Breadcrumbs */}
-        <Fade in timeout={400}>
-          <Box sx={{ mb: 3 }}>
+    <>
+      <Box 
+        sx={{ 
+          p: 3,
+          width: '100%',
+          maxWidth: '100vw',
+          overflow: 'hidden',
+          boxSizing: 'border-box',
+        }}>
+        
+        {/* Button Row - giống InvoiceDetail.tsx line 385-427 */}
+        <Stack direction="row" justifyContent="flex-end" spacing={1.5} sx={{ mb: 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={<ArrowBack />}
+            onClick={handleBack}
+            sx={{ textTransform: 'none' }}>
+            Quay lại
+          </Button>
           
-
-            <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              justifyContent="space-between"
-              alignItems={{ xs: 'flex-start', sm: 'center' }}
-              spacing={2}>
-              
-              <Button
-                variant="outlined"
-                startIcon={<ArrowBackIcon />}
-                onClick={() => navigate('/admin/templates')}
-                sx={{
-                  minWidth: { xs: '100%', sm: 'auto' },
-                  fontWeight: 600,
-                  borderWidth: 2,
-                  '&:hover': {
-                    borderWidth: 2,
-                    transform: 'translateX(-4px)',
-                  },
-                  transition: 'all 0.3s',
-                }}>
-                Quay Lại
-              </Button>
-            </Stack>
-          </Box>
-        </Fade>
-
-        {/* Invoice Preview Area */}
-        <Fade in timeout={800}>
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'flex-start',
-              width: '100%',
-              minHeight: '297mm',
-            }}>
-            <Box
-              id="invoice-print-area"
-              sx={{
-                width: '210mm',
-                minHeight: '297mm',
-                mx: 'auto',
-                position: 'relative',
-              }}>
-              <InvoiceTemplatePreview
-                config={config}
-                products={products}
-                visibility={visibility}
-                backgroundFrame={backgroundFrame}
-                customerVisibility={customerVisibility}
-                invoiceType={invoiceType}
-                symbol={symbol}
-                blankRows={blankRows}
-                bilingual={bilingual}
-              />
-            </Box>
-          </Box>
-        </Fade>
+          <Button
+            variant="outlined"
+            startIcon={<Download />}
+            onClick={handleDownload}
+            sx={{ textTransform: 'none' }}>
+            Tải PDF
+          </Button>
+          
+          <Button
+            variant="contained"
+            startIcon={<Print />}
+            onClick={handlePrint}
+            sx={{ textTransform: 'none' }}>
+            In mẫu
+          </Button>
+        </Stack>
 
       
+       
 
-        {/* Snackbar for notifications */}
-        <Snackbar
-          open={snackbar.open}
-          autoHideDuration={4000}
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
-          <Alert 
-            onClose={() => setSnackbar({ ...snackbar, open: false })} 
-            severity={snackbar.severity} 
-            sx={{ width: '100%' }}>
-            {snackbar.message}
-          </Alert>
-        </Snackbar>
-      </Container>
-    </Box>
+        {/* Preview Content - giống InvoiceDetail.tsx line 596-656 */}
+        <Box 
+          sx={{ 
+            display: 'flex', 
+            justifyContent: 'center',
+            width: '100%',
+            overflow: 'hidden',
+          }}>
+          <Box 
+            sx={{ 
+              maxWidth: '21cm',
+              width: '100%',
+              '@media (max-width: 900px)': {
+                maxWidth: '100%',
+                px: 1,
+              },
+            }}>
+            
+            {/* ✅ Show info alert if preview HTML not available */}
+            {error && !previewHtml && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                <strong>Thông tin mẫu: {templateName}</strong>
+                <br />
+                {error}
+              </Alert>
+            )}
+            
+            {/* ✅ Only show iframe if preview HTML is available */}
+            {previewHtml && (
+              <Box 
+                sx={{ 
+                  border: '1px solid #e0e0e0',
+                  borderRadius: 1,
+                  overflow: 'hidden', // ✅ Container prevents overflow
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  mb: 2,
+                }}>
+                <iframe
+                  srcDoc={previewHtml}
+                  style={{
+                    width: '100%',
+                    height: 'auto',
+                    minHeight: '297mm', // A4 height
+                    border: 'none',
+                    display: 'block',
+                    overflow: 'hidden', // ✅ Iframe itself no scroll
+                  }}
+                  title={`Template ${templateId} Preview`}
+                  scrolling="no" // ✅ HTML attribute to disable scrollbars
+                  onLoad={(e) => {
+                    const iframe = e.target as HTMLIFrameElement;
+                    if (iframe.contentWindow) {
+                      try {
+                        // ✅ Set iframe content to overflow: hidden via JS
+                        const iframeDoc = iframe.contentWindow.document;
+                        if (iframeDoc.body) {
+                          iframeDoc.body.style.overflow = 'hidden';
+                          iframeDoc.documentElement.style.overflow = 'hidden';
+                        }
+                        
+                        // Calculate actual content height
+                        const contentHeight = iframeDoc.body.scrollHeight;
+                        iframe.style.height = contentHeight + 'px';
+                      } catch (err) {
+                        console.log('Cannot access iframe content height (CORS):', err);
+                      }
+                  }
+                }}
+              />
+              </Box>
+            )}
+          </Box>
+        </Box>
+      </Box>
+    </>
   );
 }

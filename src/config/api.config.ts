@@ -48,7 +48,7 @@ export const API_CONFIG = {
       UPDATE: (id: number) => `/Invoice/${id}`,
       DELETE: (id: number) => `/Invoice/${id}`,
       SIGN: (id: number) => `/Invoice/${id}/sign`,
-      SEND_EMAIL: (id: number) => `/Email/${id}/send-email`,
+      SEND_EMAIL: (id: number) => `/api/Email/${id}/send-email`, // ✅ Add /api prefix
       // Invoice Preview & Advanced
       PREVIEW: '/Invoice/preview', // ⭐ Preview invoice before creating
       LOOKUP: (lookupCode: string) => `/Invoice/lookup/${lookupCode}`, // Public lookup

@@ -439,7 +439,7 @@ const TemplateEditor: React.FC = () => {
   }, [dispatch])
 
   const handleBack = () => {
-    navigate('/admin/templates/select')
+    navigate('/admin/templates')
   }
 
   const handleContinue = async () => {
@@ -1362,24 +1362,7 @@ const TemplateEditor: React.FC = () => {
             flexDirection: 'column',
           }}>
             {/* Info Alert - Smart Preview Explanation */}
-            <Alert 
-              severity="info"
-              icon={<InfoIcon />}
-              sx={{ 
-                mb: 2,
-                borderRadius: 2,
-                '& .MuiAlert-message': { width: '100%' },
-              }}
-            >
-              <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                ✏️ Chế độ Chỉnh sửa
-              </Typography>
-              <Typography variant="caption" sx={{ display: 'block', lineHeight: 1.6 }}>
-                • <strong>Kéo thả logo:</strong> Click và kéo logo để di chuyển vị trí<br />
-                • <strong>Điều chỉnh kích thước:</strong> Dùng slider bên trái để thay đổi size logo<br />
-                • <strong>Tự động lưu:</strong> Thay đổi của bạn sẽ được lưu khi nhấn "Tiếp tục"
-              </Typography>
-            </Alert>
+           
 
             {/* Zoom Controls */}
             {/* Preview Container - Optimized for 75% width */}

@@ -4,6 +4,7 @@
 
 export interface DebtInvoice {
   id: number // Changed from string to number to match backend
+  invoiceId: number // ✅ NEW: Invoice ID from backend API (from monthly-debt endpoint)
   invoiceNo: string
   invoiceStatusId: number // ✅ NEW: Backend đã thêm field này
   invoiceStatus: string // ✅ NEW: Backend đã thêm field này ("Issued")
