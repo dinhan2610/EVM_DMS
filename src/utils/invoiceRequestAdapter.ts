@@ -45,7 +45,7 @@ export const mapFrontendRequestToBackendPayload = (
     vatAmount: item.taxAmount,           // Tiền VAT
   }))
 
-  // Build payload - 16 fields (salesID auto from backend token)
+  // Build payload - 17 fields (salesID auto from backend token)
   return {
     accountantId: null,                  // NULL = chưa assign accountant
     // ❌ REMOVED: salesID - Backend tự extract từ JWT token claim "sub"
@@ -59,6 +59,7 @@ export const mapFrontendRequestToBackendPayload = (
     amount: request.subtotal || 0,       // Tổng chưa VAT
     taxAmount: request.totalTax || 0,    // Tổng VAT
     totalAmount: request.totalAmount || 0, // Tổng thanh toán
+    invoiceCustomerType: 2,              // ✅ Default: 2=Business/Doanh nghiệp (B2B)
     minRows: 5,                          // Default 5 dòng trống
     contactEmail: request.customer?.email || '',
     contactPerson: request.customer?.contactPerson || '',

@@ -1,5 +1,4 @@
 import IconifyIcon from '@/components/wrappers/IconifyIcon'
-import { useLayoutContext } from '@/context/useLayoutContext'
 
 const ThemeModeToggle = () => {
   // Dark mode disabled - light mode only
