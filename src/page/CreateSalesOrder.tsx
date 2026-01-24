@@ -34,6 +34,7 @@ import {
   DialogContent,
   DialogActions,
   Autocomplete,
+  Tooltip,
 } from '@mui/material'
 import {
   Public,
@@ -48,6 +49,7 @@ import {
   Warning,
   Add,
   ArrowBack,
+  Info,
 } from '@mui/icons-material'
 import SendInvoiceEmailModal from '@/components/SendInvoiceEmailModal'
 import { DataGrid, GridColDef, GridRenderCellParams, GridRenderEditCellParams } from '@mui/x-data-grid'
@@ -793,6 +795,7 @@ function CreateSalesOrder() {
     address: string
     contactEmail: string
     contactPhone: string
+    contactPerson: string  // ✅ Người liên hệ - dùng để autofill buyerName
   }>>([])
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true)
   
@@ -1147,16 +1150,81 @@ function CreateSalesOrder() {
   const [buyerName, setBuyerName] = useState('')
   const [buyerEmail, setBuyerEmail] = useState('')
   const [buyerPhone, setBuyerPhone] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState('Tiền mặt') // Hình thức thanh toán
+  const [paymentMethod, setPaymentMethod] = useState('Tiền mặt/Chuyển khoản') // ✅ Hình thức thanh toán - Default khuyến nghị
+  const [invoiceCustomerType, setInvoiceCustomerType] = useState<1 | 2>(2) // ✅ Loại hóa đơn: 1=Retail/Bán lẻ, 2=Business/Doanh nghiệp
   
   // State cho customer lookup
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false)
   const [customerNotFound, setCustomerNotFound] = useState(false)
   
+  // ✅ Helper: Kiểm tra MST/CCCD có hợp lệ để hiện nút "Lấy thông tin"
+  const isValidTaxCodeForLookup = () => {
+    if (!buyerTaxCode || !buyerTaxCode.trim()) return false
+    const trimmedCode = buyerTaxCode.trim()
+    
+    if (invoiceCustomerType === 2) {
+      // B2B - MST: 10 hoặc 13 chữ số
+      return /^\d{10}$|^\d{13}$/.test(trimmedCode)
+    } else {
+      // B2C - CCCD: 12 chữ số
+      return /^\d{12}$/.test(trimmedCode)
+    }
+  }
+  
   // Function: Tự động tìm và điền thông tin khách hàng theo MST
   // ✅ CHỈ TÌM TRONG DANH SÁCH KHÁCH HÀNG CỦA SALE HIỆN TẠI (không search toàn hệ thống)
   const handleTaxCodeLookup = async (taxCode: string) => {
     if (!taxCode || taxCode.trim().length < 10) {
+      setCustomerNotFound(false)
+      return
+    }
+    
+    const trimmedTaxCode = taxCode.trim()
+    
+    // ✅ Validate độ dài theo invoiceCustomerType TRƯỚC KHI search
+    if (invoiceCustomerType === 2) {
+      // B2B - MST: CHỈ 10 hoặc 13 số
+      if (!/^\d{10}$|^\d{13}$/.test(trimmedTaxCode)) {
+        setSnackbar({
+          open: true,
+          message: `❌ Mã số thuế không hợp lệ. MST phải là 10 hoặc 13 chữ số (bạn đang nhập ${trimmedTaxCode.length} số).`,
+          severity: 'error',
+        })
+        setCustomerNotFound(false)
+        return
+      }
+    } else {
+      // B2C - CCCD: CHỈ 12 số
+      if (!/^\d{12}$/.test(trimmedTaxCode)) {
+        setSnackbar({
+          open: true,
+          message: `❌ CCCD không hợp lệ. CCCD phải là 12 chữ số (bạn đang nhập ${trimmedTaxCode.length} số).`,
+          severity: 'error',
+        })
+        setCustomerNotFound(false)
+        return
+      }
+    }
+    
+    // ✅ Validate: Từ chối số điện thoại Việt Nam (bắt đầu bằng 0 và theo pattern SĐT)
+    const phonePattern = /^0[1-9]\d{8,9}$/
+    if (phonePattern.test(trimmedTaxCode)) {
+      setSnackbar({
+        open: true,
+        message: 'Bạn đang nhập số điện thoại. Vui lòng nhập Mã số thuế (MST) hoặc CCCD của khách hàng.',
+        severity: 'error',
+      })
+      setCustomerNotFound(false)
+      return
+    }
+    
+    // ✅ Validate: MST/CCCD chỉ chứa chữ số
+    if (!/^\d+$/.test(trimmedTaxCode)) {
+      setSnackbar({
+        open: true,
+        message: invoiceCustomerType === 2 ? 'MST chỉ được chứa chữ số.' : 'CCCD chỉ được chứa chữ số.',
+        severity: 'error',
+      })
       setCustomerNotFound(false)
       return
     }
@@ -1167,10 +1235,10 @@ function CreateSalesOrder() {
       
       console.log('🔍 [MST Lookup] Searching in YOUR customers only')
       console.log('📊 Total customers available:', customers.length)
-      console.log('🔎 Searching for MST:', taxCode)
+      console.log('🔎 Searching for MST/CCCD:', trimmedTaxCode)
       
       // ✅ CHỈ tìm trong danh sách khách hàng của sale (client-side, secure)
-      const foundCustomer = customers.find(c => c.taxCode === taxCode.trim())
+      const foundCustomer = customers.find(c => c.taxCode === trimmedTaxCode)
       
       if (foundCustomer) {
         // Tự động điền thông tin
@@ -1179,6 +1247,10 @@ function CreateSalesOrder() {
         setBuyerAddress(foundCustomer.address)
         setBuyerEmail(foundCustomer.contactEmail)
         setBuyerPhone(foundCustomer.contactPhone)
+        // ✅ Autofill contactPerson vào buyerName nếu có
+        if (foundCustomer.contactPerson) {
+          setBuyerName(foundCustomer.contactPerson)
+        }
         
         console.log('✅ [MST Lookup] Found:', foundCustomer.customerName, '(ID:', foundCustomer.customerID, ')')
         setSnackbar({
@@ -1710,7 +1782,7 @@ function CreateSalesOrder() {
         response = await invoiceService.updateInvoice(parseInt(editInvoiceId), backendRequest)
       } else {
         // Create mode: call createInvoiceRequest
-        // ⚠️ Map to InvoiceRequest payload (16 fields - salesID auto from token)
+        // ⚠️ Map to InvoiceRequest payload (17 fields - salesID auto from token)
         const requestPayload: BackendInvoiceRequestPayload = {
           accountantId: null,
           // ❌ REMOVED: salesID - Backend tự lấy từ JWT token
@@ -1736,6 +1808,7 @@ function CreateSalesOrder() {
           contactPerson: backendRequest.contactPerson || '',
           contactPhone: backendRequest.contactPhone || '',
           companyID: backendRequest.companyID || 1,
+          invoiceCustomerType: invoiceCustomerType, // ✅ REQUIRED: 1=Retail/Bán lẻ, 2=Business/Doanh nghiệp
         }
         
         console.log('📤 Sending InvoiceRequest payload:', requestPayload)
@@ -2111,15 +2184,98 @@ function CreateSalesOrder() {
 
               <Divider sx={{ my: 2 }} />
 
+              {/* ✅ Dropdown chọn loại hóa đơn */}
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+                <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem', color: '#666' }}>
+                  Loại hóa đơn:
+                </Typography>
+                <Select
+                  size="small"
+                  value={invoiceCustomerType}
+                  onChange={(e) => setInvoiceCustomerType(e.target.value as 1 | 2)}
+                  variant="outlined"
+                  sx={{
+                    minWidth: 280,
+                    fontSize: '0.8125rem',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#ddd',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#1976d2',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#1976d2',
+                    },
+                  }}
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        mt: 0.5,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                        border: '1px solid #e0e0e0',
+                        borderRadius: 1,
+                      },
+                    },
+                  }}
+                >
+                  <MenuItem value={2} sx={{ fontSize: '0.8125rem', py: 1 }}>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                      <Box component="span" sx={{ fontSize: '1rem' }}>🏢</Box>
+                      <Box>
+                        <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+                          Hóa đơn Doanh nghiệp
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#666', fontSize: '0.7rem' }}>
+                          Bán cho doanh nghiệp (B2B)
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </MenuItem>
+                  <MenuItem value={1} sx={{ fontSize: '0.8125rem', py: 1 }}>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                      <Box component="span" sx={{ fontSize: '1rem' }}>👤</Box>
+                      <Box>
+                        <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+                          Hóa đơn Bán lẻ
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#666', fontSize: '0.7rem' }}>
+                          Bán lẻ cá nhân (B2C)
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </MenuItem>
+                </Select>
+                <Tooltip 
+                  title={
+                    <Box sx={{ p: 0.5 }}>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 0.5, fontWeight: 600 }}>
+                        💡 Chọn loại hóa đơn:
+                      </Typography>
+                      <Typography variant="caption" sx={{ display: 'block', fontSize: '0.7rem', mb: 0.3 }}>
+                        • <strong>Doanh nghiệp:</strong> Bán cho doanh nghiệp (B2B)
+                      </Typography>
+                      <Typography variant="caption" sx={{ display: 'block', fontSize: '0.7rem' }}>
+                        • <strong>Bán lẻ:</strong> Bán lẻ cho cá nhân (B2C)
+                      </Typography>
+                    </Box>
+                  }
+                  arrow
+                  placement="right"
+                >
+                  <Info sx={{ fontSize: 18, color: '#1976d2', cursor: 'help' }} />
+                </Tooltip>
+              </Stack>
+
               {/* Thông tin người mua */}
               <Stack spacing={1}>
                 <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexWrap: 'wrap' }}>
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    MST người mua:
+                    {invoiceCustomerType === 2 ? 'MST người mua:' : 'CCCD:'}
+                    <Box component="span" sx={{ color: '#d32f2f', ml: 0.5 }}>*</Box>
                   </Typography>
                   <TextField
                     size="small"
-                    placeholder="0101243150-136"
+                    placeholder={invoiceCustomerType === 2 ? '0101243150 (10 số) hoặc 0101243150136 (13 số)' : '001234567890 (12 số)'}
                     variant="standard"
                     value={buyerTaxCode}
                     onChange={(e) => handleTaxCodeChange(e.target.value)}
@@ -2141,15 +2297,17 @@ function CreateSalesOrder() {
                       ),
                     }}
                   />
-                  <Button 
-                    size="small" 
-                    startIcon={<Public sx={{ fontSize: 16 }} />} 
-                    sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25 }}
-                    onClick={() => handleTaxCodeLookup(buyerTaxCode)}
-                    disabled={!buyerTaxCode || isSearchingCustomer}
-                  >
-                    {isSearchingCustomer ? 'Đang tìm...' : 'Lấy thông tin'}
-                  </Button>
+                  {isValidTaxCodeForLookup() && (
+                    <Button 
+                      size="small" 
+                      startIcon={<Public sx={{ fontSize: 16 }} />} 
+                      sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25 }}
+                      onClick={() => handleTaxCodeLookup(buyerTaxCode)}
+                      disabled={isSearchingCustomer}
+                    >
+                      {isSearchingCustomer ? 'Đang tìm...' : 'Lấy thông tin'}
+                    </Button>
+                  )}
                   <Button size="small" startIcon={<VerifiedUser sx={{ fontSize: 16 }} />} sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25, whiteSpace: 'nowrap' }}>
                     KT tình trạng hoạt động
                   </Button>
@@ -2157,7 +2315,8 @@ function CreateSalesOrder() {
 
                 <Stack direction="row" spacing={1.5} alignItems="center">
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    Tên đơn vị:
+                    {invoiceCustomerType === 2 ? 'Tên đơn vị:' : 'Tên Khách Hàng:'}
+                    <Box component="span" sx={{ color: '#d32f2f', ml: 0.5 }}>*</Box>
                   </Typography>
                   <Autocomplete
                     fullWidth
@@ -2181,6 +2340,10 @@ function CreateSalesOrder() {
                         setBuyerAddress(newValue.address)
                         setBuyerEmail(newValue.contactEmail)
                         setBuyerPhone(newValue.contactPhone)
+                        // ✅ Autofill contactPerson vào buyerName nếu có
+                        if (newValue.contactPerson) {
+                          setBuyerName(newValue.contactPerson)
+                        }
                         setCustomerNotFound(false)
                         
                         console.log('Chọn khách hàng:', newValue.customerName)
@@ -2197,6 +2360,7 @@ function CreateSalesOrder() {
                         setBuyerAddress('')
                         setBuyerEmail('')
                         setBuyerPhone('')
+                        setBuyerName('')  // ✅ Clear buyerName khi clear customer
                         setCustomerNotFound(false)
                       }
                     }}
@@ -2204,7 +2368,7 @@ function CreateSalesOrder() {
                       <TextField
                         {...params}
                         size="small"
-                        placeholder="Tìm theo tên công ty..."
+                        placeholder={invoiceCustomerType === 2 ? 'Tìm theo tên công ty...' : 'Tìm theo tên khách hàng...'}
                         variant="standard"
                         sx={{ fontSize: '0.8125rem' }}
                         helperText={
@@ -2259,16 +2423,37 @@ function CreateSalesOrder() {
                   />
                 </Stack>
 
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                  <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    Người mua hàng:
-                  </Typography>
-                  <TextField size="small" placeholder="Kế toán A" variant="standard" value={buyerName} onChange={(e) => setBuyerName(e.target.value)} sx={{ width: 160, fontSize: '0.8125rem' }} />
-                  <Typography variant="caption" sx={{ minWidth: 50, fontSize: '0.8125rem' }}>
-                    Email:
-                  </Typography>
-                  <TextField size="small" placeholder="hoadon@gmail.com" variant="standard" value={buyerEmail} onChange={(e) => setBuyerEmail(e.target.value)} sx={{ flex: 1, fontSize: '0.8125rem' }} />
-                </Stack>
+                {/* ✅ Chỉ hiện field "Người mua hàng" khi ở chế độ B2B (Doanh nghiệp) */}
+                {invoiceCustomerType === 2 && (
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Tooltip 
+                      title="Không bắt buộc. Nhập tên người đại diện, kế toán hoặc người liên hệ của doanh nghiệp"
+                      placement="top"
+                      arrow
+                    >
+                      <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem', cursor: 'help' }}>
+                        Người mua hàng:
+                      </Typography>
+                    </Tooltip>
+                    <TextField size="small" placeholder="Kế toán Nguyễn Văn A" variant="standard" value={buyerName} onChange={(e) => setBuyerName(e.target.value)} sx={{ width: 160, fontSize: '0.8125rem' }} />
+                    <Typography variant="caption" sx={{ minWidth: 50, fontSize: '0.8125rem' }}>
+                      Email:
+                      <Box component="span" sx={{ color: '#d32f2f', ml: 0.5 }}>*</Box>
+                    </Typography>
+                    <TextField size="small" placeholder="hoadon@gmail.com" variant="standard" value={buyerEmail} onChange={(e) => setBuyerEmail(e.target.value)} sx={{ flex: 1, fontSize: '0.8125rem' }} />
+                  </Stack>
+                )}
+                
+                {/* ✅ Hiện Email và Phone trên cùng 1 dòng cho B2C */}
+                {invoiceCustomerType === 1 && (
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
+                      Email:
+                      <Box component="span" sx={{ color: '#d32f2f', ml: 0.5 }}>*</Box>
+                    </Typography>
+                    <TextField size="small" placeholder="hoadon@gmail.com" variant="standard" value={buyerEmail} onChange={(e) => setBuyerEmail(e.target.value)} sx={{ flex: 1, fontSize: '0.8125rem' }} />
+                  </Stack>
+                )}
 
                 <Stack direction="row" spacing={1.5} alignItems="center">
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
@@ -2305,7 +2490,7 @@ function CreateSalesOrder() {
                       },
                     }}
                     sx={{
-                      width: 120,
+                      width: 180,
                       fontSize: '0.8125rem',
                       transition: 'all 0.3s ease',
                       '& .MuiSelect-select': {
@@ -2329,7 +2514,7 @@ function CreateSalesOrder() {
                       },
                     }}>
                     <MenuItem
-                      value="Tiền mặt"
+                      value="Tiền mặt/Chuyển khoản"
                       sx={{
                         fontSize: '0.8125rem',
                         borderRadius: 1,
@@ -2344,7 +2529,7 @@ function CreateSalesOrder() {
                           },
                         },
                       }}>
-                      Tiền mặt
+                      Tiền mặt/Chuyển khoản
                     </MenuItem>
                     <MenuItem
                       value="Chuyển khoản"
@@ -2365,7 +2550,7 @@ function CreateSalesOrder() {
                       Chuyển khoản
                     </MenuItem>
                     <MenuItem
-                      value="Đổi trừ công nợ"
+                      value="Tiền mặt"
                       sx={{
                         fontSize: '0.8125rem',
                         borderRadius: 1,
@@ -2380,10 +2565,10 @@ function CreateSalesOrder() {
                           },
                         },
                       }}>
-                      Đổi trừ công nợ
+                      Tiền mặt
                     </MenuItem>
                     <MenuItem
-                      value="Khác"
+                      value="Đối trừ công nợ"
                       sx={{
                         fontSize: '0.8125rem',
                         borderRadius: 1,
@@ -2398,7 +2583,7 @@ function CreateSalesOrder() {
                           },
                         },
                       }}>
-                      Khác
+                      Đối trừ công nợ
                     </MenuItem>
                   </Select>
                 </Stack>

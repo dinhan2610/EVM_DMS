@@ -21,6 +21,7 @@ import {
   DialogActions,
   Button,
   TextField,
+  Stack,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
@@ -34,6 +35,8 @@ import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import PersonIcon from '@mui/icons-material/Person'
+import UploadFileIcon from '@mui/icons-material/UploadFile'
+import DownloadIcon from '@mui/icons-material/Download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useAuthContext } from '@/context/useAuthContext'
 import InvoiceRequestFilter, {
@@ -43,7 +46,6 @@ import {
   InvoiceRequest,
   InvoiceRequestStatus,
   REQUEST_STATUS_LABELS,
-  REQUEST_TYPE_LABELS,
   getRequestStatusColor,
 } from '@/types/invoiceRequest.types'
 import { mockInvoiceRequests } from '@/types/invoiceRequest.mockdata'
@@ -53,6 +55,7 @@ import {
   cancelInvoiceRequest,
   previewInvoiceRequestHTML,
   previewInvoiceRequestPDF,
+  uploadEvidenceFile,
   type BackendInvoiceRequestResponse,
 } from '@/services/invoiceService'
 
@@ -71,6 +74,8 @@ interface RequestActionsMenuProps {
   onViewDetail: (id: number) => void
   onDownloadPDF: (id: number) => void
   onViewCreatedInvoice: (invoiceID: number) => void
+  onUploadEvidence: (id: number) => void
+  onViewEvidence: (filePath: string, requestCode: string) => void
 }
 
 const RequestActionsMenu = ({
@@ -82,6 +87,8 @@ const RequestActionsMenu = ({
   onViewDetail,
   onDownloadPDF,
   onViewCreatedInvoice,
+  onUploadEvidence,
+  onViewEvidence,
 }: RequestActionsMenuProps) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
@@ -145,7 +152,32 @@ const RequestActionsMenu = ({
         tooltip: 'Hủy yêu cầu (chỉ Sale)',
       },
     ] : []),
-    // Common action - Xem hóa đơn đã tạo (tất cả roles)
+    // Common actions - Tất cả roles
+    {
+      label: '📥 Tải PDF',
+      icon: <PictureAsPdfIcon fontSize="small" />,
+      enabled: true,
+      action: () => {
+        onDownloadPDF(request.requestID)
+        handleClose()
+      },
+      color: 'error.main',
+      tooltip: 'Tải xuống file PDF',
+    },
+    // 🔒 KTT/Accountant: Xem chứng từ đã upload - CHỈ hiện khi có file
+    ...(!isSale && request.evidenceFilePath ? [
+      {
+        label: '📄 Xem chứng từ',
+        icon: <DownloadIcon fontSize="small" />,
+        enabled: true,
+        action: () => {
+          onViewEvidence(request.evidenceFilePath!, request.requestCode)
+          handleClose()
+        },
+        color: 'info.main',
+        tooltip: 'Xem file chứng từ đã upload bởi Sale',
+      },
+    ] : []),
     {
       label: '🔗 Xem hóa đơn đã tạo',
       icon: <VisibilityOutlinedIcon fontSize="small" />,
@@ -180,22 +212,50 @@ const RequestActionsMenu = ({
         </IconButton>
       </Tooltip>
 
-      {/* Icon Tải PDF */}
-      <Tooltip title="Tải PDF" arrow>
-        <IconButton
-          onClick={() => onDownloadPDF(request.requestID)}
-          size="small"
-          sx={{
-            color: 'error.main',
-            transition: 'all 0.2s ease',
-            '&:hover': {
-              backgroundColor: 'error.light',
-              transform: 'scale(1.15)',
-            },
-          }}>
-          <PictureAsPdfIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
+      {/* Icon Upload Evidence - CHỈ cho Sale */}
+      {isSale && (
+        <Tooltip title="Upload chứng từ" arrow>
+          <IconButton
+            onClick={() => onUploadEvidence(request.requestID)}
+            size="small"
+            sx={{
+              color: 'success.main',
+              transition: 'all 0.2s ease',
+              '&:hover': {
+                backgroundColor: 'success.light',
+                transform: 'scale(1.15)',
+              },
+            }}>
+            <UploadFileIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
+
+      {/* Icon View Evidence - CHỈ cho KTT/Accountant */}
+      {!isSale && (
+        <Tooltip title={request.evidenceFilePath ? "Xem chứng từ đã upload" : "Chưa có file chứng từ"} arrow>
+          <IconButton
+            onClick={() => {
+              if (request.evidenceFilePath) {
+                onViewEvidence(request.evidenceFilePath, request.requestCode)
+              } else {
+                // Show notification when no file
+                alert('⚠️ Chưa có file chứng từ được upload')
+              }
+            }}
+            size="small"
+            sx={{
+              color: request.evidenceFilePath ? 'info.main' : 'text.disabled',
+              transition: 'all 0.2s ease',
+              '&:hover': {
+                backgroundColor: request.evidenceFilePath ? 'info.light' : 'action.hover',
+                transform: 'scale(1.15)',
+              },
+            }}>
+            <DownloadIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
 
       {/* Menu dropdown (Hủy, Xem HĐ đã tạo) */}
       <Tooltip title="Thêm" arrow>
@@ -350,6 +410,13 @@ const InvoiceRequestManagement = () => {
     loading: boolean
   }>({ open: false, requestID: null, reason: '', loading: false })
 
+  // Cancel dialog state
+  const [cancelDialog, setCancelDialog] = useState<{
+    open: boolean
+    request: InvoiceRequest | null
+    loading: boolean
+  }>({ open: false, request: null, loading: false })
+
   // 📊 Pagination state
   const [paginationModel, setPaginationModel] = useState({
     pageSize: 10,
@@ -435,6 +502,7 @@ const InvoiceRequestManagement = () => {
       rejectionReason: backendData.rejectionReason || backendData.rejectReason,
       invoiceID: backendData.invoiceID || backendData.createdInvoiceId || undefined,
       invoiceNumber: backendData.invoiceNumber?.toString(),
+      evidenceFilePath: backendData.evidenceFilePath || undefined,
     }
   }
 
@@ -644,24 +712,91 @@ const InvoiceRequestManagement = () => {
   }
 
   /**
-   * Hủy yêu cầu
+   * Hủy yêu cầu (mở dialog xác nhận)
    */
-  const handleCancel = async (requestID: number) => {
+  const handleCancel = (requestID: number) => {
     try {
-      console.log('🚫 Hủy yêu cầu:', requestID)
+      console.log('🚫 Mở dialog hủy yêu cầu:', requestID)
       
-      if (!confirm('Bạn có chắc muốn hủy yêu cầu này?')) {
+      // Tìm request để hiển thị thông tin trong dialog
+      const request = requests.find(r => r.requestID === requestID)
+      
+      if (!request) {
+        setSnackbar({
+          open: true,
+          message: '❌ Không tìm thấy yêu cầu',
+          severity: 'error',
+        })
         return
       }
 
-      await cancelInvoiceRequest(requestID)
-      alert('✅ Đã hủy yêu cầu')
+      // ✅ Validation: Chỉ cho phép hủy khi ở trạng thái Pending
+      if (request.statusID !== InvoiceRequestStatus.PENDING) {
+        setSnackbar({
+          open: true,
+          message: `❌ Chỉ có thể hủy yêu cầu ở trạng thái "Chờ duyệt". Trạng thái hiện tại: ${request.statusName}`,
+          severity: 'warning',
+        })
+        return
+      }
+
+      // Mở dialog xác nhận
+      setCancelDialog({
+        open: true,
+        request: request,
+        loading: false,
+      })
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Không thể mở dialog hủy yêu cầu'
+      setSnackbar({
+        open: true,
+        message: `❌ Lỗi: ${errorMsg}`,
+        severity: 'error',
+      })
+      console.error('[handleCancel] Error:', err)
+    }
+  }
+
+  /**
+   * Xác nhận hủy yêu cầu
+   */
+  const handleCancelConfirm = async () => {
+    if (!cancelDialog.request) return
+
+    try {
+      setCancelDialog(prev => ({ ...prev, loading: true }))
+      
+      console.log('🚫 Đang hủy yêu cầu:', cancelDialog.request.requestID)
+
+      await cancelInvoiceRequest(cancelDialog.request.requestID)
+      
+      setSnackbar({
+        open: true,
+        message: `✅ Đã hủy yêu cầu ${cancelDialog.request.requestCode} thành công!`,
+        severity: 'success',
+      })
+
+      // Đóng dialog và refresh data
+      setCancelDialog({ open: false, request: null, loading: false })
       refreshData()
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Hủy yêu cầu thất bại'
-      alert(`❌ Lỗi: ${errorMsg}`)
-      console.error('[handleCancel] Error:', err)
+      setSnackbar({
+        open: true,
+        message: `❌ ${errorMsg}`,
+        severity: 'error',
+      })
+      console.error('[handleCancelConfirm] Error:', err)
+    } finally {
+      setCancelDialog(prev => ({ ...prev, loading: false }))
     }
+  }
+
+  /**
+   * Đóng cancel dialog
+   */
+  const handleCancelCancel = () => {
+    setCancelDialog({ open: false, request: null, loading: false })
   }
 
   /**
@@ -774,6 +909,128 @@ const InvoiceRequestManagement = () => {
     }
   }
 
+  /**
+   * Upload evidence file (PDF) cho yêu cầu
+   */
+  const handleUploadEvidence = async (requestID: number) => {
+    try {
+      console.log('📤 Upload evidence for request:', requestID)
+      
+      // Tạo input element để chọn file
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = '.pdf,application/pdf'
+      
+      input.onchange = async (e: Event) => {
+        const target = e.target as HTMLInputElement
+        const file = target.files?.[0]
+        
+        if (!file) {
+          console.warn('No file selected')
+          return
+        }
+
+        // Validate file type
+        if (!file.type.includes('pdf')) {
+          setSnackbar({
+            open: true,
+            message: '❌ Vui lòng chọn file PDF',
+            severity: 'error',
+          })
+          return
+        }
+
+        // Validate file size (max 10MB)
+        const maxSize = 10 * 1024 * 1024 // 10MB
+        if (file.size > maxSize) {
+          setSnackbar({
+            open: true,
+            message: '❌ File quá lớn. Vui lòng chọn file nhỏ hơn 10MB',
+            severity: 'error',
+          })
+          return
+        }
+
+        try {
+          setSnackbar({
+            open: true,
+            message: `⏳ Đang upload ${file.name}...`,
+            severity: 'info',
+          })
+
+          await uploadEvidenceFile(requestID, file)
+          
+          setSnackbar({
+            open: true,
+            message: '✅ Upload chứng từ thành công!',
+            severity: 'success',
+          })
+          
+          // Refresh data to show updated evidenceFilePath
+          refreshData()
+        } catch (uploadErr) {
+          const errorMsg = uploadErr instanceof Error ? uploadErr.message : 'Upload thất bại'
+          setSnackbar({
+            open: true,
+            message: `❌ ${errorMsg}`,
+            severity: 'error',
+          })
+          console.error('[handleUploadEvidence] Upload error:', uploadErr)
+        }
+      }
+      
+      // Trigger file picker
+      input.click()
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Không thể upload file'
+      setSnackbar({
+        open: true,
+        message: `❌ Lỗi: ${errorMsg}`,
+        severity: 'error',
+      })
+      console.error('[handleUploadEvidence] Error:', err)
+    }
+  }
+
+  // ==================== HANDLE VIEW EVIDENCE ====================
+  /**
+   * Xem file chứng từ mà Sale đã upload
+   * Chỉ dành cho role Kế toán và KTT
+   */
+  const handleViewEvidence = (filePath: string, requestCode: string) => {
+    try {
+      if (!filePath) {
+        setSnackbar({
+          open: true,
+          message: '❌ Không tìm thấy file chứng từ',
+          severity: 'error',
+        })
+        return
+      }
+
+      // Construct full URL từ relative path
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://eims.site'
+      const fileUrl = `${baseUrl}${filePath}`
+
+      // Open trong new tab
+      window.open(fileUrl, '_blank')
+
+      setSnackbar({
+        open: true,
+        message: `📄 Đang mở file chứng từ ${requestCode}...`,
+        severity: 'info',
+      })
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Không thể mở file'
+      setSnackbar({
+        open: true,
+        message: `❌ ${errorMsg}`,
+        severity: 'error',
+      })
+      console.error('[handleViewEvidence] Error:', err)
+    }
+  }
+
   // ==================== DATA GRID COLUMNS ====================
 
   const columns: GridColDef[] = [
@@ -803,52 +1060,6 @@ const InvoiceRequestManagement = () => {
           </Typography>
         </Box>
       ),
-    },
-    {
-      field: 'requestType',
-      headerName: 'Loại YC',
-      flex: 1,
-      minWidth: 150,
-      sortable: true,
-      align: 'center',
-      headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) => {
-        const type = params.value as number
-        const label = REQUEST_TYPE_LABELS[type as keyof typeof REQUEST_TYPE_LABELS] || 'Không xác định'
-        const colorMap = {
-          1: { bg: '#e3f2fd', text: '#1976d2', border: '#90caf9' }, // Xanh dương - Tạo mới
-          2: { bg: '#fff3e0', text: '#f57c00', border: '#ffb74d' }, // Cam - Điều chỉnh
-          3: { bg: '#f3e5f5', text: '#7b1fa2', border: '#ce93d8' }, // Tím - Thay thế
-        }
-        const colors = colorMap[type as keyof typeof colorMap] || colorMap[1]
-
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-            <Box
-              sx={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '6px 14px',
-                borderRadius: '20px',
-                bgcolor: colors.bg,
-                border: `1px solid ${colors.border}`,
-                height: 28,
-              }}>
-              <Typography
-                variant="body2"
-                sx={{
-                  color: colors.text,
-                  fontWeight: 600,
-                  fontSize: '0.75rem',
-                  letterSpacing: '0.5px',
-                  lineHeight: 1,
-                }}>
-                {label}
-              </Typography>
-            </Box>
-          </Box>
-        )
-      },
     },
     {
       field: 'customerName',
@@ -990,52 +1201,6 @@ const InvoiceRequestManagement = () => {
       },
     },
     {
-      field: 'requiredDate',
-      headerName: 'Hạn xuất HĐ',
-      flex: 1,
-      minWidth: 140,
-      sortable: true,
-      align: 'center',
-      headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) => {
-        if (!params.value) {
-          return (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-              <Typography variant="body2" sx={{ color: '#546e7a' }}>-</Typography>
-            </Box>
-          )
-        }
-
-        const date = dayjs(params.value as string)
-        const isUrgent = date.diff(dayjs(), 'hour') < 24
-        const isOverdue = date.isBefore(dayjs())
-
-        return (
-          <Tooltip title={date.format('HH:mm - DD/MM/YYYY')} arrow>
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-              <Typography
-                variant="body2"
-                sx={{
-                  fontSize: '0.875rem',
-                  fontWeight: isUrgent || isOverdue ? 600 : 500,
-                  color: isOverdue ? '#d32f2f' : isUrgent ? '#ed6c02' : '#2c3e50',
-                }}>
-                {date.format('DD/MM/YYYY')}
-              </Typography>
-              <Typography
-                variant="caption"
-                sx={{
-                  fontSize: '0.75rem',
-                  color: isOverdue ? '#d32f2f' : isUrgent ? '#ed6c02' : '#546e7a',
-                }}>
-                {isOverdue ? '⚠️ Quá hạn' : date.fromNow()}
-              </Typography>
-            </Box>
-          </Tooltip>
-        )
-      },
-    },
-    {
       field: 'statusID',
       headerName: 'Trạng thái',
       flex: 1.2,
@@ -1104,6 +1269,8 @@ const InvoiceRequestManagement = () => {
             onViewDetail={handleViewDetail}
             onDownloadPDF={handleDownloadPDF}
             onViewCreatedInvoice={handleViewCreatedInvoice}
+            onUploadEvidence={handleUploadEvidence}
+            onViewEvidence={handleViewEvidence}
           />
         )
       },
@@ -1182,6 +1349,18 @@ const InvoiceRequestManagement = () => {
                 getRowHeight={() => 'auto'}
                 density="comfortable"
                 loading={loading}
+                initialState={{
+                  pagination: {
+                    paginationModel: { pageSize: 10, page: 0 },
+                  },
+                }}
+                slotProps={{
+                  pagination: {
+                    labelRowsPerPage: 'Số hàng mỗi trang:',
+                    labelDisplayedRows: ({ from, to, count }: { from: number; to: number; count: number }) => 
+                      `${from}–${to} của ${count !== -1 ? count : `nhiều hơn ${to}`}`,
+                  },
+                }}
                 sx={{
                   border: 'none',
                   minHeight: 600,
@@ -1214,30 +1393,53 @@ const InvoiceRequestManagement = () => {
                     padding: '8px 16px',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'flex-end !important',
+                    justifyContent: 'space-between',
+                  },
+                  '& .MuiDataGrid-selectedRowCount': {
+                    visibility: 'visible',
+                    order: -1,
                   },
                   '& .MuiTablePagination-root': {
-                    display: 'flex',
-                    alignItems: 'center',
                     width: 'auto',
                     marginLeft: 'auto',
+                    overflow: 'visible',
                   },
                   '& .MuiTablePagination-toolbar': {
-                    minHeight: '56px',
-                    paddingLeft: '8px',
-                    paddingRight: '8px',
+                    minHeight: '52px',
+                    paddingLeft: '16px',
+                    paddingRight: '0',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'flex-end',
-                    flexWrap: 'nowrap',
+                    gap: '16px',
                   },
-                  '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
-                    margin: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                  },
-                  '& .MuiDataGrid-selectedRowCount': {
+                  '& .MuiTablePagination-spacer': {
                     display: 'none',
+                  },
+                  '& .MuiTablePagination-selectLabel': {
+                    margin: 0,
+                    fontSize: '0.875rem',
+                    fontWeight: 500,
+                    color: '#666',
+                  },
+                  '& .MuiTablePagination-select': {
+                    paddingLeft: '8px',
+                    paddingRight: '32px',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    color: '#1976d2',
+                  },
+                  '& .MuiTablePagination-displayedRows': {
+                    margin: 0,
+                    fontSize: '0.875rem',
+                    fontWeight: 500,
+                    color: '#666',
+                    whiteSpace: 'nowrap',
+                  },
+                  '& .MuiTablePagination-actions': {
+                    marginLeft: '16px',
+                    display: 'flex',
+                    gap: '4px',
                   },
                 }}
               />
@@ -1312,6 +1514,115 @@ const InvoiceRequestManagement = () => {
               startIcon={rejectDialog.loading ? <CircularProgress size={20} /> : null}
             >
               {rejectDialog.loading ? 'Đang xử lý...' : 'Xác nhận từ chối'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Cancel Dialog */}
+        <Dialog
+          open={cancelDialog.open}
+          onClose={cancelDialog.loading ? undefined : handleCancelCancel}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle sx={{ fontWeight: 600, color: 'warning.main' }}>
+            🚫 Hủy yêu cầu xuất hóa đơn
+          </DialogTitle>
+          <DialogContent>
+            {cancelDialog.request && (
+              <>
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                    ⚠️ Cảnh báo: Hành động này không thể hoàn tác!
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: 'block' }}>
+                    Yêu cầu sẽ bị hủy vĩnh viễn và bạn cần tạo yêu cầu mới nếu muốn xuất hóa đơn.
+                  </Typography>
+                </Alert>
+
+                <Box sx={{ 
+                  bgcolor: '#f8f9fa', 
+                  p: 2, 
+                  borderRadius: 1,
+                  border: '1px solid #e0e0e0',
+                }}>
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+                    📋 Thông tin yêu cầu:
+                  </Typography>
+                  
+                  <Stack spacing={1}>
+                    <Stack direction="row" spacing={1}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 120 }}>
+                        Mã yêu cầu:
+                      </Typography>
+                      <Typography variant="body2" color="primary.main" sx={{ fontWeight: 600 }}>
+                        {cancelDialog.request.requestCode}
+                      </Typography>
+                    </Stack>
+
+                    <Stack direction="row" spacing={1}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 120 }}>
+                        Khách hàng:
+                      </Typography>
+                      <Typography variant="body2">
+                        {cancelDialog.request.customer.customerName}
+                      </Typography>
+                    </Stack>
+
+                    <Stack direction="row" spacing={1}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 120 }}>
+                        MST:
+                      </Typography>
+                      <Typography variant="body2">
+                        {cancelDialog.request.customer.taxCode}
+                      </Typography>
+                    </Stack>
+
+                    <Stack direction="row" spacing={1}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 120 }}>
+                        Tổng tiền:
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 600 }}>
+                        {cancelDialog.request.totalAmount.toLocaleString('vi-VN')} ₫
+                      </Typography>
+                    </Stack>
+
+                    <Stack direction="row" spacing={1}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 120 }}>
+                        Trạng thái:
+                      </Typography>
+                      <Chip 
+                        label={cancelDialog.request.statusName} 
+                        size="small" 
+                        color="info"
+                        sx={{ height: 24 }}
+                      />
+                    </Stack>
+                  </Stack>
+                </Box>
+
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2, fontStyle: 'italic' }}>
+                  Bạn có chắc chắn muốn hủy yêu cầu này không?
+                </Typography>
+              </>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              onClick={handleCancelCancel}
+              disabled={cancelDialog.loading}
+              variant="outlined"
+            >
+              Không, giữ lại
+            </Button>
+            <Button
+              onClick={handleCancelConfirm}
+              disabled={cancelDialog.loading}
+              variant="contained"
+              color="warning"
+              startIcon={cancelDialog.loading ? <CircularProgress size={20} /> : null}
+            >
+              {cancelDialog.loading ? 'Đang hủy...' : 'Có, hủy yêu cầu'}
             </Button>
           </DialogActions>
         </Dialog>

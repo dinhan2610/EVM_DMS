@@ -36,6 +36,7 @@ export interface BackendInvoiceRequestPayload {
   contactPerson: string;           // Người liên hệ
   contactPhone: string;            // SĐT
   companyID: number;               // Mặc định 1
+  invoiceCustomerType: number;     // ✅ REQUIRED: 1=Retail/Bán lẻ (B2C), 2=Business/Doanh nghiệp (B2B)
 }
 
 export interface BackendInvoiceRequestItem {
@@ -84,6 +85,7 @@ export interface BackendInvoiceRequestResponse {
   invoiceID?: number;
   createdInvoiceId?: number | null;
   invoiceNumber?: number;
+  evidenceFilePath?: string;  // File path to uploaded evidence PDF by Sales
   createdAt?: string;
   updatedAt?: string;
 }
@@ -667,6 +669,49 @@ export const cancelInvoiceRequest = async (
 };
 
 /**
+ * Upload evidence file (PDF) cho yêu cầu xuất hóa đơn
+ * @param requestID - ID của yêu cầu
+ * @param file - PDF file to upload
+ * @returns Updated request
+ */
+export const uploadEvidenceFile = async (
+  requestID: number,
+  file: File
+): Promise<BackendInvoiceRequestResponse> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log(`[uploadEvidenceFile] Uploading file for request ${requestID}...`, {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+      });
+    }
+
+    const formData = new FormData();
+    formData.append('pdfFile', file);
+
+    const response = await axios.post<BackendInvoiceRequestResponse>(
+      `/api/InvoiceRequest/${requestID}/upload-evidence`,
+      formData,
+      {
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+
+    if (import.meta.env.DEV) {
+      console.log('[uploadEvidenceFile] Success:', response.data);
+    }
+
+    return response.data;
+  } catch (error) {
+    return handleApiError(error, `Upload file thất bại cho yêu cầu ${requestID}`);
+  }
+};
+
+/**
  * Xem PDF preview của invoice request
  * @param requestID - ID của request
  * @returns PDF blob
@@ -728,6 +773,7 @@ export interface InvoicePreviewPayload {
   taxAmount: number;
   totalAmount: number;
   performedBy: number | null;   // null = auto
+  invoiceCustomerType?: number | null; // 1 = Bán lẻ (B2C), 2 = Doanh nghiệp (B2B)
   minRows: number;
   contactEmail: string;
   contactPerson: string;

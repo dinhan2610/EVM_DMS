@@ -1097,6 +1097,15 @@ const CreateVatInvoice: React.FC = () => {
           console.warn('⚠️ [PREFILL MODE] Request không có salesID hợp lệ, sẽ dùng currentUserId')
         }
         
+        // ✅ Map invoiceCustomerType từ prefill (1=B2C Bán lẻ, 2=B2B Doanh nghiệp)
+        if (invoiceData.invoiceCustomerType !== undefined && invoiceData.invoiceCustomerType !== null) {
+          const mappedInvoiceType = invoiceData.invoiceCustomerType === 1 ? 'B2C' : 'B2B'
+          setInvoiceType(mappedInvoiceType)
+          console.log('✅ [PREFILL MODE] Loaded invoiceCustomerType:', invoiceData.invoiceCustomerType, '→', mappedInvoiceType)
+        } else {
+          console.warn('⚠️ [PREFILL MODE] Request không có invoiceCustomerType, dùng default B2B')
+        }
+        
         // Auto-fill items
         if (invoiceData.items && invoiceData.items.length > 0) {
           const mappedItems: InvoiceItem[] = invoiceData.items.map((item, index) => ({

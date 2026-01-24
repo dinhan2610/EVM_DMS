@@ -134,6 +134,9 @@ export interface InvoiceRequest {
   invoiceID?: number        // ID hóa đơn đã tạo (nếu completed)
   invoiceNumber?: string    // Số hóa đơn đã tạo
   
+  // Evidence File
+  evidenceFilePath?: string // File chứng từ upload bởi Sale (PDF path)
+  
   // Original Request (for adjustment/replacement)
   originalRequestID?: number
   originalInvoiceID?: number
