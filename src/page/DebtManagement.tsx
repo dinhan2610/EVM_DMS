@@ -39,9 +39,10 @@ import HistoryIcon from '@mui/icons-material/History'
 import PersonIcon from '@mui/icons-material/Person'
 import EmailIcon from '@mui/icons-material/Email'
 import PhoneIcon from '@mui/icons-material/Phone'
+import VisibilityIcon from '@mui/icons-material/Visibility' // ✅ NEW - Eye icon for payment detail
 import DebtFilter, { DebtFilterState } from '@/components/DebtFilter'
 import { CustomerDebt, DebtInvoice, PaymentRecord, PAYMENT_METHODS } from '@/types/debt.types'
-import { paymentService } from '@/services/paymentService'
+import { paymentService, PaymentResponse } from '@/services/paymentService' // ✅ Import PaymentResponse type
 import { debtService } from '@/services/debtService'
 import { useAuthContext } from '@/context/useAuthContext'
 import { getCustomersBySaleId } from '@/services/customerService'
@@ -201,7 +202,11 @@ const DebtManagement = () => {
   const [selectedTab, setSelectedTab] = useState<'invoices' | 'history'>('invoices')
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<DebtInvoice | null>(null)
-  const [selectedInvoicePayments, setSelectedInvoicePayments] = useState<PaymentRecord[]>([]) // ✅ NEW - Lịch sử thanh toán của hoá đơn
+  const [selectedInvoicePayments, setSelectedInvoicePayments] = useState<PaymentRecord[]>([]) // ✅ Lịch sử thanh toán của hoá đơn
+  // ✅ NEW - Payment detail modal state
+  const [paymentDetailModalOpen, setPaymentDetailModalOpen] = useState(false)
+  const [selectedPaymentDetail, setSelectedPaymentDetail] = useState<PaymentResponse | null>(null)
+  const [isLoadingPaymentDetail, setIsLoadingPaymentDetail] = useState(false)
 
   // State - Filters
   const [filters, setFilters] = useState<DebtFilterState>({
@@ -428,12 +433,26 @@ const DebtManagement = () => {
         
         console.log('[DebtManagement] Mapped invoices:', mappedInvoices.length)
         
-        // ✅ NEW: Fetch payment history using paymentService.getPayments() with new pagination API
-        const paymentsResponse = await paymentService.getPayments({
-          customerId: selectedCustomer.customerId,
-          pageIndex: paymentPagination.pageIndex,
-          pageSize: paymentPagination.pageSize,
-        })
+        // ✅ OPTIMIZED: Fetch payment history - use getPaymentsBySale for Sales role, getPayments for others
+        let paymentsResponse: Awaited<ReturnType<typeof paymentService.getPayments>>
+        
+        if (user?.role === USER_ROLES.SALES && user?.id) {
+          // 🚀 PERFORMANCE: Sales role - fetch payments by saleId (backend filters by customer.saleId)
+          console.log(`[DebtManagement] 🚀 Fetching payments for Sale ${user.id} (optimized)`)
+          paymentsResponse = await paymentService.getPaymentsBySale(Number(user.id), {
+            pageIndex: paymentPagination.pageIndex,
+            pageSize: paymentPagination.pageSize,
+          })
+          console.log(`[DebtManagement] ✅ Sale payments fetched: ${paymentsResponse.data.length} records`)
+        } else {
+          // Admin/Accountant/Staff - fetch by customerId as before
+          console.log(`[DebtManagement] Fetching payments for customer ${selectedCustomer.customerId}`)
+          paymentsResponse = await paymentService.getPayments({
+            customerId: selectedCustomer.customerId,
+            pageIndex: paymentPagination.pageIndex,
+            pageSize: paymentPagination.pageSize,
+          })
+        }
         
         // ✅ Map payment response to PaymentRecord format
         const mappedPayments: PaymentRecord[] = paymentsResponse.data.map(pay => ({
@@ -571,12 +590,24 @@ const DebtManagement = () => {
       })
       .sort((a: DebtInvoice, b: DebtInvoice) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime())
 
-      // ✅ Fetch payment history using paymentService.getPayments()
-      const paymentsResponse = await paymentService.getPayments({
-        customerId: selectedCustomer.customerId,
-        pageIndex: paymentPagination.pageIndex,
-        pageSize: paymentPagination.pageSize,
-      })
+      // ✅ OPTIMIZED: Fetch payment history - use getPaymentsBySale for Sales role
+      let paymentsResponse: Awaited<ReturnType<typeof paymentService.getPayments>>
+      
+      if (user?.role === USER_ROLES.SALES && user?.id) {
+        // 🚀 PERFORMANCE: Sales role - fetch payments by saleId (backend filters by customer.saleId)
+        console.log(`[refreshCustomerDetail] 🚀 Fetching payments for Sale ${user.id}`)
+        paymentsResponse = await paymentService.getPaymentsBySale(Number(user.id), {
+          pageIndex: paymentPagination.pageIndex,
+          pageSize: paymentPagination.pageSize,
+        })
+      } else {
+        // Admin/Accountant/Staff - fetch by customerId
+        paymentsResponse = await paymentService.getPayments({
+          customerId: selectedCustomer.customerId,
+          pageIndex: paymentPagination.pageIndex,
+          pageSize: paymentPagination.pageSize,
+        })
+      }
       
       const mappedPayments: PaymentRecord[] = paymentsResponse.data.map(pay => ({
         id: pay.id,
@@ -597,7 +628,7 @@ const DebtManagement = () => {
     } catch (error) {
       console.error('Failed to refresh customer detail:', error)
     }
-  }, [selectedCustomer, selectedMonth, selectedYear, paymentPagination.pageSize, paymentPagination.pageIndex])
+  }, [selectedCustomer, selectedMonth, selectedYear, paymentPagination.pageSize, paymentPagination.pageIndex, user?.role, user?.id])
 
   // ==================== COMPUTED VALUES ====================
   
@@ -818,7 +849,7 @@ const DebtManagement = () => {
 
   /**
    * Handle invoice row click - Navigate to invoice detail page
-   * ✅ NEW: Click on invoice row to view invoice detail
+   * ✅ Click on invoice row to view invoice detail
    */
   const handleInvoiceRowClick = useCallback((invoiceId: number) => {
     if (!invoiceId) {
@@ -828,6 +859,33 @@ const DebtManagement = () => {
     console.log(`[DebtManagement] 🔗 Navigating to invoice detail: /invoices/${invoiceId}`)
     navigate(`/invoices/${invoiceId}`)
   }, [navigate])
+
+  /**
+   * Handle payment detail view - Fetch and show payment details
+   * ✅ NEW: Click eye icon to view payment detail
+   */
+  const handleViewPaymentDetail = useCallback(async (paymentId: number) => {
+    try {
+      setIsLoadingPaymentDetail(true)
+      setPaymentDetailModalOpen(true)
+      
+      console.log(`[DebtManagement] 👁️ Fetching payment detail: ${paymentId}`)
+      const paymentDetail = await paymentService.getPaymentById(paymentId)
+      
+      setSelectedPaymentDetail(paymentDetail)
+      console.log('[DebtManagement] ✅ Payment detail loaded:', paymentDetail)
+    } catch (error) {
+      console.error('[DebtManagement] ❌ Failed to fetch payment detail:', error)
+      setSnackbar({
+        open: true,
+        message: 'Không thể tải chi tiết thanh toán',
+        severity: 'error',
+      })
+      setPaymentDetailModalOpen(false)
+    } finally {
+      setIsLoadingPaymentDetail(false)
+    }
+  }, [])
 
   // DataGrid columns for invoices
   const invoiceColumns: GridColDef[] = useMemo(
@@ -996,7 +1054,7 @@ const DebtManagement = () => {
                 <IconButton
                   size="small"
                   onClick={(e) => {
-                    e.stopPropagation() // Prevent row click
+                    e.stopPropagation()
                     handlePaymentClick(invoice)
                   }}
                   sx={{
@@ -1109,8 +1167,40 @@ const DebtManagement = () => {
           </Typography>
         ),
       },
+      {
+        field: 'actions',
+        headerName: 'Thao tác',
+        width: 100,
+        align: 'center',
+        headerAlign: 'center',
+        sortable: false,
+        renderCell: (params: GridRenderCellParams) => {
+          const payment = params.row as PaymentRecord
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Tooltip title="Xem chi tiết thanh toán">
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleViewPaymentDetail(payment.id)
+                  }}
+                  sx={{
+                    color: '#1976d2',
+                    '&:hover': {
+                      backgroundColor: alpha('#1976d2', 0.1),
+                    },
+                  }}
+                >
+                  <VisibilityIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          )
+        },
+      },
     ],
-    []
+    [handleViewPaymentDetail]
   )
 
   return (
@@ -1710,85 +1800,14 @@ const DebtManagement = () => {
                     InputProps={{
                       endAdornment: <InputAdornment position="end">VNĐ</InputAdornment>,
                     }}
-                    helperText={
-                      formErrors.amount ||
-                      (paymentData.amount > 0 && paymentData.amount < selectedInvoice.remainingAmount
-                        ? '⚠️ Thanh toán một phần - Hóa đơn sẽ chuyển sang trạng thái "Trả một phần"'
-                        : paymentData.amount === selectedInvoice.remainingAmount
-                        ? '✓ Thanh toán đầy đủ - Hóa đơn sẽ chuyển sang trạng thái "Trả toàn bộ"'
-                        : 'Ví dụ: 1.000.000 (dùng dấu chấm phân cách nghìn)')
-                    }
+                   
                     error={!!formErrors.amount || (paymentData.amount > selectedInvoice.remainingAmount)}
                     placeholder="Ví dụ: 1.000.000"
                   />
-                    {/* ✅ NEW: Quick Amount Buttons */}
-                    <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => setPaymentData({ ...paymentData, amount: selectedInvoice.remainingAmount })}
-                        sx={{ textTransform: 'none', fontSize: '0.75rem' }}
-                      >
-                        💯 Toàn bộ ({formatCurrency(selectedInvoice.remainingAmount)})
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => setPaymentData({ ...paymentData, amount: Math.round(selectedInvoice.remainingAmount / 2) })}
-                        sx={{ textTransform: 'none', fontSize: '0.75rem' }}
-                      >
-                        50% ({formatCurrency(Math.round(selectedInvoice.remainingAmount / 2))})
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => setPaymentData({ ...paymentData, amount: Math.round(selectedInvoice.remainingAmount / 3) })}
-                        sx={{ textTransform: 'none', fontSize: '0.75rem' }}
-                      >
-                        1/3 ({formatCurrency(Math.round(selectedInvoice.remainingAmount / 3))})
-                      </Button>
-                    </Stack>
+                    
                   </Box>
 
-                  {/* ✅ NEW: Preview Result */}
-                  {paymentData.amount > 0 && paymentData.amount <= selectedInvoice.remainingAmount && (
-                    <Paper 
-                      elevation={0} 
-                      sx={{ 
-                        p: 2, 
-                        bgcolor: paymentData.amount === selectedInvoice.remainingAmount ? '#e8f5e9' : '#fff3e0',
-                        border: '1px solid',
-                        borderColor: paymentData.amount === selectedInvoice.remainingAmount ? '#4caf50' : '#ff9800',
-                      }}
-                    >
-                      <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 1 }}>
-                        {paymentData.amount === selectedInvoice.remainingAmount ? '✅ Xem trước kết quả:' : '📊 Xem trước kết quả:'}
-                      </Typography>
-                      <Stack spacing={0.5}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="caption" sx={{ color: '#666' }}>Số tiền thanh toán:</Typography>
-                          <Typography variant="caption" sx={{ fontWeight: 600, color: '#2e7d32' }}>
-                            {formatCurrency(paymentData.amount)}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="caption" sx={{ color: '#666' }}>Số tiền còn lại sau thanh toán:</Typography>
-                          <Typography variant="caption" sx={{ fontWeight: 700, color: paymentData.amount === selectedInvoice.remainingAmount ? '#2e7d32' : '#e65100' }}>
-                            {formatCurrency(selectedInvoice.remainingAmount - paymentData.amount)}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="caption" sx={{ color: '#666' }}>Trạng thái mới:</Typography>
-                          <Chip 
-                            label={paymentData.amount === selectedInvoice.remainingAmount ? 'Đã thanh toán' : 'Trả một phần'} 
-                            color={paymentData.amount === selectedInvoice.remainingAmount ? 'success' : 'warning'}
-                            size="small"
-                            sx={{ height: 20, fontSize: '0.7rem' }}
-                          />
-                        </Box>
-                      </Stack>
-                    </Paper>
-                  )}
+                 
 
                   {/* Payment Method - Simplified to common options */}
                   <FormControl fullWidth required error={!!formErrors.method}>
@@ -1892,6 +1911,159 @@ const DebtManagement = () => {
               {snackbar.message}
             </Alert>
           </Snackbar>
+
+          {/* ✅ NEW - Payment Detail Modal */}
+          <Dialog
+            open={paymentDetailModalOpen}
+            onClose={() => {
+              setPaymentDetailModalOpen(false)
+              setSelectedPaymentDetail(null)
+            }}
+            maxWidth="md"
+            fullWidth
+          >
+            <DialogTitle sx={{ 
+              borderBottom: '1px solid #e0e0e0', 
+              pb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}>
+              <VisibilityIcon sx={{ color: '#1976d2' }} />
+              <Typography variant="h6" component="span">
+                Chi tiết thanh toán
+              </Typography>
+            </DialogTitle>
+            <DialogContent sx={{ mt: 2 }}>
+              {isLoadingPaymentDetail ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                  <CircularProgress />
+                </Box>
+              ) : selectedPaymentDetail ? (
+                <Stack spacing={2.5}>
+                  {/* Invoice & Customer Info */}
+                  <Paper elevation={0} sx={{ p: 2, bgcolor: '#f5f9ff', border: '1px solid #e3f2fd' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, color: '#1976d2' }}>
+                      📋 Thông tin hóa đơn & khách hàng
+                    </Typography>
+                    <Stack spacing={1}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ color: '#666' }}>Mã hóa đơn:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {selectedPaymentDetail.invoiceCode || selectedPaymentDetail.invoice?.invoiceNumber || 'N/A'}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ color: '#666' }}>Khách hàng:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {selectedPaymentDetail.customerName || selectedPaymentDetail.invoice?.customerName || 'N/A'}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Paper>
+
+                  {/* Payment Amounts */}
+                  <Paper elevation={0} sx={{ p: 2, bgcolor: '#f1f8e9', border: '1px solid #dcedc8' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, color: '#558b2f' }}>
+                      💰 Số tiền thanh toán
+                    </Typography>
+                    <Stack spacing={1}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ color: '#666' }}>Tổng tiền hóa đơn:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {formatCurrency(selectedPaymentDetail.totalInvoiceAmount || selectedPaymentDetail.invoice?.totalAmount || 0)}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ color: '#666' }}>Đã thanh toán trước đó:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
+                          {formatCurrency((selectedPaymentDetail.totalPaidAmount || 0) - (selectedPaymentDetail.amount || 0))}
+                        </Typography>
+                      </Box>
+                      <Divider />
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>Số tiền thanh toán lần này:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#1976d2', fontSize: '1rem' }}>
+                          {formatCurrency(selectedPaymentDetail.amount)}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ color: '#666' }}>Còn lại:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#d32f2f' }}>
+                          {formatCurrency(selectedPaymentDetail.remainingAmount || 0)}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Paper>
+
+                  {/* Payment Details */}
+                  <Paper elevation={0} sx={{ p: 2, bgcolor: '#fafafa', border: '1px solid #e0e0e0' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
+                      📝 Thông tin thanh toán
+                    </Typography>
+                    <Stack spacing={1}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ color: '#666' }}>Ngày thanh toán:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {dayjs(selectedPaymentDetail.paymentDate).format('DD/MM/YYYY HH:mm')}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ color: '#666' }}>Hình thức:</Typography>
+                        <Chip 
+                          label={selectedPaymentDetail.paymentMethod}
+                          size="small"
+                          color={selectedPaymentDetail.paymentMethod === 'Chuyển khoản' ? 'primary' : 'default'}
+                        />
+                      </Box>
+                      {selectedPaymentDetail.transactionCode && (
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="body2" sx={{ color: '#666' }}>Mã giao dịch:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
+                            {selectedPaymentDetail.transactionCode}
+                          </Typography>
+                        </Box>
+                      )}
+                      {selectedPaymentDetail.note && (
+                        <Box>
+                          <Typography variant="body2" sx={{ color: '#666', mb: 0.5 }}>Ghi chú:</Typography>
+                          <Typography variant="body2" sx={{ fontStyle: 'italic', color: '#555' }}>
+                            {selectedPaymentDetail.note}
+                          </Typography>
+                        </Box>
+                      )}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ color: '#666' }}>Trạng thái:</Typography>
+                        <Chip 
+                          label={selectedPaymentDetail.paymentStatus || 'N/A'}
+                          size="small"
+                          color={
+                            selectedPaymentDetail.paymentStatus?.includes('toàn bộ') ? 'success' :
+                            selectedPaymentDetail.paymentStatus?.includes('một phần') ? 'warning' : 'default'
+                          }
+                        />
+                      </Box>
+                    </Stack>
+                  </Paper>
+                </Stack>
+              ) : (
+                <Typography sx={{ textAlign: 'center', py: 4, color: '#999' }}>
+                  Không có dữ liệu
+                </Typography>
+              )}
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+              <Button 
+                onClick={() => {
+                  setPaymentDetailModalOpen(false)
+                  setSelectedPaymentDetail(null)
+                }}
+                variant="contained"
+              >
+                Đóng
+              </Button>
+            </DialogActions>
+          </Dialog>
             </Box>
           )}
         </Box>

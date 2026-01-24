@@ -57,6 +57,7 @@ const STATEMENT_ENDPOINTS = {
   SEND_DEBT_REMINDER: (id: number) => `/api/Statement/${id}/send-debt-reminder`,
   CREATE_PAYMENT: (id: number) => `/api/Statement/${id}/payments`,
   GET_PAYMENTS: (id: number) => `/api/Statement/${id}/payments`,
+  GET_BY_SALE: (saleId: number) => `/api/Statement/sale/${saleId}`, // ✅ NEW - Get statements by saleId
 };
 
 // ==================== LIST STATEMENTS ====================
@@ -101,6 +102,62 @@ export async function fetchStatements(
     return response.data;
   } catch (error) {
     console.error('❌ Error fetching statements:', error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch statements for a specific sale user with pagination
+ * ✅ OPTIMIZED: Backend filters by saleId (no client-side filtering needed)
+ * Used for Sales role to view statements of their own customers only
+ * 
+ * @param saleId - Sale user ID
+ * @param pageNumber - Page number (1-based, default: 1)
+ * @param pageSize - Items per page (default: 10)
+ * @returns StatementListResponse with filtered items
+ * 
+ * Example:
+ * ```typescript
+ * const response = await fetchStatementsBySale(3, 1, 10);
+ * console.log(response.items); // Only statements for sale's customers
+ * ```
+ */
+export async function fetchStatementsBySale(
+  saleId: number,
+  pageNumber: number = 1,
+  pageSize: number = 10
+): Promise<StatementListResponse> {
+  try {
+    console.log('[fetchStatementsBySale] Request:', { saleId, pageNumber, pageSize });
+    
+    const params = {
+      pageNumber, // ⚠️ Backend uses pageNumber, not pageIndex
+      pageSize,
+    };
+
+    const token = localStorage.getItem(API_CONFIG.TOKEN_KEY);
+    const response = await axios.get<StatementListResponse>(
+      STATEMENT_ENDPOINTS.GET_BY_SALE(saleId),
+      {
+        params,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    console.log('[fetchStatementsBySale] Backend response:', {
+      totalItems: response.data.items.length,
+      totalCount: response.data.totalCount,
+      totalPages: response.data.totalPages,
+      pageIndex: response.data.pageIndex,
+    });
+    
+    console.log(`[fetchStatementsBySale] ✅ Fetched ${response.data.items.length} statements for sale ${saleId}`);
+
+    return response.data;
+  } catch (error) {
+    console.error(`❌ Error fetching statements for sale ${saleId}:`, error);
     throw error;
   }
 }

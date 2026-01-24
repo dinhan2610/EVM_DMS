@@ -22,12 +22,18 @@ interface BackendPaymentResponse {
   paymentID: number;
   invoiceID: number;
   amountPaid: number;
-  remainingAmount: number;        // ✅ NEW - Số tiền còn lại của hóa đơn
+  remainingAmount: number;        // ✅ Số tiền còn lại của hóa đơn
   paymentMethod: string;
   transactionCode?: string | null;
   note?: string | null;
   paymentDate: string;
   createdBy: number;
+  // ✅ NEW - Payment detail fields (from GET /api/Payment/{id})
+  invoiceCode?: string;           // Mã hóa đơn
+  customerName?: string;          // Tên khách hàng
+  totalInvoiceAmount?: number;    // Tổng tiền hóa đơn
+  totalPaidAmount?: number;       // Tổng đã thanh toán
+  paymentStatus?: string;         // Trạng thái thanh toán
   invoice?: {
     invoiceNumber: string | number;  // Can be number
     customerName?: string;
@@ -47,7 +53,7 @@ export interface PaymentResponse {
   id: number;
   invoiceId: number;
   amount: number;
-  remainingAmount?: number;       // ✅ NEW - Số tiền còn lại của hóa đơn
+  remainingAmount?: number;       // ✅ Số tiền còn lại của hóa đơn
   paymentMethod: string;
   transactionCode?: string;
   note?: string;
@@ -55,6 +61,12 @@ export interface PaymentResponse {
   userId: number;
   createdAt: string;
   updatedAt?: string;
+  // ✅ NEW - Payment detail fields (from GET /api/Payment/{id})
+  invoiceCode?: string;           // Mã hóa đơn
+  customerName?: string;          // Tên khách hàng  
+  totalInvoiceAmount?: number;    // Tổng tiền hóa đơn
+  totalPaidAmount?: number;       // Tổng đã thanh toán
+  paymentStatus?: string;         // Trạng thái thanh toán
   invoice?: {
     invoiceNumber: string;
     customerName?: string;
@@ -302,11 +314,15 @@ export const getPayments = async (params?: PaymentQueryParams): Promise<Paginate
 };
 
 /**
- * Get single payment by ID
+ * Get single payment by ID with full details
+ * ✅ OPTIMIZED: Transform backend response format to frontend format
+ * API returns: paymentID, amountPaid, invoiceCode, customerName, totalInvoiceAmount, etc.
  */
 export const getPaymentById = async (id: number): Promise<PaymentResponse> => {
   try {
-    const response = await axios.get<PaymentResponse>(
+    console.log('[getPaymentById] Fetching payment:', id);
+    
+    const response = await axios.get<BackendPaymentResponse>(
       `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PAYMENT.GET_BY_ID(id)}`,
       {
         headers: getAuthHeaders(),
@@ -314,8 +330,44 @@ export const getPaymentById = async (id: number): Promise<PaymentResponse> => {
       }
     );
     
-    return response.data;
+    console.log('[getPaymentById] Backend response:', response.data);
+    
+    // Transform backend response to frontend format
+    const backendData = response.data;
+    
+    const transformedResponse: PaymentResponse = {
+      id: backendData.paymentID,
+      invoiceId: backendData.invoiceID,
+      amount: backendData.amountPaid,
+      remainingAmount: backendData.remainingAmount,
+      paymentMethod: backendData.paymentMethod,
+      transactionCode: backendData.transactionCode || undefined,
+      note: backendData.note || undefined,
+      paymentDate: backendData.paymentDate,
+      userId: backendData.createdBy,
+      createdAt: backendData.paymentDate,
+      // ✅ NEW - Payment detail fields
+      invoiceCode: backendData.invoiceCode,
+      customerName: backendData.customerName,
+      totalInvoiceAmount: backendData.totalInvoiceAmount,
+      totalPaidAmount: backendData.totalPaidAmount,
+      paymentStatus: backendData.paymentStatus,
+      invoice: backendData.invoice ? {
+        invoiceNumber: String(backendData.invoice.invoiceNumber),
+        customerName: backendData.invoice.customerName,
+        totalAmount: backendData.invoice.totalAmount,
+        paidAmount: backendData.invoice.paidAmount,
+        remainingAmount: backendData.invoice.remainingAmount,
+        paymentStatus: backendData.invoice.paymentStatus,
+      } : undefined,
+      user: backendData.user
+    };
+    
+    console.log('[getPaymentById] ✅ Transformed response:', transformedResponse);
+    
+    return transformedResponse;
   } catch (error) {
+    console.error('[getPaymentById] ❌ Error:', error);
     return handleApiError(error, 'Get Payment Detail');
   }
 };
@@ -359,6 +411,75 @@ export const getPaymentsByCustomer = async (
     return response.data;
   } catch (error) {
     return handleApiError(error, 'Get Customer Payments');
+  }
+};
+
+/**
+ * Get all payments for customers managed by a specific sale user
+ * ✅ OPTIMIZED: Fetch payments by saleId directly from backend (no client-side filtering)
+ * Used for Sales role to view payments of their own customers only
+ * @param saleId - Sale user ID
+ * @param params - Pagination and filter parameters (pageIndex, pageSize)
+ * @returns Paginated list of payments for sale's customers
+ */
+export const getPaymentsBySale = async (
+  saleId: number,
+  params?: { pageIndex?: number; pageSize?: number }
+): Promise<PaginatedPaymentResponse> => {
+  try {
+    console.log('[getPaymentsBySale] Request:', { saleId, params });
+    
+    const response = await axios.get<BackendPaginatedPaymentResponse>(
+      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PAYMENT.GET_BY_SALE(saleId)}`,
+      {
+        headers: getAuthHeaders(),
+        params: params,
+        timeout: API_CONFIG.TIMEOUT,
+      }
+    );
+    
+    console.log('[getPaymentsBySale] Backend response:', response.data);
+    
+    // Transform backend paginated response to frontend format
+    const transformedPayments: PaymentResponse[] = response.data.items.map(backendPayment => ({
+      id: backendPayment.paymentID,
+      invoiceId: backendPayment.invoiceID,
+      amount: backendPayment.amountPaid,
+      remainingAmount: backendPayment.remainingAmount,
+      paymentMethod: backendPayment.paymentMethod,
+      transactionCode: backendPayment.transactionCode || undefined,
+      note: backendPayment.note || undefined,
+      paymentDate: backendPayment.paymentDate,
+      userId: backendPayment.createdBy,
+      createdAt: backendPayment.paymentDate,
+      invoice: backendPayment.invoice ? {
+        invoiceNumber: String(backendPayment.invoice.invoiceNumber),
+        customerName: backendPayment.invoice.customerName,
+        totalAmount: backendPayment.invoice.totalAmount,
+        paidAmount: backendPayment.invoice.paidAmount,
+        remainingAmount: backendPayment.invoice.remainingAmount,
+        paymentStatus: backendPayment.invoice.paymentStatus,
+      } : undefined,
+      user: backendPayment.user
+    }));
+    
+    const transformedResponse: PaginatedPaymentResponse = {
+      data: transformedPayments,
+      pageIndex: response.data.pageIndex,
+      pageSize: params?.pageSize || transformedPayments.length,
+      totalPages: response.data.totalPages,
+      totalCount: response.data.totalCount,
+      hasPreviousPage: response.data.hasPreviousPage,
+      hasNextPage: response.data.hasNextPage,
+    };
+    
+    console.log('[getPaymentsBySale] ✅ Transformed response:', transformedResponse);
+    console.log(`[getPaymentsBySale] ✅ Fetched ${transformedPayments.length} payments for sale ${saleId}`);
+    
+    return transformedResponse;
+  } catch (error) {
+    console.error('[getPaymentsBySale] ❌ Error:', error);
+    return handleApiError(error, 'Get Sale Payments');
   }
 };
 
@@ -419,6 +540,7 @@ export const paymentService = {
   getPaymentById,
   getPaymentsByInvoice,
   getPaymentsByCustomer,
+  getPaymentsBySale, // ✅ NEW - Get payments by saleId (optimized for Sales role)
   getMonthlyDebt, // ✅ NEW - Monthly debt report
 };
 

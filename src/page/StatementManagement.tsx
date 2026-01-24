@@ -38,6 +38,7 @@ import {
 import type { StatementListItem } from '@/types/statement.types'
 import { 
   fetchStatements, 
+  fetchStatementsBySale, // ✅ NEW - Optimized API for Sales role
   exportStatementPDF,
   sendStatementEmail,
   sendDebtReminder,
@@ -52,7 +53,6 @@ import StatementPaymentModal, {
 } from '@/components/StatementPaymentModal'
 import StatementPaymentHistoryModal from '@/components/StatementPaymentHistoryModal'
 import { useAuthContext } from '@/context/useAuthContext'
-import { getCustomersBySaleId } from '@/services/customerService'
 import { USER_ROLES } from '@/constants/roles'
 
 // ==================== INTERFACES ====================
@@ -334,55 +334,34 @@ const StatementManagement = () => {
       console.log('📊 [Statement - Load] Starting fetch...')
       console.log('👤 [Statement - User] Role:', user?.role, 'ID:', user?.id)
       
-      // ✅ Step 1: Get allowed customer names for Sales role
-      let allowedNames: string[] | null = null
+      let response: Awaited<ReturnType<typeof fetchStatements>>
       
+      // ✅ OPTIMIZED: Use fetchStatementsBySale for Sales role
       if (user?.role === USER_ROLES.SALES && user?.id) {
-        console.log('🔐 [Statement - Sales Filter] Fetching customers for Sale ID:', user.id)
-        console.log('📡 API Call: GET /api/Customer?saleId=' + user.id)
+        console.log('🚀 [Statement - Sales Optimized] Fetching statements for Sale ID:', user.id)
+        console.log('📡 API Call: GET /api/Statement/sale/' + user.id)
         
-        try {
-          const saleCustomers = await getCustomersBySaleId(Number(user.id))
-          console.log('📊 [Statement - Sales Filter] API returned:', saleCustomers.length, 'customers')
-          
-          // 🔥 CRITICAL: Backend bug - filter client-side
-          const filteredCustomers = saleCustomers.filter(c => c.saleID === Number(user.id))
-          
-          console.log('🔍 [Statement - Client Filter] Before:', saleCustomers.length, 'customers')
-          console.log('🔍 [Statement - Client Filter] After:', filteredCustomers.length, 'customers')
-          console.log('⚠️ [Statement - Backend Bug] Filtered out:', saleCustomers.length - filteredCustomers.length, 'wrong saleID')
-          
-          if (filteredCustomers.length < saleCustomers.length) {
-            console.warn('🚨 Backend API bug: Returning customers with saleID !=', user.id)
-            console.warn('🐛 Wrong customers:', saleCustomers.filter(c => c.saleID !== Number(user.id)).map(c => ({
-              customerID: c.customerID,
-              name: c.customerName,
-              saleID: c.saleID,
-            })))
-          }
-          
-          allowedNames = filteredCustomers.map(c => c.customerName)
-          
-          console.log('✅ [Statement - Sales Filter] Allowed customers:', allowedNames.length)
-          console.log('🎯 [Statement - Sales Filter] Customer names:', allowedNames)
-        } catch (error) {
-          console.error('❌ Failed to fetch sales customers:', error)
-          // Continue with empty list - will show no statements
-          allowedNames = []
-        }
+        response = await fetchStatementsBySale(
+          Number(user.id),
+          pagination.pageIndex, // Backend uses pageNumber
+          pagination.pageSize
+        )
+        
+        console.log('✅ [Statement - Sales] Backend-filtered statements:', response.items.length)
+        console.log('📊 [Statement - Sales] Customer names:', response.items.map(s => s.customerName))
+      } else {
+        // Admin/Accountant/Staff - fetch all statements
+        console.log('📡 [Statement - API] Fetching all statements...')
+        console.log('📄 [Statement - Pagination]:', {
+          pageIndex: pagination.pageIndex,
+          pageSize: pagination.pageSize,
+        })
+        
+        response = await fetchStatements({
+          pageIndex: pagination.pageIndex,
+          pageSize: pagination.pageSize,
+        })
       }
-      
-      // ✅ Step 2: Fetch all statements from API
-      console.log('📡 [Statement - API] Fetching statements...')
-      console.log('📄 [Statement - Pagination]:', {
-        pageIndex: pagination.pageIndex,
-        pageSize: pagination.pageSize,
-      })
-      
-      const response = await fetchStatements({
-        pageIndex: pagination.pageIndex,
-        pageSize: pagination.pageSize,
-      })
       
       console.log('📊 [Statement - API Response]:', {
         totalItems: response.items.length,
@@ -400,27 +379,15 @@ const StatementManagement = () => {
         } : null,
       })
 
-      // ✅ Step 3: Convert API response to legacy format
-      let convertedStatements = response.items.map(convertToLegacyFormat)
-      
-      // ✅ Step 4: Filter by allowedCustomerNames if Sales role
-      if (allowedNames !== null) {
-        const beforeFilter = convertedStatements.length
-        convertedStatements = convertedStatements.filter(s => 
-          allowedNames!.includes(s.customerName)
-        )
-        console.log('🔒 [Statement - Security Filter] Sales can only see their customers')
-        console.log('🔍 [Statement - Filter Result] Before:', beforeFilter, 'After:', convertedStatements.length)
-        console.log('✅ [Statement - Filtered] Statement codes:', convertedStatements.map(s => s.code))
-        console.log('✅ [Statement - Filtered] Customer names:', convertedStatements.map(s => s.customerName))
-      }
+      // ✅ Convert API response to legacy format
+      const convertedStatements = response.items.map(convertToLegacyFormat)
       
       setStatements(convertedStatements)
       
       setPagination(prev => ({
         ...prev,
         totalPages: response.totalPages,
-        totalCount: allowedNames !== null ? convertedStatements.length : response.totalCount,
+        totalCount: response.totalCount,
       }))
 
       console.log('✅ [Statement - Load Complete]:', convertedStatements.length, 'items')

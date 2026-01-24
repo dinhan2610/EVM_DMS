@@ -36,11 +36,9 @@ import {
   Autocomplete,
 } from '@mui/material'
 import {
-  HelpOutline,
   Public,
   VerifiedUser,
   ExpandMore,
-  Visibility,
   Close,
   Publish,
   Print,
@@ -802,7 +800,7 @@ function CreateSalesOrder() {
   const [company, setCompany] = useState<Company | null>(null)
   
   const [showTypeColumn, setShowTypeColumn] = useState(true)
-  const [discountType, setDiscountType] = useState<string>('none') // 'none' | 'per-item' | 'total'
+  const [discountType] = useState<string>('none') // 'none' | 'per-item' | 'total'
   const [sendEmailModalOpen, setSendEmailModalOpen] = useState(false)
   const [previewModalOpen, setPreviewModalOpen] = useState(false) // ✅ Preview modal
   const [invoiceNotes, setInvoiceNotes] = useState<string>('') // Ghi chú chung cho hóa đơn
@@ -2071,122 +2069,50 @@ function CreateSalesOrder() {
 
       {/* Main Content */}
       <Box sx={{ px: 2, pt: 0, maxWidth: '1600px', margin: '0 auto' }}>
-        <Paper elevation={1} sx={{ p: 2, borderRadius: 1, overflow: 'visible' }}>
-          {/* Hướng dẫn lập hóa đơn */}
-          <Box sx={{ mb: 2 }}>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<HelpOutline />}
-              sx={{ textTransform: 'none', borderColor: '#1976d2', color: '#1976d2', fontSize: '0.8125rem' }}>
-              Hướng dẫn lập hóa đơn
-            </Button>
-          </Box>
+        <Paper 
+          elevation={1}
+          sx={{ 
+            p: 2, 
+            borderRadius: 1, 
+            overflow: 'visible'
+          }}>
+          
 
           {/* Layout 2 cột: Thông tin bán/mua */}
           <Stack direction="row" spacing={2} sx={{ mb: 2, flexWrap: 'wrap' }}>
             {/* Cột TRÁI - Thông tin đầy đủ */}
-            <Box sx={{ flex: '1 1 100%', minWidth: '500px' }}>
+            <Box sx={{ 
+              flex: '1 1 100%', 
+              minWidth: '500px',
+              backgroundColor: '#fafbfc',
+              borderRadius: '12px',
+              p: 2.5,
+              border: '1px solid #e8eaed'
+            }}>
               {/* Tiêu đề hóa đơn */}
               <Typography
                 variant="h6"
                 align="center"
-                sx={{ fontWeight: 700, color: '#d32f2f', mb: 0.5, letterSpacing: 0.5, fontSize: '1.1rem' }}>
-                HÓA ĐƠN GIÁ TRỊ GIA TĂNG
+                sx={{ 
+                  fontWeight: 700, 
+                  color: '#d32f2f', 
+                  mb: 0.5, 
+                  letterSpacing: 0.5, 
+                  fontSize: '1.1rem',
+                  textTransform: 'uppercase'
+                }}>
+                TẠO YÊU CẦU XUẤT HOÁ ĐƠN GTGT
               </Typography>
-              <Typography variant="caption" align="center" sx={{ mb: 1.5, color: '#666', display: 'block' }}>
+              <Typography variant="caption" align="center" sx={{ mb: 2, color: '#666', display: 'block', fontSize: '0.85rem' }}>
                 Ngày {new Date().getDate()} tháng {new Date().getMonth() + 1} năm {new Date().getFullYear()}
               </Typography>
 
-              {/* Thông tin đơn vị bán hàng */}
-              <Stack spacing={0.8} sx={{ mb: 1.5 }}>
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                  <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    Đơn vị bán hàng:
-                  </Typography>
-                  <TextField 
-                    size="small" 
-                    fullWidth 
-                    disabled 
-                    value={company?.companyName || 'Đang tải...'} 
-                    variant="standard" 
-                    sx={{ fontSize: '0.8125rem' }} 
-                  />
-                </Stack>
+             
 
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                  <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    Mã số thuế:
-                  </Typography>
-                  <Stack direction="row" spacing={0.5} alignItems="center">
-                    {(company?.taxCode || '0000000000').split('').map((digit, index) => (
-                      <TextField
-                        key={index}
-                        size="small"
-                        disabled
-                        value={digit}
-                        variant="outlined"
-                        sx={{
-                          width: 32,
-                          '& .MuiInputBase-input': {
-                            textAlign: 'center',
-                            padding: '6px 0',
-                            fontSize: '0.875rem',
-                            fontWeight: 500,
-                          },
-                        }}
-                      />
-                    ))}
-                  </Stack>
-                </Stack>
-
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                  <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    Địa chỉ:
-                  </Typography>
-                  <TextField
-                    size="small"
-                    fullWidth
-                    disabled
-                    value={company?.address || 'Đang tải...'}
-                    variant="standard"
-                    sx={{ fontSize: '0.8125rem' }}
-                  />
-                </Stack>
-
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                  <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    Điện thoại:
-                  </Typography>
-                  <TextField
-                    size="small"
-                    fullWidth
-                    disabled
-                    value={company?.contactPhone || 'Đang tải...'}
-                    variant="standard"
-                    sx={{ fontSize: '0.8125rem' }}
-                  />
-                </Stack>
-
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                  <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    Số tài khoản:
-                  </Typography>
-                  <TextField
-                    size="small"
-                    fullWidth
-                    disabled
-                    value={company ? `${company.accountNumber} - ${company.bankName}` : 'Đang tải...'}
-                    variant="standard"
-                    sx={{ fontSize: '0.8125rem' }}
-                  />
-                </Stack>
-              </Stack>
-
-              <Divider sx={{ my: 1.5 }} />
+              <Divider sx={{ my: 2 }} />
 
               {/* Thông tin người mua */}
-              <Stack spacing={0.8}>
+              <Stack spacing={1}>
                 <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexWrap: 'wrap' }}>
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
                     MST người mua:
@@ -2257,7 +2183,7 @@ function CreateSalesOrder() {
                         setBuyerPhone(newValue.contactPhone)
                         setCustomerNotFound(false)
                         
-                        console.log('✅ Chọn khách hàng:', newValue.customerName)
+                        console.log('Chọn khách hàng:', newValue.customerName)
                         setSnackbar({
                           open: true,
                           message: `Đã chọn khách hàng: ${newValue.customerName}`,
@@ -2284,9 +2210,9 @@ function CreateSalesOrder() {
                         helperText={
                           isLoadingCustomers 
                             ? '⏳ Đang tải khách hàng của bạn...' 
-                            : customers.length > 0 
-                            ? `👥 ${customers.length} khách hàng (chỉ của bạn)` 
-                            : '⚠️ Bạn chưa có khách hàng nào'
+                            : customers.length === 0 
+                            ? '⚠️ Bạn chưa có khách hàng nào'
+                            : undefined
                         }
                       />
                     )}
@@ -2512,67 +2438,7 @@ function CreateSalesOrder() {
                 </Typography>
               </Stack>
 
-              {/* Chiết khấu */}
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Typography variant="caption" sx={{ fontSize: '0.8125rem', whiteSpace: 'nowrap' }}>
-                  Chiết khấu:
-                </Typography>
-                <Select 
-                  size="small" 
-                  value={discountType} 
-                  onChange={(e) => setDiscountType(e.target.value)}
-                  variant="standard"
-                  MenuProps={{
-                    PaperProps: {
-                      sx: {
-                        mt: 0.5,
-                        boxShadow: '0 4px 12px rgba(25, 118, 210, 0.15)',
-                        border: '1.5px solid #1976d2',
-                        borderRadius: 1.5,
-                        '& .MuiList-root': {
-                          padding: '4px',
-                        },
-                      },
-                    },
-                    anchorOrigin: {
-                      vertical: 'bottom',
-                      horizontal: 'left',
-                    },
-                    transformOrigin: {
-                      vertical: 'top',
-                      horizontal: 'left',
-                    },
-                  }}
-                  sx={{ 
-                    width: 210, 
-                    fontSize: '0.8125rem',
-                    transition: 'all 0.3s ease',
-                    '& .MuiSelect-select': {
-                      transition: 'all 0.3s ease',
-                    },
-                    '&:before': {
-                      borderBottomColor: '#e0e0e0',
-                      transition: 'border-color 0.3s ease',
-                    },
-                    '&:hover:before': {
-                      borderBottomColor: '#1976d2 !important',
-                    },
-                    '&:after': {
-                      borderBottomColor: '#1976d2',
-                      borderBottomWidth: '2px',
-                    },
-                    '&.Mui-focused': {
-                      '& .MuiSelect-select': {
-                        backgroundColor: 'rgba(25, 118, 210, 0.04)',
-                      },
-                    },
-                  }}
-                >
-                  <MenuItem value="none">Không có chiết khấu</MenuItem>
-                  <MenuItem value="per-item">Theo mặt hàng</MenuItem>
-                  <MenuItem value="total">Theo tổng giá trị đơn hàng</MenuItem>
-                </Select>
-              </Stack>
+              
             </Stack>
 
 
@@ -2583,8 +2449,11 @@ function CreateSalesOrder() {
           <Box
             sx={{
               width: '100%',
-              overflowX: 'auto', // Scroll ngang khi nội dung tràn
-              mb: 1.5,
+              overflowX: 'auto',
+              mb: 2,
+              borderRadius: '12px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+              border: '1px solid #e0e0e0',
             }}
           >
             <DataGrid
@@ -2600,9 +2469,9 @@ function CreateSalesOrder() {
               getRowHeight={() => 40}
               columnHeaderHeight={40}
               sx={{
-                border: '1px solid #e0e0e0',
-                borderRadius: '4px',
-                minWidth: 'max-content', // Cho phép bảng rộng hơn container
+                border: 'none',
+                borderRadius: '12px',
+                minWidth: 'max-content',
                 '& .MuiDataGrid-cell': {
                   fontSize: '0.8125rem',
                   borderRight: '1px solid #f0f0f0',
@@ -2769,8 +2638,17 @@ function CreateSalesOrder() {
 
           {/* Tổng tiền - Bố cục như hình */}
           <Stack direction="row" justifyContent="flex-end" sx={{ mb: 2 }}>
-            <Box sx={{ width: 450 }}>
-              <Stack spacing={0.8}>
+            <Box 
+              sx={{ 
+                width: 480, 
+                background: '#fafbfc',
+                borderRadius: '12px',
+                padding: 2.5,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                border: '1px solid #e8eaed'
+              }}
+            >
+              <Stack spacing={1.2}>
                 <Stack direction="row" justifyContent="space-between">
                   <Typography variant="caption" sx={{ fontSize: '0.8125rem' }}>Tổng tiền hàng:</Typography>
                   <Typography variant="caption" sx={{ fontWeight: 500, fontSize: '0.8125rem' }}>
@@ -2819,37 +2697,62 @@ function CreateSalesOrder() {
           <Divider sx={{ my: 2 }} />
 
           {/* Footer Actions */}
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ flexWrap: 'wrap', gap: 1 }}>
-            {/* Buttons trái */}
-            <Stack direction="row" spacing={1}>
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<Visibility fontSize="small" />}
-                onClick={() => setPreviewModalOpen(true)}
-                sx={{ textTransform: 'none', color: '#666', borderColor: '#ccc', fontSize: '0.8125rem', py: 0.5 }}>
-                Xem trước
-              </Button>
-            </Stack>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ flexWrap: 'wrap', gap: 2, mt: 3 }}>
+            
 
             {/* Buttons phải */}
-            <Stack direction="row" spacing={1}>
+            <Stack direction="row" spacing={2} sx={{ ml: 'auto' }}>
               <Button
-                size="small"
+                size="medium"
                 variant="outlined"
                 startIcon={<Close fontSize="small" />}
                 onClick={() => navigate('/invoices')}
-                sx={{ textTransform: 'none', color: '#666', borderColor: '#ccc', fontSize: '0.8125rem', py: 0.5 }}>
+                sx={{ 
+                  textTransform: 'none', 
+                  color: '#666', 
+                  borderColor: '#d0d0d0',
+                  borderRadius: '10px',
+                  px: 3,
+                  py: 1,
+                  fontSize: '0.875rem',
+                  fontWeight: 500,
+                  '&:hover': {
+                    borderColor: '#999',
+                    backgroundColor: '#f5f5f5',
+                    transform: 'translateY(-1px)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  },
+                  transition: 'all 0.2s ease'
+                }}>
                 Hủy bỏ
               </Button>
               <Button
-                size="small"
+                size="medium"
                 variant="contained"
                 startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Publish fontSize="small" />}
                 onClick={handleSubmitRequest}
                 disabled={isSubmitting}
-                sx={{ textTransform: 'none', backgroundColor: '#2e7d32', minWidth: 180, fontSize: '0.8125rem', py: 0.5 }}>
-                {isSubmitting ? 'Đang gửi yêu cầu...' : '📋 Gửi yêu cầu xuất hóa đơn'}
+                sx={{ 
+                  textTransform: 'none', 
+                  background: 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)',
+                  minWidth: 200,
+                  borderRadius: '10px',
+                  px: 3,
+                  py: 1,
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  boxShadow: '0 4px 12px rgba(46, 125, 50, 0.3)',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%)',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 6px 16px rgba(46, 125, 50, 0.4)'
+                  },
+                  '&:disabled': {
+                    background: '#ccc'
+                  },
+                  transition: 'all 0.2s ease'
+                }}>
+                {isSubmitting ? 'Đang gửi yêu cầu...' : 'Gửi yêu cầu xuất hóa đơn'}
               </Button>
             </Stack>
           </Stack>
