@@ -24,38 +24,38 @@ const MyRecentInvoices: React.FC<MyRecentInvoicesProps> = ({ invoices }) => {
     switch (status) {
       case 'Sent':
         return {
-          bgcolor: '#f0fdf4',
-          color: '#10b981',
+          bgcolor: 'success.lighter',
+          color: 'success.main',
           label: 'Đã gửi',
         };
       case 'Approved':
         return {
-          bgcolor: '#eff6ff',
-          color: '#3b82f6',
+          bgcolor: 'info.lighter',
+          color: 'info.main',
           label: 'Đã duyệt',
         };
       case 'Pending':
         return {
-          bgcolor: '#fffbeb',
-          color: '#f59e0b',
+          bgcolor: 'warning.lighter',
+          color: 'warning.main',
           label: 'Chờ duyệt',
         };
       case 'Rejected':
         return {
-          bgcolor: '#fef2f2',
-          color: '#dc2626',
+          bgcolor: 'error.lighter',
+          color: 'error.main',
           label: 'Từ chối',
         };
       case 'Draft':
         return {
-          bgcolor: '#f8fafc',
-          color: '#64748b',
+          bgcolor: 'grey.50',
+          color: 'text.secondary',
           label: 'Nháp',
         };
       default:
         return {
-          bgcolor: '#f8fafc',
-          color: '#64748b',
+          bgcolor: 'grey.50',
+          color: 'text.secondary',
           label: status,
         };
     }
@@ -71,7 +71,7 @@ const MyRecentInvoices: React.FC<MyRecentInvoicesProps> = ({ invoices }) => {
           variant="body2"
           sx={{
             fontWeight: 600,
-            color: '#1e293b',
+            color: 'text.primary',
             fontSize: '13px',
           }}
         >
@@ -88,7 +88,7 @@ const MyRecentInvoices: React.FC<MyRecentInvoicesProps> = ({ invoices }) => {
         <Typography
           variant="body2"
           sx={{
-            color: '#475569',
+            color: 'text.secondary',
             fontSize: '13px',
           }}
         >
@@ -107,7 +107,7 @@ const MyRecentInvoices: React.FC<MyRecentInvoicesProps> = ({ invoices }) => {
           variant="body2"
           sx={{
             fontWeight: 600,
-            color: '#0f172a',
+            color: 'text.primary',
             fontSize: '13px',
           }}
         >
@@ -147,7 +147,7 @@ const MyRecentInvoices: React.FC<MyRecentInvoicesProps> = ({ invoices }) => {
         <Typography
           variant="caption"
           sx={{
-            color: '#94a3b8',
+            color: 'text.disabled',
             fontSize: '12px',
           }}
         >
@@ -165,10 +165,10 @@ const MyRecentInvoices: React.FC<MyRecentInvoicesProps> = ({ invoices }) => {
       <CardContent sx={{ p: 3 }}>
         {/* Header */}
         <Box mb={2.5}>
-          <Typography variant="h6" fontWeight={700} sx={{ color: '#1e293b', mb: 0.5 }}>
+          <Typography variant="h6" fontWeight={700} sx={{ color: 'text.primary', mb: 0.5 }}>
             Hóa đơn tôi vừa làm
           </Typography>
-          <Typography variant="body2" sx={{ color: '#64748b', fontSize: '13px' }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '13px' }}>
             {invoices.length} hóa đơn gần đây
           </Typography>
         </Box>
@@ -185,18 +185,19 @@ const MyRecentInvoices: React.FC<MyRecentInvoicesProps> = ({ invoices }) => {
               borderBottom: '1px solid #f1f5f9',
             },
             '& .MuiDataGrid-columnHeaders': {
-              bgcolor: '#f8fafc',
-              borderBottom: '2px solid #e2e8f0',
+              bgcolor: 'grey.50',
+              borderBottom: '2px solid',
+              borderBottomColor: 'divider',
               borderRadius: '8px',
             },
             '& .MuiDataGrid-columnHeaderTitle': {
               fontWeight: 700,
               fontSize: '13px',
-              color: '#475569',
+              color: 'text.secondary',
             },
             '& .MuiDataGrid-row': {
               '&:hover': {
-                bgcolor: '#f8fafc',
+                bgcolor: 'grey.50',
                 cursor: 'pointer',
               },
               '&.Mui-selected': {

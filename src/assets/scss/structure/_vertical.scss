@@ -23,11 +23,11 @@
     }
 
     .logo-light {
-        display: none;
+        display: none !important; // Light mode only - never show
     }
 
     .logo-dark {
-        display: block;
+        display: block !important; // Light mode only - always show
     }
 
     // Prevent logo from being squashed
@@ -549,18 +549,18 @@ html[data-menu-size='hidden'] {
     }
 }
 
-// Sidenav Dark and Brand
+// Light mode only - logo-dark always visible
 html[data-bs-theme='dark'],
 html[data-menu-color='dark'],
 html[data-menu-color='brand'] {
     .main-nav {
         .logo-box {
             .logo-light {
-                display: block;
+                display: none !important; // Force hide
             }
 
             .logo-dark {
-                display: none;
+                display: block !important; // Force show
             }
         }
     }

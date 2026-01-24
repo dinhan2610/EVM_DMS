@@ -10,8 +10,8 @@ import { Button, Stack, Typography, Box, Paper } from '@mui/material'
 
 const MenuOptimizationDemo = () => {
   const {
-    menu: { size, theme },
-    changeMenu: { size: changeMenuSize, theme: changeMenuTheme },
+    menu: { size },
+    changeMenu: { size: changeMenuSize },
   } = useLayoutContext()
 
   return (
@@ -22,13 +22,16 @@ const MenuOptimizationDemo = () => {
 
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>
-          Current Menu State
+          📊 Current Menu State
         </Typography>
         <Typography>
           <strong>Size:</strong> {size}
         </Typography>
         <Typography>
-          <strong>Theme:</strong> {theme}
+          <strong>Theme:</strong> Light (Locked)
+        </Typography>
+        <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary' }}>
+          Dark mode is disabled. All components use light theme only.
         </Typography>
       </Paper>
 
@@ -66,20 +69,20 @@ const MenuOptimizationDemo = () => {
 
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>
-          🎨 Test Menu Themes
+          🎨 Menu Theme (Light Mode Only)
         </Typography>
         <Stack direction="row" spacing={2}>
           <Button
-            variant={theme === 'light' ? 'contained' : 'outlined'}
-            onClick={() => changeMenuTheme('light')}
+            variant="contained"
+            disabled
           >
-            Light
+            Light (Active)
           </Button>
           <Button
-            variant={theme === 'dark' ? 'contained' : 'outlined'}
-            onClick={() => changeMenuTheme('dark')}
+            variant="outlined"
+            disabled
           >
-            Dark
+            Dark (Disabled)
           </Button>
         </Stack>
       </Paper>
@@ -97,7 +100,7 @@ const MenuOptimizationDemo = () => {
           <li>Active state với gradient background</li>
           <li>Responsive: Hidden on mobile, visible on desktop</li>
           <li>Accessibility: Focus-visible, ARIA labels</li>
-          <li>Dark mode optimization</li>
+          <li>Light mode optimized (Dark mode disabled)</li>
           <li>Print-friendly: Auto hide on print</li>
         </ul>
       </Paper>
@@ -122,7 +125,7 @@ const MenuOptimizationDemo = () => {
           <li>Click toggle button (→/←) ở góc phải menu để test</li>
           <li>Hover vào menu items để xem animations</li>
           <li>Resize window để test responsive</li>
-          <li>Enable dark mode để test dark theme</li>
+          <li>Light mode only (Dark mode disabled)</li>
           <li>Try keyboard navigation (Tab key)</li>
         </ul>
       </Paper>

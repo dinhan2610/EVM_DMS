@@ -1,7 +1,6 @@
 import { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react'
 
 import useLocalStorage from '@/hooks/useLocalStorage'
-import useQueryParams from '@/hooks/useQueryParams'
 import type { ChildrenType } from '@/types/component-props'
 import type { LayoutState, LayoutType, MenuType, OffcanvasControlType, LayoutOffcanvasStatesType, ThemeType } from '@/types/context'
 import { toggleDocumentAttribute } from '@/utils/layout'
@@ -16,79 +15,109 @@ const useLayoutContext = () => {
   return context
 }
 
-const getPreferredTheme = (): ThemeType => (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-
 const LayoutProvider = ({ children }: ChildrenType) => {
-  const queryParams = useQueryParams()
-
-  const override = !!(queryParams.layout_theme || queryParams.topbar_theme || queryParams.menu_theme || queryParams.menu_size);
-
-  const INIT_STATE: LayoutState = {
-    theme: queryParams['layout_theme'] ? (queryParams['layout_theme'] as ThemeType) : getPreferredTheme(),
-    topbarTheme: queryParams['topbar_theme'] ? (queryParams['topbar_theme'] as ThemeType) : 'light',
+  // Force light mode only - clear any dark mode from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem('__REBACK_NEXT_CONFIG__')
+    if (stored) {
+      try {
+        const config = JSON.parse(stored)
+        // Force override any dark settings
+        if (config.theme !== 'light' || config.topbarTheme !== 'light' || config.menu?.theme !== 'light') {
+          localStorage.setItem('__REBACK_NEXT_CONFIG__', JSON.stringify({
+            theme: 'light',
+            topbarTheme: 'light',
+            menu: { theme: 'light', size: 'default' }
+          }))
+        }
+      } catch (e) {
+        // Invalid JSON, clear it
+        localStorage.removeItem('__REBACK_NEXT_CONFIG__')
+      }
+    }
+  }, [])
+  
+  // Force light mode only - ignore query params and localStorage
+  // Define INIT_STATE outside component to avoid dependency warning
+  const INIT_STATE: LayoutState = useMemo(() => ({
+    theme: 'light',
+    topbarTheme: 'light',
     menu: {
-      theme: queryParams['menu_theme'] ? (queryParams['menu_theme'] as MenuType['theme']) : 'light',
-      size: queryParams['menu_size'] ? (queryParams['menu_size'] as MenuType['size']) : 'default',
+      theme: 'light',
+      size: 'default',
     },
-  }
+  }), [])
 
-  const [settings, setSettings] = useLocalStorage<LayoutState>('__REBACK_NEXT_CONFIG__', INIT_STATE,override)
+  // Force override localStorage with light mode only
+  const [settings, setSettings] = useLocalStorage<LayoutState>('__REBACK_NEXT_CONFIG__', INIT_STATE, true)
   const [offcanvasStates, setOffcanvasStates] = useState<LayoutOffcanvasStatesType>({
     showThemeCustomizer: false,
     showActivityStream: false,
     showBackdrop: false,
   })
 
-  // update settings
-  const updateSettings = (_newSettings: Partial<LayoutState>) => setSettings({ ...settings, ..._newSettings })
+  // update settings - memoized to prevent unnecessary re-renders
+  const updateSettings = useCallback((_newSettings: Partial<LayoutState>) => {
+    setSettings((prevSettings) => ({ ...prevSettings, ..._newSettings }))
+  }, [setSettings])
 
   // update theme mode
-  const changeTheme = (newTheme: ThemeType) => {
+  const changeTheme = useCallback((newTheme: ThemeType) => {
     updateSettings({ theme: newTheme })
-  }
+  }, [updateSettings])
 
   // change topbar theme
-  const changeTopbarTheme = (newTheme: ThemeType) => {
+  const changeTopbarTheme = useCallback((newTheme: ThemeType) => {
     updateSettings({ topbarTheme: newTheme })
-  }
+  }, [updateSettings])
 
   // change menu theme
-  const changeMenuTheme = (newTheme: MenuType['theme']) => {
-    updateSettings({ menu: { ...settings.menu, theme: newTheme } })
-  }
+  const changeMenuTheme = useCallback((newTheme: MenuType['theme']) => {
+    setSettings((prevSettings) => ({
+      ...prevSettings,
+      menu: { ...prevSettings.menu, theme: newTheme }
+    }))
+  }, [setSettings])
 
-  // change menu theme
-  const changeMenuSize = (newSize: MenuType['size']) => {
-    updateSettings({ menu: { ...settings.menu, size: newSize } })
-  }
+  // change menu size
+  const changeMenuSize = useCallback((newSize: MenuType['size']) => {
+    setSettings((prevSettings) => ({
+      ...prevSettings,
+      menu: { ...prevSettings.menu, size: newSize }
+    }))
+  }, [setSettings])
 
   // toggle theme customizer offcanvas
-  const toggleThemeCustomizer: OffcanvasControlType['toggle'] = () => {
-    setOffcanvasStates({ ...offcanvasStates, showThemeCustomizer: !offcanvasStates.showThemeCustomizer })
-  }
+  const toggleThemeCustomizer: OffcanvasControlType['toggle'] = useCallback(() => {
+    setOffcanvasStates((prev) => ({ ...prev, showThemeCustomizer: !prev.showThemeCustomizer }))
+  }, [])
 
   // toggle activity stream offcanvas
-  const toggleActivityStream: OffcanvasControlType['toggle'] = () => {
-    setOffcanvasStates({ ...offcanvasStates, showActivityStream: !offcanvasStates.showActivityStream })
-  }
+  const toggleActivityStream: OffcanvasControlType['toggle'] = useCallback(() => {
+    setOffcanvasStates((prev) => ({ ...prev, showActivityStream: !prev.showActivityStream }))
+  }, [])
 
-  const themeCustomizer: LayoutType['themeCustomizer'] = {
+  // themeCustomizer object - memoized
+  const themeCustomizer: LayoutType['themeCustomizer'] = useMemo(() => ({
     open: offcanvasStates.showThemeCustomizer,
     toggle: toggleThemeCustomizer,
-  }
+  }), [offcanvasStates.showThemeCustomizer, toggleThemeCustomizer])
 
-  const activityStream: LayoutType['activityStream'] = {
+  // activityStream object - memoized
+  const activityStream: LayoutType['activityStream'] = useMemo(() => ({
     open: offcanvasStates.showActivityStream,
     toggle: toggleActivityStream,
-  }
+  }), [offcanvasStates.showActivityStream, toggleActivityStream])
 
-  // toggle backdrop
+  // toggle backdrop - use functional update to avoid stale closure
   const toggleBackdrop = useCallback(() => {
     const htmlTag = document.getElementsByTagName('html')[0]
-    if (offcanvasStates.showBackdrop) htmlTag.classList.remove('sidebar-enable')
-    else htmlTag.classList.add('sidebar-enable')
-    setOffcanvasStates({ ...offcanvasStates, showBackdrop: !offcanvasStates.showBackdrop })
-  }, [offcanvasStates.showBackdrop])
+    setOffcanvasStates((prev) => {
+      if (prev.showBackdrop) htmlTag.classList.remove('sidebar-enable')
+      else htmlTag.classList.add('sidebar-enable')
+      return { ...prev, showBackdrop: !prev.showBackdrop }
+    })
+  }, [])
 
 
   useEffect(() => {
@@ -104,27 +133,42 @@ const LayoutProvider = ({ children }: ChildrenType) => {
     }
   }, [settings])
 
-  const resetSettings = () => updateSettings(INIT_STATE)
+  // reset settings to initial state
+  const resetSettings = useCallback(() => {
+    updateSettings(INIT_STATE)
+  }, [updateSettings, INIT_STATE])
+
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo(
+    () => ({
+      ...settings,
+      themeMode: settings.theme,
+      changeTheme,
+      changeTopbarTheme,
+      changeMenu: {
+        theme: changeMenuTheme,
+        size: changeMenuSize,
+      },
+      themeCustomizer,
+      activityStream,
+      toggleBackdrop,
+      resetSettings,
+    }),
+    [
+      settings,
+      changeTheme,
+      changeTopbarTheme,
+      changeMenuTheme,
+      changeMenuSize,
+      themeCustomizer,
+      activityStream,
+      toggleBackdrop,
+      resetSettings,
+    ]
+  )
 
   return (
-    <ThemeContext.Provider
-      value={useMemo(
-        () => ({
-          ...settings,
-          themeMode: settings.theme,
-          changeTheme,
-          changeTopbarTheme,
-          changeMenu: {
-            theme: changeMenuTheme,
-            size: changeMenuSize,
-          },
-          themeCustomizer,
-          activityStream,
-          toggleBackdrop,
-          resetSettings,
-        }),
-        [settings, offcanvasStates],
-      )}>
+    <ThemeContext.Provider value={contextValue}>
       {children}
       {offcanvasStates.showBackdrop && <div className="offcanvas-backdrop fade show" onClick={toggleBackdrop} />}
     </ThemeContext.Provider>

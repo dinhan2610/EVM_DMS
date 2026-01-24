@@ -57,7 +57,7 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ data }) => {
         style: {
           fontSize: '12px',
           fontFamily: 'inherit',
-          colors: '#64748b',
+          colors: 'var(--mui-palette-text-secondary)',
         },
       },
       axisBorder: {
@@ -72,7 +72,7 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ data }) => {
         style: {
           fontSize: '12px',
           fontFamily: 'inherit',
-          colors: '#64748b',
+          colors: 'var(--mui-palette-text-secondary)',
         },
         formatter: (value: number) => {
           return formatCurrency(value);
@@ -82,7 +82,7 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ data }) => {
     fill: {
       opacity: 1,
     },
-    colors: ['#10b981', '#f59e0b'], // Green for paid, Orange for unpaid
+    colors: ['#10b981', '#f59e0b'], // Green for paid, Orange for unpaid - ApexCharts needs hex
     legend: {
       show: true,
       position: 'top',
@@ -100,7 +100,7 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ data }) => {
       },
     },
     grid: {
-      borderColor: '#f1f5f9',
+      borderColor: '#f1f5f9', // ApexCharts requires hex
       strokeDashArray: 3,
       padding: {
         top: 0,
@@ -164,10 +164,10 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ data }) => {
     >
       <CardContent sx={{ p: 3 }}>
         {/* Header */}
-        <Typography variant="h6" fontWeight={700} sx={{ color: '#1e293b', mb: 0.5 }}>
+        <Typography variant="h6" fontWeight={700} sx={{ color: 'text.primary', mb: 0.5 }}>
           Chi phí theo tháng (Năm 2025)
         </Typography>
-        <Typography variant="body2" sx={{ color: '#64748b', fontSize: '13px', mb: 3 }}>
+        <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '13px', mb: 3 }}>
           Theo dõi chi tiêu và quản lý ngân sách của bạn
         </Typography>
 
@@ -197,13 +197,13 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ data }) => {
               variant="h6"
               fontWeight={700}
               sx={{
-                color: '#1976d2',
+                color: 'primary.main',
                 fontSize: '18px',
               }}
             >
               {formatCurrency(totalYear)}
             </Typography>
-            <Typography variant="caption" sx={{ color: '#64748b', fontSize: '11px' }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '11px' }}>
               Tổng chi năm
             </Typography>
           </Box>
@@ -213,13 +213,13 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ data }) => {
               variant="h6"
               fontWeight={700}
               sx={{
-                color: '#10b981',
+                color: 'success.main',
                 fontSize: '18px',
               }}
             >
               {formatCurrency(totalPaid)}
             </Typography>
-            <Typography variant="caption" sx={{ color: '#64748b', fontSize: '11px' }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '11px' }}>
               Đã thanh toán
             </Typography>
           </Box>
@@ -229,13 +229,13 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ data }) => {
               variant="h6"
               fontWeight={700}
               sx={{
-                color: '#f59e0b',
+                color: 'warning.main',
                 fontSize: '18px',
               }}
             >
               {formatCurrency(totalUnpaid)}
             </Typography>
-            <Typography variant="caption" sx={{ color: '#64748b', fontSize: '11px' }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '11px' }}>
               Chưa thanh toán
             </Typography>
           </Box>
@@ -245,13 +245,13 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ data }) => {
               variant="h6"
               fontWeight={700}
               sx={{
-                color: '#7c3aed',
+                color: 'secondary.main',
                 fontSize: '18px',
               }}
             >
               {totalInvoices}
             </Typography>
-            <Typography variant="caption" sx={{ color: '#64748b', fontSize: '11px' }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '11px' }}>
               Tổng hóa đơn
             </Typography>
           </Box>

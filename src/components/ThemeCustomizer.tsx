@@ -6,8 +6,9 @@ import { useLayoutContext } from '@/context/useLayoutContext'
 import { toSentenceCase } from '@/utils/change-casing'
 
 const ColorScheme = () => {
-  const { theme, changeTheme } = useLayoutContext()
-  const modes: ThemeType[] = ['light', 'dark']
+  const { theme } = useLayoutContext()
+  // Dark mode disabled - light mode only
+  const modes: ThemeType[] = ['light']
   return (
     <div>
       <h5 className="mb-3 font-16 fw-semibold">Color Scheme</h5>
@@ -18,11 +19,11 @@ const ColorScheme = () => {
             type="radio"
             name="data-bs-theme"
             id={`layout-color-${mode}`}
-            onChange={() => changeTheme(mode)}
+            disabled
             checked={theme === mode}
           />
           <label className="form-check-label" htmlFor={`layout-color-${mode}`}>
-            {toSentenceCase(mode)}
+            {toSentenceCase(mode)} (Dark mode disabled)
           </label>
         </div>
       ))}
@@ -31,8 +32,9 @@ const ColorScheme = () => {
 }
 
 const TopbarTheme = () => {
-  const { topbarTheme, changeTopbarTheme } = useLayoutContext()
-  const modes: ThemeType[] = ['light', 'dark']
+  const { topbarTheme } = useLayoutContext()
+  // Dark mode disabled - light mode only
+  const modes: ThemeType[] = ['light']
   return (
     <div>
       <h5 className="my-3 font-16 fw-semibold">Topbar Color</h5>
@@ -43,11 +45,11 @@ const TopbarTheme = () => {
             type="radio"
             name="data-topbar-color"
             id={`topbar-color-${mode}`}
-            onChange={() => changeTopbarTheme(mode)}
+            disabled
             checked={topbarTheme === mode}
           />
           <label className="form-check-label" htmlFor={`topbar-color-${mode}`}>
-            {toSentenceCase(mode)}
+            {toSentenceCase(mode)} (Dark mode disabled)
           </label>
         </div>
       ))}
@@ -58,9 +60,9 @@ const TopbarTheme = () => {
 const MenuTheme = () => {
   const {
     menu: { theme },
-    changeMenu: { theme: changeMenuTheme },
   } = useLayoutContext()
-  const modes: ThemeType[] = ['light', 'dark']
+  // Dark mode disabled - light mode only
+  const modes: ThemeType[] = ['light']
   return (
     <div>
       <h5 className="my-3 font-16 fw-semibold">Menu Color</h5>
@@ -71,11 +73,11 @@ const MenuTheme = () => {
             type="radio"
             name="data-menu-color"
             id={`leftbar-color-${mode}`}
-            onChange={() => changeMenuTheme(mode)}
+            disabled
             checked={theme === mode}
           />
           <label className="form-check-label" htmlFor={`leftbar-color-${mode}`}>
-            {toSentenceCase(mode)}
+            {toSentenceCase(mode)} (Dark mode disabled)
           </label>
         </div>
       ))}

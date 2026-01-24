@@ -714,16 +714,16 @@ const TemplateEditor: React.FC = () => {
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
-      <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5' }}>
+      <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50' }}>
         {/* Header */}
-        <Box sx={{ bgcolor: '#fff', borderBottom: '1px solid #e0e0e0', px: 3, py: 2 }}>
+        <Box sx={{ bgcolor: 'background.paper', borderBottom: '1px solid', borderBottomColor: 'divider', px: 3, py: 2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Stack direction="row" spacing={2} alignItems="center">
-            <IconButton onClick={handleBack} sx={{ color: '#555' }}>
+            <IconButton onClick={handleBack} sx={{ color: 'text.secondary' }}>
               <ArrowBackIcon />
             </IconButton>
            <Box>
-                         <Typography variant="h5" sx={{ fontWeight: 600, fontSize: '1.25rem', color: '#1a1a1a', lineHeight: 1.2 }}>
+                         <Typography variant="h5" sx={{ fontWeight: 600, fontSize: '1.25rem', color: 'text.primary', lineHeight: 1.2 }}>
                            Thiết lập mẫu hóa đơn
                          </Typography>
                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8125rem', mt: 0.25 }}>
@@ -738,10 +738,10 @@ const TemplateEditor: React.FC = () => {
               <IconButton 
                 onClick={() => setGuideModalOpen(true)}
                 sx={{ 
-                  color: '#1976d2',
-                  bgcolor: '#e3f2fd',
+                  color: 'primary.main',
+                  bgcolor: 'primary.light',
                   '&:hover': { 
-                    bgcolor: '#bbdefb',
+                    bgcolor: 'primary.light',
                     transform: 'scale(1.05)',
                   },
                   transition: 'all 0.2s ease',
@@ -765,17 +765,17 @@ const TemplateEditor: React.FC = () => {
                 fontSize: '0.875rem',
                 px: 3,
                 py: 0.85,
-                bgcolor: templateId ? '#1976d2' : '#e0e0e0',
+                bgcolor: templateId ? 'primary.main' : 'action.disabledBackground',
                 color: 'white',
                 boxShadow: templateId ? '0 2px 4px rgba(25, 118, 210, 0.2)' : 'none',
                 '&:hover': {
-                  bgcolor: templateId ? '#1565c0' : '#e0e0e0',
+                  bgcolor: templateId ? 'primary.dark' : 'action.disabledBackground',
                   boxShadow: templateId ? '0 4px 12px rgba(25, 118, 210, 0.3)' : 'none',
                   transform: templateId ? 'translateY(-2px)' : 'none',
                 },
                 '&:disabled': {
-                  bgcolor: '#e0e0e0',
-                  color: '#9e9e9e',
+                  bgcolor: 'action.disabledBackground',
+                  color: 'text.disabled',
                 },
                 transition: 'all 0.2s ease',
               }}
@@ -813,15 +813,15 @@ const TemplateEditor: React.FC = () => {
 
                 {/* Ký hiệu - Theo quy định Việt Nam */}
                 <Box>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#616161', mb: 0.75, display: 'block', fontSize: '0.8125rem' }}>
-                    Ký hiệu hóa đơn <span style={{ color: '#d32f2f' }}>*</span>
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.75, display: 'block', fontSize: '0.8125rem' }}>
+                    Ký hiệu hóa đơn <span style={{ color: 'var(--mui-palette-error-main)' }}>*</span>
                   </Typography>
                   
                   {/* Grid layout cho 5 phần */}
                   <Stack spacing={1.5}>
                     {/* Phần 1: Loại hóa đơn (1 chữ số) */}
                     <Box>
-                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#616161', mb: 0.5 }}>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: 'text.secondary', mb: 0.5 }}>
                         1️⃣ Loại hóa đơn (1 chữ số)
                       </Typography>
                       <FormControl fullWidth size="small">
@@ -866,7 +866,7 @@ const TemplateEditor: React.FC = () => {
 
                     {/* Phần 2: Ký tự mã CQT (C/K) */}
                     <Box>
-                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#616161', mb: 0.5 }}>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: 'text.secondary', mb: 0.5 }}>
                         2️⃣ Mã cơ quan thuế (1 chữ cái)
                       </Typography>
                       <FormControl fullWidth size="small">
@@ -876,8 +876,8 @@ const TemplateEditor: React.FC = () => {
                           disabled={symbolDataLoading}
                           sx={{
                             fontSize: '0.875rem',
-                            bgcolor: '#fafafa',
-                            '&:hover': { bgcolor: '#f5f5f5' },
+                            bgcolor: 'grey.50',
+                            '&:hover': { bgcolor: 'action.hover' },
                             '& .MuiSelect-select': { fontWeight: 600, letterSpacing: '0.5px' },
                           }}
                         >
@@ -908,7 +908,7 @@ const TemplateEditor: React.FC = () => {
 
                     {/* Phần 3: Năm (2 chữ số) */}
                     <Box>
-                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#616161', mb: 0.5 }}>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: 'text.secondary', mb: 0.5 }}>
                         3️⃣ Năm lập hóa đơn (2 chữ số)
                       </Typography>
                     <TextField
@@ -927,8 +927,8 @@ const TemplateEditor: React.FC = () => {
                       sx={{ 
                         '& .MuiOutlinedInput-root': { 
                           fontSize: '0.875rem',
-                            bgcolor: '#fafafa',
-                            '&:hover': { bgcolor: '#f5f5f5' },
+                            bgcolor: 'grey.50',
+                            '&:hover': { bgcolor: 'action.hover' },
                           },
                         }}
                         helperText="Ví dụ: 2025 → 25"
@@ -937,7 +937,7 @@ const TemplateEditor: React.FC = () => {
 
                     {/* Phần 4: Loại hóa đơn điện tử (1 chữ cái) */}
                     <Box>
-                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#616161', mb: 0.5 }}>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: 'text.secondary', mb: 0.5 }}>
                         4️⃣ Loại hóa đơn điện tử (1 chữ cái)
                       </Typography>
                       <FormControl fullWidth size="small">
@@ -947,7 +947,7 @@ const TemplateEditor: React.FC = () => {
                           disabled={symbolDataLoading}
                           sx={{
                         fontSize: '0.875rem', 
-                            bgcolor: '#fafafa',
+                            bgcolor: 'grey.50',
                             '&:hover': { bgcolor: '#f5f5f5' },
                             '& .MuiSelect-select': { fontWeight: 600 },
                           }}

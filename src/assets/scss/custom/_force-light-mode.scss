@@ -1,0 +1,234 @@
+// ============================================================
+// Force Light Mode Only - Override Dark Mode Styles
+// ============================================================
+// This file ensures all dark mode styles are overridden to use light mode
+// even if data-bs-theme="dark" or data-menu-color="dark" are set
+
+// Force Light Mode Colors
+html[data-bs-theme='dark'],
+[data-bs-theme='dark'] {
+    // Override dark mode variables with light mode values
+    --#{$prefix}body-bg: #{$body-bg};
+    --#{$prefix}body-color: #{$body-color};
+    --#{$prefix}body-bg-rgb: #{to-rgb($body-bg)};
+    --#{$prefix}body-color-rgb: #{to-rgb($body-color)};
+    
+    --#{$prefix}border-color: #e3eaef;
+    
+    --#{$prefix}light: #{$body-tertiary-bg};
+    --#{$prefix}dark: #{$body-tertiary-color};
+    
+    --#{$prefix}light-rgb: #{to-rgb($body-tertiary-bg)};
+    --#{$prefix}dark-rgb: #{to-rgb($body-tertiary-color)};
+    
+    --#{$prefix}headings-color: #313b5e;
+    
+    --#{$prefix}input-border-color: #d8dfe7;
+    --#{$prefix}input-focus-border-color: #b0b0bb;
+    
+    // Force light background
+    background-color: $body-bg !important;
+    color: $body-color !important;
+}
+
+// Force Menu Light Mode Variables - Override dark menu colors
+html[data-menu-color='dark'],
+html[data-menu-color='brand'],
+html[data-bs-theme='dark'][data-menu-color='light'],
+html[data-bs-theme='dark'] {
+    --#{$prefix}main-nav-bg: #ffffff !important;
+    --#{$prefix}main-nav-item-color: #8486a7 !important;
+    --#{$prefix}main-nav-item-hover-bg: #f3f1fa !important;
+    --#{$prefix}main-nav-item-hover-color: #3d4756 !important;
+    --#{$prefix}main-nav-border-color: #eaedf1 !important;
+}
+
+// Force Topbar Light Mode Variables - Override dark topbar colors
+html[data-topbar-color='dark'],
+html[data-bs-theme='dark'][data-topbar-color='light'],
+html[data-bs-theme='dark'] {
+    --#{$prefix}topbar-bg: #{$white} !important;
+    --#{$prefix}topbar-item-color: #707793 !important;
+    --#{$prefix}topbar-search-bg: #f3f3f9 !important;
+}
+
+// Force Topbar Light Mode
+html[data-bs-theme='dark'] {
+    .topbar {
+        background-color: $topbar-bg !important;
+        border-bottom-color: $border-color !important;
+        
+        .topbar-item,
+        .topbar-button,
+        .topbar-link {
+            color: $topbar-item-color !important;
+            
+            &:hover {
+                background-color: rgba($black, 0.08) !important;
+            }
+        }
+        
+        // Keep light mode icon
+        #light-dark-mode i::before {
+            content: '\eacb' !important; // Light mode icon
+        }
+    }
+}
+
+// Force Main Navigation Light Mode
+html[data-bs-theme='dark'],
+html[data-menu-color='dark'],
+html[data-menu-color='brand'] {
+    .main-nav {
+        background-color: var(--#{$prefix}main-nav-bg, #ffffff) !important;
+        border-right-color: $border-color !important;
+        
+        .logo-box {
+            background-color: inherit !important;
+            border-bottom-color: $border-color !important;
+        }
+        
+        .main-menu-item {
+            color: var(--#{$prefix}main-nav-item-color, #8486a7) !important;
+            
+            &:hover,
+            &:focus {
+                background-color: var(--#{$prefix}main-nav-item-hover-bg, #f3f1fa) !important;
+                color: var(--#{$prefix}main-nav-item-hover-color, #3d4756) !important;
+            }
+            
+            &.active {
+                background-color: var(--#{$prefix}main-nav-item-active-bg, #727cf5) !important;
+                color: var(--#{$prefix}main-nav-item-active-color, #ffffff) !important;
+            }
+        }
+    }
+}
+
+// Force Button Light Mode
+html[data-bs-theme='dark'] {
+    .btn-primary {
+        background-color: $primary !important;
+        border-color: $primary !important;
+        color: $white !important;
+        
+        &:hover,
+        &:focus {
+            background-color: darken($primary, 10%) !important;
+            border-color: darken($primary, 10%) !important;
+        }
+    }
+    
+    .btn-secondary {
+        background-color: $secondary !important;
+        border-color: $secondary !important;
+        
+        &:hover,
+        &:focus {
+            background-color: darken($secondary, 10%) !important;
+            border-color: darken($secondary, 10%) !important;
+        }
+    }
+    
+    .btn-light {
+        background-color: $light !important;
+        border-color: $light !important;
+        color: $dark !important;
+    }
+}
+
+// Force Table Light Mode
+html[data-bs-theme='dark'] {
+    .table {
+        --#{$prefix}table-bg: transparent;
+        --#{$prefix}table-color: #{$body-color};
+        --#{$prefix}table-border-color: #e3eaef;
+        --#{$prefix}table-striped-bg: rgba($black, 0.02);
+        --#{$prefix}table-hover-bg: rgba($black, 0.04);
+        
+        background-color: $white !important;
+        color: $body-color !important;
+        
+        th, td {
+            border-color: #e3eaef !important;
+        }
+    }
+}
+
+// Force Card/Paper Light Mode
+html[data-bs-theme='dark'] {
+    .card {
+        background-color: $white !important;
+        border-color: $border-color !important;
+        color: $body-color !important;
+        
+        .card-header,
+        .card-footer {
+            background-color: rgba($black, 0.03) !important;
+            border-color: $border-color !important;
+        }
+    }
+}
+
+// Force Input Light Mode
+html[data-bs-theme='dark'] {
+    .form-control,
+    .form-select {
+        background-color: $white !important;
+        border-color: var(--#{$prefix}input-border-color) !important;
+        color: $body-color !important;
+        
+        &:focus {
+            background-color: $white !important;
+            border-color: var(--#{$prefix}input-focus-border-color) !important;
+            color: $body-color !important;
+        }
+        
+        &::placeholder {
+            color: rgba($black, 0.4) !important;
+        }
+    }
+}
+
+// Force Modal Light Mode
+html[data-bs-theme='dark'] {
+    .modal-content {
+        background-color: $white !important;
+        color: $body-color !important;
+    }
+    
+    .modal-header,
+    .modal-footer {
+        border-color: $border-color !important;
+    }
+}
+
+// Force Dropdown Light Mode
+html[data-bs-theme='dark'] {
+    .dropdown-menu {
+        background-color: $white !important;
+        border-color: $border-color !important;
+        
+        .dropdown-item {
+            color: $body-color !important;
+            
+            &:hover,
+            &:focus {
+                background-color: rgba($black, 0.04) !important;
+                color: $body-color !important;
+            }
+        }
+    }
+}
+
+// Force Authentication Page Light Mode
+html[data-bs-theme='dark'] {
+    .authentication-bg {
+        background-color: $body-bg !important;
+    }
+    
+    .auth-box {
+        background-color: $white !important;
+        box-shadow: 0 0 35px 0 rgba($black, 0.1) !important;
+    }
+}

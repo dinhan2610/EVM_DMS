@@ -15,11 +15,11 @@
 
 .auth-logo {
     .logo-dark {
-        display: block;
+        display: block !important; // Light mode only
     }
 
     .logo-light {
-        display: none;
+        display: none !important; // Light mode only
     }
 
     // Prevent logo from being squashed
@@ -36,11 +36,11 @@
 html[data-bs-theme='dark'] {
     .auth-logo {
         .logo-dark {
-            display: none;
+            display: block !important; // Force light mode logo
         }
 
         .logo-light {
-            display: block;
+            display: none !important; // Force hide
         }
     }
 }

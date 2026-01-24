@@ -727,17 +727,17 @@ const AdjustmentReplacementRecordManagement = () => {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Box sx={{ width: '100%', backgroundColor: '#f5f5f5', minHeight: '100vh', py: 4 }}>
+      <Box sx={{ width: '100%', bgcolor: 'background.default', minHeight: '100vh', py: 4 }}>
         <Box sx={{ width: '100%', px: { xs: 2, sm: 3, md: 4 } }}>
           
           {/* ============================================================ */}
           {/* HEADER */}
           {/* ============================================================ */}
           <Box sx={{ mb: 4 }}>
-            <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
+            <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary', mb: 1 }}>
               Biên Bản Điều Chỉnh/Thay Thế
             </Typography>
-            <Typography variant="body2" sx={{ color: '#666' }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               Quản lý các biên bản điều chỉnh và thay thế hóa đơn điện tử
             </Typography>
           </Box>
@@ -750,12 +750,13 @@ const AdjustmentReplacementRecordManagement = () => {
             sx={{
               mb: 3,
               p: 2.5,
-              border: '1px solid #e0e0e0',
+              border: 1,
+              borderColor: 'divider',
               borderRadius: 2,
-              backgroundColor: '#fff',
+              bgcolor: 'background.paper',
             }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2" sx={{ color: '#666' }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                 Tổng số: <strong>{filteredRecords.length}</strong> / {records.length} biên bản
               </Typography>
               
@@ -874,7 +875,7 @@ const AdjustmentReplacementRecordManagement = () => {
           {/* ERROR STATE */}
           {/* ============================================================ */}
           {error && (
-            <Paper sx={{ p: 3, mt: 2, backgroundColor: '#fff3e0', border: '1px solid #ffb74d' }}>
+            <Paper sx={{ p: 3, mt: 2, bgcolor: 'warning.light', border: 1, borderColor: 'warning.main', opacity: 0.1 }}>
               <Typography color="error" variant="body1">
                 {error}
               </Typography>
@@ -888,9 +889,10 @@ const AdjustmentReplacementRecordManagement = () => {
             <Paper
               elevation={0}
               sx={{
-                border: '1px solid #e0e0e0',
+                border: 1,
+                borderColor: 'divider',
                 borderRadius: 2,
-                backgroundColor: '#fff',
+                bgcolor: 'background.paper',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                 overflow: 'hidden',
               }}>
@@ -915,8 +917,9 @@ const AdjustmentReplacementRecordManagement = () => {
                     alignItems: 'center',
                   },
                   '& .MuiDataGrid-columnHeaders': {
-                    backgroundColor: '#f8f9fa',
-                    borderBottom: '2px solid #e0e0e0',
+                    bgcolor: 'grey.50',
+                    borderBottom: 2,
+                    borderColor: 'divider',
                   },
                   '& .MuiDataGrid-columnHeader': {
                     padding: '0 16px',

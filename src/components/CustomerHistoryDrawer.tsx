@@ -262,7 +262,7 @@ const CustomerHistoryDrawer = ({ open, customer, onClose }: CustomerHistoryDrawe
                     }}
                   />
                 ) : (
-                  <Typography variant="body2" sx={{ fontWeight: 500, color: '#1976d2' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main' }}>
                     {customer.phone}
                   </Typography>
                 )}
@@ -389,7 +389,7 @@ const CustomerHistoryDrawer = ({ open, customer, onClose }: CustomerHistoryDrawe
                         }}
                       >
                         <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8125rem', color: '#1976d2' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8125rem', color: 'primary.main' }}>
                             {invoice.invoiceNumber}
                           </Typography>
                         </TableCell>
