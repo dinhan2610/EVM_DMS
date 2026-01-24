@@ -182,6 +182,9 @@ export interface InvoiceListItem {
   originalInvoiceNumber?: number;       // Số hóa đơn gốc (để hiển thị)
   originalInvoiceSignDate?: string | null; // ✅ Ngày ký hóa đơn gốc (từ backend)
   originalInvoiceSymbol?: string | null;   // ✅ Ký hiệu hóa đơn gốc (template serial)
+  
+  // ==================== CUSTOMER TYPE FIELD ====================
+  invoiceCustomerType?: number | string; // ✅ 1 hoặc 'Customer' = B2C/Bán lẻ, 2 hoặc 'Business' = B2B/Doanh nghiệp
 }
 
 export interface InvoiceItemResponse {
@@ -1821,15 +1824,18 @@ export const getOriginalInvoice = async (
 export interface CreateAdjustmentInvoiceRequest {
   originalInvoiceId: number;
   templateId: number;
-  referenceText: string;
-  adjustmentReason: string;
-  performedBy: number;
+  // ❌ REMOVED: referenceText - Backend không có field này
+  adjustmentReason: string;         // ✅ Backend: adjustmentReason
+  performedBy: number;              // ✅ Backend: performedBy
   adjustmentItems: Array<{
-    productID: number;
-    quantity: number;        // = adjustmentQuantity (có thể âm)
-    unitPrice: number;       // = adjustmentUnitPrice (có thể âm)
-    overrideVATRate?: number;
+    productID: number;              // ✅ Backend: productID
+    quantity: number;               // ✅ Backend: quantity (có thể âm)
+    unitPrice: number;              // ✅ Backend: unitPrice (có thể âm)
+    overrideVATRate?: number;       // ✅ Backend: overrideVATRate (optional)
   }>;
+  invoiceStatusID?: number;         // ⚠️ PENDING: Chờ backend thêm field này vào API
+  // Status: 6=PENDING_APPROVAL (Accountant), 7=PENDING_SIGN (HOD)
+  rootPath?: string;                // ✅ Backend: rootPath (optional - backend tự lấy từ config)
 }
 
 /**
@@ -1838,7 +1844,7 @@ export interface CreateAdjustmentInvoiceRequest {
 export interface CreateAdjustmentInvoiceResponse {
   success: boolean;
   message: string;
-  invoiceId?: number;
+  invoiceId?: number | { value?: number; invoiceID?: number };  // ⚠️ Backend có thể trả về object hoặc number
   invoiceNumber?: string;
   invoiceSerial?: string;
   fullInvoiceCode?: string;

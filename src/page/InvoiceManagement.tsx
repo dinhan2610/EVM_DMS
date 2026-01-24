@@ -1027,7 +1027,8 @@ const InvoiceManagement = () => {
     {
       field: 'symbol',
       headerName: 'Ký hiệu',
-      width: 110,
+      flex: 0.8,
+      minWidth: 100,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -1035,13 +1036,13 @@ const InvoiceManagement = () => {
         const value = params.value as string
         if (!value) {
           return (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
-              <Typography variant="body2" sx={{ color: '#bdbdbd', fontSize: '0.875rem' }}>-</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Typography variant="body2" sx={{ color: '#bdbdbd' }}>-</Typography>
             </Box>
           )
         }
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
             <Typography
               variant="body2"
               sx={{
@@ -1059,15 +1060,15 @@ const InvoiceManagement = () => {
     {
       field: 'customerName',
       headerName: 'Khách hàng',
-      flex: 1.8,
-      minWidth: 200,
+      flex: 1.5,
+      minWidth: 180,
       sortable: true,
       align: 'left',
       headerAlign: 'left',
       renderCell: (params: GridRenderCellParams) => {
         const value = params.value as string
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 2, py: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 1 }}>
             <Tooltip title={value} arrow placement="top">
               <Typography
                 variant="body2"
@@ -1089,7 +1090,8 @@ const InvoiceManagement = () => {
     {
       field: 'taxCode',
       headerName: 'Mã số thuế',
-      width: 135,
+      flex: 1,
+      minWidth: 120,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -1097,13 +1099,13 @@ const InvoiceManagement = () => {
         const value = params.value as string
         if (!value) {
           return (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
-              <Typography variant="body2" sx={{ color: '#bdbdbd', fontSize: '0.875rem' }}>-</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Typography variant="body2" sx={{ color: '#bdbdbd' }}>-</Typography>
             </Box>
           )
         }
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
             <Typography
               variant="body2"
               sx={{
@@ -1121,14 +1123,15 @@ const InvoiceManagement = () => {
     {
       field: 'issueDate',
       headerName: 'Ngày phát hành',
-      width: 140,
+      flex: 1,
+      minWidth: 130,
       sortable: true,
       type: 'date',
       align: 'center',
       headerAlign: 'center',
       valueGetter: (value: string) => new Date(value),
       renderCell: (params: GridRenderCellParams) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
           <Typography
             variant="body2"
             sx={{
@@ -1144,7 +1147,8 @@ const InvoiceManagement = () => {
     {
       field: 'internalStatus',
       headerName: 'Trạng thái',
-      width: 150,
+      flex: 1,
+      minWidth: 140,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -1216,7 +1220,7 @@ const InvoiceManagement = () => {
         ) : chipElement
         
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
             {content}
           </Box>
         )
@@ -1225,7 +1229,8 @@ const InvoiceManagement = () => {
     {
       field: 'taxStatus',
       headerName: 'Trạng thái CQT',
-      width: 170,
+      flex: 1.2,
+      minWidth: 160,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -1254,7 +1259,7 @@ const InvoiceManagement = () => {
         )
         
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
             <Tooltip title={tooltipContent} arrow placement="top">
               <Chip 
                 label={params.value as string} 
@@ -1288,7 +1293,8 @@ const InvoiceManagement = () => {
     {
       field: 'invoiceType',
       headerName: 'Loại HĐ',
-      width: 210,
+      flex: 1,
+      minWidth: 200,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -1434,154 +1440,161 @@ const InvoiceManagement = () => {
         // If has original invoice ID, make it clickable with icon
         if (isLinkedInvoice && originalInvoiceID && tooltipContent) {
           return (
-            <Tooltip 
-              title={tooltipContent}
-              arrow
-              placement="top"
-            >
-              <Box
-                component={Link}
-                to={`/invoices/${originalInvoiceID}`}
-                sx={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 0.75,
-                  textDecoration: 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  padding: '6px 14px',
-                  borderRadius: '20px', // Bo tròn mượt mà
-                  bgcolor: badgeColors.bg,
-                  border: `1px solid ${badgeColors.border}`,
-                  '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: `0 4px 12px ${badgeColors.border}`,
-                    bgcolor: badgeColors.bg,
-                  },
-                }}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%' }}>
+              <Tooltip 
+                title={tooltipContent}
+                arrow
+                placement="top"
               >
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: badgeColors.text,
-                    fontWeight: 600,
-                    fontSize: '12px',
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {label}
-                </Typography>
                 <Box
+                  component={Link}
+                  to={`/invoices/${originalInvoiceID}`}
                   sx={{
-                    display: 'flex',
+                    display: 'inline-flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 24,
-                    height: 24,
-                    borderRadius: '50%',
-                    bgcolor: 'rgba(255, 255, 255, 0.95)',
-                    backdropFilter: 'blur(4px)',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    gap: 0.75,
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    padding: '6px 14px',
+                    borderRadius: '20px', // Bo tròn mượt mà
+                    bgcolor: badgeColors.bg,
+                    border: `1px solid ${badgeColors.border}`,
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: `0 4px 12px ${badgeColors.border}`,
+                      bgcolor: badgeColors.bg,
+                    },
                   }}
                 >
-                  <LinkIcon 
-                    sx={{ 
-                      fontSize: 16, 
-                      color: '#1976d2',
-                      fontWeight: 'bold',
-                    }} 
-                  />
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: badgeColors.text,
+                      fontWeight: 600,
+                      fontSize: '12px',
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {label}
+                  </Typography>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      bgcolor: 'rgba(255, 255, 255, 0.95)',
+                      backdropFilter: 'blur(4px)',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    }}
+                  >
+                    <LinkIcon 
+                      sx={{ 
+                        fontSize: 16, 
+                        color: '#1976d2',
+                        fontWeight: 'bold',
+                      }} 
+                    />
+                  </Box>
                 </Box>
-              </Box>
-            </Tooltip>
+              </Tooltip>
+            </Box>
           )
         }
         
         // If linked invoice type but NO originalInvoiceID, show badge with disabled icon
         if (isLinkedInvoice && !originalInvoiceID && tooltipContent) {
           return (
-            <Tooltip 
-              title={tooltipContent}
-              arrow
-              placement="top"
-            >
-              <Box
-                sx={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 0.75,
-                  padding: '6px 14px',
-                  borderRadius: '20px', // Bo tròn mượt mà
-                  bgcolor: badgeColors.bg,
-                  border: `1px solid ${badgeColors.border}`,
-                }}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%' }}>
+              <Tooltip 
+                title={tooltipContent}
+                arrow
+                placement="top"
               >
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: badgeColors.text,
-                    fontWeight: 600,
-                    fontSize: '12px',
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {label}
-                </Typography>
                 <Box
                   sx={{
-                    display: 'flex',
+                    display: 'inline-flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 24,
-                    height: 24,
-                    borderRadius: '50%',
-                    bgcolor: 'rgba(200, 200, 200, 0.5)',
-                    backdropFilter: 'blur(4px)',
+                    gap: 0.75,
+                    padding: '6px 14px',
+                    borderRadius: '20px', // Bo tròn mượt mà
+                    bgcolor: badgeColors.bg,
+                    border: `1px solid ${badgeColors.border}`,
                   }}
                 >
-                  <LinkIcon 
-                    sx={{ 
-                      fontSize: 16, 
-                      color: '#9e9e9e',
-                      opacity: 0.6,
-                    }} 
-                  />
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: badgeColors.text,
+                      fontWeight: 600,
+                      fontSize: '12px',
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {label}
+                  </Typography>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      bgcolor: 'rgba(200, 200, 200, 0.5)',
+                      backdropFilter: 'blur(4px)',
+                    }}
+                  >
+                    <LinkIcon 
+                      sx={{ 
+                        fontSize: 16, 
+                        color: '#9e9e9e',
+                        opacity: 0.6,
+                      }} 
+                    />
+                  </Box>
                 </Box>
-              </Box>
-            </Tooltip>
+              </Tooltip>
+            </Box>
           )
         }
         
         // Normal badge for original invoices (no link)
         return (
-          <Chip
-            label={label}
-            size="small"
-            sx={{
-              bgcolor: badgeColors.bg,
-              color: badgeColors.text,
-              border: `1px solid ${badgeColors.border}`,
-              fontWeight: 600,
-              fontSize: '12px',
-              height: 28,
-              borderRadius: '20px', // Bo tròn mượt mà
-              '& .MuiChip-label': {
-                px: 1.5,
-              },
-            }}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%' }}>
+            <Chip
+              label={label}
+              size="small"
+              sx={{
+                bgcolor: badgeColors.bg,
+                color: badgeColors.text,
+                border: `1px solid ${badgeColors.border}`,
+                fontWeight: 600,
+                fontSize: '12px',
+                height: 28,
+                borderRadius: '20px', // Bo tròn mượt mà
+                '& .MuiChip-label': {
+                  px: 1.5,
+                },
+              }}
+            />
+          </Box>
         )
       },
     },
     {
       field: 'amount',
       headerName: 'Tổng tiền',
-      width: 150,
+      flex: 1,
+      minWidth: 130,
       sortable: true,
       align: 'right',
-      headerAlign: 'right',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%', pr: 3, py: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%', pr: 2 }}>
           <Typography
             variant="body2"
             sx={{
@@ -1607,7 +1620,7 @@ const InvoiceManagement = () => {
         const invoice = params.row as Invoice
         
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 0.5, py: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 0.5 }}>
             {/* Icon 1: Xem chi tiết */}
             <Tooltip title="Xem chi tiết" arrow placement="top">
               <IconButton
@@ -1807,52 +1820,26 @@ const InvoiceManagement = () => {
               onPaginationModelChange={setPaginationModel}
               pageSizeOptions={[5, 10, 25, 50, 100]}
               autoHeight={false}
-              rowHeight={64}
-              columnHeaderHeight={56}
+              getRowHeight={() => 'auto'}
               density="comfortable"
               sx={{
                 border: 'none',
                 '& .MuiDataGrid-cell': {
                   borderBottom: '1px solid #f0f0f0',
-                  padding: '0',
-                  display: 'flex',
-                  alignItems: 'center',
                 },
                 '& .MuiDataGrid-columnHeaders': {
                   backgroundColor: '#f8f9fa',
                   borderBottom: '2px solid #e0e0e0',
+                  fontWeight: 600,
                 },
-                '& .MuiDataGrid-columnHeader': {
-                  padding: '0 16px',
-                  '&.MuiDataGrid-columnHeader--checkbox': {
-                    padding: '0 8px',
-                  },
-                },
-                '& .MuiDataGrid-columnHeaderCheckbox': {
-                  padding: '0',
-                },
-                '& .MuiDataGrid-columnHeaderTitle': {
-                  fontWeight: 700,
-                  fontSize: '0.875rem',
-                  color: '#1a1a1a',
-                  letterSpacing: '0.01em',
-                },
-                '& .MuiDataGrid-row': {
-                  '&:hover': {
-                    backgroundColor: '#f8f9fa',
-                  },
-                  '&.Mui-selected': {
-                    backgroundColor: 'rgba(25, 118, 210, 0.08)',
-                    '&:hover': {
-                      backgroundColor: 'rgba(25, 118, 210, 0.12)',
-                    },
-                  },
+                '& .MuiDataGrid-row:hover': {
+                  backgroundColor: '#f8f9fa',
                 },
                 '& .MuiDataGrid-footerContainer': {
                   borderTop: '2px solid #e0e0e0',
                   backgroundColor: '#fafafa',
-                  minHeight: '64px',
-                  padding: '12px 24px',
+                  minHeight: '56px',
+                  padding: '8px 16px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -1861,15 +1848,22 @@ const InvoiceManagement = () => {
                   overflow: 'visible',
                 },
                 '& .MuiTablePagination-toolbar': {
-                  minHeight: '64px',
+                  minHeight: '56px',
                   paddingLeft: '16px',
-                  paddingRight: '16px',
+                  paddingRight: '8px',
+                  flexWrap: 'nowrap',
                 },
-                '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                '& .MuiTablePagination-selectLabel': {
+                  margin: 0,
                   fontSize: '0.875rem',
                   fontWeight: 500,
                   color: '#666',
+                },
+                '& .MuiTablePagination-displayedRows': {
                   margin: 0,
+                  fontSize: '0.875rem',
+                  fontWeight: 500,
+                  color: '#666',
                 },
                 '& .MuiTablePagination-select': {
                   paddingTop: '8px',

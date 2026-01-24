@@ -2255,6 +2255,8 @@ const CreateVatInvoice: React.FC = () => {
       console.log('  - requestID:', backendRequest.requestID ?? '❌ KHÔNG GỬI', backendRequest.requestID ? `(${typeof backendRequest.requestID})` : '');
       console.log('🔢 Status:');
       console.log('  - invoiceStatusID:', backendRequest.invoiceStatusID, `(${statusLabel})`);
+      console.log('🏢 Invoice Type:');
+      console.log('  - invoiceCustomerType:', backendRequest.invoiceCustomerType, `(${invoiceType}: ${invoiceType === 'B2C' ? '1=Customer/Bán lẻ' : '2=Business/Doanh nghiệp'})`);
       console.log('=========================================');
       
       // Validate items

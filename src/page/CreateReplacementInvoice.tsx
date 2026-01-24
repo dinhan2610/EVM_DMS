@@ -1,12 +1,14 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import { useNavigate, useSearchParams, useParams } from 'react-router-dom'
 import invoiceService, { Template, InvoiceListItem } from '@/services/invoiceService'
-import customerService from '@/services/customerService'
+import customerService, { Customer } from '@/services/customerService'
 import productService, { Product } from '@/services/productService'
 import companyService, { Company } from '@/services/companyService'
 import { mapToBackendInvoiceRequest } from '@/utils/invoiceAdapter'
 import { numberToWords } from '@/utils/numberToWords'
 import { getUserIdFromToken } from '@/utils/tokenUtils'
+import { useAuthContext } from '@/context/useAuthContext'
+import { USER_ROLES } from '@/constants/roles'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
 import type { ProductItem, CustomerInfo, TemplateConfigProps} from '@/types/invoiceTemplate'
 import { DEFAULT_TEMPLATE_VISIBILITY, DEFAULT_INVOICE_SYMBOL } from '@/types/invoiceTemplate'
@@ -33,6 +35,8 @@ import {
   DialogContent,
   DialogActions,
   Tooltip,
+  Autocomplete,
+  Chip,
 } from '@mui/material'
 import {
   HelpOutline,
@@ -50,6 +54,7 @@ import {
   Warning,
   WarningAmber as WarningAmberIcon,
   Add,
+  Send,
 } from '@mui/icons-material'
 import SendInvoiceEmailModal from '@/components/SendInvoiceEmailModal'
 import { DataGrid, GridColDef, GridRenderCellParams, GridRenderEditCellParams } from '@mui/x-data-grid'
@@ -772,6 +777,7 @@ const DiscountAmountEditCell = (params: GridRenderEditCellParams) => {
  */
 const CreateVatInvoice: React.FC = () => {
   const navigate = useNavigate()
+  const { user } = useAuthContext() // ✅ Get user role
   const [searchParams] = useSearchParams()
   const { id: originalInvoiceIdParam } = useParams<{ id: string }>()
   
@@ -805,6 +811,9 @@ const CreateVatInvoice: React.FC = () => {
   // ✅ State cho hóa đơn thay thế
   const [originalInvoice, setOriginalInvoice] = useState<InvoiceListItem | null>(null)
   const [replacementReason, setReplacementReason] = useState<string>('')
+  
+  // ✅ State cho loại hóa đơn (B2B/B2C) - Load từ hóa đơn gốc
+  const [invoiceType, setInvoiceType] = useState<'B2B' | 'B2C'>('B2B') // Mặc định B2B, sẽ load từ originalInvoice
   
   // State cho loading và error
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -889,6 +898,19 @@ const CreateVatInvoice: React.FC = () => {
         
         // ⚠️ Lưu lại hóa đơn gốc
         setOriginalInvoice(invoice)
+        
+        // ✅ Load loại hóa đơn từ hóa đơn gốc
+        // invoiceCustomerType: 1 hoặc 'Customer' = B2C, 2 hoặc 'Business' = B2B
+        const loadedInvoiceType = 
+          (invoice.invoiceCustomerType === 1 || invoice.invoiceCustomerType === 'Customer') 
+            ? 'B2C' 
+            : 'B2B'
+        setInvoiceType(loadedInvoiceType)
+        console.log('🏢 Invoice type from original invoice:', {
+          invoiceCustomerType: invoice.invoiceCustomerType,
+          invoiceType: loadedInvoiceType,
+          description: loadedInvoiceType === 'B2C' ? 'Bán lẻ (Customer)' : 'Doanh nghiệp (Business)'
+        })
         
         // ✅ PRE-FILL dữ liệu từ hóa đơn gốc
         
@@ -1246,6 +1268,80 @@ const CreateVatInvoice: React.FC = () => {
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false)
   const [customerNotFound, setCustomerNotFound] = useState(false)
   
+  // ✅ State cho autocomplete suggestions
+  const [customerSuggestions, setCustomerSuggestions] = useState<Customer[]>([])
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
+  
+  // ✅ State cho delete confirmation dialog
+  const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<{
+    open: boolean
+    itemId: number | null
+    itemName: string
+  }>({ open: false, itemId: null, itemName: '' })
+  
+  // ✅ Search customer by name for autocomplete dropdown
+  const searchCustomerByName = useCallback(async (searchQuery: string) => {
+    if (!searchQuery || searchQuery.trim().length < 2) {
+      setCustomerSuggestions([])
+      return
+    }
+
+    try {
+      setIsLoadingSuggestions(true)
+      // Get all customers và filter theo tên công ty
+      const allCustomers = await customerService.getAllCustomers()
+      const filtered = allCustomers.filter(c => 
+        c.customerName.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+      setCustomerSuggestions(filtered.slice(0, 10)) // Limit 10 results
+    } catch (error) {
+      console.error('Error searching customers:', error)
+      setCustomerSuggestions([])
+    } finally {
+      setIsLoadingSuggestions(false)
+    }
+  }, [])
+
+  // ✅ Debounced search - trigger khi nhập tên công ty (300ms delay)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (buyerCompanyName && buyerCompanyName.trim().length >= 2) {
+        searchCustomerByName(buyerCompanyName)
+      } else {
+        setCustomerSuggestions([])
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [buyerCompanyName, searchCustomerByName])
+
+  // ✅ Handle customer selection from autocomplete
+  const handleCustomerSelect = (customer: Customer) => {
+    if (customer) {
+      setBuyerCustomerID(customer.customerID)
+      setBuyerTaxCode(customer.taxCode)
+      setBuyerCompanyName(customer.customerName)
+      setBuyerAddress(customer.address)
+      setBuyerEmail(customer.contactEmail)
+      setBuyerPhone(customer.contactPhone)
+      // ✅ Autofill contactPerson vào buyerName
+      if (customer.contactPerson) {
+        setBuyerName(customer.contactPerson)
+      }
+      
+      // ✅ Clear suggestions và errors
+      setCustomerSuggestions([])
+      setCustomerNotFound(false)
+      
+      console.log('✅ Customer selected from dropdown:', customer.customerName)
+      setSnackbar({
+        open: true,
+        message: `Đã chọn khách hàng: ${customer.customerName}`,
+        severity: 'success',
+      })
+    }
+  }
+
   // Function: Tự động tìm và điền thông tin khách hàng theo MST
   const handleTaxCodeLookup = async (taxCode: string) => {
     if (!taxCode || taxCode.trim().length < 10) {
@@ -1502,16 +1598,56 @@ const CreateVatInvoice: React.FC = () => {
     setItems([...items, newItem])
   }
 
-  // Xóa hàng
+  // ✅ Mở confirm dialog khi click xóa
   const handleDeleteRow = (id: number) => {
-    if (items.length === 1) {
-      // Không cho xóa nếu chỉ còn 1 dòng
-      return
+    // Tìm thông tin sản phẩm để hiển thị trong dialog
+    const item = items.find(i => i.id === id)
+    if (item) {
+      setDeleteConfirmDialog({
+        open: true,
+        itemId: id,
+        itemName: item.name || 'sản phẩm này',
+      })
     }
+  }
+  
+  // ✅ Xác nhận xóa sản phẩm
+  const confirmDeleteRow = () => {
+    const { itemId, itemName } = deleteConfirmDialog
+    
+    if (itemId === null) return
+    
     const updatedItems = items
-      .filter((item) => item.id !== id)
+      .filter((item) => item.id !== itemId)
       .map((item, index) => ({ ...item, stt: index + 1 })) // Cập nhật lại STT
+    
     setItems(updatedItems)
+    
+    // Đóng dialog
+    setDeleteConfirmDialog({ open: false, itemId: null, itemName: '' })
+    
+    // Hiển thị success message
+    const remainingCount = updatedItems.length
+    if (remainingCount === 0) {
+      setSnackbar({
+        open: true,
+        message: `✅ Đã xóa "${itemName}". Hóa đơn hiện không còn sản phẩm nào.`,
+        severity: 'success',
+      })
+    } else {
+      setSnackbar({
+        open: true,
+        message: `✅ Đã xóa "${itemName}" khỏi danh sách (Còn lại ${remainingCount} sản phẩm)`,
+        severity: 'success',
+      })
+    }
+    
+    console.log('🗑️ Deleted item:', itemName, 'Remaining items:', updatedItems.length)
+  }
+  
+  // ✅ Hủy xóa sản phẩm
+  const cancelDeleteRow = () => {
+    setDeleteConfirmDialog({ open: false, itemId: null, itemName: '' })
   }
 
   // Tính toán tổng tiền
@@ -1685,35 +1821,30 @@ const CreateVatInvoice: React.FC = () => {
       // - Template: User có thể đổi mẫu hóa đơn nếu muốn
       // - Thông tin người mua: Đã copy từ hóa đơn gốc, user có thể sửa nếu sai
 
-      // 3. Validate items
-      if (items.length === 0) {
-        setSnackbar({
-          open: true,
-          message: '⚠️ Vui lòng thêm ít nhất một sản phẩm/dịch vụ',
-          severity: 'warning'
-        })
-        return
+      // ✅ CHO PHÉP HÓA ĐƠN KHÔNG CÓ SẢN PHẨM
+      // - Hóa đơn thậy thế có thể không có sản phẩm (ví dụ: hủy toàn bộ)
+      // - Nếu có items, validate đầy đủ thông tin
+      if (items.length > 0) {
+        // Validate từng item có đầy đủ thông tin
+        const invalidItems = items.filter(item => 
+          !item.name || 
+          !item.unit || 
+          item.quantity <= 0 || 
+          item.priceAfterTax <= 0
+        )
+
+        if (invalidItems.length > 0) {
+          setSnackbar({
+            open: true,
+            message: `⚠️ Có ${invalidItems.length} sản phẩm chưa điền đầy đủ thông tin (Tên, Đơn vị, Số lượng, Đơn giá)`,
+            severity: 'warning'
+          })
+          return
+        }
       }
 
-      // Validate từng item có đầy đủ thông tin
-      const invalidItems = items.filter(item => 
-        !item.name || 
-        !item.unit || 
-        item.quantity <= 0 || 
-        item.priceAfterTax <= 0
-      )
-
-      if (invalidItems.length > 0) {
-        setSnackbar({
-          open: true,
-          message: `⚠️ Có ${invalidItems.length} sản phẩm chưa điền đầy đủ thông tin (Tên, Đơn vị, Số lượng, Đơn giá)`,
-          severity: 'warning'
-        })
-        return
-      }
-
-      // 4. Validate totals
-      if (totals.total <= 0) {
+      // 4. Validate totals - chỉ khi có sản phẩm - chỉ khi có sản phẩm
+      if (items.length > 0 && totals.total <= 0) {
         setSnackbar({
           open: true,
           message: '⚠️ Tổng tiền phải lớn hơn 0',
@@ -1754,7 +1885,8 @@ const CreateVatInvoice: React.FC = () => {
         invoiceNotes,   // Ghi chú hóa đơn
         currentUserId,  // ✅ performedBy = userId từ token
         undefined,      // ✅ salesID không truyền (tạo thay thế không có salesID)
-        null            // ✅ requestID = null (không link với request)
+        null,           // ✅ requestID = null (không link với request)
+        invoiceType     // ✅ invoiceType: Dynamic load từ hóa đơn gốc (B2B=2, B2C=1)
       )
 
       console.log(`📤 Sending invoice request (${statusLabel}):`, backendRequest)
@@ -1822,9 +1954,17 @@ const CreateVatInvoice: React.FC = () => {
         severity: 'success'
       })
 
-      // Auto quay về trang trước sau khi tạo thành công
+      // ⭐ Navigate dựa trên role: HOD → /approval/invoices, Others → /invoices
       setTimeout(() => {
-        navigate(-1)
+        if (user?.role === USER_ROLES.HOD) {
+          // KẾ TOÁN TRƯởNG: Chuyển về trang Duyệt hóa đơn
+          console.log('🎯 HOD: Redirecting to /approval/invoices (Replacement)')
+          navigate('/approval/invoices')
+        } else {
+          // KẾ TOÁN & OTHERS: Chuyển về trang Danh sách hóa đơn
+          console.log('🎯 Accountant/Others: Redirecting to /invoices (Replacement)')
+          navigate('/invoices')
+        }
       }, 1500)
 
     } catch (error: unknown) {
@@ -1872,10 +2012,40 @@ const CreateVatInvoice: React.FC = () => {
     }
   }
 
-  // ⭐ Tạo hóa đơn thay thế (invoiceStatusID = 1 - Nháp)
+  // ==================== ROLE-BASED SUBMIT FUNCTIONS ====================
+  
+  /**
+   * ⭐ KẾ TOÁN: Lưu hóa đơn thay thế dưới dạng nháp
+   * Status: 1 (DRAFT - Nháp)
+   * 
+   * Flow: Kế toán tạo nháp → Sau đó từ danh sách "Gửi duyệt" riêng
+   */
   const handleSaveDraft = async () => {
-    await handleSubmitInvoice(1, 'Tạo hóa đơn thay thế')
+    await handleSubmitInvoice(1, 'Lưu hóa đơn thay thế nháp')
   }
+
+  /**
+   * ⭐ KẾ TOÁN: Gửi hóa đơn thay thế cho kế toán trưởng duyệt
+   * Status: 6 (PENDING_APPROVAL - Chờ duyệt)
+   * 
+   * Flow: Kế toán tạo → Gửi cho KTT → KTT duyệt → Chờ ký
+   */
+  const handleSubmitForApproval = async () => {
+    await handleSubmitInvoice(6, 'Gửi hóa đơn thay thế chờ duyệt')
+  }
+
+  /**
+   * ⭐ KẾ TOÁN TRƯỞNG: Tạo hóa đơn thay thế với trạng thái chờ ký
+   * Status: 7 (PENDING_SIGN - Chờ ký)
+   * 
+   * Flow: KTT tạo → Chờ ký → Ký số → Gửi CQT
+   * Lưu ý: KTT không cần gửi duyệt vì tự duyệt
+   */
+  const handleCreateInvoiceHOD = async () => {
+    await handleSubmitInvoice(7, 'Tạo hóa đơn thay thế chờ ký')
+  }
+
+  // ==================== OTHER HANDLERS ====================
 
   // ⭐ Xử lý hủy bỏ - Hiển thị dialog xác nhận
   const handleCancelClick = () => {
@@ -2103,29 +2273,37 @@ const CreateVatInvoice: React.FC = () => {
       disableColumnMenu: true,
       align: 'center' as const,
       headerAlign: 'center' as const,
-      renderCell: (params: GridRenderCellParams) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-          <IconButton
-            size="small"
-            onClick={() => handleDeleteRow(params.row.id)}
-            disabled={items.length === 1}
-            sx={{
-              padding: '4px',
-              color: items.length === 1 ? '#ccc' : '#d32f2f',
-              transition: 'all 0.2s',
-              '&:hover': {
-                backgroundColor: items.length === 1 ? 'transparent' : '#ffebee',
-                color: items.length === 1 ? '#ccc' : '#c62828',
-              },
-              '&.Mui-disabled': {
-                color: '#ccc',
-              },
-            }}
-          >
-            <DeleteOutline sx={{ fontSize: 18 }} />
-          </IconButton>
-        </Box>
-      ),
+      renderCell: (params: GridRenderCellParams) => {
+        const isLastItem = items.length === 1
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+            <Tooltip 
+              title={isLastItem ? 'Xóa sản phẩm cuối cùng (hóa đơn sẽ trống)' : 'Xóa sản phẩm này'}
+              placement="left"
+              arrow
+            >
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={() => handleDeleteRow(params.row.id)}
+                  sx={{
+                    padding: '4px',
+                    color: isLastItem ? '#ff9800' : '#d32f2f', // Vàng nếu là item cuối
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      backgroundColor: isLastItem ? '#fff3e0' : '#ffebee',
+                      color: isLastItem ? '#f57c00' : '#c62828',
+                      transform: 'scale(1.1)',
+                    },
+                  }}
+                >
+                  <DeleteOutline sx={{ fontSize: 18 }} />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Box>
+        )
+      },
     },
   ]
 
@@ -2418,15 +2596,88 @@ const CreateVatInvoice: React.FC = () => {
 
               <Divider sx={{ my: 1.5 }} />
 
+              {/* ✅ Dropdown chọn loại hóa đơn - READ-ONLY (load từ hóa đơn gốc) */}
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+                <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem', color: '#666' }}>
+                  Loại hóa đơn:
+                </Typography>
+                <Select
+                  size="small"
+                  value={invoiceType}
+                  disabled // ✅ DISABLED: Loại hóa đơn xác định từ hóa đơn gốc, không cho đổi
+                  variant="outlined"
+                  sx={{
+                    minWidth: 280,
+                    fontSize: '0.8125rem',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#ddd',
+                    },
+                    '& .MuiInputBase-input.Mui-disabled': {
+                      WebkitTextFillColor: '#666' // ✅ Màu text khi disabled
+                    }
+                  }}
+                >
+                  <MenuItem value="B2B" sx={{ fontSize: '0.8125rem', py: 1 }}>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                      <Box component="span" sx={{ fontSize: '1rem' }}>🏢</Box>
+                      <Box>
+                        <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+                          Hóa đơn B2B
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#666', fontSize: '0.7rem' }}>
+                          Bán cho doanh nghiệp (bắt buộc có Tên đơn vị)
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </MenuItem>
+                  <MenuItem value="B2C" sx={{ fontSize: '0.8125rem', py: 1 }}>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                      <Box component="span" sx={{ fontSize: '1rem' }}>👤</Box>
+                      <Box>
+                        <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+                          Hóa đơn B2C
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#666', fontSize: '0.7rem' }}>
+                          Bán lẻ cá nhân (bắt buộc có Người mua hàng)
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </MenuItem>
+                </Select>
+                <Chip label="Từ hóa đơn gốc" size="small" color="primary" variant="outlined" sx={{ fontSize: '0.7rem' }} />
+                <Tooltip 
+                  title={
+                    <Box sx={{ p: 0.5 }}>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 0.5, fontWeight: 600 }}>
+                        💡 Loại hóa đơn từ hóa đơn gốc:
+                      </Typography>
+                      <Typography variant="caption" sx={{ display: 'block', fontSize: '0.7rem', mb: 0.3 }}>
+                        • <strong>B2B:</strong> Bán cho doanh nghiệp (bắt buộc có Tên đơn vị)
+                      </Typography>
+                      <Typography variant="caption" sx={{ display: 'block', fontSize: '0.7rem', mb: 0.3 }}>
+                        • <strong>B2C:</strong> Bán lẻ cho cá nhân (bắt buộc có Người mua hàng)
+                      </Typography>
+                      <Typography variant="caption" sx={{ display: 'block', fontSize: '0.7rem', color: '#ffa726', mt: 0.5 }}>
+                        ⚠️ Loại hóa đơn thay thế PHẢI GIỐNG hóa đơn gốc
+                      </Typography>
+                    </Box>
+                  }
+                  arrow
+                  placement="right"
+                >
+                  <Info sx={{ fontSize: 18, color: '#1976d2', cursor: 'help' }} />
+                </Tooltip>
+              </Stack>
+
               {/* Thông tin người mua */}
               <Stack spacing={0.8}>
                 <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexWrap: 'wrap' }}>
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    MST người mua:
+                    {invoiceType === 'B2B' ? 'Mã Số Thuế:' : 'CCCD:'}
                   </Typography>
                   <TextField
                     size="small"
-                    placeholder="0101243150-136"
+                    placeholder={invoiceType === 'B2B' ? '0101243150 (10 số) hoặc 0101243150136 (13 số)' : '001234567890 (12 số)'}
                     variant="standard"
                     value={buyerTaxCode}
                     onChange={(e) => handleTaxCodeChange(e.target.value)}
@@ -2468,25 +2719,56 @@ const CreateVatInvoice: React.FC = () => {
 
                 <Stack direction="row" spacing={1.5} alignItems="center">
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    Tên đơn vị:
+                    {invoiceType === 'B2B' ? 'Tên đơn vị:' : 'Tên Khách Hàng:'}
                   </Typography>
-                  <TextField
+                  <Autocomplete
+                    freeSolo
                     size="small"
                     fullWidth
-                    placeholder="CÔNG TY CỔ PHẦN MISA"
-                    variant="standard"
-                    value={buyerCompanyName}
-                    onChange={(e) => setBuyerCompanyName(e.target.value)}
-                    sx={{ fontSize: '0.8125rem' }}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton size="small" edge="end">
-                            <ExpandMore fontSize="small" />
-                          </IconButton>
-                        </InputAdornment>
-                      ),
+                    options={customerSuggestions}
+                    getOptionLabel={(option: Customer | string) => 
+                      typeof option === 'string' ? option : option.customerName
+                    }
+                    renderOption={(props, option: Customer) => (
+                      <li {...props} key={option.customerID}>
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            {option.customerName}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            MST: {option.taxCode} - {option.address}
+                          </Typography>
+                        </Box>
+                      </li>
+                    )}
+                    inputValue={buyerCompanyName}
+                    onInputChange={(_e, value) => {
+                      setBuyerCompanyName(value)
+                      setCustomerNotFound(false)
                     }}
+                    onChange={(_e, value) => {
+                      if (typeof value === 'object' && value !== null) {
+                        handleCustomerSelect(value)
+                      }
+                    }}
+                    loading={isLoadingSuggestions}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        placeholder={invoiceType === 'B2B' ? 'CÔNG TY CỔ PHẦN MISA' : 'Nguyễn Văn A'}
+                        variant="standard"
+                        sx={{ fontSize: '0.8125rem' }}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {isLoadingSuggestions ? <CircularProgress size={16} /> : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
                   />
                 </Stack>
 
@@ -2505,30 +2787,50 @@ const CreateVatInvoice: React.FC = () => {
                   />
                 </Stack>
 
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                  <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    Người mua hàng:
-                  </Typography>
-                  <TextField 
-                    size="small" 
-                    placeholder="Kế toán A" 
-                    variant="standard" 
-                    value={buyerName} 
-                    onChange={(e) => setBuyerName(e.target.value)} 
-                    sx={{ width: 160, fontSize: '0.8125rem' }} 
-                  />
-                  <Typography variant="caption" sx={{ minWidth: 50, fontSize: '0.8125rem' }}>
-                    Email:
-                  </Typography>
-                  <TextField 
-                    size="small" 
-                    placeholder="hoadon@gmail.com" 
-                    variant="standard" 
-                    value={buyerEmail} 
-                    onChange={(e) => setBuyerEmail(e.target.value)} 
-                    sx={{ flex: 1, fontSize: '0.8125rem' }} 
-                  />
-                </Stack>
+                {/* ✅ Chỉ hiện field "Người mua hàng" khi ở chế độ B2B */}
+                {invoiceType === 'B2B' && (
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
+                      Người mua hàng:
+                    </Typography>
+                    <TextField 
+                      size="small" 
+                      placeholder="Kế toán A" 
+                      variant="standard" 
+                      value={buyerName} 
+                      onChange={(e) => setBuyerName(e.target.value)} 
+                      sx={{ width: 160, fontSize: '0.8125rem' }} 
+                    />
+                    <Typography variant="caption" sx={{ minWidth: 50, fontSize: '0.8125rem' }}>
+                      Email:
+                    </Typography>
+                    <TextField 
+                      size="small" 
+                      placeholder="hoadon@gmail.com" 
+                      variant="standard" 
+                      value={buyerEmail} 
+                      onChange={(e) => setBuyerEmail(e.target.value)} 
+                      sx={{ flex: 1, fontSize: '0.8125rem' }} 
+                    />
+                  </Stack>
+                )}
+
+                {/* ✅ Khi B2C thì hiện Email ở dòng riêng */}
+                {invoiceType === 'B2C' && (
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
+                      Email:
+                    </Typography>
+                    <TextField 
+                      size="small" 
+                      placeholder="hoadon@gmail.com" 
+                      variant="standard" 
+                      value={buyerEmail} 
+                      onChange={(e) => setBuyerEmail(e.target.value)} 
+                      sx={{ flex: 1, fontSize: '0.8125rem' }} 
+                    />
+                  </Stack>
+                )}
 
                 <Stack direction="row" spacing={1.5} alignItems="center">
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
@@ -3032,7 +3334,7 @@ const CreateVatInvoice: React.FC = () => {
               </Button>
             </Stack>
 
-            {/* Buttons phải */}
+            {/* Buttons phải - Role-based */}
             <Stack direction="row" spacing={1}>
               <Button
                 size="small"
@@ -3042,15 +3344,80 @@ const CreateVatInvoice: React.FC = () => {
                 sx={{ textTransform: 'none', color: '#666', borderColor: '#ccc', fontSize: '0.8125rem', py: 0.5 }}>
                 Hủy bỏ
               </Button>
-              <Button
-                size="small"
-                variant="contained"
-                startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Save fontSize="small" />}
-                onClick={handleSaveDraft}
-                disabled={isSubmitting}
-                sx={{ textTransform: 'none', backgroundColor: '#1976d2', fontSize: '0.8125rem', py: 0.5 }}>
-                {isSubmitting ? 'Đang tạo...' : 'Tạo hóa đơn thay thế'}
-              </Button>
+              
+              {/* ⭐ ROLE-BASED BUTTONS */}
+              {user?.role === USER_ROLES.HOD ? (
+                // KẾ TOÁN TRƯỞNG: Tạo hóa đơn thay thế (Chờ ký)
+                <Button
+                  size="small"
+                  variant="contained"
+                  startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Save fontSize="small" />}
+                  onClick={handleCreateInvoiceHOD}
+                  disabled={isSubmitting || !originalInvoice}
+                  sx={{ 
+                    textTransform: 'none', 
+                    backgroundColor: '#f57c00', 
+                    fontSize: '0.8125rem', 
+                    py: 0.5,
+                    minWidth: 220,
+                    '&:hover': {
+                      backgroundColor: '#ef6c00'
+                    },
+                    '&.Mui-disabled': {
+                      backgroundColor: '#ccc'
+                    }
+                  }}>
+                  {isSubmitting ? 'Đang xử lý...' : '📝 Tạo hóa đơn thay thế (Chờ ký)'}
+                </Button>
+              ) : (
+                // KẾ TOÁN: 2 nút - Lưu nháp và Gửi duyệt
+                <>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Save fontSize="small" />}
+                    onClick={handleSaveDraft}
+                    disabled={isSubmitting || !originalInvoice}
+                    sx={{ 
+                      textTransform: 'none', 
+                      color: '#1976d2',
+                      borderColor: '#1976d2',
+                      fontSize: '0.8125rem', 
+                      py: 0.5,
+                      '&:hover': {
+                        borderColor: '#1565c0',
+                        backgroundColor: 'rgba(25, 118, 210, 0.04)'
+                      },
+                      '&.Mui-disabled': {
+                        borderColor: '#ccc',
+                        color: '#ccc'
+                      }
+                    }}>
+                    {isSubmitting ? 'Đang lưu...' : '💾 Lưu nháp'}
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Send fontSize="small" />}
+                    onClick={handleSubmitForApproval}
+                    disabled={isSubmitting || !originalInvoice}
+                    sx={{ 
+                      textTransform: 'none', 
+                      backgroundColor: '#2e7d32', 
+                      fontSize: '0.8125rem', 
+                      py: 0.5,
+                      minWidth: 180,
+                      '&:hover': {
+                        backgroundColor: '#1b5e20'
+                      },
+                      '&.Mui-disabled': {
+                        backgroundColor: '#ccc'
+                      }
+                    }}>
+                    {isSubmitting ? 'Đang xử lý...' : '📤 Gửi duyệt'}
+                  </Button>
+                </>
+              )}
             </Stack>
           </Stack>
         </Paper>
@@ -3229,6 +3596,74 @@ const CreateVatInvoice: React.FC = () => {
               sx={{ textTransform: 'none', backgroundColor: '#2e7d32' }}
             >
               Thêm dòng mới
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* ✅ Dialog xác nhận xóa sản phẩm */}
+        <Dialog
+          open={deleteConfirmDialog.open}
+          onClose={cancelDeleteRow}
+          maxWidth="xs"
+          fullWidth
+        >
+          <DialogTitle sx={{ pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <WarningAmberIcon sx={{ color: '#ed6c02', fontSize: 28 }} />
+            <Typography variant="h6" component="span">
+              Xác nhận xóa sản phẩm
+            </Typography>
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              Bạn có chắc chắn muốn xóa sản phẩm này khỏi hóa đơn?
+            </Typography>
+            
+            {/* ✅ Warning nếu đang xóa sản phẩm cuối cùng */}
+            {items.length === 1 && (
+              <Box sx={{ 
+                backgroundColor: '#fff3e0',
+                border: '1px solid #ff9800',
+                borderRadius: 1, 
+                p: 1.5,
+                mb: 1,
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 1
+              }}>
+                
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#ff9800', mb: 0.5 }}>
+                    Đây là sản phẩm cuối cùng!
+                  </Typography>
+                 
+                </Box>
+              </Box>
+            )}
+            
+            {items.length > 1 && (
+              <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                💡 Lưu ý: STT các sản phẩm còn lại sẽ tự động cập nhật lại.
+              </Typography>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              onClick={cancelDeleteRow}
+              variant="outlined"
+              size="small"
+              sx={{ textTransform: 'none' }}
+            >
+              Hủy bỏ
+            </Button>
+            <Button
+              onClick={confirmDeleteRow}
+              variant="contained"
+              size="small"
+              color="error"
+              startIcon={<DeleteOutline />}
+              sx={{ textTransform: 'none' }}
+            >
+              Xác nhận xóa
             </Button>
           </DialogActions>
         </Dialog>

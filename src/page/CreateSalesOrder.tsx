@@ -1672,7 +1672,8 @@ function CreateSalesOrder() {
         invoiceNotes,   // Ghi chú hóa đơn
         currentUserId,  // ✅ performedBy = userId từ token
         undefined,      // ✅ salesID không truyền (Sales Order không có salesID)
-        null            // ✅ requestID = null (không link với request)
+        null,           // ✅ requestID = null (không link với request)
+        'B2B'           // ✅ invoiceType: Đơn hàng CHỈ cho doanh nghiệp (Business=2)
       )
 
       console.log(`📤 Sending invoice request (${statusLabel}):`, backendRequest)

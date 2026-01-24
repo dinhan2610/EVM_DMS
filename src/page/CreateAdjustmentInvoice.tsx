@@ -9,6 +9,9 @@ import customerService from '@/services/customerService'
 import productService, { Product } from '@/services/productService'
 import companyService, { Company } from '@/services/companyService'
 import { numberToWords } from '@/utils/numberToWords'
+import { getUserIdFromToken } from '@/utils/tokenUtils'
+import { useAuthContext } from '@/context/useAuthContext'
+import { USER_ROLES } from '@/constants/roles'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
 import type { ProductItem, CustomerInfo, TemplateConfigProps} from '@/types/invoiceTemplate'
 import { DEFAULT_TEMPLATE_VISIBILITY, DEFAULT_INVOICE_SYMBOL } from '@/types/invoiceTemplate'
@@ -50,6 +53,7 @@ import {
   Warning,
   Add,
   Undo, // ✅ Icon trả hàng
+  Send, // ✅ Icon gửi duyệt
 } from '@mui/icons-material'
 import SendInvoiceEmailModal from '@/components/SendInvoiceEmailModal'
 import { DataGrid, GridColDef, GridRenderCellParams, GridRenderEditCellParams } from '@mui/x-data-grid'
@@ -71,18 +75,23 @@ interface InvoiceItem {
   originalPrice: number         // ĐG từ hóa đơn gốc (READ-ONLY)
   adjustmentPrice: number       // ĐG điều chỉnh (+/-), default = 0 (EDITABLE)
   
+  // ✅ GIÁ TRỊ SAU ĐIỀU CHỈNH (CALCULATED)
+  finalQuantity: number         // = originalQuantity + adjustmentQuantity
+  finalPrice: number            // = originalPrice + adjustmentPrice
+  finalTotal: number            // = finalQuantity * finalPrice (Thành tiền sau điều chỉnh)
+  
   // ✅ THÀNH TIỀN ĐIỀU CHỈNH (CALCULATED)
-  // Công thức: (SL_Gốc + SL_Đ/C) * (ĐG_Gốc + ĐG_Đ/C) - (SL_Gốc * ĐG_Gốc)
+  // Công thức: finalTotal - originalTotal
   adjustmentAmount: number      // Số tiền chênh lệch thực tế
   
   // Legacy fields (để tương thích và tính tổng)
-  quantity: number              // = originalQuantity + adjustmentQuantity
-  priceAfterTax: number         // = originalPrice + adjustmentPrice
+  quantity: number              // = finalQuantity (for compatibility)
+  priceAfterTax: number         // = finalPrice (for compatibility)
   discountPercent: number
   discountAmount: number
   vatRate?: number
   vatTax?: number
-  totalAfterTax: number         // = adjustmentAmount (số tiền điều chỉnh)
+  totalAfterTax: number         // = finalTotal (Thành tiền sau điều chỉnh)
 }
 
 // Component edit cell cho Tên hàng hóa/Dịch vụ - với search
@@ -861,12 +870,16 @@ const DiscountAmountEditCell = (params: GridRenderEditCellParams) => {
 const CreateVatInvoice: React.FC = () => {
   const navigate = useNavigate()
   const { id: originalInvoiceId } = useParams<{ id: string }>() // ✅ Lấy ID hóa đơn gốc từ URL
+  const { user } = useAuthContext() // ✅ Get user role
   
   // State cho hóa đơn gốc
   const [originalInvoice, setOriginalInvoice] = useState<InvoiceListItem | null>(null)
   const [loadingOriginalInvoice, setLoadingOriginalInvoice] = useState(false)
   const [referenceText, setReferenceText] = useState<string>('') // ✅ Dòng tham chiếu BẮT BUỘC (pháp lý)
   const [adjustmentReason, setAdjustmentReason] = useState<string>('') // ✅ Lý do điều chỉnh (audit trail)
+  
+  // ✅ State cho loại hóa đơn (B2B/B2C) - Load từ hóa đơn gốc
+  const [invoiceType, setInvoiceType] = useState<'B2B' | 'B2C'>('B2B') // Mặc định B2B, sẽ load từ originalInvoice
 
   // Template states
   const [templates, setTemplates] = useState<Template[]>([])
@@ -937,6 +950,19 @@ const CreateVatInvoice: React.FC = () => {
         const data = await invoiceService.getInvoiceById(Number(originalInvoiceId))
         console.log('📄 Original invoice loaded:', data)
         setOriginalInvoice(data)
+        
+        // ✅ Load loại hóa đơn từ hóa đơn gốc
+        // invoiceCustomerType: 1 hoặc 'Customer' = B2C, 2 hoặc 'Business' = B2B
+        const loadedInvoiceType = 
+          (data.invoiceCustomerType === 1 || data.invoiceCustomerType === 'Customer') 
+            ? 'B2C' 
+            : 'B2B'
+        setInvoiceType(loadedInvoiceType)
+        console.log('🏢 Invoice type from original invoice:', {
+          invoiceCustomerType: data.invoiceCustomerType,
+          invoiceType: loadedInvoiceType,
+          description: loadedInvoiceType === 'B2C' ? 'Bán lẻ (Customer)' : 'Doanh nghiệp (Business)'
+        })
         
         // ✅ Fetch template info để lấy Mẫu số và Ký hiệu
         let templateName = 'N/A'
@@ -1054,6 +1080,11 @@ const CreateVatInvoice: React.FC = () => {
               originalPrice: Math.round(unitPrice),
               adjustmentPrice: 0,     // Mặc định = 0
               
+              // ✅ GIÁ TRỊ SAU ĐIỀU CHỈNH (ban đầu = gốc)
+              finalQuantity: item.quantity,
+              finalPrice: Math.round(unitPrice),
+              finalTotal: Math.round(item.amount),
+              
               // ✅ THÀNH TIỀN ĐIỀU CHỈNH = 0 (vì chưa điều chỉnh gì)
               adjustmentAmount: 0,
               
@@ -1064,7 +1095,7 @@ const CreateVatInvoice: React.FC = () => {
               discountAmount: 0,
               vatRate: Math.round(vatRate),
               vatTax: Math.round(item.vatAmount),
-              totalAfterTax: 0, // Ban đầu = 0 vì chưa điều chỉnh
+              totalAfterTax: Math.round(item.amount), // ✅ = finalTotal
             }
           })
           
@@ -1147,6 +1178,9 @@ const CreateVatInvoice: React.FC = () => {
       originalPrice: 0,
       adjustmentPrice: 0,
       adjustmentAmount: 0,
+      finalQuantity: 0,    // ✅ Add missing field
+      finalPrice: 0,       // ✅ Add missing field
+      finalTotal: 0,       // ✅ Add missing field
     },
   ])
 
@@ -1241,8 +1275,21 @@ const CreateVatInvoice: React.FC = () => {
         console.log('📝 Updating items, previous state:', prevItems)
         const updatedItems = prevItems.map(item => {
           if (item.id === rowId) {
-            // Tính thành tiền CHƯA thuế
-            const totalAfterTax = basePrice * item.quantity
+            // ✅ PHÂN BIỆT: Sản phẩm mới (chưa có trong HĐ gốc) vs Sản phẩm đã tồn tại
+            const isNewProduct = item.originalQuantity === 0 && item.originalPrice === 0
+            
+            // 🎯 SẢN PHẨM MỚI: Auto-fill adjustmentPrice = basePrice, adjustmentQuantity = 1
+            const finalAdjustmentQuantity = isNewProduct ? 1 : (item.adjustmentQuantity || 0)
+            const finalAdjustmentPrice = isNewProduct ? basePrice : (item.adjustmentPrice || 0)
+            
+            // Tính giá trị sau điều chỉnh
+            const finalQty = item.originalQuantity + finalAdjustmentQuantity
+            const finalPrice = item.originalPrice + finalAdjustmentPrice
+            const finalTotal = finalQty * finalPrice
+            
+            // Tính adjustmentAmount
+            const originalTotal = item.originalQuantity * item.originalPrice
+            const calculatedAdjustmentAmount = finalTotal - originalTotal
             
             // ✅ Tạo object hoàn toàn mới để React detect thay đổi
             const updatedItem: InvoiceItem = {
@@ -1253,19 +1300,28 @@ const CreateVatInvoice: React.FC = () => {
               name: productDetail.name,                 // Tên sản phẩm
               type: productDetail.description || 'Hàng hóa', // Tính chất HHDV từ description
               unit: productDetail.unit,                 // Đơn vị tính
-              quantity: item.quantity,                  // Giữ nguyên số lượng
-              priceAfterTax: basePrice,                // ✅ Đơn giá CHƯA thuế
+              quantity: finalQty,                      // ✅ = originalQuantity + adjustmentQuantity
+              priceAfterTax: finalPrice,               // ✅ = originalPrice + adjustmentPrice
               discountPercent: item.discountPercent,   // Giữ nguyên chiết khấu
               discountAmount: item.discountAmount,     // Giữ nguyên chiết khấu
-              totalAfterTax: totalAfterTax,            // ✅ Thành tiền CHƯA thuế
+              totalAfterTax: finalTotal,               // ✅ Thành tiền sau điều chỉnh
               vatRate: productVatRate,                 // ✅ Thuế suất của sản phẩm
               originalQuantity: item.originalQuantity || 0,
-              adjustmentQuantity: item.adjustmentQuantity || 0,
+              adjustmentQuantity: finalAdjustmentQuantity,    // ✅ Auto = 1 cho sản phẩm mới
               originalPrice: item.originalPrice || 0,
-              adjustmentPrice: item.adjustmentPrice || 0,
-              adjustmentAmount: item.adjustmentAmount || 0,
+              adjustmentPrice: finalAdjustmentPrice,          // ✅ Auto = basePrice cho sản phẩm mới
+              finalQuantity: finalQty,                 // ✅ Số lượng sau điều chỉnh
+              finalPrice: finalPrice,                  // ✅ Đơn giá sau điều chỉnh
+              finalTotal: finalTotal,                  // ✅ Tổng tiền sau điều chỉnh
+              adjustmentAmount: calculatedAdjustmentAmount,   // ✅ Tính chênh lệch
             }
             console.log('✅ Updated item:', updatedItem)
+            console.log(`🆕 ${isNewProduct ? 'NEW PRODUCT' : 'EXISTING PRODUCT'} detected:`, {
+              isNew: isNewProduct,
+              adjustmentQuantity: finalAdjustmentQuantity,
+              adjustmentPrice: finalAdjustmentPrice,
+              adjustmentAmount: calculatedAdjustmentAmount,
+            })
             return updatedItem
           }
           return item
@@ -1409,7 +1465,7 @@ const CreateVatInvoice: React.FC = () => {
       code: '',
       name: '',
       unit: '',
-      quantity: 1,
+      quantity: 0,
       priceAfterTax: 0,
       discountPercent: 0,
       discountAmount: 0,
@@ -1419,6 +1475,9 @@ const CreateVatInvoice: React.FC = () => {
       adjustmentQuantity: 0,
       originalPrice: 0,
       adjustmentPrice: 0,
+      finalQuantity: 0,
+      finalPrice: 0,
+      finalTotal: 0,
       adjustmentAmount: 0,
     }
     setItems([...items, newItem])
@@ -1426,24 +1485,26 @@ const CreateVatInvoice: React.FC = () => {
 
   // Tính toán tổng tiền
   const calculateTotals = (currentItems: InvoiceItem[]) => {
-    // ✅ Tính theo TỪNG DÒNG sản phẩm
+    // ✅ HÓA ĐƠN ĐIỀU CHỈNH: Chỉ tính CHÊNH LỆCH (adjustmentAmount), không tính tổng cuối
+    // adjustmentAmount = (SL_Gốc + SL_Đ/C) × (ĐG_Gốc + ĐG_Đ/C) - (SL_Gốc × ĐG_Gốc)
+    
     const subtotalBeforeDiscount = currentItems.reduce((sum, item) => {
-      const itemTotal = item.quantity * item.priceAfterTax
-      return sum + itemTotal
+      // ✅ Chỉ tính số tiền ĐIỀU CHỈNH (chênh lệch), không tính tổng cuối
+      return sum + (item.adjustmentAmount || 0)
     }, 0)
 
-    // Tính tổng tiền chiết khấu
+    // Tính tổng tiền chiết khấu (nếu có)
     const totalDiscount = currentItems.reduce((sum, item) => sum + (item.discountAmount || 0), 0)
 
     // Tổng tiền sau chiết khấu (CHƯA bao gồm thuế)
     const subtotalAfterDiscount = subtotalBeforeDiscount - totalDiscount
 
-    // ✅ Tính thuế GTGT theo TỪNG DÒNG (vì mỗi sản phẩm có thuế suất khác nhau)
+    // ✅ Tính thuế GTGT trên SỐ TIỀN ĐIỀU CHỈNH (không phải tổng cuối)
     const tax = currentItems.reduce((sum, item) => {
-      // Tiền hàng của dòng này sau chiết khấu
-      const itemSubtotal = (item.quantity * item.priceAfterTax) - (item.discountAmount || 0)
-      // Tiền thuế = Tiền hàng × Thuế suất
-      const itemTax = itemSubtotal * ((item.vatRate || 0) / 100)
+      // Tiền điều chỉnh của dòng này (sau chiết khấu nếu có)
+      const itemAdjustment = (item.adjustmentAmount || 0) - (item.discountAmount || 0)
+      // Tiền thuế = Tiền điều chỉnh × Thuế suất
+      const itemTax = itemAdjustment * ((item.vatRate || 0) / 100)
       return sum + itemTax
     }, 0)
     
@@ -1451,11 +1512,11 @@ const CreateVatInvoice: React.FC = () => {
     const total = subtotalAfterDiscount + tax
 
     return {
-      subtotal: Math.round(subtotalAfterDiscount),     // Tổng tiền hàng CHƯA thuế (sau CK)
+      subtotal: Math.round(subtotalAfterDiscount),     // Tổng tiền hàng ĐIỀU CHỈNH (chênh lệch)
       discount: Math.round(totalDiscount),             // Chiết khấu
       subtotalAfterDiscount: Math.round(subtotalAfterDiscount), // Sau chiết khấu, chưa thuế
-      tax: Math.round(tax),                            // ✅ Tiền thuế VAT (tổng của tất cả dòng)
-      total: Math.round(total),                        // Tổng thanh toán (= subtotal + tax)
+      tax: Math.round(tax),                            // ✅ Tiền thuế VAT trên số tiền điều chỉnh
+      total: Math.round(total),                        // Tổng thanh toán điều chỉnh (= subtotal + tax)
     }
   }
 
@@ -1493,14 +1554,19 @@ const CreateVatInvoice: React.FC = () => {
       // 🎯 Số tiền chênh lệch (đây là số quan trọng nhất!)
       updatedRow.adjustmentAmount = finalTotal - originalTotal
       
+      // ✅ Cập nhật giá trị sau điều chỉnh
+      updatedRow.finalQuantity = finalQty
+      updatedRow.finalPrice = finalPrice
+      updatedRow.finalTotal = finalTotal
+      
       // Sync legacy fields
       updatedRow.quantity = finalQty
       updatedRow.priceAfterTax = finalPrice
-      updatedRow.totalAfterTax = updatedRow.adjustmentAmount // Thành tiền = số điều chỉnh
+      updatedRow.totalAfterTax = finalTotal // ✅ Thành tiền = tổng SAU điều chỉnh
       
-      // Tính VAT trên số tiền điều chỉnh
+      // Tính VAT trên THÀNH TIỀN SAU ĐIỀU CHỈNH (không phải chỉ phần chênh lệch)
       const itemVatRate = updatedRow.vatRate || 0
-      updatedRow.vatTax = Math.round(updatedRow.adjustmentAmount * (itemVatRate / 100))
+      updatedRow.vatTax = Math.round(finalTotal * (itemVatRate / 100))
 
       // Update items state
       const updatedItems = items.map((item) => (item.id === newRow.id ? updatedRow : item))
@@ -1693,7 +1759,10 @@ const CreateVatInvoice: React.FC = () => {
         5,              // minRows
         invoiceStatusID, // ⭐ Status: 1=Nháp, 6=Chờ duyệt
         invoiceNotes,   // Ghi chú hóa đơn
-        0               // signedBy (0=chưa ký)
+        0,              // signedBy (0=chưa ký)
+        undefined,      // ✅ salesID không truyền (điều chỉnh không có salesID)
+        null,           // ✅ requestID = null (không link với request)
+        invoiceType     // ✅ invoiceType: Dynamic load từ hóa đơn gốc (B2B=2, B2C=1)
       )
 
       console.log(`📤 Sending invoice request (${statusLabel}):`, backendRequest)
@@ -1765,18 +1834,22 @@ const CreateVatInvoice: React.FC = () => {
   }
   */
 
-  // ⭐ Lưu nháp (invoiceStatusID = 1)
-  // const handleSaveDraft = async () => {
-  //   await handleSubmitInvoice(1, 'Lưu hóa đơn nháp')
-  // }
-
-  // ⭐ Gửi duyệt (invoiceStatusID = 6)
-  // const handleSubmitForApproval = async () => {
-  //   await handleSubmitInvoice(6, 'Gửi hóa đơn chờ duyệt')
-  // }
+  // ==================== SUBMIT HÓA ĐƠN ĐIỀU CHỈNH - ROLE-BASED ====================
   
-  // ✅ SUBMIT HÓA ĐƠN ĐIỀU CHỈNH (Tối ưu - chỉ gửi adjustment values)
-  const handleSubmitAdjustmentInvoice = async (statusLabel: string = 'Tạo hóa đơn điều chỉnh') => {
+  /**
+   * ⭐ MAIN HANDLER: Tạo hóa đơn điều chỉnh với status tùy theo role
+   * 
+   * Logic tương tự CreateVatInvoice:
+   * - KẾ TOÁN: Tạo và gửi cho KTT duyệt (status 6 - PENDING_APPROVAL)
+   * - KẾ TOÁN TRƯỞNG: Tạo với trạng thái chờ ký (status 7 - PENDING_SIGN)
+   * 
+   * @param invoiceStatusID - Status ID để tạo invoice (6 hoặc 7)
+   * @param statusLabel - Label hiển thị trong snackbar
+   */
+  const handleSubmitAdjustmentInvoice = async (invoiceStatusID: number, statusLabel: string = 'Tạo hóa đơn điều chỉnh') => {
+    // ⭐ Lấy user ID từ token TRƯỚC (để error handler cũng access được)
+    const performedByUserId = getUserIdFromToken()
+    
     try {
       // ========== VALIDATION ==========
       
@@ -1800,15 +1873,9 @@ const CreateVatInvoice: React.FC = () => {
         return
       }
       
-      // 3. Validate reference text (yêu cầu pháp lý)
-      if (!referenceText || referenceText.trim().length < 30) {
-        setSnackbar({
-          open: true,
-          message: '⚠️ Dòng tham chiếu phải có ít nhất 30 ký tự (yêu cầu pháp lý)',
-          severity: 'warning'
-        })
-        return
-      }
+      // 3. ❌ REMOVED: Validate reference text
+      // Backend tự động tạo reference text từ thông tin hóa đơn gốc
+      // Frontend chỉ hiển thị preview, không gửi lên backend
       
       // 4. Validate adjustment reason
       if (!adjustmentReason || adjustmentReason.trim().length < 10) {
@@ -1858,53 +1925,233 @@ const CreateVatInvoice: React.FC = () => {
       
       setIsSubmitting(true)
       
-      // Lấy user ID từ localStorage (consistent với InvoiceApproval và InvoiceManagement)
-      const userId = parseInt(localStorage.getItem('userId') || '1')
+      // ⭐ User ID đã lấy từ token ở đầu function
+      const userId = performedByUserId
       
-      console.log('🔍 [CreateAdjustmentInvoice] User ID from localStorage:', userId)
+      console.log('🔍 [CreateAdjustmentInvoice] User ID from token:', userId)
+      console.log('🔍 [CreateAdjustmentInvoice] Current user role:', user?.role)
       
       if (!userId || userId === 0 || isNaN(userId)) {
         console.error('❌ Invalid user ID:', userId)
-        throw new Error('Không xác định được user ID. Vui lòng đăng nhập lại.')
+        setSnackbar({
+          open: true,
+          message: '❌ Không xác định được user ID. Vui lòng đăng nhập lại.',
+          severity: 'error'
+        })
+        setIsSubmitting(false)
+        return
       }
       
-      // ✅ Chỉ gửi những item CÓ điều chỉnh
+      // 🛡️ Validate originalInvoiceId
+      const originalInvoiceIdNum = Number(originalInvoiceId)
+      if (!originalInvoiceIdNum || isNaN(originalInvoiceIdNum) || originalInvoiceIdNum <= 0) {
+        console.error('❌ Invalid originalInvoiceId:', originalInvoiceId)
+        setSnackbar({
+          open: true,
+          message: '❌ ID hóa đơn gốc không hợp lệ. Vui lòng thử lại.',
+          severity: 'error'
+        })
+        setIsSubmitting(false)
+        return
+      }
+      
+      // 🛡️ Validate templateId
+      const templateIdNum = selectedTemplate?.templateID || 0
+      if (!templateIdNum || templateIdNum <= 0) {
+        console.error('❌ Invalid templateId:', templateIdNum)
+        setSnackbar({
+          open: true,
+          message: '❌ Vui lòng chọn mẫu hóa đơn.',
+          severity: 'error'
+        })
+        setIsSubmitting(false)
+        return
+      }
+      
+      // ✅ Chỉ gửi những item CÓ điều chỉnh VÀ có đầy đủ thông tin
       const adjustmentItems = items
-        .filter(item => item.adjustmentQuantity !== 0 || item.adjustmentPrice !== 0)
-        .map(item => ({
-          productID: item.productId!,
-          quantity: item.adjustmentQuantity,        // Số lượng điều chỉnh (+/-)
-          unitPrice: item.adjustmentPrice,          // Đơn giá điều chỉnh (+/-)
-          overrideVATRate: item.vatRate,            // VAT rate (optional)
-        }))
+        .filter(item => {
+          // ✅ Phải có productId (đã chọn sản phẩm)
+          if (!item.productId) {
+            console.warn('⚠️ Skipping item without productId:', item)
+            return false
+          }
+          
+          // ✅ Phải có điều chỉnh (qty hoặc price khác 0)
+          const hasAdjustment = item.adjustmentQuantity !== 0 || item.adjustmentPrice !== 0
+          if (!hasAdjustment) {
+            console.log('ℹ️ Skipping item without adjustment:', item.name)
+            return false
+          }
+          
+          return true
+        })
+        .map(item => {
+          const adjustmentItem = {
+            productID: item.productId!,
+            quantity: item.adjustmentQuantity,        // Số lượng điều chỉnh (+/-)
+            unitPrice: item.adjustmentPrice,          // Đơn giá điều chỉnh (+/-)
+            overrideVATRate: item.vatRate,            // VAT rate (optional)
+          }
+          
+          console.log('📦 Mapping adjustment item:', {
+            productName: item.name,
+            productID: item.productId,
+            adjustmentQty: item.adjustmentQuantity,
+            adjustmentPrice: item.adjustmentPrice,
+            vatRate: item.vatRate,
+            // Debug info
+            originalQty: item.originalQuantity,
+            originalPrice: item.originalPrice,
+            finalQty: item.finalQuantity,
+            finalPrice: item.finalPrice,
+          })
+          
+          // 🛡️ Validate adjustment item data
+          if (!adjustmentItem.productID || adjustmentItem.productID <= 0) {
+            console.error('❌ Invalid productID in adjustment item:', adjustmentItem)
+            throw new Error(`Sản phẩm "${item.name}" thiếu thông tin ID`)
+          }
+          
+          if (isNaN(adjustmentItem.quantity) || isNaN(adjustmentItem.unitPrice)) {
+            console.error('❌ Invalid number in adjustment item:', adjustmentItem)
+            throw new Error(`Sản phẩm "${item.name}" có giá trị không hợp lệ`)
+          }
+          
+          return adjustmentItem
+        })
+      
+      // 🛡️ Validation: Phải có ít nhất 1 item có điều chỉnh
+      if (adjustmentItems.length === 0) {
+        setSnackbar({
+          open: true,
+          message: '❌ Không có sản phẩm nào được điều chỉnh.\n\n💡 Vui lòng nhập số lượng hoặc giá điều chỉnh cho ít nhất 1 sản phẩm.',
+          severity: 'error'
+        })
+        setIsSubmitting(false)
+        return
+      }
+      
+      // ⭐ REQUEST STRUCTURE - KHỞP VỚI BACKEND API SPEC
+      // Backend API: POST /api/Invoice/adjustment
+      // Fields: originalInvoiceId, templateId, adjustmentReason, performedBy, adjustmentItems, rootPath?
       
       const requestData: CreateAdjustmentInvoiceRequest = {
-        originalInvoiceId: Number(originalInvoiceId),
-        templateId: selectedTemplate?.templateID || 0,
-        referenceText: referenceText.trim(),
-        adjustmentReason: adjustmentReason.trim(),
+        originalInvoiceId: originalInvoiceIdNum,
+        templateId: templateIdNum,
+        adjustmentReason: adjustmentReason.trim(),  // ✅ Backend field
         performedBy: userId,
         adjustmentItems,
+        invoiceStatusID,  // ⚠️ PENDING: Chờ backend support field này
+        // rootPath: undefined  // ✅ Optional - backend tự lấy từ config
       }
       
-      console.log(`📤 Sending adjustment invoice request (${statusLabel}):`, requestData)
-      console.log(`📊 Adjustment summary:`, {
-        originalInvoiceId: originalInvoiceId,
-        itemsCount: adjustmentItems.length,
-        totalAdjustment: totals.total,
+      // 🔍 ENHANCED LOGGING for debugging
+      console.group('📤 ADJUSTMENT INVOICE REQUEST')
+      console.log(`Status: ${invoiceStatusID} - ${statusLabel}`)
+      console.log(`👤 Performed By (User ID from TOKEN): ${userId} (type: ${typeof userId})`)
+      console.log(`🏢 Company ID: ${company?.companyID || 'N/A'}`)
+      console.log(`Original Invoice ID: ${originalInvoiceIdNum} (type: ${typeof originalInvoiceIdNum})`)
+      console.log(`Template ID: ${templateIdNum} (type: ${typeof templateIdNum})`)
+      console.log(`Adjustment Reason: "${adjustmentReason.trim()}"`)
+      console.log(`Performed By: ${userId} (type: ${typeof userId})`)
+      console.log(`Items Count: ${adjustmentItems.length}`)
+      
+      // 🔍 DETAILED VALIDATION
+      console.log('\n🔍 VALIDATION CHECK:')
+      console.log('Original Invoice exists:', !!originalInvoice)
+      console.log('Original Invoice ID:', originalInvoice?.invoiceID)
+      console.log('Original Invoice Status:', originalInvoice?.invoiceStatusID)
+      console.log('Template selected:', !!selectedTemplate)
+      console.log('Template object:', selectedTemplate)
+      console.log('Template ID:', selectedTemplate?.templateID)
+      console.log('Template Name:', selectedTemplate?.templateName)
+      console.log('Template Serial:', selectedTemplate?.serial)
+      
+      console.log('\nFull Request:', JSON.stringify(requestData, null, 2))
+      console.log('Adjustment Items Detail:')
+      adjustmentItems.forEach((item, idx) => {
+        console.log(`  [${idx}]:`, {
+          productID: item.productID,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          overrideVATRate: item.overrideVATRate,
+          types: {
+            productID: typeof item.productID,
+            quantity: typeof item.quantity,
+            unitPrice: typeof item.unitPrice,
+            overrideVATRate: typeof item.overrideVATRate,
+          }
+        })
+      })
+      console.groupEnd()
+      
+      // 🛡️ Final validation: Check all productIDs are valid numbers
+      const invalidItems = adjustmentItems.filter(item => 
+        !item.productID || typeof item.productID !== 'number' || item.productID <= 0
+      )
+      
+      if (invalidItems.length > 0) {
+        console.error('❌ Invalid productIDs found:', invalidItems)
+        setSnackbar({
+          open: true,
+          message: `❌ Có ${invalidItems.length} sản phẩm thiếu thông tin.\n\n💡 Vui lòng chọn lại sản phẩm từ dropdown.`,
+          severity: 'error'
+        })
+        setIsSubmitting(false)
+        return
+      }
+      
+      // 🛡️ Additional validation: Check for suspicious data
+      adjustmentItems.forEach(item => {
+        const hasZeroPrice = item.unitPrice === 0
+        const hasZeroQty = item.quantity === 0
+        const hasNegativePrice = item.unitPrice < 0
+        const hasNegativeQty = item.quantity < 0
+        
+        // Log warning for zero/negative values
+        if (hasZeroPrice || hasZeroQty || hasNegativePrice || hasNegativeQty) {
+          console.warn(`⚠️ Suspicious item data:`, {
+            productID: item.productID,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            hasZeroPrice,
+            hasZeroQty,
+            hasNegativePrice,
+            hasNegativeQty
+          })
+        }
       })
       
-      // ========== CALL API ==========
+      // ========== CREATE ADJUSTMENT INVOICE ==========
       
       const response = await invoiceService.createAdjustmentInvoice(requestData)
       
       console.log('✅ Adjustment invoice created:', response)
       
+      // ⚠️ Backend trả về invoiceId có thể là object hoặc number
+      const createdInvoiceId = typeof response.invoiceId === 'object' 
+        ? (response.invoiceId as { value?: number; invoiceID?: number })?.value || (response.invoiceId as { value?: number; invoiceID?: number })?.invoiceID || 0
+        : response.invoiceId
+      
+      console.log('🔍 Invoice ID extracted:', { raw: response.invoiceId, parsed: createdInvoiceId, type: typeof createdInvoiceId })
+      
       // ========== SUCCESS HANDLING ==========
       
-      const successMessage = response.invoiceId
-        ? `✅ ${statusLabel} thành công!\n📄 Mã hóa đơn: ${response.fullInvoiceCode || response.invoiceNumber || response.invoiceId}\n💰 Số tiền điều chỉnh: ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(response.adjustmentAmount || totals.total)}`
-        : `✅ ${statusLabel} thành công!`
+      let successMessage = ''
+      
+      if (invoiceStatusID === 6) {
+        // Pending Approval - Accountant
+        successMessage = `✅ Gửi hóa đơn điều chỉnh chờ duyệt thành công! (ID: ${createdInvoiceId})\n📋 Hóa đơn đang chờ phê duyệt từ Kế toán trưởng.`
+      } else if (invoiceStatusID === 7) {
+        // Pending Sign - HOD
+        successMessage = `✅ Tạo hóa đơn điều chỉnh thành công! (ID: ${createdInvoiceId})\n🔐 Hóa đơn ở trạng thái Chờ ký, bạn có thể ký số ngay.`
+      } else {
+        // Default/Other statuses
+        successMessage = createdInvoiceId
+          ? `✅ ${statusLabel} thành công!\n📄 Mã hóa đơn: ${response.fullInvoiceCode || response.invoiceNumber || createdInvoiceId}\n💰 Số tiền điều chỉnh: ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(response.adjustmentAmount || totals.total)}`
+          : `✅ ${statusLabel} thành công!`
+      }
       
       setSnackbar({
         open: true,
@@ -1912,58 +2159,140 @@ const CreateVatInvoice: React.FC = () => {
         severity: 'success'
       })
       
-      // Navigate về danh sách sau 2s
+      // ⭐ Navigate dựa trên role: HOD → /approval/invoices, Others → /invoices
       setTimeout(() => {
-        navigate('/invoices')
+        if (user?.role === USER_ROLES.HOD) {
+          // KẾ TOÁN TRƯởNG: Chuyển về trang Duyệt hóa đơn
+          console.log('🎯 HOD: Redirecting to /approval/invoices (Adjustment)')
+          navigate('/approval/invoices')
+        } else {
+          // KẾ TOÁN & OTHERS: Chuyển về trang Danh sách hóa đơn
+          console.log('🎯 Accountant/Others: Redirecting to /invoices (Adjustment)')
+          navigate('/invoices')
+        }
       }, 2000)
       
     } catch (error: unknown) {
-      console.error('❌ Error creating adjustment invoice:', error)
+      console.group('❌ ERROR CREATING ADJUSTMENT INVOICE')
+      console.error('Error object:', error)
       
       let errorMessage = 'Lỗi khi tạo hóa đơn điều chỉnh'
+      let errorDetails = ''
       
       if (error instanceof Error) {
         errorMessage = error.message
+        console.error('Error message:', error.message)
+        console.error('Error stack:', error.stack)
       }
       
-      // Parse API error
-      const apiError = error as { 
+      // Parse Axios error
+      const axiosError = error as { 
         response?: { 
+          status?: number
           data?: { 
             message?: string
+            detail?: string
+            title?: string
             errors?: Record<string, string[]> 
           } 
         } 
       }
       
-      if (apiError.response?.data) {
-        if (apiError.response.data.message) {
-          errorMessage = apiError.response.data.message
+      if (axiosError.response) {
+        console.error('Response status:', axiosError.response.status)
+        console.error('Response data:', axiosError.response.data)
+        
+        const data = axiosError.response.data
+        
+        // Handle backend error message
+        if (data?.message) {
+          errorMessage = data.message
+        } else if (data?.detail) {
+          errorMessage = data.detail
+          errorDetails = `\n\n🔍 Chi tiết: ${data.detail}`
+          
+          // Specific error analysis
+          if (data.detail.includes('Object reference not set')) {
+            errorDetails += '\n\n⚠️ Backend đang gặp lỗi NULL REFERENCE:'
+            errorDetails += '\n\n🔍 Các nguyên nhân có thể:'
+            errorDetails += `\n• ⭐ User ID ${performedByUserId} không tồn tại trong database hoặc thiếu dữ liệu`
+            errorDetails += `\n• ⭐ User không có Company liên kết (CompanyID = null)`
+            errorDetails += `\n• Hóa đơn gốc ID ${originalInvoice?.invoiceID || 'N/A'} không tồn tại hoặc đã bị xóa`
+            errorDetails += `\n• Template ID ${selectedTemplate?.templateID || 'N/A'} không tồn tại`
+            errorDetails += '\n• Template.Serial hoặc SerialNumber bị NULL'
+            errorDetails += '\n• Sản phẩm không tồn tại trong hệ thống'
+            errorDetails += '\n• Backend thiếu xử lý null cho một field nào đó'
+            errorDetails += '\n\n💡 Hãy thử:'
+            errorDetails += '\n1. ⭐ Kiểm tra USER ID trong database (performedBy)'
+            errorDetails += '\n2. ⭐ Kiểm tra User có CompanyID không'
+            errorDetails += '\n3. Kiểm tra Template và Serial có đầy đủ không'
+            errorDetails += '\n4. Check backend logs để biết chính xác line nào bị NULL'
+            errorDetails += '\n5. Nếu vẫn lỗi → Liên hệ backend developer'
+            errorDetails += '\n\n📊 Debug info:'
+            errorDetails += `\n• User ID (from token): ${performedByUserId}`
+            errorDetails += `\n• Company ID: ${company?.companyID || 'NULL - ĐÂY CÓ THỂ LÀ VẤN ĐỀ!'}`
+            errorDetails += `\n• Original Invoice: ${originalInvoice?.invoiceNumber || 'N/A'} (Status: ${originalInvoice?.invoiceStatusID})`
+            errorDetails += `\n• Template: ${selectedTemplate?.templateName || 'N/A'}`
+          }
+        } else if (data?.title) {
+          errorMessage = data.title
         }
         
-        if (apiError.response.data.errors) {
-          const validationErrors = Object.entries(apiError.response.data.errors)
+        // Handle validation errors
+        if (data?.errors) {
+          const validationErrors = Object.entries(data.errors)
             .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
             .join('\n')
-          errorMessage = `Validation errors:\n${validationErrors}`
+          errorDetails += `\n\n📋 Validation errors:\n${validationErrors}`
         }
-        
-        console.error('🔍 API Error Details:', {
-          status: apiError.response,
-          data: apiError.response.data,
-          fullError: error
-        })
       }
+      
+      console.groupEnd()
       
       setSnackbar({
         open: true,
-        message: `❌ ${errorMessage}`,
+        message: errorMessage + errorDetails,
         severity: 'error'
       })
     } finally {
       setIsSubmitting(false)
     }
   }
+
+  // ==================== ROLE-BASED SUBMIT FUNCTIONS ====================
+  
+  /**
+   * ⭐ KẾ TOÁN: Lưu hóa đơn điều chỉnh dưới dạng nháp
+   * Status: 1 (DRAFT - Nháp)
+   * 
+   * Flow: Kế toán tạo nháp → Sau đó từ danh sách “Gửi duyệt” riêng
+   */
+  const handleSaveDraft = async () => {
+    await handleSubmitAdjustmentInvoice(1, 'Lưu hóa đơn điều chỉnh nháp')
+  }
+
+  /**
+   * ⭐ KẾ TOÁN: Gửi hóa đơn điều chỉnh cho kế toán trưởng duyệt
+   * Status: 6 (PENDING_APPROVAL - Chờ duyệt)
+   * 
+   * Flow: Kế toán tạo → Gửi cho KTT → KTT duyệt → Chờ ký
+   */
+  const handleSubmitForApproval = async () => {
+    await handleSubmitAdjustmentInvoice(6, 'Gửi hóa đơn điều chỉnh chờ duyệt')
+  }
+
+  /**
+   * ⭐ KẾ TOÁN TRƯỞNG: Tạo hóa đơn điều chỉnh với trạng thái chờ ký
+   * Status: 7 (PENDING_SIGN - Chờ ký)
+   * 
+   * Flow: KTT tạo → Chờ ký → Ký số → Gửi CQT
+   * Lưu ý: KTT không cần gửi duyệt vì tự duyệt
+   */
+  const handleCreateInvoiceHOD = async () => {
+    await handleSubmitAdjustmentInvoice(7, 'Tạo hóa đơn điều chỉnh chờ ký')
+  }
+
+  // ==================== OTHER HANDLERS ====================
 
   // Đóng snackbar
   const handleCloseSnackbar = () => {
@@ -2154,39 +2483,45 @@ const CreateVatInvoice: React.FC = () => {
       ),
     },
     {
-      field: 'totalAfterTax',
+      field: 'adjustmentAmount',
       headerName: 'Thành tiền Đ/C',
       width: 150,
       type: 'number',
       editable: false,
       align: 'center' as const,
       headerAlign: 'center' as const,
-      renderCell: (params: GridRenderCellParams) => (
-        <Box 
-          sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            width: '100%', 
-            height: '100%',
-            backgroundColor: '#fffbf0',
-            borderLeft: '3px solid #ff9800'
-          }}
-        >
-          <Typography 
-            variant="body2" 
+      renderCell: (params: GridRenderCellParams) => {
+        // Get the row data to access adjustmentAmount
+        const row = params.row as InvoiceItem
+        const adjustmentValue = row.adjustmentAmount || 0
+        
+        return (
+          <Box 
             sx={{ 
-              fontSize: '0.875rem', 
-              fontWeight: 700,
-              color: params.value === 0 ? '#bbb' : (params.value > 0 ? '#2e7d32' : '#d32f2f')
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              width: '100%', 
+              height: '100%',
+              backgroundColor: '#fffbf0',
+              borderLeft: '3px solid #ff9800'
             }}
           >
-            {params.value === 0 ? '0' : 
-             params.value > 0 ? `+${Number(params.value).toLocaleString('vi-VN')}` :
-             Number(params.value).toLocaleString('vi-VN')}
-          </Typography>
-        </Box>
-      ),
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                fontSize: '0.875rem', 
+                fontWeight: 700,
+                color: adjustmentValue === 0 ? '#bbb' : (adjustmentValue > 0 ? '#2e7d32' : '#d32f2f')
+              }}
+            >
+              {adjustmentValue === 0 ? '0' : 
+               adjustmentValue > 0 ? `+${Number(adjustmentValue).toLocaleString('vi-VN')}` :
+               Number(adjustmentValue).toLocaleString('vi-VN')}
+            </Typography>
+          </Box>
+        )
+      },
     },
     {
       field: 'actions',
@@ -2515,16 +2850,89 @@ const CreateVatInvoice: React.FC = () => {
 
               <Divider sx={{ my: 1.5 }} />
 
+              {/* ✅ Dropdown chọn loại hóa đơn - READ-ONLY (load từ hóa đơn gốc) */}
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+                <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem', color: '#666' }}>
+                  Loại hóa đơn:
+                </Typography>
+                <Select
+                  size="small"
+                  value={invoiceType}
+                  disabled // ✅ DISABLED: Loại hóa đơn xác định từ hóa đơn gốc, không cho đổi
+                  variant="outlined"
+                  sx={{
+                    minWidth: 280,
+                    fontSize: '0.8125rem',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#ddd',
+                    },
+                    '& .MuiInputBase-input.Mui-disabled': {
+                      WebkitTextFillColor: '#666' // ✅ Màu text khi disabled
+                    }
+                  }}
+                >
+                  <MenuItem value="B2B" sx={{ fontSize: '0.8125rem', py: 1 }}>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                      <Box component="span" sx={{ fontSize: '1rem' }}>🏢</Box>
+                      <Box>
+                        <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+                          Hóa đơn B2B
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#666', fontSize: '0.7rem' }}>
+                          Bán cho doanh nghiệp (bắt buộc có Tên đơn vị)
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </MenuItem>
+                  <MenuItem value="B2C" sx={{ fontSize: '0.8125rem', py: 1 }}>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                      <Box component="span" sx={{ fontSize: '1rem' }}>👤</Box>
+                      <Box>
+                        <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+                          Hóa đơn B2C
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#666', fontSize: '0.7rem' }}>
+                          Bán lẻ cá nhân (bắt buộc có Người mua hàng)
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </MenuItem>
+                </Select>
+                <Chip label="Từ hóa đơn gốc" size="small" color="primary" variant="outlined" sx={{ fontSize: '0.7rem' }} />
+                <Tooltip 
+                  title={
+                    <Box sx={{ p: 0.5 }}>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 0.5, fontWeight: 600 }}>
+                        💡 Loại hóa đơn từ hóa đơn gốc:
+                      </Typography>
+                      <Typography variant="caption" sx={{ display: 'block', fontSize: '0.7rem', mb: 0.3 }}>
+                        • <strong>B2B:</strong> Bán cho doanh nghiệp (bắt buộc có Tên đơn vị)
+                      </Typography>
+                      <Typography variant="caption" sx={{ display: 'block', fontSize: '0.7rem', mb: 0.3 }}>
+                        • <strong>B2C:</strong> Bán lẻ cho cá nhân (bắt buộc có Người mua hàng)
+                      </Typography>
+                      <Typography variant="caption" sx={{ display: 'block', fontSize: '0.7rem', color: '#ffa726', mt: 0.5 }}>
+                        ⚠️ Loại hóa đơn điều chỉnh PHẢI GIỐNG hóa đơn gốc
+                      </Typography>
+                    </Box>
+                  }
+                  arrow
+                  placement="right"
+                >
+                  <Info sx={{ fontSize: 18, color: '#1976d2', cursor: 'help' }} />
+                </Tooltip>
+              </Stack>
+
               {/* Thông tin người mua */}
               <Stack spacing={0.8}>
                 {/* READ-ONLY: Thông tin người mua từ hóa đơn gốc */}
                 <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexWrap: 'wrap' }}>
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    MST người mua:
+                    {invoiceType === 'B2B' ? 'Mã Số Thuế:' : 'CCCD:'}
                   </Typography>
                   <TextField
                     size="small"
-                    placeholder="0101243150-136"
+                    placeholder={invoiceType === 'B2B' ? '0101243150 (10 số) hoặc 0101243150136 (13 số)' : '001234567890 (12 số)'}
                     variant="standard"
                     value={buyerTaxCode}
                     disabled
@@ -2535,12 +2943,12 @@ const CreateVatInvoice: React.FC = () => {
 
                 <Stack direction="row" spacing={1.5} alignItems="center">
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    Tên đơn vị:
+                    {invoiceType === 'B2B' ? 'Tên đơn vị:' : 'Tên Khách Hàng:'}
                   </Typography>
                   <TextField
                     size="small"
                     fullWidth
-                    placeholder="CÔNG TY CỔ PHẦN MISA"
+                    placeholder={invoiceType === 'B2B' ? 'CÔNG TY CỔ PHẦN MISA' : 'Nguyễn Văn A'}
                     variant="standard"
                     value={buyerCompanyName}
                     disabled
@@ -2563,16 +2971,29 @@ const CreateVatInvoice: React.FC = () => {
                   />
                 </Stack>
 
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                  <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    Người mua hàng:
-                  </Typography>
-                  <TextField size="small" placeholder="Kế toán A" variant="standard" value={buyerName} disabled sx={{ width: 160, fontSize: '0.8125rem', '& .MuiInputBase-input.Mui-disabled': { WebkitTextFillColor: '#666' } }} />
-                  <Typography variant="caption" sx={{ minWidth: 50, fontSize: '0.8125rem' }}>
-                    Email:
-                  </Typography>
-                  <TextField size="small" placeholder="hoadon@gmail.com" variant="standard" value={buyerEmail} disabled sx={{ flex: 1, fontSize: '0.8125rem', '& .MuiInputBase-input.Mui-disabled': { WebkitTextFillColor: '#666' } }} />
-                </Stack>
+                {/* ✅ Chỉ hiện field "Người mua hàng" khi ở chế độ B2B */}
+                {invoiceType === 'B2B' && (
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
+                      Người mua hàng:
+                    </Typography>
+                    <TextField size="small" placeholder="Kế toán A" variant="standard" value={buyerName} disabled sx={{ width: 160, fontSize: '0.8125rem', '& .MuiInputBase-input.Mui-disabled': { WebkitTextFillColor: '#666' } }} />
+                    <Typography variant="caption" sx={{ minWidth: 50, fontSize: '0.8125rem' }}>
+                      Email:
+                    </Typography>
+                    <TextField size="small" placeholder="hoadon@gmail.com" variant="standard" value={buyerEmail} disabled sx={{ flex: 1, fontSize: '0.8125rem', '& .MuiInputBase-input.Mui-disabled': { WebkitTextFillColor: '#666' } }} />
+                  </Stack>
+                )}
+
+                {/* ✅ Khi B2C thì hiện Email ở dòng riêng */}
+                {invoiceType === 'B2C' && (
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
+                      Email:
+                    </Typography>
+                    <TextField size="small" placeholder="hoadon@gmail.com" variant="standard" value={buyerEmail} disabled sx={{ flex: 1, fontSize: '0.8125rem', '& .MuiInputBase-input.Mui-disabled': { WebkitTextFillColor: '#666' } }} />
+                  </Stack>
+                )}
 
                 <Stack direction="row" spacing={1.5} alignItems="center">
                   <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
@@ -2619,15 +3040,16 @@ const CreateVatInvoice: React.FC = () => {
                 placeholder="VD: Điều chỉnh (tăng/giảm) cho hóa đơn Mẫu số 01GTKT3/001 Ký hiệu C24TAA Số 0000123 ngày 15 tháng 12 năm 2024"
                 value={referenceText}
                 onChange={(e) => setReferenceText(e.target.value)}
-                helperText={`${referenceText.length}/30 ký tự tối thiểu (yêu cầu pháp lý)`}
-                error={referenceText.length > 0 && referenceText.length < 30}
+                helperText="ℹ️ Hệ thống sẽ tự động tạo dòng tham chiếu chuẩn theo quy định"
+                disabled  // ✅ Disable vì backend tự tạo
                 sx={{ 
-                  bgcolor: '#fff',
+                  bgcolor: '#f5f5f5',  // Grey background cho disabled field
                   '& .MuiOutlinedInput-root': {
                     fontSize: '0.8125rem'
                   },
                   '& .MuiFormHelperText-root': {
-                    fontSize: '0.75rem'
+                    fontSize: '0.75rem',
+                    color: '#666'
                   }
                 }}
               />
@@ -3009,27 +3431,80 @@ const CreateVatInvoice: React.FC = () => {
                 sx={{ textTransform: 'none', color: '#666', borderColor: '#ccc', fontSize: '0.8125rem', py: 0.5 }}>
                 Hủy bỏ
               </Button>
-              <Button
-                size="small"
-                variant="contained"
-                startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Save fontSize="small" />}
-                onClick={() => handleSubmitAdjustmentInvoice('Tạo hóa đơn điều chỉnh')}
-                disabled={isSubmitting || !originalInvoice}
-                sx={{ 
-                  textTransform: 'none', 
-                  backgroundColor: '#f57c00', 
-                  fontSize: '0.8125rem', 
-                  py: 0.5,
-                  minWidth: 180,
-                  '&:hover': {
-                    backgroundColor: '#ef6c00'
-                  },
-                  '&.Mui-disabled': {
-                    backgroundColor: '#ccc'
-                  }
-                }}>
-                {isSubmitting ? 'Đang xử lý...' : ' Tạo hóa đơn điều chỉnh'}
-              </Button>
+              
+              {/* ⭐ ROLE-BASED BUTTONS */}
+              {user?.role === USER_ROLES.HOD ? (
+                // KẾ TOÁN TRƯỞNG: Tạo hóa đơn điều chỉnh (Chờ ký)
+                <Button
+                  size="small"
+                  variant="contained"
+                  startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Save fontSize="small" />}
+                  onClick={handleCreateInvoiceHOD}
+                  disabled={isSubmitting || !originalInvoice}
+                  sx={{ 
+                    textTransform: 'none', 
+                    backgroundColor: '#f57c00', 
+                    fontSize: '0.8125rem', 
+                    py: 0.5,
+                    minWidth: 220,
+                    '&:hover': {
+                      backgroundColor: '#ef6c00'
+                    },
+                    '&.Mui-disabled': {
+                      backgroundColor: '#ccc'
+                    }
+                  }}>
+                  {isSubmitting ? 'Đang xử lý...' : '📝 Tạo hóa đơn điều chỉnh (Chờ ký)'}
+                </Button>
+              ) : (
+                // KẾ TOÁN: 2 nút - Lưu nháp và Gửi duyệt
+                <>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Save fontSize="small" />}
+                    onClick={handleSaveDraft}
+                    disabled={isSubmitting || !originalInvoice}
+                    sx={{ 
+                      textTransform: 'none', 
+                      color: '#1976d2',
+                      borderColor: '#1976d2',
+                      fontSize: '0.8125rem', 
+                      py: 0.5,
+                      '&:hover': {
+                        borderColor: '#1565c0',
+                        backgroundColor: 'rgba(25, 118, 210, 0.04)'
+                      },
+                      '&.Mui-disabled': {
+                        borderColor: '#ccc',
+                        color: '#ccc'
+                      }
+                    }}>
+                    {isSubmitting ? 'Đang lưu...' : '💾 Lưu nháp'}
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Send fontSize="small" />}
+                    onClick={handleSubmitForApproval}
+                    disabled={isSubmitting || !originalInvoice}
+                    sx={{ 
+                      textTransform: 'none', 
+                      backgroundColor: '#2e7d32', 
+                      fontSize: '0.8125rem', 
+                      py: 0.5,
+                      minWidth: 180,
+                      '&:hover': {
+                        backgroundColor: '#1b5e20'
+                      },
+                      '&.Mui-disabled': {
+                        backgroundColor: '#ccc'
+                      }
+                    }}>
+                    {isSubmitting ? 'Đang xử lý...' : '📤 Gửi duyệt'}
+                  </Button>
+                </>
+              )}
             </Stack>
           </Stack>
         </Paper>

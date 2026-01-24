@@ -69,6 +69,7 @@ export interface BackendInvoiceRequest {
   contactPerson: string;        // Người liên hệ
   contactPhone: string;         // SĐT liên hệ
   requestID?: number;           // 🆕 Optional: Link với Invoice Request
+  invoiceCustomerType: number;  // 🆕 REQUIRED: 1=Customer (B2C), 2=Business (B2B)
 }
 
 /**
@@ -348,6 +349,17 @@ export function mapToBackendInvoiceRequest(
     contactPersonValue,
   });
   
+  // ✅ Map invoiceType to invoiceCustomerType
+  // B2C (Bán lẻ) = Customer = 1
+  // B2B (Doanh nghiệp) = Business = 2
+  const invoiceCustomerType = invoiceType === 'B2C' ? 1 : 2;
+  
+  console.log('🏢 [ADAPTER] Invoice Customer Type:', {
+    invoiceType,
+    invoiceCustomerType,
+    description: invoiceType === 'B2C' ? 'Customer (Bán lẻ)' : 'Business (Doanh nghiệp)'
+  });
+  
   const payload = {
     templateID,
     customerID: buyerInfo.customerID || 0,
@@ -367,6 +379,7 @@ export function mapToBackendInvoiceRequest(
     contactEmail: buyerInfo.email || 'noreply@company.com',
     contactPerson: contactPersonValue, // ✅ Logic đã tối ưu theo B2B/B2C
     contactPhone: buyerInfo.phone || '0000000000',
+    invoiceCustomerType: invoiceCustomerType, // ✅ REQUIRED: 1=Customer, 2=Business
   };
   
   // ✅ CHỈ thêm salesID nếu có giá trị (tạo từ request - để tính commission)
