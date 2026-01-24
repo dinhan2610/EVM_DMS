@@ -222,7 +222,7 @@ const CustomerManagement = () => {
     if (!formData.customerName.trim()) {
       setSnackbar({
         open: true,
-        message: 'Vui lòng nhập Tên Khách hàng!',
+        message: 'Vui lòng nhập Tên Công Ty/Tên Khách Hàng!',
         severity: 'error',
       })
       return
@@ -231,7 +231,7 @@ const CustomerManagement = () => {
     if (!formData.taxCode.trim()) {
       setSnackbar({
         open: true,
-        message: 'Vui lòng nhập Mã số thuế!',
+        message: 'Vui lòng nhập Mã số thuế/CCCD!',
         severity: 'error',
       })
       return
@@ -361,7 +361,7 @@ const CustomerManagement = () => {
   // Tax Code Validation Handler
   const checkTaxCodeOnBlur = async (taxCode: string) => {
     if (!taxCode.trim()) {
-      setTaxCodeError('Mã số thuế là bắt buộc')
+      setTaxCodeError('Mã số thuế/CCCD là bắt buộc')
       return
     }
 
@@ -383,7 +383,7 @@ const CustomerManagement = () => {
     )
 
     if (isDuplicate) {
-      setTaxCodeError('Lỗi: Mã số thuế này đã tồn tại trong hệ thống')
+      setTaxCodeError('Lỗi: Mã số thuế/CCCD này đã tồn tại trong hệ thống')
     } else {
       setTaxCodeError('') // Valid
     }
@@ -410,7 +410,7 @@ const CustomerManagement = () => {
     },
     {
       field: 'taxCode',
-      headerName: 'Mã số thuế',
+      headerName: 'Mã số thuế/CCCD',
       width: 150,
       align: 'center',
       headerAlign: 'center',
@@ -655,7 +655,7 @@ const CustomerManagement = () => {
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
-                label="Mã số thuế"
+                label="Mã số thuế/CCCD"
                 required
                 value={formData.taxCode}
                 onChange={(e) => handleFormChange('taxCode', e.target.value)}
@@ -671,7 +671,7 @@ const CustomerManagement = () => {
                   ) : taxCodeError ? (
                     taxCodeError
                   ) : (
-                    'Mã số thuế phải duy nhất'
+                    'Mã số thuế/CCCD phải duy nhất'
                   )
                 }
                 InputProps={{
@@ -884,7 +884,7 @@ const CustomerManagement = () => {
 
               <Grid size={{ xs: 12 }}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
-                  Mã số thuế
+                  Mã số thuế/CCCD
                 </Typography>
                 <Typography variant="body2" sx={{ mt: 0.5, fontFamily: 'monospace', color: 'primary.main' }}>
                   {selectedCustomerForToggle?.taxCode}

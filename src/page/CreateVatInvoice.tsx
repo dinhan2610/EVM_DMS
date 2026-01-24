@@ -784,6 +784,10 @@ const CreateVatInvoice: React.FC = () => {
   // - Tạo từ request: prefillSalesID = salesID của người tạo request
   const [prefillSalesID, setPrefillSalesID] = useState<number>(0)
 
+  // ✅ State để track customer đã được load từ DB (lock các field không cho sửa)
+  const [isCustomerLoaded, setIsCustomerLoaded] = useState<boolean>(false)
+  const [loadedCustomerData, setLoadedCustomerData] = useState<Customer | null>(null)
+
   // State cho loading và error
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [snackbar, setSnackbar] = useState<{
@@ -1064,7 +1068,10 @@ const CreateVatInvoice: React.FC = () => {
         setBuyerAddress(invoiceData.address || '')
         setBuyerEmail(invoiceData.contactEmail || '')
         setBuyerPhone(invoiceData.contactPhone || '')
-        // setBuyerName - Không autofill, để người dùng tự nhập
+        // ✅ Autofill contactPerson vào buyerName nếu có
+        if (invoiceData.contactPerson) {
+          setBuyerName(invoiceData.contactPerson)
+        }
         // ✅ Map payment method từ English sang Vietnamese
         const mappedPaymentMethod = invoiceData.paymentMethod 
           ? (['Banking', 'Cash', 'DebtOffset', 'Other'].includes(invoiceData.paymentMethod)
@@ -1158,13 +1165,199 @@ const CreateVatInvoice: React.FC = () => {
   const [buyerPhone, setBuyerPhone] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('Tiền mặt/Chuyển khoản') // Hình thức thanh toán - Default khuyến nghị
   
+  // ✅ State cho loại hóa đơn (B2B/B2C)
+  const [invoiceType, setInvoiceType] = useState<'B2B' | 'B2C'>('B2B') // Mặc định B2B
+  
+  // ✅ State cho validation errors
+  const [buyerErrors, setBuyerErrors] = useState({
+    taxCode: '',
+    companyName: '',
+    buyerName: '', // ✅ Thêm buyerName error
+    address: '',
+    email: '',
+  })
+  
   // State cho customer lookup
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false)
   const [customerNotFound, setCustomerNotFound] = useState(false)
   const [customerSuggestions, setCustomerSuggestions] = useState<Customer[]>([])
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
   
-  // Function: Tự động tìm và điền thông tin khách hàng theo MST
+  // ✅ Validation functions
+  const validateBuyerInfo = () => {
+    const errors = {
+      taxCode: '',
+      companyName: '',
+      buyerName: '',
+      address: '',
+      email: '',
+    }
+    
+    let isValid = true
+    
+    // Validate MST/CCCD tuỳ theo loại hóa đơn
+    if (!buyerTaxCode || buyerTaxCode.trim() === '') {
+      errors.taxCode = invoiceType === 'B2B' ? 'Vui lòng nhập Mã số thuế' : 'Vui lòng nhập CCCD'
+      isValid = false
+    } else {
+      const trimmedCode = buyerTaxCode.trim()
+      if (invoiceType === 'B2B') {
+        // MST: 10 hoặc 13 chữ số
+        if (!/^\d{10}$|^\d{13}$/.test(trimmedCode)) {
+          errors.taxCode = 'Mã số thuế phải là 10 hoặc 13 chữ số'
+          isValid = false
+        }
+      } else {
+        // CCCD: 12 chữ số
+        if (!/^\d{12}$/.test(trimmedCode)) {
+          errors.taxCode = 'CCCD phải là 12 chữ số'
+          isValid = false
+        }
+      }
+    }
+    
+    // ✅ Validate logic dựa trên loại hóa đơn đã chọn
+    const hasCompanyName = buyerCompanyName && buyerCompanyName.trim() !== ''
+    const hasBuyerName = buyerName && buyerName.trim() !== ''
+    
+    if (invoiceType === 'B2B') {
+      // Hóa đơn B2B: Tên đơn vị BẮT BUỘC
+      if (!hasCompanyName) {
+        errors.companyName = 'Vui lòng nhập Tên đơn vị (bắt buộc cho hóa đơn B2B)'
+        isValid = false
+      } else if (buyerCompanyName.trim().length < 3) {
+        errors.companyName = 'Tên đơn vị phải có ít nhất 3 ký tự'
+        isValid = false
+      }
+      // Người mua KHÔNG bắt buộc nhưng validate nếu có nhập
+      if (hasBuyerName && buyerName.trim().length < 2) {
+        errors.buyerName = 'Người mua hàng phải có ít nhất 2 ký tự'
+        isValid = false
+      }
+    } else {
+      // Hóa đơn B2C: Chỉ cần Tên Khách Hàng (companyName field)
+      if (!hasCompanyName) {
+        errors.companyName = 'Vui lòng nhập Tên Khách Hàng (bắt buộc cho hóa đơn B2C)'
+        isValid = false
+      } else if (buyerCompanyName.trim().length < 2) {
+        errors.companyName = 'Tên Khách Hàng phải có ít nhất 2 ký tự'
+        isValid = false
+      }
+      // B2C không cần buyerName nên không validate
+    }
+    
+    // Validate địa chỉ
+    if (!buyerAddress || buyerAddress.trim() === '') {
+      errors.address = 'Vui lòng nhập Địa chỉ'
+      isValid = false
+    } else if (buyerAddress.trim().length < 10) {
+      errors.address = 'Địa chỉ phải có ít nhất 10 ký tự'
+      isValid = false
+    }
+    
+    // Validate email
+    if (!buyerEmail || buyerEmail.trim() === '') {
+      errors.email = 'Vui lòng nhập Email (để gửi hóa đơn điện tử)'
+      isValid = false
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail.trim())) {
+      errors.email = 'Email không hợp lệ'
+      isValid = false
+    }
+    
+    setBuyerErrors(errors)
+    return isValid
+  }
+  
+  // Validate individual field on blur
+  const validateField = (field: 'taxCode' | 'companyName' | 'buyerName' | 'address' | 'email') => {
+    const errors = { ...buyerErrors }
+    
+    const hasCompanyName = buyerCompanyName && buyerCompanyName.trim() !== ''
+    const hasBuyerName = buyerName && buyerName.trim() !== ''
+    
+    switch (field) {
+      case 'taxCode':
+        if (!buyerTaxCode || buyerTaxCode.trim() === '') {
+          errors.taxCode = invoiceType === 'B2B' ? 'Vui lòng nhập Mã số thuế' : 'Vui lòng nhập CCCD'
+        } else {
+          const trimmedCode = buyerTaxCode.trim()
+          if (invoiceType === 'B2B') {
+            // MST: 10 hoặc 13 chữ số
+            if (!/^\d{10}$|^\d{13}$/.test(trimmedCode)) {
+              errors.taxCode = 'Mã số thuế phải là 10 hoặc 13 chữ số'
+            } else {
+              errors.taxCode = ''
+            }
+          } else {
+            // CCCD: 12 chữ số
+            if (!/^\d{12}$/.test(trimmedCode)) {
+              errors.taxCode = 'CCCD phải là 12 chữ số'
+            } else {
+              errors.taxCode = ''
+            }
+          }
+        }
+        break
+      
+      case 'companyName':
+        if (invoiceType === 'B2B') {
+          // B2B: Tên đơn vị bắt buộc
+          if (!hasCompanyName) {
+            errors.companyName = 'Vui lòng nhập Tên đơn vị (bắt buộc cho B2B)'
+          } else if (buyerCompanyName.trim().length < 3) {
+            errors.companyName = 'Tên đơn vị phải có ít nhất 3 ký tự'
+          } else {
+            errors.companyName = ''
+          }
+        } else {
+          // B2C: Tên Khách Hàng bắt buộc
+          if (!hasCompanyName) {
+            errors.companyName = 'Vui lòng nhập Tên Khách Hàng'
+          } else if (buyerCompanyName.trim().length < 2) {
+            errors.companyName = 'Tên Khách Hàng phải có ít nhất 2 ký tự'
+          } else {
+            errors.companyName = ''
+          }
+        }
+        break
+      
+      case 'buyerName':
+        // Chỉ validate khi ở chế độ B2B (vì B2C không hiện field này)
+        if (invoiceType === 'B2B') {
+          // B2B: Người mua không bắt buộc, chỉ validate nếu có nhập
+          if (hasBuyerName && buyerName.trim().length < 2) {
+            errors.buyerName = 'Người mua hàng phải có ít nhất 2 ký tự'
+          } else {
+            errors.buyerName = ''
+          }
+        }
+        break
+      
+      case 'address':
+        if (!buyerAddress || buyerAddress.trim() === '') {
+          errors.address = 'Vui lòng nhập Địa chỉ'
+        } else if (buyerAddress.trim().length < 10) {
+          errors.address = 'Địa chỉ phải có ít nhất 10 ký tự'
+        } else {
+          errors.address = ''
+        }
+        break
+      
+      case 'email':
+        if (!buyerEmail || buyerEmail.trim() === '') {
+          errors.email = 'Vui lòng nhập Email'
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail.trim())) {
+          errors.email = 'Email không hợp lệ'
+        } else {
+          errors.email = ''
+        }
+        break
+    }
+    
+    setBuyerErrors(errors)
+  }
+  
+  // Function: Tự động tìm và điền thông tin khách hàng theo MST/CCCD
   const handleTaxCodeLookup = async (taxCode: string) => {
     if (!taxCode || taxCode.trim().length < 10) {
       setCustomerNotFound(false)
@@ -1173,24 +1366,49 @@ const CreateVatInvoice: React.FC = () => {
     
     const trimmedTaxCode = taxCode.trim()
     
+    // ✅ Validate độ dài theo invoiceType TRƯỚC KHI gọi API
+    if (invoiceType === 'B2B') {
+      // MST: CHỈ 10 hoặc 13 số
+      if (!/^\d{10}$|^\d{13}$/.test(trimmedTaxCode)) {
+        setSnackbar({
+          open: true,
+          message: `❌ Mã số thuế không hợp lệ. MST phải là 10 hoặc 13 chữ số (bạn đang nhập ${trimmedTaxCode.length} số).`,
+          severity: 'error',
+        })
+        setCustomerNotFound(false)
+        return
+      }
+    } else {
+      // CCCD: CHỈ 12 số
+      if (!/^\d{12}$/.test(trimmedTaxCode)) {
+        setSnackbar({
+          open: true,
+          message: `❌ CCCD không hợp lệ. CCCD phải là 12 chữ số (bạn đang nhập ${trimmedTaxCode.length} số).`,
+          severity: 'error',
+        })
+        setCustomerNotFound(false)
+        return
+      }
+    }
+    
     // ✅ Validate: Từ chối số điện thoại Việt Nam (bắt đầu bằng 0 và theo pattern SĐT)
     // Pattern SĐT VN: 03x, 05x, 07x, 08x, 09x (10 số) hoặc 024, 028... (10-11 số)
     const phonePattern = /^0[1-9]\d{8,9}$/
     if (phonePattern.test(trimmedTaxCode)) {
       setSnackbar({
         open: true,
-        message: 'Bạn đang nhập số điện thoại. Vui lòng nhập Mã số thuế (MST) của đơn vị.',
+        message: 'Bạn đang nhập số điện thoại. Vui lòng nhập Mã số thuế (MST) hoặc CCCD của khách hàng.',
         severity: 'error',
       })
       setCustomerNotFound(false)
       return
     }
     
-    // ✅ Validate: MST chỉ chứa chữ số
+    // ✅ Validate: MST/CCCD chỉ chứa chữ số (đã check ở trên rồi, nhưng giữ lại để chắc chắn)
     if (!/^\d+$/.test(trimmedTaxCode)) {
       setSnackbar({
         open: true,
-        message: 'MST không hợp lệ. MST chỉ được chứa chữ số.',
+        message: invoiceType === 'B2B' ? 'MST chỉ được chứa chữ số.' : 'CCCD chỉ được chứa chữ số.',
         severity: 'error',
       })
       setCustomerNotFound(false)
@@ -1211,7 +1429,23 @@ const CreateVatInvoice: React.FC = () => {
         setBuyerAddress(foundCustomer.address)
         setBuyerEmail(foundCustomer.contactEmail)
         setBuyerPhone(foundCustomer.contactPhone)
-        // buyerName để trống cho người dùng tự nhập
+        // ✅ Autofill contactPerson vào buyerName
+        if (foundCustomer.contactPerson) {
+          setBuyerName(foundCustomer.contactPerson)
+        }
+        
+        // ✅ Lưu customer data và set flag
+        setLoadedCustomerData(foundCustomer)
+        setIsCustomerLoaded(true)
+        
+        // ✅ Clear errors khi tìm thấy khách hàng
+        setBuyerErrors({
+          taxCode: '',
+          companyName: '',
+          buyerName: '',
+          address: '',
+          email: '',
+        })
         
         console.log('✅ Found customer:', foundCustomer.customerName)
         setSnackbar({
@@ -1227,6 +1461,11 @@ const CreateVatInvoice: React.FC = () => {
         setBuyerEmail('')
         setBuyerPhone('')
         // buyerName stays as user entered
+        
+        // ✅ Reset flag
+        setLoadedCustomerData(null)
+        setIsCustomerLoaded(false)
+        
         setCustomerNotFound(true)
         
         console.log('⚠️ Customer not found for tax code:', taxCode)
@@ -1353,11 +1592,98 @@ const CreateVatInvoice: React.FC = () => {
     console.log('✅ fillProductData completed')
   }, [items, fillProductData])
   
+  // Handle invoice type change
+  const handleInvoiceTypeChange = (newType: 'B2B' | 'B2C') => {
+    setInvoiceType(newType)
+    // Clear errors khi đổi type
+    setBuyerErrors({
+      ...buyerErrors,
+      companyName: '',
+      buyerName: '',
+    })
+  }
+  
   // Handle tax code change with debounce
   const handleTaxCodeChange = (value: string) => {
     setBuyerTaxCode(value)
     setCustomerNotFound(false)
+    // Clear error khi user đang nhập
+    if (buyerErrors.taxCode) {
+      setBuyerErrors({ ...buyerErrors, taxCode: '' })
+    }
   }
+
+  // ✅ Helper: Kiểm tra MST/CCCD có hợp lệ để hiện nút "Lấy thông tin"
+  const isValidTaxCodeForLookup = () => {
+    if (!buyerTaxCode || !buyerTaxCode.trim()) return false
+    const trimmedCode = buyerTaxCode.trim()
+    
+    if (invoiceType === 'B2B') {
+      // MST: 10 hoặc 13 chữ số
+      return /^\d{10}$|^\d{13}$/.test(trimmedCode)
+    } else {
+      // CCCD: 12 chữ số
+      return /^\d{12}$/.test(trimmedCode)
+    }
+  }
+
+  // ✅ Update contactPerson lên Customer API khi user thay đổi
+  const updateCustomerContactPerson = useCallback(async (customerID: number, newContactPerson: string) => {
+    if (!customerID || customerID <= 0) {
+      console.warn('⚠️ No valid customerID to update contactPerson')
+      return
+    }
+
+    if (!loadedCustomerData) {
+      console.warn('⚠️ No loaded customer data to update')
+      return
+    }
+
+    try {
+      console.log('🔄 Updating contactPerson for customer ID:', customerID, '\u2192', newContactPerson)
+      
+      // Gọi API PUT /api/Customer/{id}
+      await customerService.updateCustomer(customerID, {
+        customerName: loadedCustomerData.customerName,
+        taxCode: loadedCustomerData.taxCode,
+        address: loadedCustomerData.address,
+        contactEmail: loadedCustomerData.contactEmail,
+        contactPerson: newContactPerson, // ✅ Chỉ update field này
+        contactPhone: loadedCustomerData.contactPhone,
+      })
+
+      console.log('✅ Updated contactPerson successfully')
+      
+      // Cập nhật state loaded customer
+      setLoadedCustomerData(prev => prev ? { ...prev, contactPerson: newContactPerson } : null)
+
+    } catch (error) {
+      console.error('❌ Error updating contactPerson:', error)
+      setSnackbar({
+        open: true,
+        message: 'Lỗi khi cập nhật Người liên hệ. Vui lòng thử lại.',
+        severity: 'error',
+      })
+    }
+  }, [loadedCustomerData])
+
+  // ✅ Debounced update contactPerson (sau 1s không nhập mới gọi API)
+  useEffect(() => {
+    if (!isCustomerLoaded || !buyerCustomerID || buyerCustomerID <= 0) {
+      return // Không update nếu chưa load customer
+    }
+
+    const timer = setTimeout(() => {
+      if (buyerName && buyerName.trim() !== '') {
+        // Chỉ update nếu có thay đổi so với giá trị ban đầu
+        if (loadedCustomerData && buyerName !== loadedCustomerData.contactPerson) {
+          updateCustomerContactPerson(buyerCustomerID, buyerName)
+        }
+      }
+    }, 1000) // Debounce 1 giây
+
+    return () => clearTimeout(timer)
+  }, [buyerName, buyerCustomerID, isCustomerLoaded, loadedCustomerData, updateCustomerContactPerson])
 
   // ✅ Search customer by name for autocomplete
   const searchCustomerByName = useCallback(async (searchQuery: string) => {
@@ -1404,7 +1730,23 @@ const CreateVatInvoice: React.FC = () => {
       setBuyerAddress(customer.address)
       setBuyerEmail(customer.contactEmail)
       setBuyerPhone(customer.contactPhone)
-      // setBuyerName - Không autofill, để người dùng tự nhập
+      // ✅ Autofill contactPerson vào buyerName
+      if (customer.contactPerson) {
+        setBuyerName(customer.contactPerson)
+      }
+      
+      // ✅ Lưu customer data và set flag
+      setLoadedCustomerData(customer)
+      setIsCustomerLoaded(true)
+      
+      // ✅ Clear errors khi chọn khách hàng
+      setBuyerErrors({
+        taxCode: '',
+        companyName: '',
+        buyerName: '',
+        address: '',
+        email: '',
+      })
       
       setSnackbar({
         open: true,
@@ -1468,10 +1810,21 @@ const CreateVatInvoice: React.FC = () => {
     setDuplicateDialog({ open: false, rowId: '', product: null, existingItem: null })
   }, [duplicateDialog, fillProductData])
   
-  // Handle tax code blur (trigger lookup)
+  // Handle tax code blur (trigger lookup and validate)
   const handleTaxCodeBlur = () => {
-    if (buyerTaxCode && buyerTaxCode.trim().length >= 10) {
-      handleTaxCodeLookup(buyerTaxCode)
+    // Validate first
+    validateField('taxCode')
+    
+    // ✅ Chỉ lookup khi validate PASS và độ dài đúng theo invoiceType
+    if (buyerTaxCode && buyerTaxCode.trim() && !buyerErrors.taxCode) {
+      const trimmed = buyerTaxCode.trim()
+      const isValidLength = invoiceType === 'B2B' 
+        ? (trimmed.length === 10 || trimmed.length === 13)
+        : (trimmed.length === 12)
+      
+      if (isValidLength) {
+        handleTaxCodeLookup(buyerTaxCode)
+      }
     }
   }
 
@@ -1764,22 +2117,18 @@ const CreateVatInvoice: React.FC = () => {
         return
       }
 
-      // 2. Validate buyer information
-      if (!buyerCompanyName || !buyerAddress) {
+      // 2. Validate buyer information - Sử dụng validation function
+      if (!validateBuyerInfo()) {
         setSnackbar({
           open: true,
-          message: '⚠️ Vui lòng điền đầy đủ Tên đơn vị và Địa chỉ người mua',
+          message: '⚠️ Vui lòng điền đầy đủ và chính xác thông tin người mua (các trường có dấu *)',
           severity: 'warning'
         })
-        return
-      }
-
-      if (!buyerTaxCode || buyerTaxCode.trim() === '') {
-        setSnackbar({
-          open: true,
-          message: '⚠️ Vui lòng nhập Mã số thuế người mua',
-          severity: 'warning'
-        })
+        // Scroll to buyer info section
+        const buyerSection = document.querySelector('[data-section="buyer-info"]')
+        if (buyerSection) {
+          buyerSection.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
         return
       }
 
@@ -1874,7 +2223,8 @@ const CreateVatInvoice: React.FC = () => {
         invoiceNotes,   // Ghi chú hóa đơn
         performedByUser,  // ✅ performedBy: LUÔN là currentUserId (người tạo invoice)
         salesIDValue,     // ✅ salesID: CHỈ có khi tạo từ request (để tính commission)
-        requestIDValue    // ✅ requestID: CHỈ có khi tạo từ request (để link)
+        requestIDValue,   // ✅ requestID: CHỈ có khi tạo từ request (để link)
+        invoiceType       // ✅ Truyền loại hóa đơn để xử lý contactPerson
       )
 
       console.log(`📤 Sending invoice request (${statusLabel}):`, backendRequest)
@@ -2458,22 +2808,117 @@ const CreateVatInvoice: React.FC = () => {
 
               <Divider sx={{ my: 1.5 }} />
 
+              {/* ✅ Dropdown chọn loại hóa đơn - Tối ưu đồng bộ với UI */}
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+                <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem', color: '#666' }}>
+                  Loại hóa đơn:
+                </Typography>
+                <Select
+                  size="small"
+                  value={invoiceType}
+                  onChange={(e) => handleInvoiceTypeChange(e.target.value as 'B2B' | 'B2C')}
+                  variant="outlined"
+                  sx={{
+                    minWidth: 280,
+                    fontSize: '0.8125rem',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#ddd',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#1976d2',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#1976d2',
+                    },
+                  }}
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        mt: 0.5,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                        border: '1px solid #e0e0e0',
+                        borderRadius: 1,
+                      },
+                    },
+                  }}
+                >
+                  <MenuItem value="B2B" sx={{ fontSize: '0.8125rem', py: 1 }}>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                      <Box component="span" sx={{ fontSize: '1rem' }}>🏢</Box>
+                      <Box>
+                        <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+                          Hóa đơn B2B
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#666', fontSize: '0.7rem' }}>
+                          Bán cho doanh nghiệp (bắt buộc có Tên đơn vị)
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </MenuItem>
+                  <MenuItem value="B2C" sx={{ fontSize: '0.8125rem', py: 1 }}>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                      <Box component="span" sx={{ fontSize: '1rem' }}>👤</Box>
+                      <Box>
+                        <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+                          Hóa đơn B2C
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#666', fontSize: '0.7rem' }}>
+                          Bán lẻ cá nhân (bắt buộc có Người mua hàng)
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </MenuItem>
+                </Select>
+                <Tooltip 
+                  title={
+                    <Box sx={{ p: 0.5 }}>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 0.5, fontWeight: 600 }}>
+                        💡 Chọn loại hóa đơn:
+                      </Typography>
+                      <Typography variant="caption" sx={{ display: 'block', fontSize: '0.7rem', mb: 0.3 }}>
+                        • <strong>B2B:</strong> Bán cho doanh nghiệp (bắt buộc có Tên đơn vị)
+                      </Typography>
+                      <Typography variant="caption" sx={{ display: 'block', fontSize: '0.7rem' }}>
+                        • <strong>B2C:</strong> Bán lẻ cho cá nhân (bắt buộc có Người mua hàng)
+                      </Typography>
+                    </Box>
+                  }
+                  arrow
+                  placement="right"
+                >
+                  <Info sx={{ fontSize: 18, color: '#1976d2', cursor: 'help' }} />
+                </Tooltip>
+              </Stack>
+
               {/* Thông tin người mua */}
               <Stack spacing={0.8}>
-                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexWrap: 'wrap' }}>
-                  <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    MST người mua:
+                {/* ✅ Thông báo khi customer đã load - KHÔNG CÓ NÚT MỞ KHÓA */}
+               
+                
+                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexWrap: 'wrap' }} data-section="buyer-info">
+                  <Typography variant="caption" sx={{ minWidth: 140, fontSize: '0.8125rem' }}>
+                    {invoiceType === 'B2B' ? 'Mã Số Thuế:' : 'CCCD:'}
+                    <Box component="span" sx={{ color: '#d32f2f', ml: 0.5 }}>*</Box>
                   </Typography>
                   <TextField
                     size="small"
-                    placeholder="0101243150-136"
+                    placeholder={invoiceType === 'B2B' ? '0101243150 (10 số) hoặc 0101243150136 (13 số)' : '001234567890 (12 số)'}
                     variant="standard"
                     value={buyerTaxCode}
                     onChange={(e) => handleTaxCodeChange(e.target.value)}
                     onBlur={handleTaxCodeBlur}
-                    sx={{ width: 160, fontSize: '0.8125rem' }}
-                    error={customerNotFound}
-                    helperText={customerNotFound ? 'Không tìm thấy' : ''}
+                    sx={{ width: 200, fontSize: '0.8125rem' }}
+                    error={!!buyerErrors.taxCode || customerNotFound}
+                    helperText={
+                      buyerErrors.taxCode || 
+                      (customerNotFound ? 'Không tìm thấy' : '') ||
+                      (buyerTaxCode && !isValidTaxCodeForLookup() 
+                        ? (invoiceType === 'B2B' ? 'Nhập 10 hoặc 13 số' : 'Nhập 12 số')
+                        : '')
+                    }
+                    FormHelperTextProps={{
+                      sx: { fontSize: '0.7rem', fontStyle: 'italic', color: buyerErrors.taxCode || customerNotFound ? '#d32f2f' : '#666' }
+                    }}
                     InputProps={{
                       endAdornment: isSearchingCustomer ? (
                         <InputAdornment position="end">
@@ -2488,28 +2933,42 @@ const CreateVatInvoice: React.FC = () => {
                       ),
                     }}
                   />
-                  <Button 
-                    size="small" 
-                    startIcon={<Public sx={{ fontSize: 16 }} />} 
-                    sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25 }}
-                    onClick={() => handleTaxCodeLookup(buyerTaxCode)}
-                    disabled={!buyerTaxCode || isSearchingCustomer}
-                  >
-                    {isSearchingCustomer ? 'Đang tìm...' : 'Lấy thông tin'}
-                  </Button>
+                  {isValidTaxCodeForLookup() && (
+                    <Button 
+                      size="small" 
+                      startIcon={<Public sx={{ fontSize: 16 }} />} 
+                      sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25 }}
+                      onClick={() => handleTaxCodeLookup(buyerTaxCode)}
+                      disabled={isSearchingCustomer}
+                    >
+                      {isSearchingCustomer ? 'Đang tìm...' : 'Lấy thông tin'}
+                    </Button>
+                  )}
                   <Button size="small" startIcon={<VerifiedUser sx={{ fontSize: 16 }} />} sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25, whiteSpace: 'nowrap' }}>
                     KT tình trạng hoạt động
                   </Button>
                 </Stack>
 
                 <Stack direction="row" spacing={1.5} alignItems="center">
-                  <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    Tên đơn vị:
-                  </Typography>
+                  <Tooltip 
+                    title={
+                      invoiceType === 'B2B' 
+                        ? 'Bắt buộc nhập Tên đơn vị (tên công ty) cho hóa đơn B2B' 
+                        : 'Bắt buộc nhập Tên Khách Hàng (cá nhân) cho hóa đơn B2C'
+                    }
+                    placement="top"
+                    arrow
+                  >
+                    <Typography variant="caption" sx={{ minWidth: 140, fontSize: '0.8125rem', cursor: 'help' }}>
+                      {invoiceType === 'B2B' ? 'Tên đơn vị:' : 'Tên Khách Hàng:'}
+                      <Box component="span" sx={{ color: '#d32f2f', ml: 0.5 }}>*</Box>
+                    </Typography>
+                  </Tooltip>
                   <Autocomplete
                     freeSolo
                     size="small"
                     fullWidth
+                    disabled={isCustomerLoaded} // ✅ Khóa khi đã load customer
                     options={customerSuggestions}
                     getOptionLabel={(option: Customer | string) => 
                       typeof option === 'string' ? option : option.customerName
@@ -2527,19 +2986,41 @@ const CreateVatInvoice: React.FC = () => {
                       </li>
                     )}
                     inputValue={buyerCompanyName}
-                    onInputChange={(_e, value) => setBuyerCompanyName(value)}
+                    onInputChange={(_e, value) => {
+                      setBuyerCompanyName(value)
+                      // ✅ Clear error của buyerName nếu đang điền companyName
+                      if (value && value.trim()) {
+                        setBuyerErrors({ ...buyerErrors, companyName: '', buyerName: '' })
+                      } else if (buyerErrors.companyName) {
+                        setBuyerErrors({ ...buyerErrors, companyName: '' })
+                      }
+                    }}
                     onChange={(_e, value) => {
                       if (typeof value === 'object' && value !== null) {
                         handleCustomerSelect(value)
                       }
                     }}
+                    onBlur={() => validateField('companyName')}
                     loading={isLoadingSuggestions}
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        placeholder="CÔNG TY CỔ PHẦN MISA"
+                        placeholder={
+                          invoiceType === 'B2B' 
+                            ? 'CÔNG TY CỔ PHẦN MISA (bắt buộc)' 
+                            : 'Nguyễn Văn A (bắt buộc)'
+                        }
                         variant="standard"
                         sx={{ fontSize: '0.8125rem' }}
+                        error={!!buyerErrors.companyName}
+                        helperText={
+                          buyerErrors.companyName ||
+                          (invoiceType === 'B2B' && !buyerCompanyName ? 'Bắt buộc cho hóa đơn B2B' : '') ||
+                          (invoiceType === 'B2C' && !buyerCompanyName ? 'Bắt buộc cho hóa đơn B2C' : '')
+                        }
+                        FormHelperTextProps={{
+                          sx: { fontSize: '0.7rem', fontStyle: 'italic', color: buyerErrors.companyName ? '#d32f2f' : '#666' }
+                        }}
                         InputProps={{
                           ...params.InputProps,
                           endAdornment: (
@@ -2555,8 +3036,9 @@ const CreateVatInvoice: React.FC = () => {
                 </Stack>
 
                 <Stack direction="row" spacing={1.5} alignItems="center">
-                  <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
+                  <Typography variant="caption" sx={{ minWidth: 140, fontSize: '0.8125rem' }}>
                     Địa chỉ:
+                    <Box component="span" sx={{ color: '#d32f2f', ml: 0.5 }}>*</Box>
                   </Typography>
                   <TextField
                     size="small"
@@ -2564,34 +3046,117 @@ const CreateVatInvoice: React.FC = () => {
                     placeholder="Tầng 9, tòa nhà Technosoft..."
                     variant="standard"
                     value={buyerAddress}
-                    onChange={(e) => setBuyerAddress(e.target.value)}
+                    disabled={isCustomerLoaded} // ✅ Khóa khi đã load customer
+                    onChange={(e) => {
+                      setBuyerAddress(e.target.value)
+                      if (buyerErrors.address) {
+                        setBuyerErrors({ ...buyerErrors, address: '' })
+                      }
+                    }}
+                    onBlur={() => validateField('address')}
+                    error={!!buyerErrors.address}
+                    helperText={buyerErrors.address}
                     sx={{ fontSize: '0.8125rem' }}
                   />
                 </Stack>
 
+                {/* ✅ Chỉ hiện field "Người mua hàng" khi ở chế độ B2B */}
+                {invoiceType === 'B2B' && (
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Tooltip 
+                      title="Không bắt buộc. Nhập tên người đại diện, kế toán hoặc người liên hệ của doanh nghiệp"
+                      placement="top"
+                      arrow
+                    >
+                      <Typography variant="caption" sx={{ minWidth: 140, fontSize: '0.8125rem', cursor: 'help' }}>
+                        Người mua hàng:
+                      </Typography>
+                    </Tooltip>
+                    <TextField 
+                      size="small" 
+                      placeholder="Kế toán Nguyễn Văn A" 
+                      variant="standard" 
+                      value={buyerName} 
+                      onChange={(e) => {
+                        setBuyerName(e.target.value)
+                        if (buyerErrors.buyerName) {
+                          setBuyerErrors({ ...buyerErrors, buyerName: '' })
+                        }
+                      }}
+                      onBlur={() => validateField('buyerName')}
+                      error={!!buyerErrors.buyerName}
+                      helperText={
+                        buyerErrors.buyerName || 
+                        (isCustomerLoaded ? 'Sửa đổi sẽ tự động lưu lên hệ thống' : '')
+                      }
+                      FormHelperTextProps={{
+                        sx: { fontSize: '0.7rem', fontStyle: 'italic', color: buyerErrors.buyerName ? '#d32f2f' : '#666' }
+                      }}
+                      sx={{ flex: 1, fontSize: '0.8125rem' }} 
+                    />
+                    <Typography variant="caption" sx={{ minWidth: 50, fontSize: '0.8125rem' }}>
+                      Email:
+                      <Box component="span" sx={{ color: '#d32f2f', ml: 0.5 }}>*</Box>
+                    </Typography>
+                    <TextField 
+                      size="small" 
+                      placeholder="hoadon@gmail.com" 
+                      variant="standard" 
+                      value={buyerEmail} 
+                      disabled={isCustomerLoaded} // ✅ Khóa khi đã load customer
+                      onChange={(e) => {
+                        setBuyerEmail(e.target.value)
+                        if (buyerErrors.email) {
+                          setBuyerErrors({ ...buyerErrors, email: '' })
+                        }
+                      }}
+                      onBlur={() => validateField('email')}
+                      error={!!buyerErrors.email}
+                      helperText={buyerErrors.email}
+                      sx={{ flex: 1, fontSize: '0.8125rem' }} 
+                    />
+                  </Stack>
+                )}
+
+                {/* ✅ Khi B2C thì hiện Email ở dòng riêng */}
+                {invoiceType === 'B2C' && (
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Typography variant="caption" sx={{ minWidth: 140, fontSize: '0.8125rem' }}>
+                      Email:
+                      <Box component="span" sx={{ color: '#d32f2f', ml: 0.5 }}>*</Box>
+                    </Typography>
+                    <TextField 
+                      size="small" 
+                      placeholder="hoadon@gmail.com" 
+                      variant="standard" 
+                      value={buyerEmail} 
+                      disabled={isCustomerLoaded} // ✅ Khóa khi đã load customer
+                      onChange={(e) => {
+                        setBuyerEmail(e.target.value)
+                        if (buyerErrors.email) {
+                          setBuyerErrors({ ...buyerErrors, email: '' })
+                        }
+                      }}
+                      onBlur={() => validateField('email')}
+                      error={!!buyerErrors.email}
+                      helperText={buyerErrors.email}
+                      sx={{ flex: 1, fontSize: '0.8125rem' }} 
+                    />
+                  </Stack>
+                )}
+
                 <Stack direction="row" spacing={1.5} alignItems="center">
-                  <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    Người mua hàng:
+                  <Typography variant="caption" sx={{ minWidth: 140, fontSize: '0.8125rem' }}>
+                    Số điện thoại:
                   </Typography>
                   <TextField 
                     size="small" 
-                    placeholder="Kế toán A" 
                     variant="standard" 
-                    value={buyerName} 
-                    onChange={(e) => setBuyerName(e.target.value)} 
+                    value={buyerPhone} 
+                    disabled={isCustomerLoaded} // ✅ Khóa khi đã load customer
+                    onChange={(e) => setBuyerPhone(e.target.value)} 
                     sx={{ width: 160, fontSize: '0.8125rem' }} 
                   />
-                  <Typography variant="caption" sx={{ minWidth: 50, fontSize: '0.8125rem' }}>
-                    Email:
-                  </Typography>
-                  <TextField size="small" placeholder="hoadon@gmail.com" variant="standard" value={buyerEmail} onChange={(e) => setBuyerEmail(e.target.value)} sx={{ flex: 1, fontSize: '0.8125rem' }} />
-                </Stack>
-
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                  <Typography variant="caption" sx={{ minWidth: 110, fontSize: '0.8125rem' }}>
-                    Số điện thoại:
-                  </Typography>
-                  <TextField size="small" variant="standard" value={buyerPhone} onChange={(e) => setBuyerPhone(e.target.value)} sx={{ width: 160, fontSize: '0.8125rem' }} />
                   <Typography variant="caption" sx={{ minWidth: 80, fontSize: '0.8125rem' }}>
                     Hình thức TT:
                   </Typography>

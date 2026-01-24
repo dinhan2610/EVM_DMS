@@ -250,6 +250,7 @@ export function validateTotals(
  *                  Mục đích: Tính commission, sales performance, filter by sale
  * @param requestID - ID của Invoice Request (CHỉ khi tạo từ request, null = không gửi)
  *                    Mục đích: Link invoice với request, update request status
+ * @param invoiceType - Loại hóa đơn ('B2B' hoặc 'B2C') để xử lý contactPerson chính xác
  * @returns Backend request object
  */
 export function mapToBackendInvoiceRequest(
@@ -263,7 +264,8 @@ export function mapToBackendInvoiceRequest(
   notes: string = '',
   signedBy: number = 0,                 // performedBy - Người tạo invoice (Audit/Legal)
   salesID?: number,                     // Sale tạo request (Business/Commission) - Optional
-  requestID: number | null = null       // Link với request - Optional
+  requestID: number | null = null,      // Link với request - Optional
+  invoiceType: 'B2B' | 'B2C' = 'B2B'    // ✅ Loại hóa đơn
 ): BackendInvoiceRequest {
   
   // Validate totals trước khi gửi
@@ -332,6 +334,20 @@ export function mapToBackendInvoiceRequest(
   //   - performedBy = currentUserId (Accountant)
   //   → Backend: Link invoice với request, update request status, lưu salesID
   
+  // ✅ LOGIC: Xử lý contactPerson theo loại hóa đơn
+  // - B2B (Doanh nghiệp): contactPerson = buyerInfo.buyerName (Người mua hàng, có thể trống)
+  // - B2C (Bán lẻ): contactPerson = buyerInfo.companyName (Tên Khách Hàng, cùng giá trị với customerName)
+  const contactPersonValue = invoiceType === 'B2B' 
+    ? (buyerInfo.buyerName || '')              // B2B: Người đại diện/kế toán (không bắt buộc)
+    : (buyerInfo.companyName || 'Khách hàng'); // B2C: Tên khách hàng cá nhân
+  
+  console.log('👤 [ADAPTER] contactPerson logic:', {
+    invoiceType,
+    buyerName: buyerInfo.buyerName,
+    companyName: buyerInfo.companyName,
+    contactPersonValue,
+  });
+  
   const payload = {
     templateID,
     customerID: buyerInfo.customerID || 0,
@@ -349,7 +365,7 @@ export function mapToBackendInvoiceRequest(
     performedBy: signedBy,            // ✅ Người TẠO INVOICE (Audit/Legal) - LUÔN CÓ
     minRows: minRows,
     contactEmail: buyerInfo.email || 'noreply@company.com',
-    contactPerson: buyerInfo.buyerName || '',
+    contactPerson: contactPersonValue, // ✅ Logic đã tối ưu theo B2B/B2C
     contactPhone: buyerInfo.phone || '0000000000',
   };
   
