@@ -7,6 +7,8 @@ import companyService, { Company } from '@/services/companyService'
 import { mapToBackendInvoiceRequest } from '@/utils/invoiceAdapter'
 import { numberToWords } from '@/utils/numberToWords'
 import { getUserIdFromToken } from '@/utils/tokenUtils'
+import { useAuthContext } from '@/context/useAuthContext'
+import { USER_ROLES } from '@/constants/roles'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
 import type { ProductItem, CustomerInfo, TemplateConfigProps} from '@/types/invoiceTemplate'
 import { DEFAULT_TEMPLATE_VISIBILITY, DEFAULT_INVOICE_SYMBOL } from '@/types/invoiceTemplate'
@@ -735,6 +737,7 @@ const DiscountPercentEditCell = (params: GridRenderEditCellParams) => {
 const CreateVatInvoice: React.FC = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const { user } = useAuthContext() // ✅ Get user role
   
   // ✅ Edit mode detection
   const editMode = searchParams.get('mode') === 'edit'
@@ -2278,12 +2281,27 @@ const CreateVatInvoice: React.FC = () => {
 
       console.log('✅ Invoice saved:', response)
 
-      // ⭐ Hiển thị thông báo chi tiết
-      const successMessage = editMode
-        ? `✅ Cập nhật hóa đơn thành công! (ID: ${response.invoiceID})`
-        : invoiceStatusID === 1
-        ? `✅ Lưu hóa đơn nháp thành công! (ID: ${response.invoiceID})\n💡 Số hóa đơn sẽ được cấp sau khi ký số tại trang danh sách hóa đơn.`
-        : `✅ Gửi hóa đơn chờ duyệt thành công! (ID: ${response.invoiceID})\n📋 Hóa đơn đang chờ phê duyệt từ quản lý.`
+      // ⭐ Hiển thị thông báo chi tiết theo role và status
+      let successMessage = ''
+      
+      if (editMode) {
+        successMessage = `✅ Cập nhật hóa đơn thành công! (ID: ${response.invoiceID})`
+      } else {
+        // Create mode - message dựa trên status và role
+        if (invoiceStatusID === 1) {
+          // Draft
+          successMessage = `✅ Lưu hóa đơn nháp thành công! (ID: ${response.invoiceID})\n💡 Số hóa đơn sẽ được cấp sau khi ký số tại trang danh sách hóa đơn.`
+        } else if (invoiceStatusID === 6) {
+          // Pending Approval - Accountant
+          successMessage = `✅ Gửi hóa đơn chờ duyệt thành công! (ID: ${response.invoiceID})\n📋 Hóa đơn đang chờ phê duyệt từ quản lý.`
+        } else if (invoiceStatusID === 7) {
+          // Pending Sign - HOD
+          successMessage = `✅ Tạo hóa đơn thành công! (ID: ${response.invoiceID})\n🔐 Hóa đơn ở trạng thái Chờ ký, bạn có thể ký số ngay.`
+        } else {
+          // Default
+          successMessage = `✅ Tạo hóa đơn thành công! (ID: ${response.invoiceID})`
+        }
+      }
 
       setSnackbar({
         open: true,
@@ -2291,9 +2309,17 @@ const CreateVatInvoice: React.FC = () => {
         severity: 'success'
       })
 
-      // Navigate to invoice list after 2 seconds (để user đọc message)
+      // ⭐ Navigate dựa trên role: HOD → /approval/invoices, Others → /invoices
       setTimeout(() => {
-        navigate('/invoices')
+        if (user?.role === USER_ROLES.HOD) {
+          // KẾ TOÁN TRƯỞNG: Chuyển về trang Duyệt hóa đơn
+          console.log('🎯 HOD: Redirecting to /approval/invoices')
+          navigate('/approval/invoices')
+        } else {
+          // KẾ TOÁN & OTHERS: Chuyển về trang Danh sách hóa đơn
+          console.log('🎯 Accountant/Others: Redirecting to /invoices')
+          navigate('/invoices')
+        }
       }, 2000)
 
     } catch (error: unknown) {
@@ -2341,14 +2367,19 @@ const CreateVatInvoice: React.FC = () => {
     }
   }
 
-  // ⭐ Lưu nháp (invoiceStatusID = 1)
+  // ⭐ Lưu nháp (invoiceStatusID = 1) - Dành cho Accountant
   const handleSaveDraft = async () => {
     await handleSubmitInvoice(1, 'Lưu hóa đơn nháp')
   }
 
-  // ⭐ Gửi duyệt (invoiceStatusID = 6)
+  // ⭐ Gửi duyệt (invoiceStatusID = 6) - Dành cho Accountant
   const handleSubmitForApproval = async () => {
     await handleSubmitInvoice(6, 'Gửi hóa đơn chờ duyệt')
+  }
+
+  // ⭐ Tạo hóa đơn trực tiếp (invoiceStatusID = 7 - Chờ ký) - Dành cho HOD
+  const handleCreateInvoiceHOD = async () => {
+    await handleSubmitInvoice(7, 'Tạo hóa đơn chờ ký')
   }
 
   // Đóng snackbar
@@ -3640,34 +3671,95 @@ const CreateVatInvoice: React.FC = () => {
               </Button>
             </Stack>
 
-            {/* Buttons phải */}
+            {/* Buttons phải - Role-based */}
             <Stack direction="row" spacing={1}>
               <Button
                 size="small"
                 variant="outlined"
                 startIcon={<Close fontSize="small" />}
+                onClick={() => navigate('/invoices')}
                 sx={{ textTransform: 'none', color: '#666', borderColor: '#ccc', fontSize: '0.8125rem', py: 0.5 }}>
                 Hủy bỏ
               </Button>
-              <Button
-                size="small"
-                variant="contained"
-                startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Save fontSize="small" />}
-                onClick={handleSaveDraft}
-                disabled={isSubmitting}
-                sx={{ textTransform: 'none', backgroundColor: '#1976d2', fontSize: '0.8125rem', py: 0.5 }}>
-                {isSubmitting ? (editMode ? 'Đang cập nhật...' : 'Đang lưu...') : (editMode ? 'Cập nhật' : 'Lưu nháp')}
-              </Button>
-              {!editMode && (
-                <Button
-                  size="small"
-                  variant="contained"
-                  startIcon={<Publish fontSize="small" />}
-                  onClick={handleSubmitForApproval}
-                  disabled={isSubmitting}
-                  sx={{ textTransform: 'none', backgroundColor: '#2e7d32', minWidth: 140, fontSize: '0.8125rem', py: 0.5 }}>
-                  Gửi cho KT Trưởng
-                </Button>
+              
+              {/* ============ ACCOUNTANT BUTTONS ============ */}
+              {user?.role === USER_ROLES.ACCOUNTANT && (
+                <>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Save fontSize="small" />}
+                    onClick={handleSaveDraft}
+                    disabled={isSubmitting}
+                    sx={{ textTransform: 'none', backgroundColor: '#1976d2', fontSize: '0.8125rem', py: 0.5 }}>
+                    {isSubmitting ? (editMode ? 'Đang cập nhật...' : 'Đang lưu...') : (editMode ? 'Cập nhật' : 'Lưu nháp')}
+                  </Button>
+                  {!editMode && (
+                    <Button
+                      size="small"
+                      variant="contained"
+                      startIcon={<Publish fontSize="small" />}
+                      onClick={handleSubmitForApproval}
+                      disabled={isSubmitting}
+                      sx={{ textTransform: 'none', backgroundColor: '#2e7d32', minWidth: 140, fontSize: '0.8125rem', py: 0.5 }}>
+                      Gửi cho KT Trưởng
+                    </Button>
+                  )}
+                </>
+              )}
+
+              {/* ============ HOD BUTTON ============ */}
+              {user?.role === USER_ROLES.HOD && (
+                <Tooltip
+                  title="Hóa đơn sẽ được tạo với trạng thái 'Chờ ký' và có thể ký số ngay lập tức"
+                  arrow
+                  placement="top"
+                >
+                  <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Save fontSize="small" />}
+                    onClick={handleCreateInvoiceHOD}
+                    disabled={isSubmitting}
+                    sx={{ 
+                      textTransform: 'none', 
+                      backgroundColor: '#f57c00', 
+                      fontSize: '0.8125rem', 
+                      py: 0.5,
+                      minWidth: 140,
+                      '&:hover': {
+                        backgroundColor: '#ef6c00'
+                      }
+                    }}>
+                    {isSubmitting ? 'Đang tạo...' : 'Tạo hóa đơn'}
+                  </Button>
+                </Tooltip>
+              )}
+
+              {/* ============ ADMIN/OTHER ROLES - Keep original behavior ============ */}
+              {user?.role !== USER_ROLES.ACCOUNTANT && user?.role !== USER_ROLES.HOD && (
+                <>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Save fontSize="small" />}
+                    onClick={handleSaveDraft}
+                    disabled={isSubmitting}
+                    sx={{ textTransform: 'none', backgroundColor: '#1976d2', fontSize: '0.8125rem', py: 0.5 }}>
+                    {isSubmitting ? (editMode ? 'Đang cập nhật...' : 'Đang lưu...') : (editMode ? 'Cập nhật' : 'Lưu nháp')}
+                  </Button>
+                  {!editMode && (
+                    <Button
+                      size="small"
+                      variant="contained"
+                      startIcon={<Publish fontSize="small" />}
+                      onClick={handleSubmitForApproval}
+                      disabled={isSubmitting}
+                      sx={{ textTransform: 'none', backgroundColor: '#2e7d32', minWidth: 140, fontSize: '0.8125rem', py: 0.5 }}>
+                      Gửi cho KT Trưởng
+                    </Button>
+                  )}
+                </>
               )}
             </Stack>
           </Stack>
