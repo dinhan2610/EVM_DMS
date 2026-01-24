@@ -26,32 +26,32 @@ import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useNavigate } from 'react-router-dom'
 import Spinner from '@/components/Spinner'
+import UploadMinuteDialog from '@/components/UploadMinuteDialog'
+
+import { getMinutes, type MinuteRecord } from '@/services/minuteService'
 
 // ============================================================
-// 📋 INTERFACE DEFINITIONS - Cập nhật theo API của bạn
+// 📋 INTERFACE DEFINITIONS - Cập nhật theo API response
 // ============================================================
 
 /**
  * Interface cho Biên Bản Điều Chỉnh/Thay Thế
- * 
- * TODO: Cập nhật interface này theo response từ API backend
+ * Map từ MinuteRecord (API) sang UI format
  */
 export interface AdjustmentReplacementRecord {
-  id: string
-  recordNumber: string // Số biên bản
-  recordDate: string // Ngày lập biên bản
-  recordType: 'adjustment' | 'replacement' // Loại: điều chỉnh hoặc thay thế
-  originalInvoiceNumber: string // Số hóa đơn gốc
-  originalInvoiceSymbol: string // Ký hiệu hóa đơn gốc
+  id: number // minuteInvoiceId
+  minuteCode: string // Mã biên bản (ví dụ: BB-DC--1)
+  invoiceNo: string // Số hóa đơn gốc
   customerName: string // Tên khách hàng
-  taxCode: string // MST khách hàng
-  reason: string // Lý do điều chỉnh/thay thế
+  minuteType: 'Adjustment' | 'Replacement' // Loại: điều chỉnh hoặc thay thế
   status: string // Trạng thái biên bản
-  statusId: number // ID trạng thái
-  createdBy: string // Người lập
-  approvedBy?: string // Người duyệt
-  amount: number // Số tiền liên quan
-  notes?: string // Ghi chú
+  description: string // Mô tả / Lý do
+  filePath: string // URL file PDF
+  createdAt: string // Ngày tạo
+  createdByName: string // Người tạo
+  isSellerSigned: boolean // Người bán đã ký
+  isBuyerSigned: boolean // Người mua đã ký
+  invoiceId: number // ID hóa đơn
 }
 
 // ============================================================
@@ -61,30 +61,24 @@ export interface AdjustmentReplacementRecord {
 /**
  * Map dữ liệu từ API response sang UI format
  * 
- * TODO: Implement mapping logic theo cấu trúc response từ backend
- * 
- * @param item - Raw data từ API
- * @returns Formatted data cho UI
+ * @param item - MinuteRecord từ API
+ * @returns AdjustmentReplacementRecord cho UI
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
-const mapRecordToUI = (item: any): AdjustmentReplacementRecord => {
-  // TODO: Implement mapping logic
+const mapRecordToUI = (item: MinuteRecord): AdjustmentReplacementRecord => {
   return {
-    id: item.id?.toString() || '0',
-    recordNumber: item.recordNumber || '',
-    recordDate: item.recordDate || new Date().toISOString(),
-    recordType: item.recordType || 'adjustment',
-    originalInvoiceNumber: item.originalInvoiceNumber || '',
-    originalInvoiceSymbol: item.originalInvoiceSymbol || '',
-    customerName: item.customerName || '',
-    taxCode: item.taxCode || '',
-    reason: item.reason || '',
-    status: item.status || 'Chờ xử lý',
-    statusId: item.statusId || 1,
-    createdBy: item.createdBy || '',
-    approvedBy: item.approvedBy,
-    amount: item.amount || 0,
-    notes: item.notes,
+    id: item.minuteInvoiceId,
+    minuteCode: item.minuteCode,
+    invoiceNo: item.invoiceNo || 'Chưa có',
+    customerName: item.customerName,
+    minuteType: item.minuteType,
+    status: item.status,
+    description: item.description,
+    filePath: item.filePath,
+    createdAt: item.createdAt,
+    createdByName: item.createdByName,
+    isSellerSigned: item.isSellerSigned,
+    isBuyerSigned: item.isBuyerSigned,
+    invoiceId: item.invoiceId,
   }
 }
 
@@ -95,29 +89,27 @@ const mapRecordToUI = (item: any): AdjustmentReplacementRecord => {
 /**
  * Lấy màu cho loại biên bản
  */
-const getRecordTypeColor = (type: 'adjustment' | 'replacement'): 'warning' | 'info' => {
-  return type === 'adjustment' ? 'warning' : 'info'
+const getRecordTypeColor = (type: 'Adjustment' | 'Replacement'): 'warning' | 'info' => {
+  return type === 'Adjustment' ? 'warning' : 'info'
 }
 
 /**
  * Lấy label cho loại biên bản
  */
-const getRecordTypeLabel = (type: 'adjustment' | 'replacement'): string => {
-  return type === 'adjustment' ? 'Điều chỉnh' : 'Thay thế'
+const getRecordTypeLabel = (type: 'Adjustment' | 'Replacement'): string => {
+  return type === 'Adjustment' ? 'Điều chỉnh' : 'Thay thế'
 }
 
 /**
  * Lấy màu cho trạng thái biên bản
- * 
- * TODO: Cập nhật theo status definition của backend
  */
-const getStatusColor = (statusId: number): 'default' | 'primary' | 'success' | 'error' | 'warning' => {
-  // TODO: Map statusId to color
-  switch (statusId) {
-    case 1: return 'default' // Chờ xử lý
-    case 2: return 'primary' // Đang xử lý
-    case 3: return 'success' // Đã hoàn thành
-    case 4: return 'error' // Từ chối
+const getStatusColor = (status: string): 'default' | 'primary' | 'success' | 'error' | 'warning' => {
+  switch (status) {
+    case 'Sent': return 'success' // Đã gửi
+    case 'Draft': return 'default' // Bản nháp
+    case 'Pending': return 'warning' // Chờ duyệt
+    case 'Rejected': return 'error' // Từ chối
+    case 'Approved': return 'success' // Đã duyệt
     default: return 'default'
   }
 }
@@ -168,8 +160,7 @@ const AdjustmentReplacementRecordManagement = () => {
   })
   
   // Filter state
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [filters, setFilters] = useState<FilterState>({
+  const [filters] = useState<FilterState>({
     searchText: '',
     dateFrom: null,
     dateTo: null,
@@ -181,6 +172,9 @@ const AdjustmentReplacementRecordManagement = () => {
   // Template download menu state
   const [templateMenuAnchor, setTemplateMenuAnchor] = useState<null | HTMLElement>(null)
   const templateMenuOpen = Boolean(templateMenuAnchor)
+
+  // Upload dialog state
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
 
   // ============================================================
   // 🔌 API INTEGRATION - TODO: Implement your API calls
@@ -197,16 +191,12 @@ const AdjustmentReplacementRecordManagement = () => {
       setLoading(true)
       setError(null)
       
-      // TODO: Implement API call here
-      // const response = await yourApiService.getAdjustmentReplacementRecords()
-      // const mappedData = response.map(item => mapRecordToUI(item))
-      // setRecords(mappedData)
+      // Gọi API thật
+      const response = await getMinutes()
+      const mappedData = response.items.map(item => mapRecordToUI(item))
+      setRecords(mappedData)
       
-      // MOCK DATA - Remove this when implementing real API
-      const mockData: AdjustmentReplacementRecord[] = []
-      setRecords(mockData)
-      
-      console.log('✅ [AdjustmentReplacementRecords] Data loaded:', mockData.length)
+      console.log('✅ [AdjustmentReplacementRecords] Data loaded:', mappedData.length)
       
     } catch (err) {
       console.error('❌ Failed to load records:', err)
@@ -292,19 +282,49 @@ const AdjustmentReplacementRecordManagement = () => {
   }
   
   /**
-   * Tải xuống biên bản PDF
+   * Tải xuống biên bản PDF từ Cloudinary
+   * Sử dụng filePath từ API response
    */
-  const handleDownloadPDF = async (recordId: string, recordNumber: string) => {
+  const handleDownloadPDF = (recordId: string, minuteCode: string) => {
     try {
-      // TODO: Implement PDF download
-      console.log('Download PDF:', recordId, recordNumber)
+      // Tìm record theo ID để lấy filePath
+      const record = records.find(r => r.id.toString() === recordId)
+      
+      if (!record || !record.filePath) {
+        setSnackbar({
+          open: true,
+          message: '❌ Không tìm thấy file PDF của biên bản này',
+          severity: 'error',
+        })
+        return
+      }
+
+      console.log('📥 Downloading PDF:', { minuteCode, filePath: record.filePath })
+      
+      // Tạo link download trực tiếp từ Cloudinary URL
+      const link = document.createElement('a')
+      link.href = record.filePath
+      link.target = '_blank' // Mở trong tab mới
+      link.download = `${minuteCode}.pdf` // Gợi ý tên file khi download
+      link.style.display = 'none'
+      
+      // Trigger download
+      document.body.appendChild(link)
+      link.click()
+      
+      // Cleanup sau 100ms
+      setTimeout(() => {
+        document.body.removeChild(link)
+      }, 100)
       
       setSnackbar({
         open: true,
-        message: `✅ Đã tải xuống biên bản ${recordNumber}.pdf`,
+        message: `✅ Đang tải xuống biên bản ${minuteCode}.pdf`,
         severity: 'success',
       })
+      
     } catch (err) {
+      console.error('❌ Download PDF error:', err)
       setSnackbar({
         open: true,
         message: `❌ Không thể tải PDF: ${err instanceof Error ? err.message : 'Lỗi không xác định'}`,
@@ -315,41 +335,23 @@ const AdjustmentReplacementRecordManagement = () => {
   
   /**
    * Upload biên bản từ file
-   * 
-   * TODO: Implement file upload API
-   * Expected flow:
-   * 1. User chọn file (Excel/PDF)
-   * 2. Upload file lên server
-   * 3. Server parse và tạo record
-   * 4. Reload danh sách
+   * Mở dialog để user nhập thông tin và chọn file PDF
    */
-  const handleUploadRecord = async () => {
-    try {
-      // TODO: Implement file upload dialog
-      // const file = await showFilePickerDialog()
-      // const formData = new FormData()
-      // formData.append('file', file)
-      // await uploadRecordFile(formData)
-      
-      console.log('Upload record clicked - API pending')
-      
-      setSnackbar({
-        open: true,
-        message: '⚠️ Chức năng upload đang được phát triển',
-        severity: 'warning',
-      })
-      
-      // After successful upload:
-      // await loadRecords()
-      // setSnackbar({ open: true, message: '✅ Upload biên bản thành công!', severity: 'success' })
-      
-    } catch (err) {
-      setSnackbar({
-        open: true,
-        message: `❌ Upload thất bại: ${err instanceof Error ? err.message : 'Lỗi không xác định'}`,
-        severity: 'error',
-      })
-    }
+  const handleUploadRecord = () => {
+    setUploadDialogOpen(true)
+  }
+
+  /**
+   * Callback khi upload thành công
+   * Reload danh sách và hiển thị thông báo
+   */
+  const handleUploadSuccess = async () => {
+    await loadRecords()
+    setSnackbar({
+      open: true,
+      message: '✅ Upload biên bản thành công!',
+      severity: 'success',
+    })
   }
 
   // ============================================================
@@ -366,32 +368,32 @@ const AdjustmentReplacementRecordManagement = () => {
       // Lọc theo text search
       const matchesSearch =
         !filters.searchText ||
-        record.recordNumber.toLowerCase().includes(filters.searchText.toLowerCase()) ||
-        record.originalInvoiceNumber.toLowerCase().includes(filters.searchText.toLowerCase()) ||
+        record.minuteCode.toLowerCase().includes(filters.searchText.toLowerCase()) ||
+        record.invoiceNo.toLowerCase().includes(filters.searchText.toLowerCase()) ||
         record.customerName.toLowerCase().includes(filters.searchText.toLowerCase()) ||
-        record.taxCode.toLowerCase().includes(filters.searchText.toLowerCase())
+        record.description.toLowerCase().includes(filters.searchText.toLowerCase())
 
       // Lọc theo khoảng ngày
       const matchesDateFrom = 
         !filters.dateFrom || 
-        dayjs(record.recordDate).isAfter(filters.dateFrom, 'day') || 
-        dayjs(record.recordDate).isSame(filters.dateFrom, 'day')
+        dayjs(record.createdAt).isAfter(filters.dateFrom, 'day') || 
+        dayjs(record.createdAt).isSame(filters.dateFrom, 'day')
       
       const matchesDateTo = 
         !filters.dateTo || 
-        dayjs(record.recordDate).isBefore(filters.dateTo, 'day') || 
-        dayjs(record.recordDate).isSame(filters.dateTo, 'day')
+        dayjs(record.createdAt).isBefore(filters.dateTo, 'day') || 
+        dayjs(record.createdAt).isSame(filters.dateTo, 'day')
 
       // Lọc theo loại biên bản
       const matchesRecordType = 
         filters.recordType.length === 0 || 
         filters.recordType.includes('all') || 
-        filters.recordType.includes(record.recordType)
+        filters.recordType.includes(record.minuteType)
 
       // Lọc theo trạng thái
       const matchesStatus = 
         filters.status.length === 0 || 
-        filters.status.includes(String(record.statusId))
+        filters.status.includes(record.status)
 
       // Lọc theo khách hàng
       const matchesCustomer = 
@@ -416,9 +418,9 @@ const AdjustmentReplacementRecordManagement = () => {
   
   const columns: GridColDef[] = [
     {
-      field: 'recordNumber',
-      headerName: 'Số biên bản',
-      width: 130,
+      field: 'minuteCode',
+      headerName: 'Mã biên bản',
+      width: 140,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -441,9 +443,9 @@ const AdjustmentReplacementRecordManagement = () => {
       },
     },
     {
-      field: 'recordDate',
-      headerName: 'Ngày lập',
-      width: 120,
+      field: 'createdAt',
+      headerName: 'Ngày tạo',
+      width: 130,
       sortable: true,
       type: 'date',
       align: 'center',
@@ -464,14 +466,14 @@ const AdjustmentReplacementRecordManagement = () => {
       ),
     },
     {
-      field: 'recordType',
-      headerName: 'Loại',
-      width: 130,
+      field: 'minuteType',
+      headerName: 'Loại biên bản',
+      width: 140,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
-        const recordType = params.value as 'adjustment' | 'replacement'
+        const recordType = params.value as 'Adjustment' | 'Replacement'
         return (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
             <Chip 
@@ -490,9 +492,9 @@ const AdjustmentReplacementRecordManagement = () => {
       },
     },
     {
-      field: 'originalInvoiceNumber',
-      headerName: 'Số HĐ gốc',
-      width: 120,
+      field: 'invoiceNo',
+      headerName: 'Số hóa đơn',
+      width: 130,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -517,7 +519,7 @@ const AdjustmentReplacementRecordManagement = () => {
       field: 'customerName',
       headerName: 'Khách hàng',
       flex: 1.5,
-      minWidth: 200,
+      minWidth: 220,
       sortable: true,
       align: 'left',
       headerAlign: 'left',
@@ -544,35 +546,10 @@ const AdjustmentReplacementRecordManagement = () => {
       },
     },
     {
-      field: 'taxCode',
-      headerName: 'MST',
-      width: 135,
-      sortable: true,
-      align: 'center',
-      headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) => {
-        const value = params.value as string
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
-            <Typography
-              variant="body2"
-              sx={{
-                fontWeight: 500,
-                letterSpacing: '0.02em',
-                color: '#2c3e50',
-                fontSize: '0.875rem',
-              }}>
-              {value || '-'}
-            </Typography>
-          </Box>
-        )
-      },
-    },
-    {
-      field: 'reason',
-      headerName: 'Lý do',
-      flex: 1.2,
-      minWidth: 180,
+      field: 'description',
+      headerName: 'Lý do / Mô tả',
+      flex: 1.3,
+      minWidth: 200,
       sortable: true,
       align: 'left',
       headerAlign: 'left',
@@ -602,17 +579,17 @@ const AdjustmentReplacementRecordManagement = () => {
     {
       field: 'status',
       headerName: 'Trạng thái',
-      width: 150,
+      width: 140,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
-        const statusId = params.row.statusId as number
+        const status = params.value as string
         return (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
             <Chip 
-              label={params.value as string} 
-              color={getStatusColor(statusId)} 
+              label={status} 
+              color={getStatusColor(status)} 
               size="small" 
               sx={{ 
                 fontWeight: 600,
@@ -626,25 +603,69 @@ const AdjustmentReplacementRecordManagement = () => {
       },
     },
     {
-      field: 'amount',
-      headerName: 'Số tiền',
-      width: 140,
+      field: 'createdByName',
+      headerName: 'Người tạo',
+      width: 150,
       sortable: true,
-      align: 'right',
-      headerAlign: 'right',
-      renderCell: (params: GridRenderCellParams) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%', pr: 3, py: 1.5 }}>
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 600,
-              color: '#2e7d32',
-              fontSize: '0.875rem',
-            }}>
-            {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(params.value as number)}
-          </Typography>
-        </Box>
-      ),
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams) => {
+        const value = params.value as string
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                fontWeight: 500,
+                color: '#2c3e50',
+                fontSize: '0.875rem',
+              }}>
+              {value || '-'}
+            </Typography>
+          </Box>
+        )
+      },
+    },
+    {
+      field: 'signatures',
+      headerName: 'Chữ ký',
+      width: 120,
+      sortable: false,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams) => {
+        const record = params.row as AdjustmentReplacementRecord
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 1, py: 1.5 }}>
+            <Tooltip title={record.isSellerSigned ? 'Người bán đã ký' : 'Người bán chưa ký'} arrow>
+              <Chip 
+                label="NB" 
+                size="small"
+                color={record.isSellerSigned ? 'success' : 'default'}
+                sx={{ 
+                  fontWeight: 600,
+                  fontSize: '0.7rem',
+                  height: 24,
+                  minWidth: 38,
+                }}
+              />
+            </Tooltip>
+            <Tooltip title={record.isBuyerSigned ? 'Người mua đã ký' : 'Người mua chưa ký'} arrow>
+              <Chip 
+                label="NM" 
+                size="small"
+                color={record.isBuyerSigned ? 'success' : 'default'}
+                sx={{ 
+                  fontWeight: 600,
+                  fontSize: '0.7rem',
+                  height: 24,
+                  minWidth: 38,
+                }}
+              />
+            </Tooltip>
+          </Box>
+        )
+      },
     },
     {
       field: 'actions',
@@ -662,7 +683,7 @@ const AdjustmentReplacementRecordManagement = () => {
             <Tooltip title="Xem chi tiết" arrow placement="top">
               <IconButton
                 size="small"
-                onClick={() => handleViewDetail(record.id)}
+                onClick={() => handleViewDetail(record.id.toString())}
                 sx={{
                   color: 'primary.main',
                   '&:hover': {
@@ -680,7 +701,7 @@ const AdjustmentReplacementRecordManagement = () => {
             <Tooltip title="Tải PDF" arrow placement="top">
               <IconButton
                 size="small"
-                onClick={() => handleDownloadPDF(record.id, record.recordNumber)}
+                onClick={() => handleDownloadPDF(record.id.toString(), record.minuteCode)}
                 sx={{
                   color: 'text.secondary',
                   '&:hover': {
@@ -987,6 +1008,15 @@ const AdjustmentReplacementRecordManagement = () => {
             {snackbar.message}
           </Alert>
         </Snackbar>
+
+        {/* ============================================================ */}
+        {/* UPLOAD MINUTE DIALOG */}
+        {/* ============================================================ */}
+        <UploadMinuteDialog
+          open={uploadDialogOpen}
+          onClose={() => setUploadDialogOpen(false)}
+          onSuccess={handleUploadSuccess}
+        />
       </Box>
     </LocalizationProvider>
   )

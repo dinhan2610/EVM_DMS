@@ -776,7 +776,7 @@ const StatementManagement = () => {
     {
       field: 'code',
       headerName: 'Mã Bảng kê',
-      width: 160,
+      width: 150,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -801,7 +801,7 @@ const StatementManagement = () => {
       field: 'customerName',
       headerName: 'Khách hàng',
       flex: 1,
-      minWidth: 220,
+      minWidth: 280,
       sortable: true,
       align: 'left',
       headerAlign: 'center',
@@ -812,6 +812,9 @@ const StatementManagement = () => {
             fontWeight: 500,
             color: '#2c3e50',
             paddingLeft: 2,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
           }}>
           {params.value}
         </Typography>
@@ -896,7 +899,7 @@ const StatementManagement = () => {
     {
       field: 'status',
       headerName: 'Trạng thái',
-      width: 160,
+      width: 150,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
@@ -909,7 +912,11 @@ const StatementManagement = () => {
             label={statusLabel}
             color={getStatementStatusColor(status)}
             size="small"
-            sx={{ fontWeight: 600, minWidth: 130 }}
+            sx={{ 
+              fontWeight: 600, 
+              minWidth: 120,
+              fontSize: '0.8125rem',
+            }}
           />
         )
       },
@@ -1051,17 +1058,26 @@ const StatementManagement = () => {
                 borderBottom: '1px solid #f0f0f0',
                 display: 'flex',
                 alignItems: 'center',
+                padding: '12px 16px',
               },
               '& .MuiDataGrid-columnHeaders': {
                 backgroundColor: '#f8f9fa',
                 borderBottom: '2px solid #e0e0e0',
                 fontWeight: 600,
+                minHeight: '56px !important',
+                maxHeight: '56px !important',
               },
               '& .MuiDataGrid-columnHeaderTitle': {
                 fontWeight: 600,
+                fontSize: '0.875rem',
               },
-              '& .MuiDataGrid-row:hover': {
-                backgroundColor: '#f8f9fa',
+              '& .MuiDataGrid-row': {
+                minHeight: '64px !important',
+                maxHeight: '64px !important',
+                '&:hover': {
+                  backgroundColor: '#f8f9fa',
+                  cursor: 'pointer',
+                },
               },
               '& .MuiDataGrid-footerContainer': {
                 borderTop: '2px solid #e0e0e0',

@@ -77,7 +77,7 @@ const adminCustomers: MenuItemType = {
   icon: 'iconamoon:profile-circle-duotone',
   label: 'Quản lý Khách hàng',
   url: '/admin/customers',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD],
+  roles: [USER_ROLES.HOD],
 }
 
 // === INVOICE MENUS (Flattened) ===
@@ -86,7 +86,7 @@ const invoicesList: MenuItemType = {
   icon: 'iconamoon:invoice-duotone',
   label: 'Danh sách hoá đơn',
   url: '/invoices',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.ACCOUNTANT], // ❌ HOD KHÔNG có
+  roles: [USER_ROLES.ACCOUNTANT],
 }
 
 const saleInvoicesList: MenuItemType = {
@@ -102,7 +102,7 @@ const invoiceRequests: MenuItemType = {
   icon: 'iconamoon:folder-check-duotone',
   label: 'Yêu cầu xuất HĐ',
   url: '/invoice-requests',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES],
+  roles: [USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES],
 }
 
 const invoicesApproval: MenuItemType = {
@@ -110,7 +110,7 @@ const invoicesApproval: MenuItemType = {
   icon: 'iconamoon:certificate-badge-duotone',
   label: 'Duyệt hoá đơn',
   url: '/approval/invoices',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD], // ❌ Accountant KHÔNG có
+  roles: [USER_ROLES.HOD],
 }
 
 const invoicesCreate: MenuItemType = {
@@ -118,7 +118,7 @@ const invoicesCreate: MenuItemType = {
   icon: 'iconamoon:file-add-duotone',
   label: 'Tạo hoá đơn',
   url: '/invoices/create',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
+  roles: [USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
 }
 
 const statements: MenuItemType = {
@@ -126,7 +126,7 @@ const statements: MenuItemType = {
   icon: 'iconamoon:folder-duotone',
   label: 'Bảng kê',
   url: '/statements',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES],
+  roles: [USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES],
 }
 
 const debt: MenuItemType = {
@@ -134,7 +134,7 @@ const debt: MenuItemType = {
   icon: 'mdi:account-cash',
   label: 'Công nợ',
   url: '/debt',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES],
+  roles: [USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES],
 }
 
 const items: MenuItemType = {
@@ -142,7 +142,7 @@ const items: MenuItemType = {
   icon: 'iconamoon:category-duotone',
   label: 'Danh mục hàng hoá',
   url: '/items',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
+  roles: [USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
 }
 
 const taxErrorNotifications: MenuItemType = {
@@ -150,7 +150,7 @@ const taxErrorNotifications: MenuItemType = {
   icon: 'mdi:bell-alert',
   label: 'Thông báo sai sót',
   url: '/tax-error-notifications',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
+  roles: [USER_ROLES.HOD, USER_ROLES.ACCOUNTANT],
 }
 
 const adjustmentReplacementRecords: MenuItemType = {
@@ -158,7 +158,7 @@ const adjustmentReplacementRecords: MenuItemType = {
   icon: 'mdi:file-document-edit-outline',
   label: 'Biên bản ĐC/TT',
   url: '/adjustment-replacement-records',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES],
+  roles: [USER_ROLES.HOD, USER_ROLES.ACCOUNTANT, USER_ROLES.SALES],
 }
 
 // === SALES MENUS (Flattened) ===

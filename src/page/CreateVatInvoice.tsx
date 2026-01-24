@@ -1211,7 +1211,7 @@ const CreateVatInvoice: React.FC = () => {
         setBuyerAddress(foundCustomer.address)
         setBuyerEmail(foundCustomer.contactEmail)
         setBuyerPhone(foundCustomer.contactPhone)
-        // buyerName để trống cho người dùng tự nhập
+        setBuyerName(foundCustomer.contactPerson || '')  // ✅ Lấy từ Customer.contactPerson
         
         console.log('✅ Found customer:', foundCustomer.customerName)
         setSnackbar({
@@ -1404,7 +1404,7 @@ const CreateVatInvoice: React.FC = () => {
       setBuyerAddress(customer.address)
       setBuyerEmail(customer.contactEmail)
       setBuyerPhone(customer.contactPhone)
-      // setBuyerName - Không autofill, để người dùng tự nhập
+      setBuyerName(customer.contactPerson || '')  // ✅ Lấy từ Customer.contactPerson
       
       setSnackbar({
         open: true,
@@ -1707,6 +1707,7 @@ const CreateVatInvoice: React.FC = () => {
    * ✅ LUÔN return object để preview hiển thị đầy đủ template
    */
   const mapBuyerToCustomerInfo = (): CustomerInfo => {
+    console.log('🔍 DEBUG mapBuyerToCustomerInfo - buyerName:', buyerName)
     return {
       name: buyerCompanyName || '', // Để trống nếu chưa nhập
       email: buyerEmail || '',
