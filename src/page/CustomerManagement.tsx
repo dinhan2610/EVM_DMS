@@ -24,8 +24,10 @@ import {
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined' // ✅ Thêm icon xem chi tiết
 import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined'
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined'
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline' // ✅ Thêm icon contactPerson
 import { usePageTitle } from '@/hooks/usePageTitle'
 import PhoneOutlinedIcon from '@mui/icons-material/PhoneOutlined'
 import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined'
@@ -45,6 +47,7 @@ export interface Customer {
   email: string
   phone: string
   address: string
+  contactPerson: string // ✅ Thêm contactPerson từ API
   status: 'Active' | 'Inactive'
 }
 
@@ -55,6 +58,7 @@ const initialFormState: Omit<Customer, 'id'> = {
   email: '',
   phone: '',
   address: '',
+  contactPerson: '', // ✅ Thêm contactPerson
   status: 'Active',
 }
 
@@ -72,6 +76,10 @@ const CustomerManagement = () => {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [formData, setFormData] = useState<Omit<Customer, 'id'>>(initialFormState)
   const [isSaving, setIsSaving] = useState(false)
+  
+  // ✅ State cho modal xem chi tiết
+  const [viewDetailModalOpen, setViewDetailModalOpen] = useState(false)
+  const [selectedCustomerForView, setSelectedCustomerForView] = useState<Customer | null>(null)
 
   // Toggle Status States
   const [confirmToggleModalOpen, setConfirmToggleModalOpen] = useState(false)
@@ -100,6 +108,7 @@ const CustomerManagement = () => {
         email: c.contactEmail,
         phone: c.contactPhone,
         address: c.address,
+        contactPerson: c.contactPerson || '', // ✅ Thêm contactPerson từ API
         status: c.isActive ? 'Active' : 'Inactive',
       }))
       
@@ -198,6 +207,7 @@ const CustomerManagement = () => {
         customerName: customer.customerName,
         taxCode: customer.taxCode,
         email: customer.email,
+        contactPerson: customer.contactPerson || '', // ✅ Thêm contactPerson khi edit
         phone: customer.phone,
         address: customer.address,
         status: customer.status,
@@ -215,6 +225,16 @@ const CustomerManagement = () => {
     setFormData(initialFormState)
     setTaxCodeError('')
     setIsCheckingTaxCode(false)
+  }
+
+  const handleViewDetails = (customer: Customer) => {
+    setSelectedCustomerForView(customer)
+    setViewDetailModalOpen(true)
+  }
+
+  const handleCloseViewDetailModal = () => {
+    setViewDetailModalOpen(false)
+    setSelectedCustomerForView(null)
   }
 
   const handleSaveCustomer = async () => {
@@ -260,7 +280,7 @@ const CustomerManagement = () => {
           taxCode: formData.taxCode,
           address: formData.address,
           contactEmail: formData.email,
-          contactPerson: formData.customerName, // Sử dụng customerName làm contactPerson
+          contactPerson: formData.contactPerson || formData.customerName, // ✅ Dùng contactPerson từ form, fallback customerName
           contactPhone: formData.phone,
         })
         
@@ -270,13 +290,13 @@ const CustomerManagement = () => {
           severity: 'success',
         })
       } else {
-        // Add new customer
+        // Add new customer - KHÔNG gửi contactPerson (backend sẽ tự set)
         await customerService.createCustomer({
           customerName: formData.customerName,
           taxCode: formData.taxCode,
           address: formData.address,
           contactEmail: formData.email,
-          contactPerson: formData.customerName, // Sử dụng customerName làm contactPerson
+          contactPerson: formData.customerName, // ✅ Khi tạo mới, dùng customerName
           contactPhone: formData.phone,
           isActive: formData.status === 'Active',
         })
@@ -478,6 +498,17 @@ const CustomerManagement = () => {
       renderCell: (params: GridRenderCellParams<Customer>) => (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
           <Stack direction="row" spacing={0.5}>
+            {/* View Details Button */}
+            <Tooltip title="Xem chi tiết">
+              <IconButton
+                size="small"
+                color="info"
+                onClick={() => handleViewDetails(params.row)}
+              >
+                <VisibilityOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+
             {/* Edit Button */}
             <Tooltip title="Chỉnh sửa">
               <IconButton
@@ -698,29 +729,31 @@ const CustomerManagement = () => {
               />
             </Grid>
 
-            {/* Email */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                label="Email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => handleFormChange('email', e.target.value)}
-                placeholder="contact@company.com"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <EmailOutlinedIcon sx={{ fontSize: 20, color: 'action.active' }} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 2,
-                  },
-                }}
-              />
-            </Grid>
+            {/* Contact Person - Only show in Edit mode */}
+            {editingCustomer && (
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  fullWidth
+                  label="Người liên hệ"
+                  value={formData.contactPerson}
+                  onChange={(e) => handleFormChange('contactPerson', e.target.value)}
+                  placeholder="VD: Nguyễn Văn A"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonOutlineIcon sx={{ fontSize: 20, color: 'action.active' }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                    },
+                  }}
+                  helperText="Người liên hệ có thể được cập nhật khi tạo hóa đơn"
+                />
+              </Grid>
+            )}
 
             {/* Phone */}
             <Grid size={{ xs: 12, md: 6 }}>
@@ -734,6 +767,30 @@ const CustomerManagement = () => {
                   startAdornment: (
                     <InputAdornment position="start">
                       <PhoneOutlinedIcon sx={{ fontSize: 20, color: 'action.active' }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                  },
+                }}
+              />
+            </Grid>
+
+            {/* Email - Full Width */}
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                label="Email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleFormChange('email', e.target.value)}
+                placeholder="contact@company.com"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <EmailOutlinedIcon sx={{ fontSize: 20, color: 'action.active' }} />
                     </InputAdornment>
                   ),
                 }}
@@ -955,6 +1012,264 @@ const CustomerManagement = () => {
           >
             {selectedCustomerForToggle?.status === 'Active' ? 'Vô hiệu hóa' : 'Kích hoạt'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* View Details Modal */}
+      <Dialog
+        open={viewDetailModalOpen}
+        onClose={handleCloseViewDetailModal}
+        fullScreen={isMobile}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: { xs: 0, sm: 3 },
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            fontWeight: 600,
+            p: 3,
+          }}
+        >
+          <VisibilityOutlinedIcon color="primary" sx={{ fontSize: 28 }} />
+          <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
+            Chi tiết Khách hàng
+          </Typography>
+        </DialogTitle>
+
+        <Divider />
+
+        <DialogContent sx={{ p: 3 }}>
+          {selectedCustomerForView && (
+            <>
+              <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
+                <Typography variant="body2">
+                  Thông tin chi tiết khách hàng trong hệ thống. Bạn có thể chỉnh sửa bằng nút "Chỉnh sửa".
+                </Typography>
+              </Alert>
+
+              <Grid container spacing={3}>
+                {/* Customer Name */}
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Box
+                    sx={{
+                      p: 2.5,
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      bgcolor: 'grey.50',
+                      height: '100%',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                      <BusinessOutlinedIcon sx={{ color: 'primary.main', fontSize: 20 }} />
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Tên khách hàng
+                      </Typography>
+                    </Box>
+                    <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                      {selectedCustomerForView.customerName}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                {/* Tax Code */}
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Box
+                    sx={{
+                      p: 2.5,
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      bgcolor: 'grey.50',
+                      height: '100%',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                      <ReceiptLongOutlinedIcon sx={{ color: 'primary.main', fontSize: 20 }} />
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Mã số thuế
+                      </Typography>
+                    </Box>
+                    <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                      {selectedCustomerForView.taxCode}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                {/* Contact Person - Only if exists */}
+                {selectedCustomerForView.contactPerson && (
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Box
+                      sx={{
+                        p: 2.5,
+                        borderRadius: 2,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        bgcolor: 'grey.50',
+                        height: '100%',
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                        <PersonOutlineIcon sx={{ color: 'primary.main', fontSize: 20 }} />
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          Người liên hệ
+                        </Typography>
+                      </Box>
+                      <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                        {selectedCustomerForView.contactPerson}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                )}
+
+                {/* Email */}
+                <Grid size={{ xs: 12, md: selectedCustomerForView.contactPerson ? 6 : 12 }}>
+                  <Box
+                    sx={{
+                      p: 2.5,
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      bgcolor: 'grey.50',
+                      height: '100%',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                      <EmailOutlinedIcon sx={{ color: 'primary.main', fontSize: 20 }} />
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Email liên hệ
+                      </Typography>
+                    </Box>
+                    <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                      {selectedCustomerForView.email}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                {/* Phone */}
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Box
+                    sx={{
+                      p: 2.5,
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      bgcolor: 'grey.50',
+                      height: '100%',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                      <PhoneOutlinedIcon sx={{ color: 'primary.main', fontSize: 20 }} />
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Số điện thoại
+                      </Typography>
+                    </Box>
+                    <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                      {selectedCustomerForView.phone}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                {/* Status */}
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Box
+                    sx={{
+                      p: 2.5,
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      bgcolor: 'grey.50',
+                      height: '100%',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                      {selectedCustomerForView.status === 'Active' ? (
+                        <LockOpenOutlinedIcon sx={{ color: 'success.main', fontSize: 20 }} />
+                      ) : (
+                        <LockOutlinedIcon sx={{ color: 'error.main', fontSize: 20 }} />
+                      )}
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Trạng thái
+                      </Typography>
+                    </Box>
+                    <Chip
+                      label={selectedCustomerForView.status === 'Active' ? 'Hoạt động' : 'Vô hiệu'}
+                      color={selectedCustomerForView.status === 'Active' ? 'success' : 'default'}
+                      size="small"
+                      variant={selectedCustomerForView.status === 'Active' ? 'filled' : 'outlined'}
+                      sx={{ fontWeight: 600, fontSize: '0.8125rem' }}
+                    />
+                  </Box>
+                </Grid>
+
+                {/* Address - Full Width */}
+                <Grid size={{ xs: 12 }}>
+                  <Box
+                    sx={{
+                      p: 2.5,
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      bgcolor: 'grey.50',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                      <LocationOnOutlinedIcon sx={{ color: 'primary.main', fontSize: 20 }} />
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Địa chỉ
+                      </Typography>
+                    </Box>
+                    <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                      {selectedCustomerForView.address}
+                    </Typography>
+                  </Box>
+                </Grid>
+              </Grid>
+            </>
+          )}
+        </DialogContent>
+
+        <DialogActions sx={{ p: 3, gap: 1 }}>
+          <Button
+            onClick={handleCloseViewDetailModal}
+            variant="outlined"
+            sx={{
+              textTransform: 'none',
+              borderRadius: 2,
+              px: 3,
+            }}
+          >
+            Đóng
+          </Button>
+          {selectedCustomerForView && (
+            <Button
+              onClick={() => {
+                handleCloseViewDetailModal()
+                handleOpenModal(selectedCustomerForView)
+              }}
+              variant="contained"
+              startIcon={<EditOutlinedIcon />}
+              sx={{
+                textTransform: 'none',
+                borderRadius: 2,
+                px: 3,
+                boxShadow: 2,
+                '&:hover': {
+                  boxShadow: 4,
+                },
+              }}
+            >
+              Chỉnh sửa
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
 
