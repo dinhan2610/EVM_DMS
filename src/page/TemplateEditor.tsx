@@ -27,7 +27,7 @@ import {
   Alert,
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
-import InfoIcon from '@mui/icons-material/Info'
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import PrintIcon from '@mui/icons-material/Print'
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview'
@@ -749,7 +749,7 @@ const TemplateEditor: React.FC = () => {
                   height: 36,
                 }}
               >
-                <InfoIcon sx={{ fontSize: 20 }} />
+                <HelpOutlineIcon sx={{ fontSize: 20 }} />
               </IconButton>
             </Tooltip>
 
@@ -882,13 +882,15 @@ const TemplateEditor: React.FC = () => {
                           }}
                         >
                           {serialStatuses.length > 0 ? (
-                            serialStatuses.map((status) => (
-                              <MenuItem key={status.serialStatusID} value={status.symbol} sx={{ fontSize: '0.875rem' }}>
-                                <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
-                                  {status.symbol} - {status.statusName}
-                                </Typography>
-                              </MenuItem>
-                            ))
+                            serialStatuses
+                              .filter((status) => status.symbol === 'C' || status.symbol === 'K')
+                              .map((status) => (
+                                <MenuItem key={status.serialStatusID} value={status.symbol} sx={{ fontSize: '0.875rem' }}>
+                                  <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                                    {status.symbol} - {status.statusName}
+                                  </Typography>
+                                </MenuItem>
+                              ))
                           ) : [
                               <MenuItem key="C" value="C" sx={{ fontSize: '0.875rem' }}>
                                 <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
@@ -1268,7 +1270,7 @@ const TemplateEditor: React.FC = () => {
                                   QR Code
                                 </Typography>
                                 <Tooltip title="Mã QR tra cứu hóa đơn trên cổng Tổng cục thuế">
-                                  <InfoIcon sx={{ fontSize: 14, color: '#9e9e9e' }} />
+                                  <HelpOutlineIcon sx={{ fontSize: 14, color: '#9e9e9e' }} />
                                 </Tooltip>
                               </Box>
                             }
@@ -1304,7 +1306,7 @@ const TemplateEditor: React.FC = () => {
                                   🌐 Hóa đơn song ngữ (Vietnamese - English)
                                 </Typography>
                                 <Tooltip title="Hiển thị nội dung hóa đơn bằng tiếng Việt và tiếng Anh theo chuẩn quốc tế">
-                                  <InfoIcon sx={{ fontSize: 14, color: '#9e9e9e' }} />
+                                  <HelpOutlineIcon sx={{ fontSize: 14, color: '#9e9e9e' }} />
                                 </Tooltip>
                               </Box>
                             }

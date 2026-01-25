@@ -29,6 +29,7 @@ import ClearIcon from '@mui/icons-material/Clear'
 import { Dayjs } from 'dayjs'
 import customerService from '@/services/customerService'
 import { INVOICE_TYPE, INVOICE_TYPE_LABELS } from '@/services/invoiceService'
+import { INVOICE_INTERNAL_STATUS, INVOICE_INTERNAL_STATUS_LABELS } from '@/constants/invoiceStatus'
 
 // Interface cho state của filter
 export interface InvoiceFilterState {
@@ -50,15 +51,20 @@ interface InvoiceFilterProps {
   actionButton?: React.ReactNode // Nút action tùy chỉnh (ví dụ: Tạo hóa đơn)
 }
 
-// Dữ liệu mẫu cho Selects - đồng bộ với InvoiceManagement
+/**
+ * ✅ TRẠNG THÁI HÓA ĐƠN - ĐỒNG BỘ VỚI BACKEND
+ * Dùng ID thay vì tên tiếng Việt để lọc chính xác
+ * Backend: PUT /api/Invoice/{id}?statusId={statusId}
+ */
 const allInvoiceStatus = [
-  'Nháp',
-  'Đã ký',
-  'Đã phát hành',
-  'Đã gửi',
-  'Bị từ chối',
-  'Đã thanh toán',
-  'Đã hủy',
+  { id: INVOICE_INTERNAL_STATUS.DRAFT, label: INVOICE_INTERNAL_STATUS_LABELS[INVOICE_INTERNAL_STATUS.DRAFT] },
+  { id: INVOICE_INTERNAL_STATUS.PENDING_APPROVAL, label: INVOICE_INTERNAL_STATUS_LABELS[INVOICE_INTERNAL_STATUS.PENDING_APPROVAL] },
+  { id: INVOICE_INTERNAL_STATUS.PENDING_SIGN, label: INVOICE_INTERNAL_STATUS_LABELS[INVOICE_INTERNAL_STATUS.PENDING_SIGN] },
+  { id: INVOICE_INTERNAL_STATUS.SIGNED, label: INVOICE_INTERNAL_STATUS_LABELS[INVOICE_INTERNAL_STATUS.SIGNED] },
+  { id: INVOICE_INTERNAL_STATUS.SENT, label: INVOICE_INTERNAL_STATUS_LABELS[INVOICE_INTERNAL_STATUS.SENT] },
+  { id: INVOICE_INTERNAL_STATUS.ISSUED, label: INVOICE_INTERNAL_STATUS_LABELS[INVOICE_INTERNAL_STATUS.ISSUED] },
+  { id: INVOICE_INTERNAL_STATUS.REJECTED, label: INVOICE_INTERNAL_STATUS_LABELS[INVOICE_INTERNAL_STATUS.REJECTED] },
+  { id: INVOICE_INTERNAL_STATUS.CANCELLED, label: INVOICE_INTERNAL_STATUS_LABELS[INVOICE_INTERNAL_STATUS.CANCELLED] },
 ]
 
 const allTaxStatus = ['Chờ đồng bộ', 'Đã đồng bộ', 'Lỗi']
@@ -206,7 +212,7 @@ const InvoiceFilter: React.FC<InvoiceFilterProps> = ({
       
       if (hasSelectAll && !prevHasSelectAll) {
         // User vừa chọn "Tất cả" -> chọn tất cả options
-        processedValue = ['ALL', ...allInvoiceStatus]
+        processedValue = ['ALL', ...allInvoiceStatus.map(s => String(s.id))]
       } else if (!hasSelectAll && prevHasSelectAll) {
         // User vừa bỏ "Tất cả" -> bỏ chọn tất cả
         processedValue = []
@@ -473,9 +479,13 @@ const InvoiceFilter: React.FC<InvoiceFilterProps> = ({
                       if (selected.includes('ALL') || filteredSelected.length === allInvoiceStatus.length) {
                         return 'Tất cả trạng thái'
                       }
+                      if (filteredSelected.length === 0) return ''
                       return filteredSelected.length > 2
                         ? `${filteredSelected.length} trạng thái`
-                        : filteredSelected.join(', ')
+                        : filteredSelected.map(id => {
+                            const status = allInvoiceStatus.find(s => String(s.id) === String(id))
+                            return status?.label || id
+                          }).join(', ')
                     }}
                     sx={{
                       backgroundColor: '#f8f9fa',
@@ -510,9 +520,9 @@ const InvoiceFilter: React.FC<InvoiceFilterProps> = ({
                       />
                     </MenuItem>
                     {allInvoiceStatus.map((status) => (
-                      <MenuItem key={status} value={status}>
+                      <MenuItem key={status.id} value={String(status.id)}>
                         <Checkbox
-                          checked={filters.invoiceStatus.indexOf(status) > -1}
+                          checked={filters.invoiceStatus.indexOf(String(status.id)) > -1}
                           size="small"
                           sx={{
                             color: '#1976d2',
@@ -521,7 +531,7 @@ const InvoiceFilter: React.FC<InvoiceFilterProps> = ({
                             },
                           }}
                         />
-                        <ListItemText primary={status} />
+                        <ListItemText primary={status.label} />
                       </MenuItem>
                     ))}
                   </Select>
