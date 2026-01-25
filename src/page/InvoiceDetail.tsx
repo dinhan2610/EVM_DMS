@@ -385,11 +385,11 @@ const InvoiceDetail: React.FC = () => {
         {/* Info Row */}
         <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center', width: '100%' }}>
           <Box sx={{ maxWidth: '21cm', width: '100%' }}>
-            {/* Display adjustment reason if exists */}
+            {/* ✅ Display adjustment/replacement reason with correct label */}
             {invoice.adjustmentReason && (
               <Alert severity="info" sx={{ mt: 2 }}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  Lý do điều chỉnh:
+                  {isReplacementInvoice ? 'Lý do thay thế:' : 'Lý do điều chỉnh:'}
                 </Typography>
                 <Typography variant="body2">
                   {invoice.adjustmentReason}
