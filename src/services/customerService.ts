@@ -20,6 +20,7 @@ export interface Customer {
 }
 
 export interface CreateCustomerRequest {
+  saleID: number | null;   // ✅ ID nhân viên sales phụ trách (null = unassigned)
   customerName: string;
   taxCode: string;
   address: string;

@@ -38,6 +38,7 @@ import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import customerService from '@/services/customerService'
 import CustomerFilter, { CustomerFilterState } from '@/components/CustomerFilter'
+import { getUserIdFromToken, getRoleFromToken } from '@/utils/tokenUtils'
 
 // Interface (Frontend) - Map từ Backend
 export interface Customer {
@@ -290,13 +291,26 @@ const CustomerManagement = () => {
           severity: 'success',
         })
       } else {
-        // Add new customer - KHÔNG gửi contactPerson (backend sẽ tự set)
+        // ✅ Xác định saleID dựa trên role của user
+        const userRole = getRoleFromToken()
+        const currentUserId = getUserIdFromToken()
+        
+        // Sales role → gán saleID = userId từ token
+        // Accountant/Admin → saleID = null (unassigned)
+        const saleID = userRole === 'Sales' && currentUserId ? currentUserId : null
+        
+        console.log('🔐 [Create Customer] User Role:', userRole)
+        console.log('👤 [Create Customer] User ID:', currentUserId)
+        console.log('🎯 [Create Customer] Assigned saleID:', saleID)
+        
+        // Add new customer với saleID
         await customerService.createCustomer({
+          saleID: saleID,          // ✅ Sales: userId từ token, Others: 0
           customerName: formData.customerName,
           taxCode: formData.taxCode,
           address: formData.address,
           contactEmail: formData.email,
-          contactPerson: formData.customerName, // ✅ Khi tạo mới, dùng customerName
+          contactPerson: '',       // ✅ Để rỗng - User sẽ nhập thủ công khi tạo hóa đơn
           contactPhone: formData.phone,
           isActive: formData.status === 'Active',
         })
@@ -656,7 +670,7 @@ const CustomerManagement = () => {
             </Typography>
           </Alert>
 
-          <Grid container spacing={2.5}>
+          <Grid container spacing={3}>
             {/* Customer Name */}
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
@@ -755,6 +769,30 @@ const CustomerManagement = () => {
               </Grid>
             )}
 
+            {/* Email */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                label="Email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleFormChange('email', e.target.value)}
+                placeholder="contact@company.com"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <EmailOutlinedIcon sx={{ fontSize: 20, color: 'action.active' }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                  },
+                }}
+              />
+            </Grid>
+
             {/* Phone */}
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
@@ -767,30 +805,6 @@ const CustomerManagement = () => {
                   startAdornment: (
                     <InputAdornment position="start">
                       <PhoneOutlinedIcon sx={{ fontSize: 20, color: 'action.active' }} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 2,
-                  },
-                }}
-              />
-            </Grid>
-
-            {/* Email - Full Width */}
-            <Grid size={{ xs: 12 }}>
-              <TextField
-                fullWidth
-                label="Email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => handleFormChange('email', e.target.value)}
-                placeholder="contact@company.com"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <EmailOutlinedIcon sx={{ fontSize: 20, color: 'action.active' }} />
                     </InputAdornment>
                   ),
                 }}
