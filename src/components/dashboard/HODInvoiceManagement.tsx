@@ -809,7 +809,16 @@ const HODInvoiceManagement = () => {
       if (autoIssueAfterSign) {
         // Bước 2: Gửi CQT
         setSigningProgress({ step: 'submitting', message: '🏛️ Gửi lên Cơ quan Thuế...' })
-
+        
+        if (import.meta.env.DEV) {
+          console.log(`🔵 [HOD] Submitting invoice ${invoiceIdNum} to Tax Authority...`)
+        }
+        
+        const taxCode = await invoiceService.submitToTaxAuthority(invoiceIdNum)
+        
+        if (import.meta.env.DEV) {
+          console.log(`✅ [HOD] Tax submission successful. Tax Code: ${taxCode}`)
+        }
         
         // 🔄 Load sau khi gửi CQT
         await loadInvoices()
@@ -836,10 +845,10 @@ const HODInvoiceManagement = () => {
         // 🔄 Load cuối cùng
         await loadInvoices()
         
-        // ✅ Hoàn tất - hiển thị snackbar
+        // ✅ Hoàn tất - hiển thị snackbar với mã CQT
         setSnackbar({
           open: true,
-          message: `Đã ký số và phát hành hóa đơn thành công!`,
+          message: `✅ Đã ký số, gửi CQT và phát hành hóa đơn ${invoiceNumber} thành công!\n🏛️ Mã CQT: ${taxCode}`,
           severity: 'success',
         })
       } else {

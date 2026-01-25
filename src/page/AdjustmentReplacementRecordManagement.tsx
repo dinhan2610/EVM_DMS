@@ -13,6 +13,13 @@ import {
   MenuItem,
   ListItemIcon,
   ListItemText,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Stack,
+  CircularProgress,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
@@ -21,14 +28,16 @@ import dayjs from 'dayjs'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import DownloadIcon from '@mui/icons-material/Download'
 import UploadIcon from '@mui/icons-material/Upload'
+import UploadFileIcon from '@mui/icons-material/UploadFile'
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined'
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'
+import PersonIcon from '@mui/icons-material/Person'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useNavigate } from 'react-router-dom'
 import Spinner from '@/components/Spinner'
 import UploadMinuteDialog from '@/components/UploadMinuteDialog'
 
-import { getMinutes, type MinuteRecord } from '@/services/minuteService'
+import { getMinutes, uploadMinute, validatePdfFile, type MinuteRecord } from '@/services/minuteService'
 
 // ============================================================
 // 📋 INTERFACE DEFINITIONS - Cập nhật theo API response
@@ -101,17 +110,79 @@ const getRecordTypeLabel = (type: 'Adjustment' | 'Replacement'): string => {
 }
 
 /**
+ * Map trạng thái biên bản sang tiếng Việt
+ * Backend enum: EMinuteStatus
+ * - Pending = 1: Chờ ký
+ * - Signed = 2: Đã ký đầy đủ
+ * - Sent = 3: Đã gửi
+ * - Complete = 4: Hai bên đồng thuận
+ * - Cancelled = 5: Đã hủy
+ */
+const getMinuteStatusLabel = (status: string | number): string => {
+  // Nếu là số (enum value)
+  if (typeof status === 'number') {
+    switch (status) {
+      case 1: return 'Chờ ký'
+      case 2: return 'Đã ký đầy đủ'
+      case 3: return 'Đã gửi'
+      case 4: return 'Hai bên đồng thuận'
+      case 5: return 'Đã hủy'
+      default: return 'Không xác định'
+    }
+  }
+  
+  // Nếu là chuỗi (enum name)
+  const statusStr = status.toString().toLowerCase()
+  switch (statusStr) {
+    case 'pending': return 'Chờ ký'
+    case 'signed': return 'Đã ký đầy đủ'
+    case 'sent': return 'Đã gửi'
+    case 'complete': return 'Hai bên đồng thuận'
+    case 'cancelled': return 'Đã hủy'
+    default: return status.toString() // Hiển thị giá trị gốc nếu không match
+  }
+}
+
+/**
  * Lấy màu cho trạng thái biên bản
  */
-const getStatusColor = (status: string): 'default' | 'primary' | 'success' | 'error' | 'warning' => {
-  switch (status) {
-    case 'Sent': return 'success' // Đã gửi
-    case 'Draft': return 'default' // Bản nháp
-    case 'Pending': return 'warning' // Chờ duyệt
-    case 'Rejected': return 'error' // Từ chối
-    case 'Approved': return 'success' // Đã duyệt
+const getStatusColor = (status: string | number): 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info' => {
+  // Nếu là số (enum value)
+  if (typeof status === 'number') {
+    switch (status) {
+      case 1: return 'warning'    // Pending - Chờ ký (vàng cam)
+      case 2: return 'info'       // Signed - Đã ký đầy đủ (xanh dương)
+      case 3: return 'primary'    // Sent - Đã gửi (xanh dương đậm)
+      case 4: return 'success'    // Complete - Hai bên đồng thuận (xanh lá)
+      case 5: return 'error'      // Cancelled - Đã hủy (đỏ)
+      default: return 'default'
+    }
+  }
+  
+  // Nếu là chuỗi (enum name)
+  const statusStr = status.toString().toLowerCase()
+  switch (statusStr) {
+    case 'pending': return 'warning'    // Chờ ký
+    case 'signed': return 'info'        // Đã ký đầy đủ
+    case 'sent': return 'primary'       // Đã gửi
+    case 'complete': return 'success'   // Hai bên đồng thuận
+    case 'cancelled': return 'error'    // Đã hủy
     default: return 'default'
   }
+}
+
+/**
+ * Map role name từ tiếng Anh sang tiếng Việt
+ */
+const mapRoleNameToVietnamese = (roleName: string): string => {
+  const roleMapping: { [key: string]: string } = {
+    'Accountant User': 'Kế toán',
+    'Admin User': 'Quản trị viên',
+    'Head Dept User': 'Kế toán trưởng',
+    'Sales User': 'Nhân viên bán hàng',
+  }
+  
+  return roleMapping[roleName] || roleName
 }
 
 // ============================================================
@@ -175,6 +246,16 @@ const AdjustmentReplacementRecordManagement = () => {
 
   // Upload dialog state
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
+  
+  // State for uploading file to specific minute record
+  const [uploadingMinute, setUploadingMinute] = useState<{
+    recordId: number
+    invoiceId: number
+    minuteType: 'Adjustment' | 'Replacement'
+  } | null>(null)
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadDescription, setUploadDescription] = useState('')
+  const [uploadDialogForRecordOpen, setUploadDialogForRecordOpen] = useState(false)
 
   // ============================================================
   // 🔌 API INTEGRATION - TODO: Implement your API calls
@@ -334,14 +415,6 @@ const AdjustmentReplacementRecordManagement = () => {
   }
   
   /**
-   * Upload biên bản từ file
-   * Mở dialog để user nhập thông tin và chọn file PDF
-   */
-  const handleUploadRecord = () => {
-    setUploadDialogOpen(true)
-  }
-
-  /**
    * Callback khi upload thành công
    * Reload danh sách và hiển thị thông báo
    */
@@ -352,6 +425,80 @@ const AdjustmentReplacementRecordManagement = () => {
       message: '✅ Upload biên bản thành công!',
       severity: 'success',
     })
+  }
+
+  /**
+   * Mở dialog upload cho biên bản cụ thể
+   */
+  const handleOpenUploadForRecord = (record: AdjustmentReplacementRecord) => {
+    setUploadingMinute({
+      recordId: record.id,
+      invoiceId: record.invoiceId,
+      minuteType: record.minuteType,
+    })
+    setUploadFile(null)
+    setUploadDescription('')
+    setUploadDialogForRecordOpen(true)
+  }
+
+  /**
+   * Upload file PDF cho biên bản
+   */
+  const handleUploadFileForRecord = async () => {
+    if (!uploadingMinute || !uploadFile) {
+      setSnackbar({
+        open: true,
+        message: '⚠️ Vui lòng chọn file PDF',
+        severity: 'warning',
+      })
+      return
+    }
+
+    // Validate PDF file
+    const validationError = validatePdfFile(uploadFile)
+    if (validationError) {
+      setSnackbar({
+        open: true,
+        message: validationError,
+        severity: 'error',
+      })
+      return
+    }
+
+    setLoading(true)
+    try {
+      const minuteTypeNumber = uploadingMinute.minuteType === 'Adjustment' ? 1 : 2
+
+      await uploadMinute({
+        invoiceId: uploadingMinute.invoiceId,
+        minuteType: minuteTypeNumber,
+        description: uploadDescription,
+        pdfFile: uploadFile,
+      })
+
+      setUploadDialogForRecordOpen(false)
+      setUploadingMinute(null)
+      setUploadFile(null)
+      setUploadDescription('')
+      
+      setSnackbar({
+        open: true,
+        message: '✅ Upload biên bản thành công!',
+        severity: 'success',
+      })
+      
+      await loadRecords()
+    } catch (error) {
+      console.error('❌ Upload error:', error)
+      const errorMessage = error instanceof Error ? error.message : '❌ Upload thất bại'
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: 'error',
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   // ============================================================
@@ -417,65 +564,110 @@ const AdjustmentReplacementRecordManagement = () => {
   // ============================================================
   
   const columns: GridColDef[] = [
+    // 1. Mã biên bản
     {
       field: 'minuteCode',
       headerName: 'Mã biên bản',
-      width: 140,
+      flex: 0.9,
+      minWidth: 130,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const value = params.value as string
+        const record = params.row as AdjustmentReplacementRecord
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
             <Typography
               variant="body2"
               sx={{
                 fontWeight: 600,
                 letterSpacing: '0.02em',
-                color: '#1976d2',
+                color: 'primary.main',
                 fontSize: '0.875rem',
-              }}>
+                cursor: 'pointer',
+                '&:hover': {
+                  textDecoration: 'underline',
+                },
+              }}
+              onClick={() => handleViewDetail(record.id.toString())}>
               {value || '-'}
             </Typography>
           </Box>
         )
       },
     },
+    // 2. Người tạo
     {
-      field: 'createdAt',
-      headerName: 'Ngày tạo',
-      width: 130,
+      field: 'createdByName',
+      headerName: 'Người tạo',
+      flex: 1.1,
+      minWidth: 140,
       sortable: true,
-      type: 'date',
       align: 'center',
       headerAlign: 'center',
-      valueGetter: (value: string) => new Date(value),
-      renderCell: (params: GridRenderCellParams) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 500,
-              color: '#546e7a',
-              fontSize: '0.875rem',
-            }}>
-            {dayjs(params.value as Date).format('DD/MM/YYYY')}
-          </Typography>
-        </Box>
-      ),
+      renderCell: (params: GridRenderCellParams) => {
+        const value = params.value as string
+        const vietnameseName = mapRoleNameToVietnamese(value)
+        return (
+          <Tooltip title={`Vai trò: ${vietnameseName}`} arrow placement="top">
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, height: '100%' }}>
+              <PersonIcon fontSize="small" sx={{ color: '#546e7a', fontSize: '1.125rem' }} />
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 500,
+                  color: '#2c3e50',
+                  fontSize: '0.875rem',
+                }}>
+                {vietnameseName || '-'}
+              </Typography>
+            </Box>
+          </Tooltip>
+        )
+      },
     },
+    // 3. Số hóa đơn
+    {
+      field: 'invoiceNo',
+      headerName: 'Số hóa đơn',
+      flex: 0.9,
+      minWidth: 120,
+      sortable: true,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams) => {
+        const value = params.value as string
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Tooltip title={value ? `Hóa đơn: ${value}` : 'Chưa có hóa đơn'} arrow placement="top">
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 600,
+                  color: '#2c3e50',
+                  fontSize: '0.875rem',
+                }}>
+                {value || '-'}
+              </Typography>
+            </Tooltip>
+          </Box>
+        )
+      },
+    },
+    // 4. Loại biên bản
     {
       field: 'minuteType',
       headerName: 'Loại biên bản',
-      width: 140,
+      flex: 1.1,
+      minWidth: 130,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const recordType = params.value as 'Adjustment' | 'Replacement'
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
             <Chip 
               label={getRecordTypeLabel(recordType)} 
               color={getRecordTypeColor(recordType)} 
@@ -485,78 +677,66 @@ const AdjustmentReplacementRecordManagement = () => {
                 fontSize: '0.75rem',
                 height: 28,
                 borderRadius: '20px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  transform: 'translateY(-1px)',
+                  boxShadow: 2,
+                },
               }}
             />
           </Box>
         )
       },
     },
+    // 5. Trạng thái
     {
-      field: 'invoiceNo',
-      headerName: 'Số hóa đơn',
-      width: 130,
+      field: 'status',
+      headerName: 'Trạng thái',
+      flex: 1,
+      minWidth: 140,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
-        const value = params.value as string
+        const status = params.value as string
+        const statusLabel = getMinuteStatusLabel(status)
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
-            <Typography
-              variant="body2"
-              sx={{
-                fontWeight: 500,
-                color: '#2c3e50',
-                fontSize: '0.875rem',
-              }}>
-              {value || '-'}
-            </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Chip 
+              label={statusLabel} 
+              color={getStatusColor(status)} 
+              size="small" 
+              sx={{ 
+                fontWeight: 600,
+                fontSize: '0.75rem',
+                height: 28,
+                borderRadius: '20px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  transform: 'translateY(-1px)',
+                  boxShadow: 2,
+                },
+              }}
+            />
           </Box>
         )
       },
     },
+    // 6. Lý do / Mô tả
     {
-      field: 'customerName',
-      headerName: 'Khách hàng',
+      field: 'description',
+      headerName: 'Lý do / Mô tả',
       flex: 1.5,
       minWidth: 220,
       sortable: true,
       align: 'left',
-      headerAlign: 'left',
+      headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const value = params.value as string
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 2, py: 1.5 }}>
-            <Tooltip title={value} arrow placement="top">
-              <Typography
-                variant="body2"
-                sx={{
-                  fontWeight: 500,
-                  color: '#2c3e50',
-                  fontSize: '0.875rem',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}>
-                {value || '-'}
-              </Typography>
-            </Tooltip>
-          </Box>
-        )
-      },
-    },
-    {
-      field: 'description',
-      headerName: 'Lý do / Mô tả',
-      flex: 1.3,
-      minWidth: 200,
-      sortable: true,
-      align: 'left',
-      headerAlign: 'left',
-      renderCell: (params: GridRenderCellParams) => {
-        const value = params.value as string
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 2, py: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', pl: 2 }}>
             <Tooltip title={value} arrow placement="top">
               <Typography
                 variant="body2"
@@ -576,67 +756,44 @@ const AdjustmentReplacementRecordManagement = () => {
         )
       },
     },
+    // 7. Ngày tạo
     {
-      field: 'status',
-      headerName: 'Trạng thái',
-      width: 140,
+      field: 'createdAt',
+      headerName: 'Ngày tạo',
+      flex: 0.9,
+      minWidth: 120,
       sortable: true,
+      type: 'date',
       align: 'center',
       headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) => {
-        const status = params.value as string
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
-            <Chip 
-              label={status} 
-              color={getStatusColor(status)} 
-              size="small" 
-              sx={{ 
-                fontWeight: 600,
-                fontSize: '0.75rem',
-                height: 28,
-                borderRadius: '20px',
-              }}
-            />
-          </Box>
-        )
-      },
+      valueGetter: (value: string) => new Date(value),
+      renderCell: (params: GridRenderCellParams) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 500,
+              color: '#546e7a',
+              fontSize: '0.875rem',
+            }}>
+            {dayjs(params.value as Date).format('DD/MM/YYYY')}
+          </Typography>
+        </Box>
+      ),
     },
-    {
-      field: 'createdByName',
-      headerName: 'Người tạo',
-      width: 150,
-      sortable: true,
-      align: 'center',
-      headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) => {
-        const value = params.value as string
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', py: 1.5 }}>
-            <Typography
-              variant="body2"
-              sx={{
-                fontWeight: 500,
-                color: '#2c3e50',
-                fontSize: '0.875rem',
-              }}>
-              {value || '-'}
-            </Typography>
-          </Box>
-        )
-      },
-    },
+    // 8. Chữ ký
     {
       field: 'signatures',
       headerName: 'Chữ ký',
-      width: 120,
+      flex: 0.9,
+      minWidth: 100,
       sortable: false,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const record = params.row as AdjustmentReplacementRecord
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 1, py: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 1 }}>
             <Tooltip title={record.isSellerSigned ? 'Người bán đã ký' : 'Người bán chưa ký'} arrow>
               <Chip 
                 label="NB" 
@@ -645,8 +802,12 @@ const AdjustmentReplacementRecordManagement = () => {
                 sx={{ 
                   fontWeight: 600,
                   fontSize: '0.7rem',
-                  height: 24,
-                  minWidth: 38,
+                  height: 26,
+                  minWidth: 40,
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    transform: 'scale(1.05)',
+                  },
                 }}
               />
             </Tooltip>
@@ -658,8 +819,12 @@ const AdjustmentReplacementRecordManagement = () => {
                 sx={{ 
                   fontWeight: 600,
                   fontSize: '0.7rem',
-                  height: 24,
-                  minWidth: 38,
+                  height: 26,
+                  minWidth: 40,
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    transform: 'scale(1.05)',
+                  },
                 }}
               />
             </Tooltip>
@@ -670,7 +835,8 @@ const AdjustmentReplacementRecordManagement = () => {
     {
       field: 'actions',
       headerName: 'Thao tác',
-      width: 120,
+      flex: 1,
+      minWidth: 140,
       sortable: false,
       align: 'center',
       headerAlign: 'center',
@@ -678,7 +844,7 @@ const AdjustmentReplacementRecordManagement = () => {
         const record = params.row as AdjustmentReplacementRecord
         
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 0.5, py: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 0.5 }}>
             {/* Icon 1: Xem chi tiết */}
             <Tooltip title="Xem chi tiết" arrow placement="top">
               <IconButton
@@ -697,7 +863,25 @@ const AdjustmentReplacementRecordManagement = () => {
               </IconButton>
             </Tooltip>
             
-            {/* Icon 2: Tải PDF */}
+            {/* Icon 2: Upload file PDF */}
+            <Tooltip title="Upload file PDF" arrow placement="top">
+              <IconButton
+                size="small"
+                onClick={() => handleOpenUploadForRecord(record)}
+                sx={{
+                  color: 'success.main',
+                  '&:hover': {
+                    backgroundColor: 'success.lighter',
+                    transform: 'scale(1.1)',
+                  },
+                  transition: 'all 0.2s ease-in-out',
+                }}
+              >
+                <UploadIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            
+            {/* Icon 3: Tải PDF */}
             <Tooltip title="Tải PDF" arrow placement="top">
               <IconButton
                 size="small"
@@ -838,26 +1022,6 @@ const AdjustmentReplacementRecordManagement = () => {
                     />
                   </MenuItem>
                 </Menu>
-                
-                {/* Nút upload biên bản */}
-                <Button
-                  variant="contained"
-                  color="primary"
-                  startIcon={<UploadIcon />}
-                  onClick={handleUploadRecord}
-                  sx={{
-                    textTransform: 'none',
-                    fontWeight: 600,
-                    height: 42,
-                    minWidth: 160,
-                    boxShadow: '0 2px 8px rgba(28, 132, 238, 0.24)',
-                    '&:hover': {
-                      boxShadow: '0 4px 12px rgba(28, 132, 238, 0.32)',
-                      transform: 'translateY(-1px)',
-                    },
-                  }}>
-                  Upload biên bản
-                </Button>
               </Box>
             </Box>
           </Paper>
@@ -1020,6 +1184,92 @@ const AdjustmentReplacementRecordManagement = () => {
           onClose={() => setUploadDialogOpen(false)}
           onSuccess={handleUploadSuccess}
         />
+
+        {/* ============================================================ */}
+        {/* UPLOAD FILE FOR SPECIFIC RECORD DIALOG */}
+        {/* ============================================================ */}
+        <Dialog
+          open={uploadDialogForRecordOpen}
+          onClose={() => {
+            setUploadDialogForRecordOpen(false)
+            setUploadingMinute(null)
+            setUploadFile(null)
+            setUploadDescription('')
+          }}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>
+            Upload File PDF cho Biên Bản
+            {uploadingMinute && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Loại: <strong>{uploadingMinute.minuteType === 'Adjustment' ? 'Điều chỉnh' : 'Thay thế'}</strong>
+              </Typography>
+            )}
+          </DialogTitle>
+          <DialogContent>
+            <Stack spacing={3} sx={{ mt: 1 }}>
+              {/* File Upload */}
+              <Box>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  File PDF <span style={{ color: 'red' }}>*</span>
+                </Typography>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  fullWidth
+                  startIcon={<UploadFileIcon />}
+                  sx={{ justifyContent: 'flex-start', py: 1.5 }}
+                >
+                  {uploadFile ? uploadFile.name : 'Chọn file PDF (tối đa 10MB)'}
+                  <input
+                    type="file"
+                    hidden
+                    accept=".pdf"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        setUploadFile(file)
+                      }
+                    }}
+                  />
+                </Button>
+              </Box>
+
+              {/* Description */}
+              <TextField
+                label="Mô tả"
+                multiline
+                rows={3}
+                value={uploadDescription}
+                onChange={(e) => setUploadDescription(e.target.value)}
+                placeholder="Nhập mô tả cho biên bản (không bắt buộc)"
+                fullWidth
+              />
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              onClick={() => {
+                setUploadDialogForRecordOpen(false)
+                setUploadingMinute(null)
+                setUploadFile(null)
+                setUploadDescription('')
+              }}
+              disabled={loading}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleUploadFileForRecord}
+              disabled={!uploadFile || loading}
+              startIcon={loading ? <CircularProgress size={20} /> : <UploadIcon />}
+            >
+              {loading ? 'Đang upload...' : 'Upload'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </LocalizationProvider>
   )
