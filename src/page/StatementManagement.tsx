@@ -86,12 +86,13 @@ function convertToLegacyFormat(item: StatementListItem): Statement {
     code: item.statementCode,
     customerName: item.customerName,
     period: item.period, // Now directly from API response (e.g., "01/2026")
-    totalAmount: item.totalAmount, // This is the remaining amount (c\u00f2n n\u1ee3)
+    totalAmount: item.totalAmount, // This is the remaining amount (còn nợ)
     status: item.status as StatementStatus, // e.g., "Sent", "Draft", "Paid"
-    linkedInvoiceNumber: item.totalInvoices > 0 ? `${item.totalInvoices} H\u0110` : null,
+    linkedInvoiceNumber: item.totalInvoices > 0 ? `${item.totalInvoices} HĐ` : null,
     isEmailSent: item.statusID >= 3, // statusID=3 means "Sent", so email was sent
     createdDate: item.statementDate, // Use statementDate as createdDate
-    // New fields from API\n    openingBalance: item.openingBalance,
+    // New fields from API
+    openingBalance: item.openingBalance,
     newCharges: item.newCharges,
     paidAmount: item.paidAmount,
     statusID: item.statusID,
@@ -293,11 +294,11 @@ const StatementManagement = () => {
   const [statements, setStatements] = useState<Statement[]>([])
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
-  const [pagination, setPagination] = useState({
-    pageIndex: 1,
+  
+  // ✅ OPTIMIZED: Client-side pagination (giống InvoiceManagement)
+  const [paginationModel, setPaginationModel] = useState({
     pageSize: 10,
-    totalPages: 0,
-    totalCount: 0,
+    page: 0, // 0-based index for DataGrid
   })
 
   // UI State
@@ -343,8 +344,8 @@ const StatementManagement = () => {
         
         response = await fetchStatementsBySale(
           Number(user.id),
-          pagination.pageIndex, // Backend uses pageNumber
-          pagination.pageSize
+          1, // pageIndex - fetch all for client-side pagination
+          100 // pageSize - fetch all statements
         )
         
         console.log('✅ [Statement - Sales] Backend-filtered statements:', response.items.length)
@@ -352,14 +353,10 @@ const StatementManagement = () => {
       } else {
         // Admin/Accountant/Staff - fetch all statements
         console.log('📡 [Statement - API] Fetching all statements...')
-        console.log('📄 [Statement - Pagination]:', {
-          pageIndex: pagination.pageIndex,
-          pageSize: pagination.pageSize,
-        })
         
         response = await fetchStatements({
-          pageIndex: pagination.pageIndex,
-          pageSize: pagination.pageSize,
+          pageIndex: 1, // Fetch all for client-side pagination
+          pageSize: 100,
         })
       }
       
@@ -383,14 +380,10 @@ const StatementManagement = () => {
       const convertedStatements = response.items.map(convertToLegacyFormat)
       
       setStatements(convertedStatements)
-      
-      setPagination(prev => ({
-        ...prev,
-        totalPages: response.totalPages,
-        totalCount: response.totalCount,
-      }))
 
       console.log('✅ [Statement - Load Complete]:', convertedStatements.length, 'items')
+      console.log('📊 [Statement - IDs]:', convertedStatements.map(s => s.id))
+      console.log('🔍 [Statement - Duplicate check]:', new Set(convertedStatements.map(s => s.id)).size, 'unique IDs')
     } catch (err) {
       let errorMessage = 'Không thể tải danh sách bảng kê'
       if (err && typeof err === 'object' && 'response' in err) {
@@ -407,7 +400,7 @@ const StatementManagement = () => {
     } finally {
       setLoading(false)
     }
-  }, [pagination.pageIndex, pagination.pageSize, user?.role, user?.id])
+  }, [user?.role, user?.id]) // ✅ Removed pagination dependencies
 
   // Load statements on component mount
   useEffect(() => {
@@ -688,6 +681,9 @@ const StatementManagement = () => {
       )
     })
 
+    console.log('🔍 [Filter Result]:', result.length, 'items after filter')
+    console.log('📋 [Filtered IDs]:', result.map(s => s.id))
+    
     return result
   }, [statements, filters])
 
@@ -940,7 +936,7 @@ const StatementManagement = () => {
       <StatementFilter
         onFilterChange={handleFilterChange}
         onReset={handleResetFilter}
-        totalResults={pagination.totalCount}
+        totalResults={statements.length}
         filteredResults={filteredStatements.length}
         actionButton={
           <Button
@@ -1002,20 +998,11 @@ const StatementManagement = () => {
             onRowSelectionModelChange={(newSelection) => {
               setSelectedRowsCount(Array.isArray(newSelection) ? newSelection.length : 0)
             }}
-            paginationMode="server"
-            rowCount={pagination.totalCount}
-            paginationModel={{
-              page: pagination.pageIndex - 1, // DataGrid uses 0-based index
-              pageSize: pagination.pageSize,
-            }}
-            onPaginationModelChange={(model) => {
-              setPagination(prev => ({
-                ...prev,
-                pageIndex: model.page + 1, // Convert to 1-based for API
-                pageSize: model.pageSize,
-              }))
-            }}
-            pageSizeOptions={[5, 10, 25, 50]}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            pageSizeOptions={[5, 10, 25, 50, 100]}
+            getRowHeight={() => 'auto'}
+            density="comfortable"
             localeText={{
               footerRowSelected: (count) => `${count} hàng được chọn`,
             }}
@@ -1070,7 +1057,6 @@ const StatementManagement = () => {
                 margin: 0,
               },
             }}
-            autoHeight
           />
         )}
       </Paper>
