@@ -22,7 +22,6 @@ import {
   RequestManagement,
   ItemsManagement,
   StatementManagement,
-  CreateStatement,
   DebtManagement,
   TaxErrorNotificationManagement,
   AdjustmentReplacementRecordManagement,
@@ -202,16 +201,6 @@ const appsRoutes: RoutesProps[] = [
         <StatementManagement />
       </ProtectedRoute>
     ),
-  },
-  {
-    name: 'Create Statement',
-    path: '/statements/new',
-    element: <CreateStatement />,
-  },
-  {
-    name: 'Edit Statement',
-    path: '/statements/edit/:id',
-    element: <CreateStatement />,
   },
   {
     name: 'Debt Management',

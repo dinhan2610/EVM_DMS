@@ -1,5 +1,4 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Typography,
@@ -267,7 +266,6 @@ const StatementManagement = () => {
   usePageTitle('Quản lý bảng kê')
   
   // Hooks
-  const navigate = useNavigate()
   const { user } = useAuthContext()
 
   // API State
@@ -594,18 +592,21 @@ const StatementManagement = () => {
   }
 
   // Handle create statement from modal
-  const handleCreateStatement = (customerId: number, month: number, year: number) => {
-    console.log('Creating statement:', { customerId, month, year })
+  const handleCreateStatement = async (customerId: number, month: number, year: number) => {
+    console.log('✅ Statement created successfully:', { customerId, month, year })
     
-    // Navigate to create statement page with query params
-    navigate(`/statements/new?customerId=${customerId}&month=${month}&year=${year}`)
+    // Close modal
+    setCreateModalOpen(false)
     
     // Show success message
     setSnackbar({
       open: true,
-      message: 'Đang tạo bảng kê...',
-      severity: 'info',
+      message: '✅ Đã tạo bảng kê thành công!',
+      severity: 'success',
     })
+    
+    // Reload statements to show newly created one
+    await loadStatements()
   }
 
   // ==================== FILTER LOGIC ====================

@@ -21,7 +21,6 @@ export const PublicInvoiceLookup = lazy(() => import('@/page/PublicInvoiceLookup
 export const RequestManagement = lazy(() => import('@/page/RequestManagement'))
 export const ItemsManagement = lazy(() => import('@/page/ItemsManagement'))
 export const StatementManagement = lazy(() => import('@/page/StatementManagement'))
-export const CreateStatement = lazy(() => import('@/page/CreateStatement'))
 export const DebtManagement = lazy(() => import('@/page/DebtManagement'))
 export const TaxErrorNotificationManagement = lazy(() => import('@/page/TaxErrorNotificationManagement'))
 export const AdjustmentReplacementRecordManagement = lazy(() => import('@/page/AdjustmentReplacementRecordManagement'))
