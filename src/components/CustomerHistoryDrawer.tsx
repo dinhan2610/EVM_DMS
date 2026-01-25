@@ -22,12 +22,12 @@ import EditIcon from '@mui/icons-material/Edit'
 import SaveIcon from '@mui/icons-material/Save'
 import CancelIcon from '@mui/icons-material/Cancel'
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive'
-import { ISalesCustomer } from '../page/SalesCustomerPage'
+import { Customer } from '@/page/SalesCustomerManagement'
 import dayjs from 'dayjs'
 
 interface CustomerHistoryDrawerProps {
   open: boolean
-  customer: ISalesCustomer | null
+  customer: Customer | null
   onClose: () => void
 }
 
@@ -172,7 +172,7 @@ const CustomerHistoryDrawer = ({ open, customer, onClose }: CustomerHistoryDrawe
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                {customer.name}
+                {customer.customerName}
               </Typography>
               <Typography variant="caption" sx={{ opacity: 0.9 }}>
                 MST: {customer.taxCode}

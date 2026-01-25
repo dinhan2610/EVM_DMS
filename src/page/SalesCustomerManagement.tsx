@@ -24,10 +24,10 @@ import {
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
-import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined' // ✅ Thêm icon xem chi tiết
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined'
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined'
-import PersonOutlineIcon from '@mui/icons-material/PersonOutline' // ✅ Thêm icon contactPerson
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import PhoneOutlinedIcon from '@mui/icons-material/PhoneOutlined'
 import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined'
@@ -48,7 +48,7 @@ export interface Customer {
   email: string
   phone: string
   address: string
-  contactPerson: string // ✅ Thêm contactPerson từ API
+  contactPerson: string
   status: 'Active' | 'Inactive'
 }
 
@@ -59,12 +59,12 @@ const initialFormState: Omit<Customer, 'id'> = {
   email: '',
   phone: '',
   address: '',
-  contactPerson: '', // ✅ Thêm contactPerson
+  contactPerson: '',
   status: 'Active',
 }
 
-const CustomerManagement = () => {
-  usePageTitle('Quản lý khách hàng')
+const SalesCustomerManagement = () => {
+  usePageTitle('Khách hàng của tôi')
   
   // Theme & Responsive
   const theme = useTheme()
@@ -90,36 +90,66 @@ const CustomerManagement = () => {
   const [taxCodeError, setTaxCodeError] = useState<string>('')
   const [isCheckingTaxCode, setIsCheckingTaxCode] = useState<boolean>(false)
 
+  // Snackbar State
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success' as 'success' | 'error' | 'info' | 'warning',
+  })
+
+  // Filter State
+  const [filters, setFilters] = useState<CustomerFilterState>({
+    searchText: '',
+    dateFrom: null,
+    dateTo: null,
+    status: 'All',
+  })
+
   // useEffect: Fetch customers on mount
   useEffect(() => {
     fetchCustomers()
   }, [])
 
-  // Fetch customers from API
+  // ✅ Fetch customers từ API - SALES CHỈ LẤY KHÁCH HÀNG CỦA MÌNH
   const fetchCustomers = async () => {
     try {
       setIsLoading(true)
-      const data = await customerService.getAllCustomers()
       
-      // Map backend Customer to frontend Customer
-      const mappedCustomers: Customer[] = data.map((c) => ({
-        id: c.customerID.toString(),
-        customerName: c.customerName,
-        taxCode: c.taxCode,
-        email: c.contactEmail,
-        phone: c.contactPhone,
-        address: c.address,
-        contactPerson: c.contactPerson || '', // ✅ Thêm contactPerson từ API
-        status: c.isActive ? 'Active' : 'Inactive',
+      // ✅ Lấy userId từ token
+      const currentUserId = getUserIdFromToken()
+      
+      if (!currentUserId) {
+        throw new Error('Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.')
+      }
+
+      console.log('📥 [Sales] Loading customers for saleID:', currentUserId)
+      
+      // ✅ API: getCustomersBySaleId - CHỈ lấy customers có saleID = userId
+      const apiCustomers = await customerService.getCustomersBySaleId(currentUserId)
+      
+      console.log('✅ [Sales] Loaded customers:', apiCustomers.length)
+
+      // ✅ Map sang frontend format với optional chaining
+      const mappedCustomers: Customer[] = apiCustomers.map((customer) => ({
+        id: String(customer.customerID),
+        customerName: customer.customerName,
+        taxCode: customer.taxCode,
+        email: customer.contactEmail ?? '',
+        phone: customer.contactPhone ?? '',
+        address: customer.address ?? '',
+        contactPerson: customer.contactPerson ?? '',
+        status: customer.isActive ? 'Active' : 'Inactive',
       }))
-      
+
       setCustomers(mappedCustomers)
-      console.log('✅ Loaded', mappedCustomers.length, 'customers')
-    } catch (error) {
-      console.error('❌ Error fetching customers:', error)
+    } catch (error: unknown) {
+      console.error('❌ [Sales] Error fetching customers:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Không thể tải danh sách khách hàng'
+      
+      setCustomers([]) // ✅ Reset customers on error
       setSnackbar({
         open: true,
-        message: 'Không thể tải danh sách khách hàng. Vui lòng thử lại.',
+        message: errorMessage,
         severity: 'error',
       })
     } finally {
@@ -127,80 +157,72 @@ const CustomerManagement = () => {
     }
   }
 
-  // Filter State - sử dụng CustomerFilter
-  const [filters, setFilters] = useState<CustomerFilterState>({
-    searchText: '',
-    dateFrom: null,
-    dateTo: null,
-    status: '',
-  })
-
-  // Snackbar
-  const [snackbar, setSnackbar] = useState<{
-    open: boolean
-    message: string
-    severity: 'success' | 'error' | 'info'
-  }>({
-    open: false,
-    message: '',
-    severity: 'success',
-  })
-
-  // Filtered Data - comprehensive filtering
-  const filteredCustomers = useMemo(() => {
-    return customers.filter((customer) => {
-      // Search text filter
-      if (filters.searchText) {
-        const searchLower = filters.searchText.toLowerCase().trim()
-        const matchesSearch = (
-          customer.customerName.toLowerCase().includes(searchLower) ||
-          customer.taxCode.toLowerCase().includes(searchLower) ||
-          customer.email.toLowerCase().includes(searchLower) ||
-          customer.phone.toLowerCase().includes(searchLower) ||
-          customer.address.toLowerCase().includes(searchLower)
-        )
-        if (!matchesSearch) return false
-      }
-
-      // Status filter
-      if (filters.status && customer.status !== filters.status) {
-        return false
-      }
-
-      // Date range filter (assuming customers have a createdAt field from backend)
-      // Note: Backend Customer interface would need to include createdAt/updatedAt
-      // For now, we'll skip date filtering as it's not in current Customer interface
-      // If backend adds createdAt field, uncomment below:
-      /*
-      if (filters.dateFrom) {
-        const customerDate = dayjs(customer.createdAt)
-        if (customerDate.isBefore(filters.dateFrom, 'day')) return false
-      }
-      if (filters.dateTo) {
-        const customerDate = dayjs(customer.createdAt)
-        if (customerDate.isAfter(filters.dateTo, 'day')) return false
-      }
-      */
-
-      return true
-    })
-  }, [customers, filters])
-
-  // Filter Handlers
+  // Filter handler
   const handleFilterChange = (newFilters: CustomerFilterState) => {
     setFilters(newFilters)
   }
 
   const handleResetFilter = () => {
-    setFilters({
-      searchText: '',
-      dateFrom: null,
-      dateTo: null,
-      status: '',
-    })
+    setFilters({ searchText: '', dateFrom: null, dateTo: null, status: 'All' })
   }
 
-  // Handlers
+  // Filtered customers
+  const filteredCustomers = useMemo(() => {
+    return customers.filter((customer) => {
+      const searchLower = filters.searchText.toLowerCase()
+      const matchesSearch =
+        !filters.searchText ||
+        customer.customerName.toLowerCase().includes(searchLower) ||
+        customer.taxCode.toLowerCase().includes(searchLower) ||
+        customer.email.toLowerCase().includes(searchLower) ||
+        customer.phone.includes(searchLower)
+
+      const matchesStatus =
+        filters.status === 'All' ||
+        customer.status === filters.status
+
+      return matchesSearch && matchesStatus
+    })
+  }, [customers, filters])
+
+  // Check if tax code exists
+  const checkTaxCodeOnBlur = async (taxCode: string) => {
+    if (!taxCode.trim()) {
+      setTaxCodeError('')
+      return
+    }
+
+    if (editingCustomer && editingCustomer.taxCode === taxCode) {
+      setTaxCodeError('')
+      return
+    }
+
+    setIsCheckingTaxCode(true)
+    setTaxCodeError('')
+
+    try {
+      const customer = await customerService.findCustomerByTaxCode(taxCode)
+
+      if (customer) {
+        setTaxCodeError('Mã số thuế/CCCD này đã tồn tại!')
+      } else {
+        setTaxCodeError('')
+      }
+    } catch (error) {
+      console.error('Error checking tax code:', error)
+    } finally {
+      setIsCheckingTaxCode(false)
+    }
+  }
+
+  const handleFormChange = (field: keyof Omit<Customer, 'id'>, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+
+    if (field === 'taxCode' && taxCodeError) {
+      setTaxCodeError('')
+    }
+  }
+
   const handleOpenModal = (customer?: Customer) => {
     if (customer) {
       setEditingCustomer(customer)
@@ -208,15 +230,16 @@ const CustomerManagement = () => {
         customerName: customer.customerName,
         taxCode: customer.taxCode,
         email: customer.email,
-        contactPerson: customer.contactPerson || '', // ✅ Thêm contactPerson khi edit
         phone: customer.phone,
         address: customer.address,
+        contactPerson: customer.contactPerson,
         status: customer.status,
       })
     } else {
       setEditingCustomer(null)
       setFormData(initialFormState)
     }
+    setTaxCodeError('')
     setIsModalOpen(true)
   }
 
@@ -225,7 +248,6 @@ const CustomerManagement = () => {
     setEditingCustomer(null)
     setFormData(initialFormState)
     setTaxCodeError('')
-    setIsCheckingTaxCode(false)
   }
 
   const handleViewDetails = (customer: Customer) => {
@@ -281,7 +303,7 @@ const CustomerManagement = () => {
           taxCode: formData.taxCode,
           address: formData.address,
           contactEmail: formData.email,
-          contactPerson: formData.contactPerson || formData.customerName, // ✅ Dùng contactPerson từ form, fallback customerName
+          contactPerson: formData.contactPerson || formData.customerName,
           contactPhone: formData.phone,
         })
         
@@ -305,9 +327,14 @@ const CustomerManagement = () => {
         console.log('👤 [Create Customer] User ID:', currentUserId)
         console.log('🎯 [Create Customer] Assigned saleID:', saleID)
         
+        // ✅ Validate: Sales MUST have userId
+        if (isSalesRole && !currentUserId) {
+          throw new Error('Không xác định được ID nhân viên. Vui lòng đăng nhập lại.')
+        }
+        
         // Add new customer với saleID
         await customerService.createCustomer({
-          saleID: saleID,          // ✅ Sales: userId từ token, Others: 0
+          saleID: saleID,          // ✅ Sales: userId từ token, Others: null
           customerName: formData.customerName,
           taxCode: formData.taxCode,
           address: formData.address,
@@ -340,14 +367,6 @@ const CustomerManagement = () => {
     }
   }
 
-  const handleFormChange = (field: keyof typeof formData, value: string | boolean) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-    // Clear tax code error when user starts typing
-    if (field === 'taxCode') {
-      setTaxCodeError('')
-    }
-  }
-
   // Toggle Status Handlers
   const handleOpenToggleModal = (customer: Customer) => {
     setSelectedCustomerForToggle(customer)
@@ -355,19 +374,19 @@ const CustomerManagement = () => {
   }
 
   const handleCloseToggleModal = () => {
-    setSelectedCustomerForToggle(null)
     setConfirmToggleModalOpen(false)
+    setSelectedCustomerForToggle(null)
   }
 
   const handleConfirmToggleStatus = async () => {
     if (!selectedCustomerForToggle) return
-    
+
     try {
+      const newStatus = selectedCustomerForToggle.status === 'Active' ? false : true
       const customerId = parseInt(selectedCustomerForToggle.id)
-      const newStatus = selectedCustomerForToggle.status === 'Active' ? 'Inactive' : 'Active'
       
-      // Call API to toggle status
-      if (newStatus === 'Active') {
+      // ✅ Dùng API phù hợp: setCustomerActive hoặc setCustomerInactive
+      if (newStatus) {
         await customerService.setCustomerActive(customerId)
       } else {
         await customerService.setCustomerInactive(customerId)
@@ -375,56 +394,21 @@ const CustomerManagement = () => {
       
       setSnackbar({
         open: true,
-        message: `Đã ${newStatus === 'Active' ? 'kích hoạt' : 'vô hiệu hóa'} khách hàng "${selectedCustomerForToggle.customerName}"`,
-        severity: 'info',
+        message: `${newStatus ? 'Kích hoạt' : 'Vô hiệu hóa'} khách hàng "${selectedCustomerForToggle.customerName}" thành công!`,
+        severity: 'success',
       })
-      
-      // Refresh customer list
+
       await fetchCustomers()
       handleCloseToggleModal()
     } catch (error: unknown) {
-      console.error('❌ Error toggling status:', error)
+      console.error('❌ Error toggling customer status:', error)
       const errorMessage = error instanceof Error ? error.message : 'Có lỗi xảy ra khi thay đổi trạng thái!'
       setSnackbar({
         open: true,
         message: errorMessage,
         severity: 'error',
       })
-      handleCloseToggleModal()
     }
-  }
-
-  // Tax Code Validation Handler
-  const checkTaxCodeOnBlur = async (taxCode: string) => {
-    if (!taxCode.trim()) {
-      setTaxCodeError('Mã số thuế/CCCD là bắt buộc')
-      return
-    }
-
-    // Skip check if editing and tax code hasn't changed
-    if (editingCustomer && editingCustomer.taxCode === taxCode) {
-      setTaxCodeError('')
-      return
-    }
-
-    setIsCheckingTaxCode(true)
-    setTaxCodeError('')
-
-    // Simulate API call (1 second)
-    await new Promise(resolve => setTimeout(resolve, 1000))
-
-    // Check if tax code already exists
-    const isDuplicate = customers.some(
-      c => c.taxCode === taxCode && c.id !== editingCustomer?.id
-    )
-
-    if (isDuplicate) {
-      setTaxCodeError('Lỗi: Mã số thuế/CCCD này đã tồn tại trong hệ thống')
-    } else {
-      setTaxCodeError('') // Valid
-    }
-
-    setIsCheckingTaxCode(false)
   }
 
   // DataGrid Columns
@@ -563,10 +547,10 @@ const CustomerManagement = () => {
         <BusinessOutlinedIcon sx={{ fontSize: 32, color: 'primary.main' }} />
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5 }}>
-            Quản lý Khách hàng
+            Khách hàng của tôi
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Quản lý thông tin khách hàng, dữ liệu nguồn cho hệ thống hóa đơn điện tử
+            Quản lý khách hàng được phân công cho bạn
           </Typography>
         </Box>
       </Box>
@@ -600,50 +584,40 @@ const CustomerManagement = () => {
           pageSizeOptions={[10, 25, 50]}
           disableRowSelectionOnClick
           autoHeight
+          rowHeight={60}
+          columnHeaderHeight={56}
           sx={{
-            border: 0,
+            border: 'none',
+            '& .MuiDataGrid-cell': {
+              borderBottom: '1px solid #f0f0f0',
+              padding: 0,
+            },
             '& .MuiDataGrid-columnHeaders': {
               bgcolor: 'grey.50',
-              borderBottom: '2px solid',
+              borderBottom: 2,
               borderColor: 'divider',
             },
-            '& .MuiDataGrid-cell': {
-              borderBottom: '1px solid',
-              borderColor: 'divider',
+            '& .MuiDataGrid-columnHeaderTitle': {
+              fontWeight: 700,
+              fontSize: '0.875rem',
             },
             '& .MuiDataGrid-row:hover': {
-              bgcolor: 'action.hover',
-            },
-            '& .MuiDataGrid-footerContainer': {
-              borderTop: '2px solid',
-              borderColor: 'divider',
-              minHeight: '56px',
-            },
-            '& .MuiTablePagination-root': {
-              overflow: 'visible',
-            },
-            '& .MuiTablePagination-toolbar': {
-              minHeight: '56px',
-              paddingLeft: 2,
-              paddingRight: 2,
-            },
-            '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
-              margin: 0,
+              backgroundColor: '#f5f5f5',
             },
           }}
         />
       </Paper>
 
-      {/* Add/Edit Modal */}
+      {/* Add/Edit Customer Modal */}
       <Dialog
         open={isModalOpen}
         onClose={handleCloseModal}
-        fullScreen={isMobile}
         maxWidth="md"
         fullWidth
+        fullScreen={isMobile}
         PaperProps={{
           sx: {
-            borderRadius: { xs: 0, sm: 3 },
+            borderRadius: isMobile ? 0 : 3,
             boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
           },
         }}
@@ -878,111 +852,7 @@ const CustomerManagement = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Toggle Status Confirmation Dialog */}
-      <Dialog
-        open={confirmToggleModalOpen}
-        onClose={handleCloseToggleModal}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-          },
-        }}
-      >
-        <DialogTitle
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1.5,
-            fontWeight: 600,
-            p: 3,
-          }}
-        >
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 48,
-              height: 48,
-              borderRadius: '50%',
-              bgcolor: selectedCustomerForToggle?.status === 'Active' ? 'error.lighter' : 'success.lighter',
-            }}
-          >
-            <WarningAmberOutlinedIcon 
-              sx={{ 
-                fontSize: 28, 
-                color: selectedCustomerForToggle?.status === 'Active' ? 'error.main' : 'success.main' 
-              }} 
-            />
-          </Box>
-          <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-            Xác nhận thay đổi trạng thái
-          </Typography>
-        </DialogTitle>
-
-        <Divider />
-
-        <DialogContent sx={{ p: 3 }}>
-          <Typography variant="body1" sx={{ mb: 2.5 }}>
-            Bạn có chắc chắn muốn{' '}
-            <strong>
-              {selectedCustomerForToggle?.status === 'Active' ? 'vô hiệu hóa' : 'kích hoạt'}
-            </strong>{' '}
-            khách hàng sau?
-          </Typography>
-
-          <Paper
-            elevation={0}
-            sx={{
-              p: 2.5,
-              bgcolor: 'grey.50',
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 2,
-            }}
-          >
-            <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-              {selectedCustomerForToggle?.customerName}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              MST/CCCD: {selectedCustomerForToggle?.taxCode}
-            </Typography>
-          </Paper>
-        </DialogContent>
-
-        <Divider />
-
-        <DialogActions sx={{ p: 3, gap: 1 }}>
-          <Button
-            onClick={handleCloseToggleModal}
-            color="inherit"
-            sx={{
-              textTransform: 'none',
-              borderRadius: 2,
-              px: 3,
-            }}
-          >
-            Hủy
-          </Button>
-          <Button
-            onClick={handleConfirmToggleStatus}
-            variant="contained"
-            color={selectedCustomerForToggle?.status === 'Active' ? 'error' : 'success'}
-            sx={{
-              textTransform: 'none',
-              borderRadius: 2,
-              px: 3,
-            }}
-          >
-            {selectedCustomerForToggle?.status === 'Active' ? 'Vô hiệu hóa' : 'Kích hoạt'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* View Details Modal */}
+      {/* View Detail Modal */}
       <Dialog
         open={viewDetailModalOpen}
         onClose={handleCloseViewDetailModal}
@@ -1097,30 +967,6 @@ const CustomerManagement = () => {
                   </Grid>
                 )}
 
-                {/* Email */}
-                <Grid size={{ xs: 12, md: selectedCustomerForView.contactPerson ? 6 : 12 }}>
-                  <Box
-                    sx={{
-                      p: 2.5,
-                      borderRadius: 2,
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      bgcolor: 'grey.50',
-                      height: '100%',
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                      <EmailOutlinedIcon sx={{ color: 'primary.main', fontSize: 20 }} />
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        Email liên hệ
-                      </Typography>
-                    </Box>
-                    <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                      {selectedCustomerForView.email}
-                    </Typography>
-                  </Box>
-                </Grid>
-
                 {/* Phone */}
                 <Grid size={{ xs: 12, md: 6 }}>
                   <Box
@@ -1140,7 +986,31 @@ const CustomerManagement = () => {
                       </Typography>
                     </Box>
                     <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                      {selectedCustomerForView.phone}
+                      {selectedCustomerForView.phone || '-'}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                {/* Email */}
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Box
+                    sx={{
+                      p: 2.5,
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      bgcolor: 'grey.50',
+                      height: '100%',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                      <EmailOutlinedIcon sx={{ color: 'primary.main', fontSize: 20 }} />
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Email liên hệ
+                      </Typography>
+                    </Box>
+                    <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                      {selectedCustomerForView.email || '-'}
                     </Typography>
                   </Box>
                 </Grid>
@@ -1186,6 +1056,7 @@ const CustomerManagement = () => {
                       border: '1px solid',
                       borderColor: 'divider',
                       bgcolor: 'grey.50',
+                      height: '100%',
                     }}
                   >
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
@@ -1195,7 +1066,7 @@ const CustomerManagement = () => {
                       </Typography>
                     </Box>
                     <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                      {selectedCustomerForView.address}
+                      {selectedCustomerForView.address || '-'}
                     </Typography>
                   </Box>
                 </Grid>
@@ -1204,10 +1075,12 @@ const CustomerManagement = () => {
           )}
         </DialogContent>
 
-        <DialogActions sx={{ p: 3, gap: 1 }}>
+        <Divider />
+
+        <DialogActions sx={{ p: 3 }}>
           <Button
             onClick={handleCloseViewDetailModal}
-            variant="outlined"
+            variant="contained"
             sx={{
               textTransform: 'none',
               borderRadius: 2,
@@ -1216,42 +1089,124 @@ const CustomerManagement = () => {
           >
             Đóng
           </Button>
-          {selectedCustomerForView && (
-            <Button
-              onClick={() => {
-                handleCloseViewDetailModal()
-                handleOpenModal(selectedCustomerForView)
-              }}
-              variant="contained"
-              startIcon={<EditOutlinedIcon />}
-              sx={{
-                textTransform: 'none',
-                borderRadius: 2,
-                px: 3,
-                boxShadow: 2,
-                '&:hover': {
-                  boxShadow: 4,
-                },
-              }}
-            >
-              Chỉnh sửa
-            </Button>
-          )}
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar Notification */}
+      {/* Toggle Status Confirmation Dialog */}
+      <Dialog
+        open={confirmToggleModalOpen}
+        onClose={handleCloseToggleModal}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            fontWeight: 600,
+            p: 3,
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 48,
+              height: 48,
+              borderRadius: '50%',
+              bgcolor: selectedCustomerForToggle?.status === 'Active' ? 'error.lighter' : 'success.lighter',
+            }}
+          >
+            <WarningAmberOutlinedIcon 
+              sx={{ 
+                fontSize: 28, 
+                color: selectedCustomerForToggle?.status === 'Active' ? 'error.main' : 'success.main' 
+              }} 
+            />
+          </Box>
+          <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
+            Xác nhận thay đổi trạng thái
+          </Typography>
+        </DialogTitle>
+
+        <Divider />
+
+        <DialogContent sx={{ p: 3 }}>
+          <Typography variant="body1" sx={{ mb: 2.5 }}>
+            Bạn có chắc chắn muốn{' '}
+            <strong>
+              {selectedCustomerForToggle?.status === 'Active' ? 'vô hiệu hóa' : 'kích hoạt'}
+            </strong>{' '}
+            khách hàng sau?
+          </Typography>
+
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2.5,
+              bgcolor: 'grey.50',
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 2,
+            }}
+          >
+            <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+              {selectedCustomerForToggle?.customerName}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              MST/CCCD: {selectedCustomerForToggle?.taxCode}
+            </Typography>
+          </Paper>
+        </DialogContent>
+
+        <Divider />
+
+        <DialogActions sx={{ p: 3, gap: 1 }}>
+          <Button
+            onClick={handleCloseToggleModal}
+            color="inherit"
+            sx={{
+              textTransform: 'none',
+              borderRadius: 2,
+              px: 3,
+            }}
+          >
+            Hủy
+          </Button>
+          <Button
+            onClick={handleConfirmToggleStatus}
+            variant="contained"
+            color={selectedCustomerForToggle?.status === 'Active' ? 'error' : 'success'}
+            sx={{
+              textTransform: 'none',
+              borderRadius: 2,
+              px: 3,
+            }}
+          >
+            {selectedCustomerForToggle?.status === 'Active' ? 'Vô hiệu hóa' : 'Kích hoạt'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar */}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
         <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
-          variant="filled"
-          sx={{ borderRadius: 2 }}
+          sx={{ width: '100%' }}
         >
           {snackbar.message}
         </Alert>
@@ -1260,4 +1215,4 @@ const CustomerManagement = () => {
   )
 }
 
-export default CustomerManagement
+export default SalesCustomerManagement

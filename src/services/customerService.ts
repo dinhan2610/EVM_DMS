@@ -128,23 +128,35 @@ export interface CustomerPaginatedResponse {
 
 /**
  * Get customers by Sale ID (for Sales role)
- * GET /api/Customer?saleId={saleId}
+ * GET /api/Customer/by-sale/{saleId}?pageIndex=1&pageSize=10
  * 
  * @param saleId - ID của nhân viên Sales
+ * @param pageIndex - Trang hiện tại (default: 1)
+ * @param pageSize - Số records mỗi trang (default: 100 để lấy hết)
  * @returns Danh sách khách hàng của Sales đó
  */
-export const getCustomersBySaleId = async (saleId: number): Promise<Customer[]> => {
+export const getCustomersBySaleId = async (
+  saleId: number,
+  pageIndex: number = 1,
+  pageSize: number = 100
+): Promise<Customer[]> => {
   try {
     console.log('[getCustomersBySaleId] Fetching customers for saleId:', saleId);
     
     const response = await axios.get<CustomerPaginatedResponse>(
-      `/api/Customer?saleId=${saleId}`,
+      `/api/Customer/by-sale/${saleId}?pageIndex=${pageIndex}&pageSize=${pageSize}`,
       { headers: getAuthHeaders() }
     );
     
     const customers = response.data.items || [];
     
     console.log('[getCustomersBySaleId] Success:', customers.length, 'customers for saleId:', saleId);
+    console.log('[getCustomersBySaleId] Pagination:', {
+      pageIndex: response.data.pageIndex,
+      totalPages: response.data.totalPages,
+      totalCount: response.data.totalCount,
+    });
+    
     return customers;
   } catch (error) {
     return handleApiError(error, 'getCustomersBySaleId');

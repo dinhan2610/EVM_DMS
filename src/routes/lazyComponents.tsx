@@ -37,7 +37,7 @@ export const SystemConfiguration = lazy(() => import('@/page/SystemConfiguration
 export const AuditLogsPage = lazy(() => import('@/page/AuditLogsPage'))
 export const ReportsPage = lazy(() => import('@/page/ReportsPage'))
 export const CustomerManagement = lazy(() => import('@/page/CustomerManagement'))
-export const SalesCustomerPage = lazy(() => import('@/page/SalesCustomerPage'))
+export const SalesCustomerPage = lazy(() => import('@/page/SalesCustomerManagement'))
 export const CreateSalesOrder = lazy(() => import('@/page/CreateSalesOrder'))
 
 // Customer Portal Routes
