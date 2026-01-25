@@ -1245,18 +1245,19 @@ const HODInvoiceManagement = () => {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
-        const taxStatusId = params.row.taxStatusId
-        const taxStatusCode = params.row.taxStatusCode
+        const taxStatusId = params.row.taxStatusId as number | null
+        const taxAuthorityCode = params.row.taxAuthority as string // ✅ Mã CQT thực sự của hóa đơn (giống InvoiceManagement)
         const isError = taxStatusId !== null && isTaxStatusError(taxStatusId)
         
+        // ✅ Tooltip content giống 100% với InvoiceManagement
         const tooltipContent = (
-          <Box>
+          <Box sx={{ py: 0.5 }}>
             <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
               Trạng thái: {params.value as string}
             </Typography>
-            {taxStatusCode && (
+            {taxAuthorityCode && (
               <Typography variant="caption" sx={{ display: 'block', opacity: 0.9 }}>
-                Mã: {taxStatusCode}
+                Mã CQT: <strong>{taxAuthorityCode}</strong>
               </Typography>
             )}
             {isError && (
@@ -1268,24 +1269,34 @@ const HODInvoiceManagement = () => {
         )
         
         return (
-          <Tooltip title={tooltipContent} arrow placement="top">
-            <Chip 
-              label={params.value as string} 
-              color={getTaxStatusColor(taxStatusId)} 
-              size="small"
-              sx={{ 
-                fontWeight: 600,
-                cursor: 'help',
-                ...(isError && {
-                  animation: 'pulse 2s ease-in-out infinite',
-                  '@keyframes pulse': {
-                    '0%, 100%': { opacity: 1 },
-                    '50%': { opacity: 0.8 },
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Tooltip title={tooltipContent} arrow placement="top">
+              <Chip 
+                label={params.value as string} 
+                color={getTaxStatusColor(taxStatusId)} 
+                size="small"
+                sx={{ 
+                  fontWeight: 600,
+                  fontSize: '0.75rem',
+                  height: 28,
+                  borderRadius: '20px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    transform: 'translateY(-1px)',
+                    boxShadow: 2,
                   },
-                }),
-              }}
-            />
-          </Tooltip>
+                  ...(isError && {
+                    animation: 'pulse 2s ease-in-out infinite',
+                    '@keyframes pulse': {
+                      '0%, 100%': { opacity: 1 },
+                      '50%': { opacity: 0.8 },
+                    },
+                  }),
+                }}
+              />
+            </Tooltip>
+          </Box>
         )
       },
     },
@@ -1623,11 +1634,7 @@ const HODInvoiceManagement = () => {
               <Typography variant="body2" sx={{ color: '#666' }}>
                 Danh sách hóa đơn cần xử lý bởi Kế toán trưởng
               </Typography>
-              {filteredInvoices.length > 0 && (
-                <Typography variant="body2" sx={{ color: '#1976d2', fontWeight: 500, mt: 0.5 }}>
-                  📊 Hiển thị {filteredInvoices.length} / {invoices.length} hóa đơn
-                </Typography>
-              )}
+              
             </Box>
           </Box>
 
