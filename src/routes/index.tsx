@@ -7,6 +7,7 @@ import {
   HODDashboard,
   AdminDashboard,
   StaffDashboard,
+  AccountantDashboard,
   SaleDashboard,
   CustomerDashboard,
   InvoiceManagement,
@@ -88,7 +89,7 @@ const initialRoutes: RoutesProps[] = [
     name: 'Staff Dashboard',
     element: (
       <ProtectedRoute allowedRoles={[USER_ROLES.ACCOUNTANT]}>
-        <StaffDashboard />
+        <AccountantDashboard />
       </ProtectedRoute>
     ),
   },
@@ -389,12 +390,6 @@ const otherRoutes: RoutesProps[] = [
   },
 ]
 
-const routes: RoutesProps[] = [
-  ...initialRoutes,
-  ...appsRoutes,
-  ...customRoutes,
-  ...authRoutes,
-  ...otherRoutes,
-]
+const routes: RoutesProps[] = [...initialRoutes, ...appsRoutes, ...customRoutes, ...authRoutes, ...otherRoutes]
 
 export { routes }

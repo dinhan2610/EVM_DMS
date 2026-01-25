@@ -19,13 +19,13 @@ const getAuthHeaders = () => {
     throw new Error('No authentication token found. Please login again.')
   }
   return {
-    'Authorization': `Bearer ${token}`,
+    Authorization: `Bearer ${token}`,
   }
 }
 
 /**
  * ⚠️ Service for managing Minutes (Biên bản điều chỉnh/thay thế hóa đơn)
- * 
+ *
  * API Endpoint: POST /api/Minute
  * Content-Type: multipart/form-data
  */
@@ -39,7 +39,7 @@ const getAuthHeaders = () => {
  */
 export interface UploadMinuteRequest {
   invoiceId: number
-  minuteType: number  // 1: Điều chỉnh, 2: Thay thế
+  minuteType: number // 1: Điều chỉnh, 2: Thay thế
   description: string
   pdfFile: File
 }
@@ -93,7 +93,7 @@ export interface MinuteListResponse {
 
 /**
  * Get list of minutes with pagination
- * 
+ *
  * @param pageIndex - Page number (default: 1)
  * @param pageSize - Items per page (default: 10)
  * @returns Promise<MinuteListResponse>
@@ -104,13 +104,10 @@ export const getMinutes = async (pageIndex: number = 1, pageSize: number = 1000)
       console.log('[getMinutes] Fetching minutes list:', { pageIndex, pageSize })
     }
 
-    const response = await axios.get<MinuteListResponse>(
-      `${API_BASE_URL}/Minute`,
-      {
-        params: { pageIndex, pageSize },
-        headers: getAuthHeaders(),
-      }
-    )
+    const response = await axios.get<MinuteListResponse>(`${API_BASE_URL}/Minute`, {
+      params: { pageIndex, pageSize },
+      headers: getAuthHeaders(),
+    })
 
     if (import.meta.env.DEV) {
       console.log('[getMinutes] ✅ Success:', {
@@ -122,21 +119,60 @@ export const getMinutes = async (pageIndex: number = 1, pageSize: number = 1000)
     return response.data
   } catch (error) {
     console.error('[getMinutes] ❌ Error:', error)
-    
+
     if (axios.isAxiosError(error)) {
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.data?.title ||
-                          error.message
+      const errorMessage = error.response?.data?.message || error.response?.data?.title || error.message
       throw new Error(errorMessage || 'Không thể tải danh sách biên bản')
     }
-    
+
+    throw error
+  }
+}
+
+/**
+ * Get list of minutes by Sale ID (for Sale role)
+ * API: GET /api/Minute/by-sale/{saleId}
+ *
+ * @param saleId - Sale user ID
+ * @param pageIndex - Page number (default: 1)
+ * @param pageSize - Items per page (default: 1000)
+ * @returns Promise<MinuteListResponse>
+ */
+export const getMinutesBySaleId = async (saleId: number, pageIndex: number = 1, pageSize: number = 1000): Promise<MinuteListResponse> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log('[getMinutesBySaleId] Fetching minutes for sale:', { saleId, pageIndex, pageSize })
+    }
+
+    const response = await axios.get<MinuteListResponse>(`${API_BASE_URL}/Minute/by-sale/${saleId}`, {
+      params: { pageIndex, pageSize },
+      headers: getAuthHeaders(),
+    })
+
+    if (import.meta.env.DEV) {
+      console.log('[getMinutesBySaleId] ✅ Success:', {
+        saleId,
+        totalCount: response.data.totalCount,
+        itemsCount: response.data.items.length,
+      })
+    }
+
+    return response.data
+  } catch (error) {
+    console.error('[getMinutesBySaleId] ❌ Error:', error)
+
+    if (axios.isAxiosError(error)) {
+      const errorMessage = error.response?.data?.message || error.response?.data?.title || error.message
+      throw new Error(errorMessage || 'Không thể tải danh sách biên bản của Sale')
+    }
+
     throw error
   }
 }
 
 /**
  * Get minute detail by ID
- * 
+ *
  * @param minuteId - Minute invoice ID
  * @returns Promise<MinuteRecord>
  */
@@ -146,12 +182,9 @@ export const getMinuteById = async (minuteId: number): Promise<MinuteRecord> => 
       console.log('[getMinuteById] Fetching minute:', minuteId)
     }
 
-    const response = await axios.get<MinuteRecord>(
-      `${API_BASE_URL}/Minute/${minuteId}`,
-      {
-        headers: getAuthHeaders(),
-      }
-    )
+    const response = await axios.get<MinuteRecord>(`${API_BASE_URL}/Minute/${minuteId}`, {
+      headers: getAuthHeaders(),
+    })
 
     if (import.meta.env.DEV) {
       console.log('[getMinuteById] ✅ Success:', response.data)
@@ -160,21 +193,19 @@ export const getMinuteById = async (minuteId: number): Promise<MinuteRecord> => 
     return response.data
   } catch (error) {
     console.error('[getMinuteById] ❌ Error:', error)
-    
+
     if (axios.isAxiosError(error)) {
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.data?.title ||
-                          error.message
+      const errorMessage = error.response?.data?.message || error.response?.data?.title || error.message
       throw new Error(errorMessage || 'Không thể tải thông tin biên bản')
     }
-    
+
     throw error
   }
 }
 
 /**
  * Upload minute PDF file with metadata
- * 
+ *
  * @param data - Upload request data
  * @returns Promise<UploadMinuteResponse>
  */
@@ -194,7 +225,7 @@ export const uploadMinute = async (data: UploadMinuteRequest): Promise<UploadMin
         fileName: data.pdfFile.name,
         fileSize: `${(data.pdfFile.size / 1024).toFixed(2)} KB`,
       })
-      
+
       // Log FormData contents for debugging
       console.log('[uploadMinute] FormData entries:')
       for (const [key, value] of formData.entries()) {
@@ -206,16 +237,12 @@ export const uploadMinute = async (data: UploadMinuteRequest): Promise<UploadMin
       }
     }
 
-    const response = await axios.post<UploadMinuteResponse>(
-      `${API_BASE_URL}/Minute`,
-      formData,
-      {
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'multipart/form-data',
-        },
-      }
-    )
+    const response = await axios.post<UploadMinuteResponse>(`${API_BASE_URL}/Minute`, formData, {
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'multipart/form-data',
+      },
+    })
 
     if (import.meta.env.DEV) {
       console.log('[uploadMinute] ✅ Success:', response.data)
@@ -224,22 +251,19 @@ export const uploadMinute = async (data: UploadMinuteRequest): Promise<UploadMin
     return response.data
   } catch (error) {
     console.error('[uploadMinute] ❌ Error:', error)
-    
+
     if (axios.isAxiosError(error)) {
       // Log detailed error info
       console.error('[uploadMinute] Response status:', error.response?.status)
       console.error('[uploadMinute] Response data:', error.response?.data)
       console.error('[uploadMinute] Request URL:', error.config?.url)
-      
+
       // Extract error message from response
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.data?.title ||
-                          error.response?.data?.error ||
-                          error.message
-      
+      const errorMessage = error.response?.data?.message || error.response?.data?.title || error.response?.data?.error || error.message
+
       throw new Error(errorMessage || 'Không thể upload biên bản')
     }
-    
+
     throw new Error('Lỗi không xác định khi upload biên bản')
   }
 }
@@ -247,10 +271,10 @@ export const uploadMinute = async (data: UploadMinuteRequest): Promise<UploadMin
 /**
  * Update file PDF cho minute đã tồn tại
  * API: PUT /api/Minute/{minuteId}/file
- * 
+ *
  * Dùng khi cần upload/cập nhật file PDF cho minute đã được tạo
  * Tối ưu hơn uploadMinute vì không cần gửi lại metadata
- * 
+ *
  * @param minuteId - ID của minute cần update file
  * @param file - File PDF mới
  * @returns Promise<void>
@@ -268,30 +292,26 @@ export const updateMinuteFile = async (minuteId: number, file: File): Promise<vo
       })
     }
 
-    await axios.put(
-      `${API_BASE_URL}/Minute/${minuteId}/file`,
-      formData,
-      {
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'multipart/form-data',
-        },
-      }
-    )
+    await axios.put(`${API_BASE_URL}/Minute/${minuteId}/file`, formData, {
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'multipart/form-data',
+      },
+    })
 
     if (import.meta.env.DEV) {
       console.log('[updateMinuteFile] ✅ Success')
     }
   } catch (error) {
     console.error('[updateMinuteFile] ❌ Error:', error)
-    
+
     if (axios.isAxiosError(error)) {
       console.error('[updateMinuteFile] Response status:', error.response?.status)
       console.error('[updateMinuteFile] Response data:', error.response?.data)
-      
+
       const status = error.response?.status
       const responseData = error.response?.data
-      
+
       let errorMessage = ''
       if (typeof responseData === 'string') {
         errorMessage = responseData
@@ -300,7 +320,7 @@ export const updateMinuteFile = async (minuteId: number, file: File): Promise<vo
       } else if (responseData?.title) {
         errorMessage = responseData.title
       }
-      
+
       if (status === 400) {
         throw new Error(errorMessage || 'File không hợp lệ')
       }
@@ -310,17 +330,17 @@ export const updateMinuteFile = async (minuteId: number, file: File): Promise<vo
       if (status === 403) {
         throw new Error(errorMessage || 'Bạn không có quyền cập nhật biên bản này')
       }
-      
+
       throw new Error(errorMessage || 'Không thể cập nhật file biên bản')
     }
-    
+
     throw new Error('Lỗi không xác định khi cập nhật file biên bản')
   }
 }
 
 /**
  * Validate PDF file before upload
- * 
+ *
  * @param file - File to validate
  * @returns Error message or null if valid
  */
@@ -347,7 +367,7 @@ export const validatePdfFile = (file: File): string | null => {
 /**
  * Ký số biên bản (Bên bán)
  * API: POST /api/Minute/sign-seller/{minuteId}
- * 
+ *
  * @param minuteId - ID của biên bản cần ký
  * @returns Promise<void>
  */
@@ -362,7 +382,7 @@ export const signMinuteSeller = async (minuteId: number): Promise<void> => {
       {},
       {
         headers: getAuthHeaders(),
-      }
+      },
     )
 
     if (import.meta.env.DEV) {
@@ -370,15 +390,15 @@ export const signMinuteSeller = async (minuteId: number): Promise<void> => {
     }
   } catch (error) {
     console.error('[signMinuteSeller] ❌ Error:', error)
-    
+
     if (axios.isAxiosError(error)) {
       const status = error.response?.status
       const responseData = error.response?.data
-      
+
       // Log chi tiết response để debug
       console.error('[signMinuteSeller] Response status:', status)
       console.error('[signMinuteSeller] Response data:', responseData)
-      
+
       // Trích xuất error message từ nhiều format khác nhau
       let errorMessage = ''
       if (typeof responseData === 'string') {
@@ -396,7 +416,7 @@ export const signMinuteSeller = async (minuteId: number): Promise<void> => {
           errorMessage = Object.values(errors).flat().join(', ')
         }
       }
-      
+
       if (status === 400) {
         throw new Error(errorMessage || 'Biên bản không hợp lệ hoặc đã được ký')
       }
@@ -406,10 +426,10 @@ export const signMinuteSeller = async (minuteId: number): Promise<void> => {
       if (status === 403) {
         throw new Error(errorMessage || 'Bạn không có quyền ký biên bản này')
       }
-      
+
       throw new Error(errorMessage || 'Không thể ký biên bản')
     }
-    
+
     throw new Error('Lỗi không xác định khi ký biên bản')
   }
 }
@@ -417,7 +437,7 @@ export const signMinuteSeller = async (minuteId: number): Promise<void> => {
 /**
  * Xác nhận hoàn thành biên bản (Người mua đã xác nhận)
  * API: PUT /api/Minute/{minuteId}/complete
- * 
+ *
  * @param minuteId - ID của biên bản cần xác nhận
  * @returns Promise<void>
  */
@@ -432,7 +452,7 @@ export const completeMinute = async (minuteId: number): Promise<void> => {
       {},
       {
         headers: getAuthHeaders(),
-      }
+      },
     )
 
     if (import.meta.env.DEV) {
@@ -440,14 +460,14 @@ export const completeMinute = async (minuteId: number): Promise<void> => {
     }
   } catch (error) {
     console.error('[completeMinute] ❌ Error:', error)
-    
+
     if (axios.isAxiosError(error)) {
       const status = error.response?.status
       const responseData = error.response?.data
-      
+
       console.error('[completeMinute] Response status:', status)
       console.error('[completeMinute] Response data:', responseData)
-      
+
       let errorMessage = ''
       if (typeof responseData === 'string') {
         errorMessage = responseData
@@ -463,7 +483,7 @@ export const completeMinute = async (minuteId: number): Promise<void> => {
           errorMessage = Object.values(errors).flat().join(', ')
         }
       }
-      
+
       if (status === 400) {
         throw new Error(errorMessage || 'Biên bản không hợp lệ hoặc chưa đủ điều kiện hoàn thành')
       }
@@ -473,10 +493,10 @@ export const completeMinute = async (minuteId: number): Promise<void> => {
       if (status === 403) {
         throw new Error(errorMessage || 'Bạn không có quyền xác nhận biên bản này')
       }
-      
+
       throw new Error(errorMessage || 'Không thể xác nhận biên bản')
     }
-    
+
     throw new Error('Lỗi không xác định khi xác nhận biên bản')
   }
 }
@@ -490,19 +510,19 @@ export const completeMinute = async (minuteId: number): Promise<void> => {
  * API trả về dạng STRING, không phải number
  */
 export const MINUTE_STATUS = {
-  PENDING: 'Pending',       // Chờ ký
-  SIGNED: 'Signed',         // Đã ký đầy đủ
-  SENT: 'Sent',             // Đã gửi
-  COMPLETE: 'Complete',     // Hai bên đồng thuận ✅
-  CANCELLED: 'Cancelled',   // Đã hủy
+  PENDING: 'Pending', // Chờ ký
+  SIGNED: 'Signed', // Đã ký đầy đủ
+  SENT: 'Sent', // Đã gửi
+  COMPLETE: 'Complete', // Hai bên đồng thuận ✅
+  CANCELLED: 'Cancelled', // Đã hủy
 } as const
 
 /**
  * Loại biên bản
  */
 export const MINUTE_TYPE = {
-  ADJUSTMENT: 1,   // Biên bản điều chỉnh
-  REPLACEMENT: 2,  // Biên bản thay thế
+  ADJUSTMENT: 1, // Biên bản điều chỉnh
+  REPLACEMENT: 2, // Biên bản thay thế
 } as const
 
 // ============================================================
@@ -512,7 +532,7 @@ export const MINUTE_TYPE = {
 /**
  * Lấy danh sách biên bản theo Invoice ID gốc
  * Filter từ API getMinutes theo invoiceId
- * 
+ *
  * @param invoiceId - ID hóa đơn gốc
  * @returns Promise<MinuteRecord[]> - Danh sách biên bản của hóa đơn
  */
@@ -524,9 +544,9 @@ export const getMinutesByInvoiceId = async (invoiceId: number): Promise<MinuteRe
 
     // Lấy tất cả minutes rồi filter theo invoiceId
     const response = await getMinutes(1, 1000)
-    
-    const filteredMinutes = response.items.filter(minute => minute.invoiceId === invoiceId)
-    
+
+    const filteredMinutes = response.items.filter((minute) => minute.invoiceId === invoiceId)
+
     if (import.meta.env.DEV) {
       console.log('[getMinutesByInvoiceId] ✅ Found minutes:', filteredMinutes.length)
     }
@@ -541,11 +561,13 @@ export const getMinutesByInvoiceId = async (invoiceId: number): Promise<MinuteRe
 /**
  * Kiểm tra xem hóa đơn có biên bản điều chỉnh đã được 2 bên thỏa thuận hay không
  * ✅ ENHANCED: Cũng kiểm tra xem biên bản đã được sử dụng để tạo HĐ điều chỉnh chưa
- * 
+ *
  * @param invoiceId - ID hóa đơn gốc
  * @returns Promise<{ hasValidMinute: boolean, minute: MinuteRecord | null, reason: string }>
  */
-export const checkAdjustmentMinuteStatus = async (invoiceId: number): Promise<{
+export const checkAdjustmentMinuteStatus = async (
+  invoiceId: number,
+): Promise<{
   hasValidMinute: boolean
   minute: MinuteRecord | null
   reason: string
@@ -556,10 +578,10 @@ export const checkAdjustmentMinuteStatus = async (invoiceId: number): Promise<{
     }
 
     const minutes = await getMinutesByInvoiceId(invoiceId)
-    
+
     // Tìm biên bản điều chỉnh (Adjustment)
-    const adjustmentMinutes = minutes.filter(m => m.minuteType === 'Adjustment')
-    
+    const adjustmentMinutes = minutes.filter((m) => m.minuteType === 'Adjustment')
+
     if (adjustmentMinutes.length === 0) {
       return {
         hasValidMinute: false,
@@ -567,16 +589,16 @@ export const checkAdjustmentMinuteStatus = async (invoiceId: number): Promise<{
         reason: 'Chưa có biên bản điều chỉnh. Vui lòng tạo biên bản điều chỉnh trước.',
       }
     }
-    
+
     // Tìm biên bản đã được 2 bên thỏa thuận (status = "Complete")
-    const completedMinute = adjustmentMinutes.find(m => m.status === MINUTE_STATUS.COMPLETE)
-    
+    const completedMinute = adjustmentMinutes.find((m) => m.status === MINUTE_STATUS.COMPLETE)
+
     if (completedMinute) {
       // ✅ ENHANCED: Kiểm tra xem biên bản này đã được sử dụng chưa
       try {
         const { default: invoiceService } = await import('./invoiceService')
         const existingInvoice = await invoiceService.getInvoiceByMinuteCode(completedMinute.minuteCode)
-        
+
         if (existingInvoice) {
           return {
             hasValidMinute: false,
@@ -588,23 +610,23 @@ export const checkAdjustmentMinuteStatus = async (invoiceId: number): Promise<{
         console.warn('[checkAdjustmentMinuteStatus] Could not check if minute is used, allowing to proceed:', error)
         // Fail-safe: Nếu không check được, vẫn cho phép sử dụng
       }
-      
+
       return {
         hasValidMinute: true,
         minute: completedMinute,
         reason: `Biên bản ${completedMinute.minuteCode} đã được 2 bên thỏa thuận.`,
       }
     }
-    
+
     // Có biên bản nhưng chưa Complete
     const latestMinute = adjustmentMinutes[0]
-    
+
     let statusText = 'chưa xác định'
     if (latestMinute.status === MINUTE_STATUS.PENDING) statusText = 'đang chờ ký'
     else if (latestMinute.status === MINUTE_STATUS.SIGNED) statusText = 'đã ký nhưng chưa hoàn thành'
     else if (latestMinute.status === MINUTE_STATUS.SENT) statusText = 'đã gửi nhưng chưa được xác nhận'
     else if (latestMinute.status === MINUTE_STATUS.CANCELLED) statusText = 'đã bị hủy'
-    
+
     return {
       hasValidMinute: false,
       minute: latestMinute,
@@ -623,11 +645,13 @@ export const checkAdjustmentMinuteStatus = async (invoiceId: number): Promise<{
 /**
  * Kiểm tra xem hóa đơn có biên bản thay thế đã được 2 bên thỏa thuận hay không
  * ✅ ENHANCED: Cũng kiểm tra xem biên bản đã được sử dụng để tạo HĐ thay thế chưa
- * 
+ *
  * @param invoiceId - ID hóa đơn gốc
  * @returns Promise<{ hasValidMinute: boolean, minute: MinuteRecord | null, reason: string }>
  */
-export const checkReplacementMinuteStatus = async (invoiceId: number): Promise<{
+export const checkReplacementMinuteStatus = async (
+  invoiceId: number,
+): Promise<{
   hasValidMinute: boolean
   minute: MinuteRecord | null
   reason: string
@@ -638,10 +662,10 @@ export const checkReplacementMinuteStatus = async (invoiceId: number): Promise<{
     }
 
     const minutes = await getMinutesByInvoiceId(invoiceId)
-    
+
     // Tìm biên bản thay thế (Replacement)
-    const replacementMinutes = minutes.filter(m => m.minuteType === 'Replacement')
-    
+    const replacementMinutes = minutes.filter((m) => m.minuteType === 'Replacement')
+
     if (replacementMinutes.length === 0) {
       return {
         hasValidMinute: false,
@@ -649,16 +673,16 @@ export const checkReplacementMinuteStatus = async (invoiceId: number): Promise<{
         reason: 'Chưa có biên bản thay thế. Vui lòng tạo biên bản thay thế trước.',
       }
     }
-    
+
     // Tìm biên bản đã được 2 bên thỏa thuận (status = "Complete")
-    const completedMinute = replacementMinutes.find(m => m.status === MINUTE_STATUS.COMPLETE)
-    
+    const completedMinute = replacementMinutes.find((m) => m.status === MINUTE_STATUS.COMPLETE)
+
     if (completedMinute) {
       // ✅ ENHANCED: Kiểm tra xem biên bản này đã được sử dụng chưa
       try {
         const { default: invoiceService } = await import('./invoiceService')
         const existingInvoice = await invoiceService.getInvoiceByMinuteCode(completedMinute.minuteCode)
-        
+
         if (existingInvoice) {
           return {
             hasValidMinute: false,
@@ -670,23 +694,23 @@ export const checkReplacementMinuteStatus = async (invoiceId: number): Promise<{
         console.warn('[checkReplacementMinuteStatus] Could not check if minute is used, allowing to proceed:', error)
         // Fail-safe: Nếu không check được, vẫn cho phép sử dụng
       }
-      
+
       return {
         hasValidMinute: true,
         minute: completedMinute,
         reason: `Biên bản ${completedMinute.minuteCode} đã được 2 bên thỏa thuận.`,
       }
     }
-    
+
     // Có biên bản nhưng chưa Complete
     const latestMinute = replacementMinutes[0]
-    
+
     let statusText = 'chưa xác định'
     if (latestMinute.status === MINUTE_STATUS.PENDING) statusText = 'đang chờ ký'
     else if (latestMinute.status === MINUTE_STATUS.SIGNED) statusText = 'đã ký nhưng chưa hoàn thành'
     else if (latestMinute.status === MINUTE_STATUS.SENT) statusText = 'đã gửi nhưng chưa được xác nhận'
     else if (latestMinute.status === MINUTE_STATUS.CANCELLED) statusText = 'đã bị hủy'
-    
+
     return {
       hasValidMinute: false,
       minute: latestMinute,

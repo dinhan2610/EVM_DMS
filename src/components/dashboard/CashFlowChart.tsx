@@ -1,23 +1,23 @@
-import React from 'react';
-import { Box, Card, CardContent, Typography, Chip } from '@mui/material';
-import ReactApexChart from 'react-apexcharts';
-import type { ApexOptions } from 'apexcharts';
-import type { CashFlowData } from '../../types/dashboard.types';
+import React from 'react'
+import { Box, Card, CardContent, Typography } from '@mui/material'
+import ReactApexChart from 'react-apexcharts'
+import type { ApexOptions } from 'apexcharts'
+import type { CashFlowData } from '../../types/dashboard.types'
 
 interface CashFlowChartProps {
-  data: CashFlowData[];
+  data: CashFlowData[]
 }
 
 const CashFlowChart: React.FC<CashFlowChartProps> = ({ data }) => {
   const formatCurrency = (value: number): string => {
     if (value >= 1000000000) {
-      return `${(value / 1000000000).toFixed(1)}B`;
+      return `${(value / 1000000000).toFixed(1)}B`
     }
     if (value >= 1000000) {
-      return `${(value / 1000000).toFixed(1)}M`;
+      return `${(value / 1000000).toFixed(1)}M`
     }
-    return value.toLocaleString('vi-VN');
-  };
+    return value.toLocaleString('vi-VN')
+  }
 
   const chartOptions: ApexOptions = {
     chart: {
@@ -159,19 +159,19 @@ const CashFlowChart: React.FC<CashFlowChartProps> = ({ data }) => {
       y: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         formatter: function (val: number, opts: any) {
-          const dataPoint = data[opts.dataPointIndex];
-          const seriesName = opts.w.config.series[opts.seriesIndex].name;
-          
+          const dataPoint = data[opts.dataPointIndex]
+          const seriesName = opts.w.config.series[opts.seriesIndex].name
+
           if (seriesName === 'Đã thu') {
-            const collectionRate = dataPoint.collectionRate;
-            return `${formatCurrency(val)} (${collectionRate.toFixed(1)}%)`;
+            const collectionRate = dataPoint.collectionRate
+            return `${formatCurrency(val)} (${collectionRate.toFixed(1)}%)`
           }
-          return formatCurrency(val);
+          return formatCurrency(val)
         },
       },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       custom: function ({ dataPointIndex }: any) {
-        const dataPoint = data[dataPointIndex];
+        const dataPoint = data[dataPointIndex]
         return `
           <div style="padding: 12px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
             <div style="font-weight: 600; margin-bottom: 8px; color: #1e293b;">${dataPoint.month}</div>
@@ -195,7 +195,7 @@ const CashFlowChart: React.FC<CashFlowChartProps> = ({ data }) => {
               <div style="font-weight: 700; color: #10b981; font-size: 16px;">${dataPoint.collectionRate.toFixed(1)}%</div>
             </div>
           </div>
-        `;
+        `
       },
     },
     responsive: [
@@ -243,7 +243,7 @@ const CashFlowChart: React.FC<CashFlowChartProps> = ({ data }) => {
         },
       },
     ],
-  };
+  }
 
   const series = [
     {
@@ -258,12 +258,7 @@ const CashFlowChart: React.FC<CashFlowChartProps> = ({ data }) => {
       name: 'Còn nợ',
       data: data.map((d) => d.outstanding),
     },
-  ];
-
-  // Calculate summary stats
-  const totalInvoiced = data.reduce((sum, d) => sum + d.invoiced, 0);
-  const totalCollected = data.reduce((sum, d) => sum + d.collected, 0);
-  const avgCollectionRate = (totalCollected / totalInvoiced) * 100;
+  ]
 
   return (
     <Card elevation={0} sx={{ height: '100%', border: '1px solid #f1f5f9' }}>
@@ -275,69 +270,18 @@ const CashFlowChart: React.FC<CashFlowChartProps> = ({ data }) => {
               Hiệu quả Dòng tiền
             </Typography>
             <Typography variant="body2" sx={{ color: '#64748b', fontSize: '13px' }}>
-              Theo dõi xuất hóa đơn vs thu tiền (6 tháng)
+              Theo dõi xuất hóa đơn vs thu tiền
             </Typography>
           </Box>
-          <Chip
-            label={`${avgCollectionRate.toFixed(1)}% TB`}
-            sx={{
-              bgcolor: avgCollectionRate >= 80 ? '#ecfdf5' : '#fff7ed',
-              color: avgCollectionRate >= 80 ? '#10b981' : '#f59e0b',
-              fontWeight: 700,
-              fontSize: '13px',
-            }}
-          />
         </Box>
 
         {/* Chart */}
         <Box sx={{ mt: 2 }}>
-          <ReactApexChart
-            options={chartOptions}
-            series={series}
-            type="area"
-            height={380}
-          />
-        </Box>
-
-        {/* Summary Stats */}
-        <Box
-          sx={{
-            mt: 3,
-            pt: 2,
-            borderTop: '1px solid #f1f5f9',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 2,
-          }}
-        >
-          <Box textAlign="center">
-            <Typography variant="caption" sx={{ color: '#64748b', fontSize: '11px', display: 'block', mb: 0.5 }}>
-              Tổng xuất HĐ
-            </Typography>
-            <Typography variant="h6" fontWeight={700} sx={{ color: '#3b82f6', fontSize: '18px' }}>
-              {formatCurrency(totalInvoiced)}
-            </Typography>
-          </Box>
-          <Box textAlign="center">
-            <Typography variant="caption" sx={{ color: '#64748b', fontSize: '11px', display: 'block', mb: 0.5 }}>
-              Tổng đã thu
-            </Typography>
-            <Typography variant="h6" fontWeight={700} sx={{ color: '#10b981', fontSize: '18px' }}>
-              {formatCurrency(totalCollected)}
-            </Typography>
-          </Box>
-          <Box textAlign="center">
-            <Typography variant="caption" sx={{ color: '#64748b', fontSize: '11px', display: 'block', mb: 0.5 }}>
-              Tỷ lệ TB
-            </Typography>
-            <Typography variant="h6" fontWeight={700} sx={{ color: avgCollectionRate >= 80 ? '#10b981' : '#f59e0b', fontSize: '18px' }}>
-              {avgCollectionRate.toFixed(1)}%
-            </Typography>
-          </Box>
+          <ReactApexChart options={chartOptions} series={series} type="area" height={380} />
         </Box>
       </CardContent>
     </Card>
-  );
-};
+  )
+}
 
-export default CashFlowChart;
+export default CashFlowChart

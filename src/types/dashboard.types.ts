@@ -77,6 +77,15 @@ export interface PendingInvoice {
 
 // HOD Dashboard API Response
 export interface HODDashboardData {
+  overviewStats: {
+    totalMonthlyRevenue: number
+    totalCustomers: number
+    totalInvoiceRequests: number
+    totalProducts: number
+    totalInvoicesIssued: number
+    totalInvoicesPendingApproval: number
+    totalDebtAll: number
+  }
   financials: FinancialHealthKPI
   cashFlow: CashFlowData[]
   debtAging: DebtAgingData
@@ -122,64 +131,65 @@ export interface QuickReport {
 // =====================================================
 
 export interface CurrentMonthStats {
-  totalRevenue: number        // Tổng doanh thu tháng này
-  netProfit: number          // Lợi nhuận ròng
-  taxLiability: number       // Thuế phải nộp
-  collectedAmount: number    // Đã thu
-  outstandingAmount: number  // Còn nợ
-  overdueAmount: number      // Quá hạn
+  totalRevenue: number // Tổng doanh thu tháng này
+  netProfit: number // Lợi nhuận ròng
+  taxLiability: number // Thuế phải nộp
+  collectedAmount: number // Đã thu
+  outstandingAmount: number // Còn nợ
+  overdueAmount: number // Quá hạn
 }
 
 export interface AllTimeStats {
-  totalRevenue: number        // Tổng doanh thu (all time)
-  netProfit: number          // Tổng lợi nhuận (all time)
-  taxLiability: number       // Tổng thuế (all time)
-  collectedAmount: number    // Đã thu (all time)
-  outstandingAmount: number  // Còn nợ (all time)
-  overdueAmount: number      // Quá hạn (all time)
+  totalRevenue: number // Tổng doanh thu (all time)
+  netProfit: number // Tổng lợi nhuận (all time)
+  taxLiability: number // Tổng thuế (all time)
+  collectedAmount: number // Đã thu (all time)
+  outstandingAmount: number // Còn nợ (all time)
+  overdueAmount: number // Quá hạn (all time)
 }
 
 export interface InvoiceCounts {
-  total: number      // Tổng hóa đơn
-  paid: number       // Đã thanh toán
-  unpaid: number     // Chưa thanh toán
-  overdue: number    // Quá hạn
-  cancelled: number  // Đã hủy
+  total: number // Tổng hóa đơn
+  paid: number // Đã thanh toán
+  unpaid: number // Chưa thanh toán
+  overdue: number // Quá hạn
+  cancelled: number // Đã hủy
 }
 
 export interface UserStats {
-  totalUsers: number          // Tổng số user
-  totalCustomers: number      // Tổng số khách hàng
-  newUsersThisMonth: number   // User mới tháng này
-  usersByRole?: Array<{       // Phân bổ user theo role (optional - BE added)
-    role: string              // "Admin", "Accountant", "Sale", "HOD", "Customer"
+  totalUsers: number // Tổng số user
+  totalCustomers: number // Tổng số khách hàng
+  newUsersThisMonth: number // User mới tháng này
+  usersByRole?: Array<{
+    // Phân bổ user theo role (optional - BE added)
+    role: string // "Admin", "Accountant", "Sale", "HOD", "Customer"
     count: number
   }>
 }
 
 export interface RevenueTrendItem {
-  month: string        // "Dec 2025", "Jan 2026"
-  monthNumber: number  // 12, 1
-  year: number         // 2025, 2026
-  revenue: number      // Doanh thu tháng đó
+  month: string // "Dec 2025", "Jan 2026"
+  monthNumber: number // 12, 1
+  year: number // 2025, 2026
+  revenue: number // Doanh thu tháng đó
 }
 
 export interface TopCustomer {
-  customerName: string   // Tên khách hàng
-  invoiceCount: number   // Số lượng hóa đơn
-  totalSpent: number     // Tổng chi tiêu
+  customerName: string // Tên khách hàng
+  invoiceCount: number // Số lượng hóa đơn
+  totalSpent: number // Tổng chi tiêu
 }
 
 export interface RecentInvoice {
   invoiceId: number
   invoiceNumber: number
   customerName: string
-  createdAt: string           // ISO date string
+  createdAt: string // ISO date string
   amount: number
-  statusName: string          // "Issued", "AdjustmentInProcess", "Replaced", "Cancelled", "Pending"
-  paymentStatus: string       // "Paid", "Unpaid", "PartiallyPaid"
-  dueDate?: string            // ISO date string (optional - BE added)
-  isOverdue?: boolean         // true if overdue (optional - BE added)
+  statusName: string // "Issued", "AdjustmentInProcess", "Replaced", "Cancelled", "Pending"
+  paymentStatus: string // "Paid", "Unpaid", "PartiallyPaid"
+  dueDate?: string // ISO date string (optional - BE added)
+  isOverdue?: boolean // true if overdue (optional - BE added)
 }
 
 export interface AdminDashboardData {
@@ -190,7 +200,7 @@ export interface AdminDashboardData {
   revenueTrend: RevenueTrendItem[]
   topCustomers: TopCustomer[]
   recentInvoices: RecentInvoice[]
-  revenueGrowthPercentage: number  // % tăng trưởng doanh thu
+  revenueGrowthPercentage: number // % tăng trưởng doanh thu
 }
 
 // Helper types for Admin Dashboard UI

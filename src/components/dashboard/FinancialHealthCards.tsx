@@ -1,104 +1,100 @@
-import React from 'react';
-import { Box, Card, CardContent, Typography, LinearProgress, Chip } from '@mui/material';
+import React from 'react'
+import { Box, Card, CardContent, Typography, LinearProgress, Chip, alpha } from '@mui/material'
 import {
   TrendingUp as TrendingUpIcon,
-  Payment as PaymentIcon,
+  AccountBalanceWallet as WalletIcon,
   Receipt as ReceiptIcon,
-  Dangerous as DangerousIcon,
-} from '@mui/icons-material';
-import type { FinancialHealthKPI } from '../../types/dashboard.types';
+  AccountBalance as AccountBalanceIcon,
+} from '@mui/icons-material'
+import type { FinancialHealthKPI } from '../../types/dashboard.types'
 
 interface FinancialHealthCardsProps {
-  data: FinancialHealthKPI;
+  data: FinancialHealthKPI
 }
 
 const FinancialHealthCards: React.FC<FinancialHealthCardsProps> = ({ data }) => {
-  const formatCurrency = (value: number): string => {
+  const formatCurrency = (value: number | undefined | null): string => {
+    if (value === undefined || value === null || isNaN(value)) {
+      return '0 ₫'
+    }
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
       currency: 'VND',
       maximumFractionDigits: 0,
-    }).format(value);
-  };
+    }).format(value)
+  }
+
+  const safeNumber = (val: number | undefined | null): number => {
+    if (val === undefined || val === null || isNaN(val)) return 0
+    return val
+  }
 
   const cards = [
     {
       id: 'net-revenue',
       title: 'Doanh thu thuần',
-      subtitle: 'Tháng này',
+      subtitle: 'Tổng phát sinh trong kỳ',
       value: formatCurrency(data.netRevenue),
       icon: TrendingUpIcon,
-      color: '#0d9488', // Teal
+      color: '#0d9488',
       bgColor: '#f0fdfa',
+      gradient: 'linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)',
       progress: null,
     },
     {
       id: 'cash-collected',
-      title: 'Thực thu',
-      subtitle: `${data.collectionRate.toFixed(2)}% của doanh thu`,
+      title: 'Đã thu',
+      subtitle: `${safeNumber(data.collectionRate).toFixed(1)}% doanh thu`,
       value: formatCurrency(data.cashCollected),
-      icon: PaymentIcon,
-      color: '#10b981', // Emerald
+      icon: WalletIcon,
+      color: '#10b981',
       bgColor: '#ecfdf5',
-      progress: data.collectionRate,
+      gradient: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
+      progress: safeNumber(data.collectionRate),
       progressLabel: 'Tỷ lệ thu',
     },
     {
       id: 'outstanding',
       title: 'Còn phải thu',
-      subtitle: `${data.outstandingRate.toFixed(2)}% chưa thu`,
+      subtitle: `${safeNumber(data.outstandingRate).toFixed(1)}% chưa thu`,
       value: formatCurrency(data.outstanding),
       icon: ReceiptIcon,
-      color: '#f59e0b', // Amber
+      color: '#f59e0b',
       bgColor: '#fffbeb',
-      progress: data.outstandingRate,
-      progressLabel: 'Tỷ lệ chưa thu',
+      gradient: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)',
+      progress: safeNumber(data.outstandingRate),
+      progressLabel: 'Còn nợ',
       badge: 'Theo dõi',
     },
     {
       id: 'vat-payable',
-      title: 'Thuế GTGT phải nộp',
-      subtitle: `Thuế suất ${data.vatRate}%`,
+      title: 'Thuế GTGT',
+      subtitle: `Thuế suất ${safeNumber(data.vatRate)}%`,
       value: formatCurrency(data.estimatedVAT),
-      icon: ReceiptIcon,
-      color: '#8b5cf6', // Violet
+      icon: AccountBalanceIcon,
+      color: '#8b5cf6',
       bgColor: '#faf5ff',
+      gradient: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)',
       progress: null,
       badge: 'Quan trọng',
     },
-    {
-      id: 'total-debt',
-      title: 'Tổng công nợ',
-      subtitle: `${data.totalDebtCount} công nợ`,
-      value: formatCurrency(data.totalDebt),
-      icon: DangerousIcon,
-      color: '#3b82f6', // Blue
-      bgColor: '#eff6ff',
-      progress: null,
-    },
-    {
-      id: 'critical-debt',
-      title: 'Nợ quá hạn >60 ngày',
-      subtitle: data.criticalDebtCount > 0 ? `${data.criticalDebtCount} khách hàng` : 'Không có nợ nguy hiểm',
-      value: formatCurrency(data.criticalDebt),
-      icon: DangerousIcon,
-      color: data.criticalDebt > 0 ? '#dc2626' : '#10b981', // Red if has debt, Green if 0
-      bgColor: data.criticalDebt > 0 ? '#fef2f2' : '#ecfdf5',
-      progress: null,
-      urgent: data.criticalDebt > 0,
-    },
-  ];
+  ]
 
   return (
     <Box
       sx={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+        gridTemplateColumns: {
+          xs: '1fr',
+          sm: 'repeat(2, 1fr)',
+          md: 'repeat(3, 1fr)',
+          lg: 'repeat(3, 1fr)',
+          xl: 'repeat(6, 1fr)',
+        },
         gap: 2.5,
-      }}
-    >
+      }}>
       {cards.map((card) => {
-        const IconComponent = card.icon;
+        const IconComponent = card.icon
 
         return (
           <Card
@@ -106,32 +102,42 @@ const FinancialHealthCards: React.FC<FinancialHealthCardsProps> = ({ data }) => 
             elevation={0}
             sx={{
               position: 'relative',
-              borderLeft: `4px solid ${card.color}`,
-              borderRadius: 2,
+              overflow: 'hidden',
+              borderRadius: 3,
               bgcolor: '#fff',
+              border: '1px solid #f1f5f9',
               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
               '&:hover': {
-                transform: 'translateY(-4px)',
-                boxShadow: `0 12px 24px ${card.color}20`,
+                transform: 'translateY(-6px)',
+                boxShadow: `0 20px 40px ${alpha(card.color, 0.15)}`,
+                borderColor: alpha(card.color, 0.3),
               },
-            }}
-          >
-            <CardContent sx={{ p: 2.5 }}>
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 4,
+                background: card.gradient,
+              },
+            }}>
+            <CardContent sx={{ p: 3, pt: 3.5 }}>
               {/* Header Row */}
-              <Box display="flex" alignItems="flex-start" justifyContent="space-between" mb={2}>
+              <Box display="flex" alignItems="flex-start" justifyContent="space-between" mb={2.5}>
                 <Box
                   sx={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: '12px',
-                    bgcolor: card.bgColor,
+                    width: 52,
+                    height: 52,
+                    borderRadius: '14px',
+                    background: card.gradient,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: card.color,
-                  }}
-                >
-                  <IconComponent sx={{ fontSize: 24 }} />
+                    color: '#fff',
+                    boxShadow: `0 4px 12px ${alpha(card.color, 0.35)}`,
+                  }}>
+                  <IconComponent sx={{ fontSize: 26 }} />
                 </Box>
 
                 {card.badge && (
@@ -139,20 +145,12 @@ const FinancialHealthCards: React.FC<FinancialHealthCardsProps> = ({ data }) => 
                     label={card.badge}
                     size="small"
                     sx={{
-                      bgcolor: `${card.color}15`,
+                      bgcolor: alpha(card.color, 0.1),
                       color: card.color,
                       fontWeight: 600,
                       fontSize: '11px',
+                      border: `1px solid ${alpha(card.color, 0.2)}`,
                     }}
-                  />
-                )}
-
-                {card.urgent && (
-                  <Chip
-                    label="Cần xử lý"
-                    size="small"
-                    color="error"
-                    sx={{ fontWeight: 600, fontSize: '11px' }}
                   />
                 )}
               </Box>
@@ -163,10 +161,11 @@ const FinancialHealthCards: React.FC<FinancialHealthCardsProps> = ({ data }) => 
                 sx={{
                   color: '#64748b',
                   fontWeight: 500,
-                  mb: 0.5,
-                  fontSize: '13px',
-                }}
-              >
+                  mb: 0.75,
+                  fontSize: '12px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}>
                 {card.title}
               </Typography>
 
@@ -175,11 +174,11 @@ const FinancialHealthCards: React.FC<FinancialHealthCardsProps> = ({ data }) => 
                 variant="h4"
                 sx={{
                   fontWeight: 700,
-                  color: card.urgent ? card.color : '#1e293b',
+                  color: '#1e293b',
                   mb: 1,
-                  fontSize: '28px',
-                }}
-              >
+                  fontSize: { xs: '22px', md: '24px' },
+                  letterSpacing: '-0.02em',
+                }}>
                 {card.value}
               </Typography>
 
@@ -188,20 +187,33 @@ const FinancialHealthCards: React.FC<FinancialHealthCardsProps> = ({ data }) => 
                 variant="caption"
                 sx={{
                   color: '#94a3b8',
-                  fontSize: '12px',
-                }}
-              >
+                  fontSize: '11px',
+                  fontWeight: 400,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                }}>
                 {card.subtitle}
               </Typography>
 
-              {/* Progress Bar (for Cash Collected) */}
+              {/* Progress Bar */}
               {card.progress !== null && (
-                <Box mt={2}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
-                    <Typography variant="caption" sx={{ color: '#64748b', fontSize: '11px', fontWeight: 500 }}>
+                <Box mt={2.5}>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                    <Typography variant="caption" sx={{ color: '#64748b', fontSize: '11px', fontWeight: 600 }}>
                       {card.progressLabel}
                     </Typography>
-                    <Typography variant="caption" sx={{ color: card.color, fontSize: '11px', fontWeight: 700 }}>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: '#fff',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        bgcolor: card.color,
+                        px: 1,
+                        py: 0.25,
+                        borderRadius: '10px',
+                      }}>
                       {card.progress.toFixed(1)}%
                     </Typography>
                   </Box>
@@ -209,12 +221,12 @@ const FinancialHealthCards: React.FC<FinancialHealthCardsProps> = ({ data }) => 
                     variant="determinate"
                     value={Math.min(card.progress, 100)}
                     sx={{
-                      height: 6,
-                      borderRadius: 3,
-                      bgcolor: `${card.color}15`,
+                      height: 8,
+                      borderRadius: 4,
+                      bgcolor: alpha(card.color, 0.12),
                       '& .MuiLinearProgress-bar': {
-                        bgcolor: card.color,
-                        borderRadius: 3,
+                        background: card.gradient,
+                        borderRadius: 4,
                       },
                     }}
                   />
@@ -222,10 +234,10 @@ const FinancialHealthCards: React.FC<FinancialHealthCardsProps> = ({ data }) => 
               )}
             </CardContent>
           </Card>
-        );
+        )
       })}
     </Box>
-  );
-};
+  )
+}
 
-export default FinancialHealthCards;
+export default FinancialHealthCards

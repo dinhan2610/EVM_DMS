@@ -4,6 +4,7 @@ import { lazy } from 'react'
 export const HODDashboard = lazy(() => import('@/page/HODDashboard'))
 export const AdminDashboard = lazy(() => import('@/page/AdminDashboard'))
 export const StaffDashboard = lazy(() => import('@/page/StaffDashboard'))
+export const AccountantDashboard = lazy(() => import('@/page/AccountantDashboard'))
 export const SaleDashboard = lazy(() => import('@/page/SaleDashboard'))
 export const CustomerDashboard = lazy(() => import('@/page/CustomerDashboard'))
 
