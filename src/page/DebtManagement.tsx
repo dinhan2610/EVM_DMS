@@ -64,24 +64,38 @@ const formatCurrency = (amount: number): string => {
 
 /**
  * Format number input with Vietnamese thousand separator (dot)
+ * ✅ UPDATED: Hỗ trợ số âm (negative numbers)
  * Example: 1000000 -> "1.000.000"
+ * Example: -1000000 -> "-1.000.000"
  */
 const formatNumberInput = (value: string): string => {
-  // Remove all non-digit characters
+  // Check for negative sign
+  const isNegative = value.startsWith('-')
+  
+  // Remove all non-digit characters (keep only digits)
   const numbers = value.replace(/\D/g, '')
-  if (!numbers) return ''
+  if (!numbers) return isNegative ? '-' : ''
   
   // Add thousand separators (dots)
-  return numbers.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  const formatted = numbers.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  
+  // Add negative sign back if present
+  return isNegative ? `-${formatted}` : formatted
 }
 
 /**
  * Parse formatted input back to number
+ * ✅ UPDATED: Hỗ trợ số âm (negative numbers)
  * Example: "1.000.000" -> 1000000
+ * Example: "-1.000.000" -> -1000000
  */
 const parseFormattedNumber = (value: string): number => {
+  // Keep negative sign, remove dots
   const cleaned = value.replace(/\./g, '')
-  return parseFloat(cleaned) || 0
+  const parsed = parseFloat(cleaned)
+  
+  // Return 0 if NaN, otherwise return parsed value (supports negative)
+  return isNaN(parsed) ? 0 : parsed
 }
 
 const isOverdue = (dueDate: string): boolean => {
@@ -758,14 +772,13 @@ const DebtManagement = () => {
 
     let hasError = false
 
-    // Validate amount (required)
-    if (!paymentData.amount || paymentData.amount <= 0) {
+    // ✅ UPDATED: Validate amount (chỉ check required, cho phép số âm và số dương)
+    // Backend hỗ trợ xử lý số âm (hoàn tiền/điều chỉnh giảm)
+    if (paymentData.amount === undefined || paymentData.amount === null || paymentData.amount === 0) {
       errors.amount = 'Vui lòng nhập số tiền thanh toán'
       hasError = true
-    } else if (paymentData.amount > selectedInvoice.remainingAmount) {
-      errors.amount = `Số tiền không được lớn hơn số nợ còn lại (${formatCurrency(selectedInvoice.remainingAmount)})`
-      hasError = true
     }
+    // ✅ REMOVED: Không còn giới hạn amount <= 0 hoặc amount > remainingAmount
 
     // Validate payment method (required)
     if (!paymentData.method) {
@@ -891,7 +904,8 @@ const DebtManagement = () => {
 
   // DataGrid columns for invoices
   const invoiceColumns: GridColDef[] = useMemo(
-    () => [
+    () => {
+      const baseColumns: GridColDef[] = [
       {
         field: 'invoiceNo',
         headerName: 'Số hóa đơn',
@@ -1049,7 +1063,13 @@ const DebtManagement = () => {
         sortable: false,
         renderCell: (params: GridRenderCellParams) => {
           const invoice = params.row as DebtInvoice
+          
+          // ✅ OPTIMIZATION 1: Ẩn icon nếu hóa đơn có tổng tiền âm (hóa đơn điều chỉnh giảm/hoàn tiền)
+          if (invoice.totalAmount < 0) return null
+          
+          // Ẩn icon nếu đã thanh toán đủ
           if (invoice.paymentStatus === 'Paid') return null
+          
           return (
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
               <Tooltip title="Ghi nhận thanh toán">
@@ -1073,8 +1093,21 @@ const DebtManagement = () => {
           )
         },
       },
-    ],
-    [handlePaymentClick, handleInvoiceRowClick]
+    ]
+    
+    // ✅ OPTIMIZATION 2: Ẩn cột "Thao tác" với role Sale
+    // Chỉ Accountant và HOD mới có quyền ghi nhận thanh toán
+    const isSale = user?.role === USER_ROLES.SALES || user?.role === 'Sale'
+    
+    if (isSale) {
+      // Sale chỉ xem, không có cột thao tác - Filter ra cột 'actions'
+      return baseColumns.filter(col => col.field !== 'actions')
+    }
+    
+    // Accountant/HOD có đầy đủ cột (bao gồm cột thao tác)
+    return baseColumns
+  },
+    [handlePaymentClick, handleInvoiceRowClick, user?.role]
   )
 
   // DataGrid columns for payment history
@@ -1783,14 +1816,14 @@ const DebtManagement = () => {
                     </Alert>
                   )}
 
-                  {/* Payment Amount with VN formatting */}
+                  {/* ✅ UPDATED: Payment Amount with VN formatting - Hỗ trợ số âm */}
                   <Box>
                     <TextField
                     fullWidth
                     required
                     label="Số tiền thanh toán"
                     type="text"
-                    value={paymentData.amount ? formatNumberInput(paymentData.amount.toString()) : ''}
+                    value={paymentData.amount !== 0 ? formatNumberInput(paymentData.amount.toString()) : ''}
                     onChange={(e) => {
                       const parsedAmount = parseFormattedNumber(e.target.value)
                       setPaymentData({ ...paymentData, amount: parsedAmount })
@@ -1802,9 +1835,12 @@ const DebtManagement = () => {
                     InputProps={{
                       endAdornment: <InputAdornment position="end">VNĐ</InputAdornment>,
                     }}
-                   
-                    error={!!formErrors.amount || (paymentData.amount > selectedInvoice.remainingAmount)}
-                    placeholder="Ví dụ: 1.000.000"
+                    error={!!formErrors.amount}
+                    placeholder="Ví dụ: 1.000.000 (Số âm: -500.000 cho hoàn tiền)"
+                    helperText={
+                      formErrors.amount || 
+                      "💡 Số dương: Thanh toán thêm | Số âm: Hoàn tiền/Điều chỉnh giảm"
+                    }
                   />
                     
                   </Box>
