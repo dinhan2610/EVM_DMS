@@ -895,18 +895,20 @@ function CreateSalesOrder() {
         
         // 🚨 CRITICAL FIX: Backend API đang trả cả saleID=0, phải filter lại ở client
         // Backend bug: GET /api/Customer?saleId=3 trả về cả customers có saleID=0
-        const filteredData = data.filter(customer => customer.saleID === userId)
+        // ✅ ACTIVE FILTER: Chỉ lấy khách hàng active (isActive = true)
+        const filteredData = data.filter(customer => customer.saleID === userId && customer.isActive)
         
         console.log('🔍 [Client-side Filter] Before:', data.length, 'customers')
         console.log('🔍 [Client-side Filter] After:', filteredData.length, 'customers')
-        console.log('⚠️ [Backend Bug] Filtered out:', data.length - filteredData.length, 'customers with wrong saleID')
+        console.log('⚠️ [Backend Bug] Filtered out:', data.length - filteredData.length, 'customers (wrong saleID or inactive)')
         
         if (filteredData.length < data.length) {
-          console.warn('🚨 Backend API bug detected: Returning customers with saleID !== ' + userId)
-          console.warn('🐛 Wrong customers:', data.filter(c => c.saleID !== userId).map(c => ({
+          console.warn('🚨 Backend API bug detected: Returning customers with saleID !== ' + userId + ' or inactive customers')
+          console.warn('🐛 Wrong/Inactive customers:', data.filter(c => c.saleID !== userId || !c.isActive).map(c => ({
             customerID: c.customerID,
             name: c.customerName,
             saleID: c.saleID,
+            isActive: c.isActive,
           })))
         }
         
@@ -967,7 +969,7 @@ function CreateSalesOrder() {
         let customerData = null
         if (invoice.customerID && !invoice.customerName) {
           console.log('📥 Fetching customer data for ID:', invoice.customerID)
-          const customers = await customerService.getAllCustomers()
+          const customers = await customerService.getActiveCustomers()
           customerData = customers.find(c => c.customerID === invoice.customerID)
           console.log('👤 Customer data:', customerData)
         }
@@ -1234,32 +1236,47 @@ function CreateSalesOrder() {
       setCustomerNotFound(false)
       
       console.log('🔍 [MST Lookup] Searching in YOUR customers only')
-      console.log('📊 Total customers available:', customers.length)
+      console.log('📊 Total active customers available:', customers.length)
       console.log('🔎 Searching for MST/CCCD:', trimmedTaxCode)
       
-      // ✅ CHỈ tìm trong danh sách khách hàng của sale (client-side, secure)
-      const foundCustomer = customers.find(c => c.taxCode === trimmedTaxCode)
+      // ✅ BƯỚC 1: Tìm trong active customers (danh sách đã filter)
+      const foundActiveCustomer = customers.find(c => c.taxCode === trimmedTaxCode)
       
-      if (foundCustomer) {
-        // Tự động điền thông tin
-        setBuyerCustomerID(foundCustomer.customerID)
-        setBuyerCompanyName(foundCustomer.customerName)
-        setBuyerAddress(foundCustomer.address)
-        setBuyerEmail(foundCustomer.contactEmail)
-        setBuyerPhone(foundCustomer.contactPhone)
+      if (foundActiveCustomer) {
+        // ✅ Tìm thấy trong active customers - Autofill thông tin
+        setBuyerCustomerID(foundActiveCustomer.customerID)
+        setBuyerCompanyName(foundActiveCustomer.customerName)
+        setBuyerAddress(foundActiveCustomer.address)
+        setBuyerEmail(foundActiveCustomer.contactEmail)
+        setBuyerPhone(foundActiveCustomer.contactPhone)
         // ✅ Autofill contactPerson vào buyerName nếu có
-        if (foundCustomer.contactPerson) {
-          setBuyerName(foundCustomer.contactPerson)
+        if (foundActiveCustomer.contactPerson) {
+          setBuyerName(foundActiveCustomer.contactPerson)
         }
         
-        console.log('✅ [MST Lookup] Found:', foundCustomer.customerName, '(ID:', foundCustomer.customerID, ')')
+        console.log('✅ [MST Lookup] Found active customer:', foundActiveCustomer.customerName, '(ID:', foundActiveCustomer.customerID, ')')
         setSnackbar({
           open: true,
-          message: `✅ Tìm thấy: ${foundCustomer.customerName}`,
+          message: `✅ Tìm thấy: ${foundActiveCustomer.customerName}`,
           severity: 'success',
         })
-      } else {
-        // Không tìm thấy trong danh sách của sale
+        return
+      }
+      
+      // ✅ BƯỚC 2: Không tìm thấy trong active → Check xem có phải inactive customer không
+      console.log('⚠️ [MST Lookup] Not found in active customers. Checking if customer exists but is inactive...')
+      
+      // Gọi API để check ALL customers của sale này (cả inactive)
+      const userId = getUserIdFromToken() || 0
+      const allCustomersOfSale = await customerService.getCustomersBySaleId(userId)
+      const foundInactiveCustomer = allCustomersOfSale.find(c => 
+        c.taxCode === trimmedTaxCode && 
+        c.saleID === userId &&
+        !c.isActive
+      )
+      
+      if (foundInactiveCustomer) {
+        // ❌ Customer thuộc về sale nhưng đã bị vô hiệu hoá
         setBuyerCustomerID(0)
         setBuyerCompanyName('')
         setBuyerAddress('')
@@ -1267,11 +1284,26 @@ function CreateSalesOrder() {
         setBuyerPhone('')
         setCustomerNotFound(true)
         
-        console.log('⚠️ [MST Lookup] NOT FOUND in your customer list')
-        console.log('💡 Available MST codes:', customers.map(c => c.taxCode))
+        console.log('🚫 [MST Lookup] Found INACTIVE customer:', foundInactiveCustomer.customerName, '(ID:', foundInactiveCustomer.customerID, ')')
         setSnackbar({
           open: true,
-          message: `🚫 MST "${taxCode}" không thuộc khách hàng của bạn (${customers.length} KH). Vui lòng kiểm tra lại hoặc liên hệ quản lý.`,
+          message: `🚫 Khách hàng "${foundInactiveCustomer.customerName}" (MST: ${trimmedTaxCode}) đã bị vô hiệu hoá. Không thể tạo yêu cầu. Vui lòng liên hệ quản lý để kích hoạt lại.`,
+          severity: 'error',
+        })
+      } else {
+        // ❌ MST hoàn toàn không thuộc về sale này
+        setBuyerCustomerID(0)
+        setBuyerCompanyName('')
+        setBuyerAddress('')
+        setBuyerEmail('')
+        setBuyerPhone('')
+        setCustomerNotFound(true)
+        
+        console.log('⚠️ [MST Lookup] NOT FOUND in your customer list (neither active nor inactive)')
+        console.log('💡 Available active MST codes:', customers.map(c => c.taxCode))
+        setSnackbar({
+          open: true,
+          message: `🚫 MST "${trimmedTaxCode}" không thuộc khách hàng của bạn (${customers.length} KH active). Vui lòng kiểm tra lại hoặc liên hệ quản lý.`,
           severity: 'warning',
         })
       }

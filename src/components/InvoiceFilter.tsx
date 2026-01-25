@@ -100,9 +100,8 @@ const InvoiceFilter: React.FC<InvoiceFilterProps> = ({
     const loadCustomers = async () => {
       try {
         setIsLoadingCustomers(true)
-        const data = await customerService.getAllCustomers()
+        const data = await customerService.getActiveCustomers()
         const customerOptions = data
-          .filter((c) => c.isActive) // Chỉ lấy khách hàng active
           .map((c) => ({
             label: c.customerName,
             value: c.customerName, // Dùng customerName làm giá trị filter

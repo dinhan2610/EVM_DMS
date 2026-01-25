@@ -1019,7 +1019,7 @@ const CreateVatInvoice: React.FC = () => {
         // ✅ Fetch thông tin customer đầy đủ từ customerID
         if (data.customerID) {
           try {
-            const customers = await customerService.getAllCustomers()
+            const customers = await customerService.getActiveCustomers()
             const customer = customers.find(c => c.customerID === data.customerID) // ✅ Fix: customerID viết hoa
             if (customer) {
               console.log('✅ Customer found:', customer)
@@ -1210,6 +1210,22 @@ const CreateVatInvoice: React.FC = () => {
       const foundCustomer = await customerService.findCustomerByTaxCode(taxCode.trim())
       
       if (foundCustomer) {
+        // 🚫 Kiểm tra xem khách hàng còn active không
+        if (!foundCustomer.isActive) {
+          setBuyerCustomerID(0)
+          setBuyerCompanyName('')
+          setBuyerAddress('')
+          setBuyerEmail('')
+          setBuyerPhone('')
+          
+          setSnackbar({
+            open: true,
+            message: `⚠️ Khách hàng "${foundCustomer.customerName}" đã bị vô hiệu hóa. Vui lòng liên hệ quản lý!`,
+            severity: 'error',
+          })
+          return
+        }
+        
         // Tự động điền thông tin
         setBuyerCustomerID(foundCustomer.customerID) // ✅ Lưu customer ID
         setBuyerCompanyName(foundCustomer.customerName)

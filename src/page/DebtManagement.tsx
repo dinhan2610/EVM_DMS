@@ -266,11 +266,13 @@ const DebtManagement = () => {
             console.log('📊 [Debt - Sales Filter] API returned:', saleCustomers.length, 'customers')
             
             // 🔥 CRITICAL: Backend bug - filter client-side
+            // 💡 DEBT MANAGEMENT: Hiển thị TẤT CẢ customers (kể cả inactive) vì cần xem công nợ lịch sử
             const filteredCustomers = saleCustomers.filter(c => c.saleID === Number(user.id))
             
             console.log('🔍 [Debt - Client Filter] Before:', saleCustomers.length, 'customers')
             console.log('🔍 [Debt - Client Filter] After:', filteredCustomers.length, 'customers')
-            console.log('⚠️ [Debt - Backend Bug] Filtered out:', saleCustomers.length - filteredCustomers.length, 'wrong saleID')
+            console.log('⚠️ [Debt - Backend Bug] Filtered out:', saleCustomers.length - filteredCustomers.length, 'customers (wrong saleID)')
+            console.log('💡 [Debt Logic] Including inactive customers - need to view historical debt')
             
             if (filteredCustomers.length < saleCustomers.length) {
               console.warn('🚨 Backend API bug: Returning customers with saleID !=', user.id)

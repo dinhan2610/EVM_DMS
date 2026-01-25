@@ -129,6 +129,9 @@ const SalesCustomerManagement = () => {
       
       console.log('✅ [Sales] Loaded customers:', apiCustomers.length)
 
+      // 💡 SALES CUSTOMER MANAGEMENT: Hiển thị TẤT CẢ customers (cả active & inactive)
+      // Sales cần xem toàn bộ danh sách khách hàng của mình để quản lý & theo dõi trạng thái
+
       // ✅ Map sang frontend format với optional chaining
       const mappedCustomers: Customer[] = apiCustomers.map((customer) => ({
         id: String(customer.customerID),
@@ -586,6 +589,13 @@ const SalesCustomerManagement = () => {
           autoHeight
           rowHeight={60}
           columnHeaderHeight={56}
+          slotProps={{
+            pagination: {
+              labelRowsPerPage: 'Số hàng:',
+              showFirstButton: true,
+              showLastButton: true,
+            },
+          }}
           sx={{
             border: 'none',
             '& .MuiDataGrid-cell': {
@@ -603,6 +613,48 @@ const SalesCustomerManagement = () => {
             },
             '& .MuiDataGrid-row:hover': {
               backgroundColor: '#f5f5f5',
+            },
+            // ✅ Tối ưu pagination trên 1 hàng
+            '& .MuiDataGrid-footerContainer': {
+              minHeight: '56px',
+              borderTop: '2px solid',
+              borderColor: 'divider',
+              bgcolor: 'grey.50',
+            },
+            '& .MuiTablePagination-root': {
+              overflow: 'visible',
+            },
+            '& .MuiTablePagination-toolbar': {
+              minHeight: '56px',
+              paddingLeft: 2,
+              paddingRight: 1,
+            },
+            '& .MuiTablePagination-selectLabel': {
+              margin: 0,
+              fontSize: '0.875rem',
+            },
+            '& .MuiTablePagination-displayedRows': {
+              margin: 0,
+              fontSize: '0.875rem',
+            },
+            '& .MuiTablePagination-select': {
+              fontSize: '0.875rem',
+            },
+            // Responsive: compact trên mobile
+            [theme.breakpoints.down('sm')]: {
+              '& .MuiTablePagination-toolbar': {
+                paddingLeft: 1,
+                paddingRight: 0.5,
+              },
+              '& .MuiTablePagination-selectLabel': {
+                fontSize: '0.8125rem',
+              },
+              '& .MuiTablePagination-displayedRows': {
+                fontSize: '0.8125rem',
+              },
+              '& .MuiTablePagination-actions': {
+                marginLeft: 1,
+              },
             },
           }}
         />

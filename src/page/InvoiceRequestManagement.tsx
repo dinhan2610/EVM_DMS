@@ -1008,9 +1008,12 @@ const InvoiceRequestManagement = () => {
         return
       }
 
-      // Construct full URL từ relative path
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://eims.site'
-      const fileUrl = `${baseUrl}${filePath}`
+      // ✅ Check if filePath is already a full URL (Cloudinary, S3, etc.)
+      const fileUrl = filePath.startsWith('http') 
+        ? filePath 
+        : `${import.meta.env.VITE_API_BASE_URL || 'https://eims.site'}${filePath}`
+
+      console.log('🔗 Opening evidence file:', fileUrl)
 
       // Open trong new tab
       window.open(fileUrl, '_blank')

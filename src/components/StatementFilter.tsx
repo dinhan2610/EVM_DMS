@@ -87,8 +87,8 @@ const StatementFilter: React.FC<StatementFilterProps> = ({
       try {
         setIsLoadingCustomers(true)
         const data = await customerService.getAllCustomers()
+        // 💡 STATEMENT FILTER: Hiển thị TẤT CẢ customers (kể cả inactive) vì cần xem bảng kê lịch sử
         const customerOptions = data
-          .filter((c) => c.isActive)
           .map((c) => ({
             label: c.customerName,
             value: c.customerName,

@@ -95,9 +95,8 @@ const InvoiceRequestFilter: React.FC<InvoiceRequestFilterProps> = ({
     const loadCustomers = async () => {
       try {
         setIsLoadingCustomers(true)
-        const data = await customerService.getAllCustomers()
+        const data = await customerService.getActiveCustomers()
         const customerOptions = data
-          .filter((c) => c.isActive)
           .map((c) => ({
             label: c.customerName,
             value: c.customerName,

@@ -881,7 +881,7 @@ const CreateVatInvoice: React.FC = () => {
         let customerData = null
         if (invoice.customerID && !invoice.customerName) {
           console.log('📥 Fetching customer data for ID:', invoice.customerID)
-          const customers = await customerService.getAllCustomers()
+          const customers = await customerService.getActiveCustomers()
           customerData = customers.find(c => c.customerID === invoice.customerID)
           console.log('👤 Customer data:', customerData)
         }
@@ -1435,6 +1435,24 @@ const CreateVatInvoice: React.FC = () => {
       const foundCustomer = await customerService.findCustomerByTaxCode(trimmedTaxCode)
       
       if (foundCustomer) {
+        // 🚫 Kiểm tra xem khách hàng còn active không
+        if (!foundCustomer.isActive) {
+          setBuyerCustomerID(0)
+          setBuyerCompanyName('')
+          setBuyerAddress('')
+          setBuyerEmail('')
+          setBuyerPhone('')
+          setBuyerName('')
+          setCustomerNotFound(true)
+          
+          setSnackbar({
+            open: true,
+            message: `⚠️ Khách hàng "${foundCustomer.customerName}" đã bị vô hiệu hóa. Vui lòng liên hệ quản lý!`,
+            severity: 'error',
+          })
+          return
+        }
+        
         // Tự động điền thông tin
         setBuyerCustomerID(foundCustomer.customerID) // ✅ Lưu customer ID
         setBuyerCompanyName(foundCustomer.customerName)
@@ -1706,8 +1724,8 @@ const CreateVatInvoice: React.FC = () => {
 
     try {
       setIsLoadingSuggestions(true)
-      // Get all customers và filter theo tên công ty
-      const allCustomers = await customerService.getAllCustomers()
+      // Get active customers và filter theo tên công ty
+      const allCustomers = await customerService.getActiveCustomers()
       const filtered = allCustomers.filter(c => 
         c.customerName.toLowerCase().includes(searchQuery.toLowerCase())
       )

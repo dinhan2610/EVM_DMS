@@ -115,6 +115,39 @@ export const getAllCustomers = async (): Promise<Customer[]> => {
 };
 
 /**
+ * Get only active customers (isActive = true)
+ * GET /api/Customer/active
+ * Response: Paginated { items: Customer[], pageIndex, totalPages, totalCount, ... }
+ * 
+ * ✅ USE THIS for invoice/request creation to prevent inactive customers from being selected
+ */
+export const getActiveCustomers = async (): Promise<Customer[]> => {
+  try {
+    console.log('[getActiveCustomers] Fetching active customers...');
+    
+    const response = await axios.get<{
+      items: Customer[];
+      pageIndex: number;
+      totalPages: number;
+      totalCount: number;
+      hasPreviousPage: boolean;
+      hasNextPage: boolean;
+    }>(
+      '/api/Customer/active',
+      { headers: getAuthHeaders() }
+    );
+    
+    // Backend trả về paginated response với items array (chỉ customers có isActive = true)
+    const customers = response.data.items || [];
+    
+    console.log('[getActiveCustomers] Success:', customers.length, 'active customers');
+    return customers;
+  } catch (error) {
+    return handleApiError(error, 'getActiveCustomers');
+  }
+};
+
+/**
  * Paginated response from Customer API
  */
 export interface CustomerPaginatedResponse {
@@ -299,7 +332,8 @@ export const findCustomerByTaxCode = async (taxCode: string): Promise<Customer |
 
 const customerService = {
   getAllCustomers,
-  getCustomersBySaleId,  // ✅ Thêm function mới
+  getActiveCustomers,      // ✅ Thêm function mới để lấy active customers
+  getCustomersBySaleId,    // ✅ Thêm function mới
   createCustomer,
   updateCustomer,
   setCustomerActive,
