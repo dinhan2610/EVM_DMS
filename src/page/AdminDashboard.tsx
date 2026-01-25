@@ -220,36 +220,6 @@ const AdminDashboard = () => {
       }
     }) || []
 
-  // Top customers data
-  const topCustomersData = data.topCustomers.map((customer, index) => ({
-    ...customer,
-    fill: ['#0ea5e9', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'][index % 5],
-  }))
-
-  // Status config
-  const getStatusConfig = (status: string) => {
-    const statusMap: Record<string, { label: string; color: string; bgColor: string }> = {
-      Issued: { label: 'Đã phát hành', color: '#10b981', bgColor: '#d1fae5' },
-      Signed: { label: 'Đã ký', color: '#0ea5e9', bgColor: '#e0f2fe' },
-      Replaced: { label: 'Đã thay thế', color: '#8b5cf6', bgColor: '#f3e8ff' },
-      Adjusted: { label: 'Đã điều chỉnh', color: '#0d9488', bgColor: '#ccfbf1' },
-      Cancelled: { label: 'Đã hủy', color: '#ef4444', bgColor: '#fee2e2' },
-      Pending: { label: 'Chờ duyệt', color: '#f59e0b', bgColor: '#fef3c7' },
-      AdjustmentInProcess: { label: 'Đang điều chỉnh', color: '#f97316', bgColor: '#ffedd5' },
-      ReplacementInProcess: { label: 'Đang thay thế', color: '#06b6d4', bgColor: '#cffafe' },
-    }
-    return statusMap[status] || { label: status, color: '#64748b', bgColor: '#f1f5f9' }
-  }
-
-  const getPaymentStatusConfig = (status: string) => {
-    const statusMap: Record<string, { label: string; color: string; bgColor: string }> = {
-      Paid: { label: 'Đã thanh toán', color: '#22c55e', bgColor: '#dcfce7' },
-      Unpaid: { label: 'Chưa thanh toán', color: '#ef4444', bgColor: '#fee2e2' },
-      PartiallyPaid: { label: 'Thanh toán 1 phần', color: '#f59e0b', bgColor: '#fef3c7' },
-    }
-    return statusMap[status] || { label: status, color: '#64748b', bgColor: '#f1f5f9' }
-  }
-
   return (
     <Box sx={{ bgcolor: '#f8fafc', minHeight: '100vh', pb: 4 }}>
       {/* Header */}

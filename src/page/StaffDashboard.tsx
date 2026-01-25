@@ -1,124 +1,123 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Box, Typography, CircularProgress, Alert, Button } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import { useNavigate } from 'react-router-dom';
-import StaffKPIs from '../components/staffdashboard/StaffKPIs';
-import TaskQueue from '../components/staffdashboard/TaskQueue';
-import MyRecentInvoices from '../components/staffdashboard/MyRecentInvoices';
-import { usePageTitle } from '@/hooks/usePageTitle';
-import { useSignalR, useSignalRReconnect } from '@/hooks/useSignalR';
-import { USER_ROLES } from '@/constants/roles';
-import dashboardService from '@/services/dashboardService';
-import type { StaffKPI, TaskItem, RecentInvoice, AccountantDashboardAPI } from '@/types/staff.types';
-import dayjs from 'dayjs';
+import { useState, useEffect, useCallback } from 'react'
+import { Box, Typography, CircularProgress, Alert, Button } from '@mui/material'
+import RefreshIcon from '@mui/icons-material/Refresh'
+import { useNavigate } from 'react-router-dom'
+import StaffKPIs from '../components/staffdashboard/StaffKPIs'
+import TaskQueue from '../components/staffdashboard/TaskQueue'
+import MyRecentInvoices from '../components/staffdashboard/MyRecentInvoices'
+import { usePageTitle } from '@/hooks/usePageTitle'
+import { useSignalR, useSignalRReconnect } from '@/hooks/useSignalR'
+import { USER_ROLES } from '@/constants/roles'
+import dashboardService from '@/services/dashboardService'
+import type { StaffKPI, TaskItem, RecentInvoice, AccountantDashboardAPI } from '@/types/staff.types'
+import dayjs from 'dayjs'
 
 const StaffDashboard = () => {
   usePageTitle('Không gian làm việc')
-  const navigate = useNavigate();
+  const navigate = useNavigate()
 
   // State
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<string>('Kế toán');
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<string>('Kế toán')
   const [kpis, setKpis] = useState<StaffKPI>({
     rejectedCount: 0,
     draftsCount: 0,
     sentToday: 0,
     customersToCall: 0,
-  });
-  const [taskQueue, setTaskQueue] = useState<TaskItem[]>([]);
-  const [recentInvoices, setRecentInvoices] = useState<RecentInvoice[]>([]);
-  const [lastUpdated, setLastUpdated] = useState<string>('');
+  })
+  const [taskQueue, setTaskQueue] = useState<TaskItem[]>([])
+  const [recentInvoices, setRecentInvoices] = useState<RecentInvoice[]>([])
+  const [lastUpdated, setLastUpdated] = useState<string>('')
 
   // Map API data to frontend types
   const mapApiToFrontend = useCallback((data: AccountantDashboardAPI) => {
     // Map current user
-    const userName = data.currentUser.fullName || data.currentUser.userName || data.currentUser.email;
-    setCurrentUser(userName);
+    const userName = data.currentUser.fullName || data.currentUser.userName || data.currentUser.email
+    setCurrentUser(userName)
 
-    // Map KPIs
+    // Map KPIs - API kpis có pendingApproval và urgentTasks, dùng urgentTasks làm customersToCall
     setKpis({
       rejectedCount: data.kpis.rejectedCount,
       draftsCount: data.kpis.draftsCount,
       sentToday: data.kpis.sentToday,
-      customersToCall: data.kpis.customersToCall,
-    });
+      customersToCall: data.kpis.urgentTasks, // Sử dụng urgentTasks thay vì customersToCall
+    })
 
     // Map Task Queue
     const mappedTasks: TaskItem[] = data.taskQueue.map((task, index) => ({
       id: `task-${task.invoiceId}-${index}`,
       type: task.taskType === 'Rejected' ? 'rejected' : 'draft',
       priority: task.priority.toLowerCase() as 'high' | 'medium' | 'low',
-      invoiceNumber: task.invoiceNumber === 'N/A' || task.invoiceNumber === 'Draft' 
-        ? `#${task.invoiceId}` 
-        : task.invoiceNumber,
+      invoiceNumber:
+        task.invoiceNumber === null || task.invoiceNumber === 'N/A' || task.invoiceNumber === 'Draft' ? `#${task.invoiceId}` : task.invoiceNumber,
       customerName: task.customerName,
       reason: task.reason || 'Không có ghi chú',
       amount: task.amount,
       createdDate: new Date(task.taskDate),
       actionUrl: `/invoices/${task.invoiceId}`,
-    }));
-    setTaskQueue(mappedTasks);
+    }))
+    setTaskQueue(mappedTasks)
 
     // Map Recent Invoices
     const mappedInvoices: RecentInvoice[] = data.recentInvoices.map((inv) => ({
       id: inv.invoiceId.toString(),
-      invoiceNumber: inv.invoiceNumber === 'Draft' ? `Nháp #${inv.invoiceId}` : inv.invoiceNumber,
+      invoiceNumber: inv.invoiceNumber === null || inv.invoiceNumber === 'Draft' ? `Nháp #${inv.invoiceId}` : inv.invoiceNumber,
       customerName: inv.customerName,
       amount: inv.totalAmount,
       status: mapStatusToFrontend(inv.status),
       createdBy: data.currentUser.fullName || 'Kế toán',
       createdAt: new Date(inv.createdAt),
-    }));
-    setRecentInvoices(mappedInvoices);
+    }))
+    setRecentInvoices(mappedInvoices)
 
     // Set last updated
-    setLastUpdated(dayjs(data.generatedAt).format('HH:mm:ss DD/MM/YYYY'));
-  }, []);
+    setLastUpdated(dayjs(data.generatedAt).format('HH:mm:ss DD/MM/YYYY'))
+  }, [])
 
   // Map API status to frontend status
   const mapStatusToFrontend = (status: string): RecentInvoice['status'] => {
     const statusMap: Record<string, RecentInvoice['status']> = {
-      'Draft': 'Draft',
+      Draft: 'Draft',
       'Pending Approval': 'Pending',
       'Pending Sign': 'Pending',
-      'Signed': 'Approved',
-      'Issued': 'Sent',
-      'Rejected': 'Rejected',
-      'AdjustmentInProcess': 'Pending',
-    };
-    return statusMap[status] || 'Draft';
-  };
+      Signed: 'Approved',
+      Issued: 'Sent',
+      Rejected: 'Rejected',
+      AdjustmentInProcess: 'Pending',
+    }
+    return statusMap[status] || 'Draft'
+  }
 
   // Fetch dashboard data
   const fetchDashboard = useCallback(async () => {
     try {
-      setLoading(true);
-      setError(null);
-      
-      const data = await dashboardService.getAccountantDashboard();
-      mapApiToFrontend(data);
-      
-      console.log('📊 [StaffDashboard] Loaded data:', data);
+      setLoading(true)
+      setError(null)
+
+      const data = await dashboardService.getAccountantDashboard()
+      mapApiToFrontend(data)
+
+      console.log('📊 [StaffDashboard] Loaded data:', data)
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Không thể tải dữ liệu dashboard';
-      setError(errorMessage);
-      console.error('[StaffDashboard] Fetch error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Không thể tải dữ liệu dashboard'
+      setError(errorMessage)
+      console.error('[StaffDashboard] Fetch error:', err)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  }, [mapApiToFrontend]);
+  }, [mapApiToFrontend])
 
   // Load data on mount
   useEffect(() => {
-    fetchDashboard();
-  }, [fetchDashboard]);
+    fetchDashboard()
+  }, [fetchDashboard])
 
   // 🔥 SignalR Realtime Updates
   useSignalR({
     onDashboardChanged: (payload) => {
       console.log('📨 [StaffDashboard] DashboardChanged event:', payload)
-      
+
       // Accountant refresh khi scope = Invoices
       if (payload.scope === 'Invoices' && payload.roles.includes(USER_ROLES.ACCOUNTANT)) {
         console.log('🔄 [StaffDashboard] Refreshing dashboard data...')
@@ -131,7 +130,7 @@ const StaffDashboard = () => {
         console.log('🔄 [StaffDashboard] Invoice changed, refreshing...')
         fetchDashboard()
       }
-    }
+    },
   })
 
   // Resync data khi SignalR reconnect
@@ -142,20 +141,21 @@ const StaffDashboard = () => {
 
   // Event Handlers
   const handleFixNow = (taskId: string, actionUrl: string) => {
-    console.log('Fix task:', taskId, '→', actionUrl);
-    navigate(actionUrl);
-  };
+    console.log('Fix task:', taskId, '→', actionUrl)
+    navigate(actionUrl)
+  }
 
   // Loading state
   if (loading) {
     return (
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        minHeight: '100vh',
-        bgcolor: '#f8fafc'
-      }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '100vh',
+          bgcolor: '#f8fafc',
+        }}>
         <Box sx={{ textAlign: 'center' }}>
           <CircularProgress size={60} thickness={4} />
           <Typography variant="body1" sx={{ mt: 2, color: '#64748b' }}>
@@ -163,7 +163,7 @@ const StaffDashboard = () => {
           </Typography>
         </Box>
       </Box>
-    );
+    )
   }
 
   return (
@@ -177,35 +177,24 @@ const StaffDashboard = () => {
             </Typography>
             <Typography variant="body2" sx={{ color: '#64748b' }}>
               Quản lý công việc hàng ngày và tăng hiệu suất
-              {lastUpdated && (
-                <span style={{ marginLeft: 8 }}>
-                  • Cập nhật lúc {lastUpdated}
-                </span>
-              )}
+              {lastUpdated && <span style={{ marginLeft: 8 }}>• Cập nhật lúc {lastUpdated}</span>}
             </Typography>
           </Box>
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={fetchDashboard}
-            disabled={loading}
-            sx={{ borderRadius: 2 }}
-          >
+          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={fetchDashboard} disabled={loading} sx={{ borderRadius: 2 }}>
             Làm mới
           </Button>
         </Box>
 
         {/* Error Alert */}
         {error && (
-          <Alert 
-            severity="error" 
+          <Alert
+            severity="error"
             sx={{ mb: 3 }}
             action={
               <Button color="inherit" size="small" onClick={fetchDashboard}>
                 Thử lại
               </Button>
-            }
-          >
+            }>
             {error}
           </Alert>
         )}
@@ -226,7 +215,7 @@ const StaffDashboard = () => {
         </Box>
       </Box>
     </Box>
-  );
-};
+  )
+}
 
-export default StaffDashboard;
+export default StaffDashboard
