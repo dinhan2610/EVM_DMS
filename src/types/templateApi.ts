@@ -1,9 +1,9 @@
 /**
  * Template API Type Definitions
- * 
+ *
  * This file contains type definitions that match 100% with the actual API schema.
  * Separated from internal template editor types for clarity.
- * 
+ *
  * API Endpoint: POST /api/InvoiceTemplate
  * API Endpoint: GET /api/InvoiceTemplate
  * API Endpoint: PUT /api/InvoiceTemplate/{id}
@@ -46,7 +46,7 @@ export interface LayoutDefinitionRequest {
 
 /**
  * Create Template Request Body
- * 
+ *
  * ✅ AXIOS HANDLES SERIALIZATION
  * Send layoutDefinition as object, Axios will stringify entire body
  */
@@ -54,7 +54,7 @@ export interface CreateTemplateApiRequest {
   templateName: string
   serialID: number
   templateTypeID: number
-  layoutDefinition: any // ✅ Object (Axios will stringify)
+  layoutDefinition: LayoutDefinitionRequest | LayoutDefinitionResponse | Record<string, unknown> // ✅ Object (Axios will stringify)
   templateFrameID: number
   logoUrl: string | null
   renderedHtml?: string // ✅ Template HTML for PDF generation
@@ -62,7 +62,7 @@ export interface CreateTemplateApiRequest {
 
 /**
  * Update Template Request Body
- * 
+ *
  * ✅ CRITICAL: Backend expects layoutDefinition as OBJECT (same as CREATE)
  * Axios will automatically stringify the entire request body
  * Do NOT manually stringify layoutDefinition
@@ -70,7 +70,7 @@ export interface CreateTemplateApiRequest {
 export interface UpdateTemplateApiRequest {
   templateID: number
   templateName: string
-  layoutDefinition: any // ✅ OBJECT (Axios will stringify) - NOT string!
+  layoutDefinition: LayoutDefinitionRequest | LayoutDefinitionResponse | Record<string, unknown> // ✅ OBJECT (Axios will stringify) - NOT string!
   templateFrameID: number
   logoUrl: string | null
   isActive: boolean
@@ -169,7 +169,7 @@ export interface ParsedTemplateResponse extends Omit<TemplateApiResponse, 'layou
  * Template Type IDs
  */
 export enum TemplateTypeID {
-  WithCode = 1,    // Hóa đơn có mã CQT
+  WithCode = 1, // Hóa đơn có mã CQT
   WithoutCode = 2, // Hóa đơn không mã CQT
 }
 
@@ -212,15 +212,10 @@ export const DEFAULT_LAYOUT_DEFINITION_REQUEST: LayoutDefinitionRequest = {
  */
 export function isLayoutDefinitionRequest(value: unknown): value is LayoutDefinitionRequest {
   if (typeof value !== 'object' || value === null) return false
-  
+
   const obj = value as Record<string, unknown>
-  
-  return (
-    'displaySettings' in obj &&
-    'customerSettings' in obj &&
-    'tableSettings' in obj &&
-    'style' in obj
-  )
+
+  return 'displaySettings' in obj && 'customerSettings' in obj && 'tableSettings' in obj && 'style' in obj
 }
 
 /**
@@ -228,15 +223,8 @@ export function isLayoutDefinitionRequest(value: unknown): value is LayoutDefini
  */
 export function isLayoutDefinitionResponse(value: unknown): value is LayoutDefinitionResponse {
   if (typeof value !== 'object' || value === null) return false
-  
+
   const obj = value as Record<string, unknown>
-  
-  return (
-    'table' in obj &&
-    'company' in obj &&
-    'settings' in obj &&
-    'modelCode' in obj
-  )
+
+  return 'table' in obj && 'company' in obj && 'settings' in obj && 'modelCode' in obj
 }
-
-
