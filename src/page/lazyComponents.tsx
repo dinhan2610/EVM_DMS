@@ -10,7 +10,6 @@ export const CreateReplacementInvoice = lazy(() => import('@/page/CreateReplacem
 export const RequestManagement = lazy(() => import('@/page/RequestManagement'))
 export const ItemsManagement = lazy(() => import('@/page/ItemsManagement'))
 export const StatementManagement = lazy(() => import('@/page/StatementManagement'))
-export const CreateStatement = lazy(() => import('@/page/CreateStatement'))
 export const DebtManagement = lazy(() => import('@/page/DebtManagement'))
 export const TemplateManagement = lazy(() => import('@/page/TemplateManagement'))
 export const TemplateEditor = lazy(() => import('@/page/TemplateEditor'))

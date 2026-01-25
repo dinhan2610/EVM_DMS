@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Box, Typography, CircularProgress, Alert } from '@mui/material'
 import FinancialKPIs from '../components/admindashboard/FinancialKPIs'
@@ -9,6 +9,8 @@ import AuditLogTable from '../components/admindashboard/AuditLogTable'
 import auditService from '@/services/auditService'
 import dashboardService from '@/services/dashboardService'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useSignalR, useSignalRReconnect } from '@/hooks/useSignalR'
+import { USER_ROLES } from '@/constants/roles'
 import type { AuditLog } from '../types/admin.types'
 import type { AdminDashboardData } from '../types/dashboard.types'
 
@@ -21,23 +23,57 @@ const AdminDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
 
   // Fetch dashboard data
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const data = await dashboardService.getAdminDashboard()
+      setDashboardData(data)
+      console.log('✅ [AdminDashboard] Data loaded successfully')
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error)
+      setError('Không thể tải dữ liệu dashboard. Vui lòng thử lại sau.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const data = await dashboardService.getAdminDashboard()
-        setDashboardData(data)
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error)
-        setError('Không thể tải dữ liệu dashboard. Vui lòng thử lại sau.')
-      } finally {
-        setLoading(false)
+    fetchDashboardData()
+  }, [fetchDashboardData])
+
+  // 🔥 SignalR Realtime Updates
+  useSignalR({
+    onDashboardChanged: (payload) => {
+      console.log('📨 [AdminDashboard] DashboardChanged event:', payload)
+      
+      // Admin refresh khi scope = Invoices hoặc Users
+      if (payload.roles.includes(USER_ROLES.ADMIN)) {
+        console.log('🔄 [AdminDashboard] Refreshing dashboard data...')
+        fetchDashboardData()
+      }
+    },
+    onInvoiceChanged: (payload) => {
+      console.log('📨 [AdminDashboard] InvoiceChanged event:', payload)
+      if (payload.roles.includes(USER_ROLES.ADMIN)) {
+        console.log('🔄 [AdminDashboard] Invoice changed, refreshing...')
+        fetchDashboardData()
+      }
+    },
+    onUserChanged: (payload) => {
+      console.log('📨 [AdminDashboard] UserChanged event:', payload)
+      if (payload.roles.includes(USER_ROLES.ADMIN)) {
+        console.log('🔄 [AdminDashboard] User changed, refreshing...')
+        fetchDashboardData()
       }
     }
+  })
 
+  // Resync data khi SignalR reconnect
+  useSignalRReconnect(() => {
+    console.log('🔄 [AdminDashboard] SignalR reconnected, resyncing data...')
     fetchDashboardData()
-  }, [])
+  })
 
   // Fetch recent activity logs (10 latest)
   useEffect(() => {

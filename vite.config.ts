@@ -138,6 +138,13 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      // ⭐ SignalR Hub Proxy (CRITICAL for realtime)
+      '/hubs': {
+        target: 'https://eims.site',
+        changeOrigin: true,
+        secure: false,
+        ws: true, // ✅ Enable WebSocket support
+      },
     },
   },
 })

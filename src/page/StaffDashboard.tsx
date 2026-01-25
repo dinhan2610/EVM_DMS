@@ -6,6 +6,8 @@ import StaffKPIs from '../components/staffdashboard/StaffKPIs';
 import TaskQueue from '../components/staffdashboard/TaskQueue';
 import MyRecentInvoices from '../components/staffdashboard/MyRecentInvoices';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { useSignalR, useSignalRReconnect } from '@/hooks/useSignalR';
+import { USER_ROLES } from '@/constants/roles';
 import dashboardService from '@/services/dashboardService';
 import type { StaffKPI, TaskItem, RecentInvoice, AccountantDashboardAPI } from '@/types/staff.types';
 import dayjs from 'dayjs';
@@ -111,6 +113,32 @@ const StaffDashboard = () => {
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
+
+  // 🔥 SignalR Realtime Updates
+  useSignalR({
+    onDashboardChanged: (payload) => {
+      console.log('📨 [StaffDashboard] DashboardChanged event:', payload)
+      
+      // Accountant refresh khi scope = Invoices
+      if (payload.scope === 'Invoices' && payload.roles.includes(USER_ROLES.ACCOUNTANT)) {
+        console.log('🔄 [StaffDashboard] Refreshing dashboard data...')
+        fetchDashboard()
+      }
+    },
+    onInvoiceChanged: (payload) => {
+      console.log('📨 [StaffDashboard] InvoiceChanged event:', payload)
+      if (payload.roles.includes(USER_ROLES.ACCOUNTANT)) {
+        console.log('🔄 [StaffDashboard] Invoice changed, refreshing...')
+        fetchDashboard()
+      }
+    }
+  })
+
+  // Resync data khi SignalR reconnect
+  useSignalRReconnect(() => {
+    console.log('🔄 [StaffDashboard] SignalR reconnected, resyncing data...')
+    fetchDashboard()
+  })
 
   // Event Handlers
   const handleFixNow = (taskId: string, actionUrl: string) => {

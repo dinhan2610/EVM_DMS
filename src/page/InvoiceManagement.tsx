@@ -24,6 +24,7 @@ import AddIcon from '@mui/icons-material/Add'
 import SendIcon from '@mui/icons-material/Send'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useSignalR, useSignalRReconnect } from '@/hooks/useSignalR'
 import DownloadIcon from '@mui/icons-material/Download'
 import EmailIcon from '@mui/icons-material/Email'
 import PrintIcon from '@mui/icons-material/Print'
@@ -578,6 +579,33 @@ const InvoiceManagement = () => {
     loadInvoices()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 🔥 SignalR Realtime Updates
+  useSignalR({
+    onInvoiceChanged: (payload) => {
+      console.log('📨 [InvoiceManagement] InvoiceChanged event:', payload)
+      
+      // Option 1: Reload toàn bộ danh sách (đơn giản nhất)
+      loadInvoices()
+      
+      // Option 2: Update chỉ 1 invoice (tối ưu hơn - có thể implement sau)
+      // if (payload.changeType === 'StatusChanged') {
+      //   setInvoices(prev => 
+      //     prev.map(inv => 
+      //       inv.id === payload.invoiceId.toString()
+      //         ? { ...inv, internalStatusId: payload.statusId }
+      //         : inv
+      //     )
+      //   )
+      // }
+    }
+  })
+
+  // Resync data khi SignalR reconnect
+  useSignalRReconnect(() => {
+    console.log('🔄 [InvoiceManagement] SignalR reconnected, resyncing invoices...')
+    loadInvoices()
+  })
 
   // Handler khi filter thay đổi
   const handleFilterChange = (newFilters: InvoiceFilterState) => {

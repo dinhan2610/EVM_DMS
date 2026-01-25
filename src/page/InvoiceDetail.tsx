@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import {
   Box,
   Typography,
@@ -41,6 +41,7 @@ import invoiceHistoryService, { InvoiceHistory } from '@/services/invoiceHistory
 import companyService, { Company } from '@/services/companyService'
 import { INVOICE_INTERNAL_STATUS } from '@/constants/invoiceStatus'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useSignalR, useSignalRReconnect } from '@/hooks/useSignalR'
 
 /**
  * 🔧 HELPER: Process HTML preview from backend API
@@ -154,86 +155,108 @@ const InvoiceDetail: React.FC = () => {
   // ✅ Chỉ cho phép thay thế: ISSUED hoặc ADJUSTED, NHƯNG không phải HĐ điều chỉnh và chưa bị điều chỉnh
   const canReplace = (isIssued || isAdjusted) && !isAdjustmentInvoice && !isAdjusted
 
-  useEffect(() => {
-    const fetchInvoiceDetail = async () => {
-      // ✅ Validate ID từ URL
-      if (!id) {
-        setError('Không tìm thấy ID hóa đơn trong URL')
-        setLoading(false)
-        return
-      }
+  // Fetch invoice detail (extracted for reusability in SignalR)
+  const fetchInvoiceDetail = useCallback(async () => {
+    // ✅ Validate ID từ URL
+    if (!id) {
+      setError('Không tìm thấy ID hóa đơn trong URL')
+      setLoading(false)
+      return
+    }
+    
+    const invoiceId = Number(id)
+    if (isNaN(invoiceId) || invoiceId <= 0) {
+      setError(`ID hóa đơn không hợp lệ: ${id}`)
+      setLoading(false)
+      return
+    }
+    
+    try {
+      setLoading(true)
+      setError(null)
       
-      const invoiceId = Number(id)
-      if (isNaN(invoiceId) || invoiceId <= 0) {
-        setError(`ID hóa đơn không hợp lệ: ${id}`)
-        setLoading(false)
-        return
-      }
+      // Load invoice data
+      const invoiceData = await invoiceService.getInvoiceById(invoiceId)
+      console.log('🔍 Invoice data loaded:', {
+        invoiceID: invoiceData.invoiceID,
+        invoiceNumber: invoiceData.invoiceNumber,
+        invoiceStatusID: invoiceData.invoiceStatusID,
+        taxAuthorityCode: invoiceData.taxAuthorityCode,
+        notes: invoiceData.notes
+      })
+      console.log('📝 Full invoice data:', JSON.stringify(invoiceData, null, 2))
+      setInvoice(invoiceData)
       
+      // Load company data for invoice info display
+      const companyData = await companyService.getDefaultCompany()
+      setCompany(companyData)
+      
+      // ✨ ALWAYS try to load HTML preview from backend API
+      // Backend có thể generate HTML cho BẤT KỲ invoice nào (draft hoặc issued)
+      // API: GET /api/Invoice/preview-by-invoice/{id}
+      // Nếu API lỗi → Fallback to error message
+      
+      console.log('🎯 [InvoiceDetail] Loading HTML preview from backend for invoice:', {
+        invoiceID: invoiceData.invoiceID,
+        invoiceNumber: invoiceData.invoiceNumber,
+        invoiceType: invoiceData.invoiceType
+      })
+      
+      setLoadingHtml(true)
       try {
-        setLoading(true)
-        setError(null)
+        const rawHtml = await invoiceService.getInvoiceHTML(Number(id))
         
-        // Load invoice data
-        const invoiceData = await invoiceService.getInvoiceById(invoiceId)
-        console.log('🔍 Invoice data loaded:', {
-          invoiceID: invoiceData.invoiceID,
-          invoiceNumber: invoiceData.invoiceNumber,
-          invoiceStatusID: invoiceData.invoiceStatusID,
-          taxAuthorityCode: invoiceData.taxAuthorityCode,
-          notes: invoiceData.notes
-        })
-        console.log('📝 Full invoice data:', JSON.stringify(invoiceData, null, 2))
-        setInvoice(invoiceData)
+        // ==================== HTML PROCESSING & OPTIMIZATION ====================
+        const { processedHtml, hasMissingBuyerName } = processInvoiceHTML(rawHtml, invoiceData)
         
-        // Load company data for invoice info display
-        const companyData = await companyService.getDefaultCompany()
-        setCompany(companyData)
+        setHtmlPreview(processedHtml)
+        setHtmlMissingBuyerName(hasMissingBuyerName)
         
-        // ✨ ALWAYS try to load HTML preview from backend API
-        // Backend có thể generate HTML cho BẤT KỲ invoice nào (draft hoặc issued)
-        // API: GET /api/Invoice/preview-by-invoice/{id}
-        // Nếu API lỗi → Fallback to error message
+        // Logging
+        const typeLabel = invoiceData.invoiceType > 1 ? ` (Type: ${invoiceData.invoiceType})` : ''
+        const injectedLabel = hasMissingBuyerName && invoiceData.contactPerson ? ' [✓ Buyer name injected]' : ''
+        console.log(`✅ [InvoiceDetail] HTML preview processed${typeLabel}${injectedLabel} (width: 209mm)`)
         
-        console.log('🎯 [InvoiceDetail] Loading HTML preview from backend for invoice:', {
-          invoiceID: invoiceData.invoiceID,
-          invoiceNumber: invoiceData.invoiceNumber,
-          invoiceType: invoiceData.invoiceType
-        })
-        
-        setLoadingHtml(true)
-        try {
-          const rawHtml = await invoiceService.getInvoiceHTML(Number(id))
-          
-          // ==================== HTML PROCESSING & OPTIMIZATION ====================
-          const { processedHtml, hasMissingBuyerName } = processInvoiceHTML(rawHtml, invoiceData)
-          
-          setHtmlPreview(processedHtml)
-          setHtmlMissingBuyerName(hasMissingBuyerName)
-          
-          // Logging
-          const typeLabel = invoiceData.invoiceType > 1 ? ` (Type: ${invoiceData.invoiceType})` : ''
-          const injectedLabel = hasMissingBuyerName && invoiceData.contactPerson ? ' [✓ Buyer name injected]' : ''
-          console.log(`✅ [InvoiceDetail] HTML preview processed${typeLabel}${injectedLabel} (width: 209mm)`)
-          
-        } catch (htmlError) {
-          console.error('⚠️ [InvoiceDetail] HTML preview failed:', htmlError)
-          setError('Không thể tải HTML preview từ backend. Vui lòng thử lại sau.')
-          setHtmlMissingBuyerName(false)
-        } finally {
-          setLoadingHtml(false)
-        }
-        
-      } catch (err) {
-        console.error('Failed to load invoice:', err)
-        setError(err instanceof Error ? err.message : 'Không thể tải chi tiết hóa đơn')
+      } catch (htmlError) {
+        console.error('⚠️ [InvoiceDetail] HTML preview failed:', htmlError)
+        setError('Không thể tải HTML preview từ backend. Vui lòng thử lại sau.')
+        setHtmlMissingBuyerName(false)
       } finally {
-        setLoading(false)
+        setLoadingHtml(false)
+      }
+      
+    } catch (err) {
+      console.error('Failed to load invoice:', err)
+      setError(err instanceof Error ? err.message : 'Không thể tải chi tiết hóa đơn')
+    } finally {
+      setLoading(false)
+    }
+  }, [id])
+
+  useEffect(() => {
+    fetchInvoiceDetail()
+  }, [fetchInvoiceDetail])
+
+  // 🔥 SignalR Realtime Updates
+  useSignalR({
+    onInvoiceChanged: (payload) => {
+      console.log('📨 [InvoiceDetail] InvoiceChanged event:', payload)
+      
+      // Chỉ refresh nếu đúng invoice đang xem
+      if (payload.invoiceId.toString() === id) {
+        console.log('🔄 [InvoiceDetail] Current invoice changed, reloading data...')
+        fetchInvoiceDetail() // ✅ Chỉ reload data, không reload toàn trang
       }
     }
+  })
 
-    fetchInvoiceDetail()
-  }, [id])
+  // Resync data khi SignalR reconnect
+  useSignalRReconnect(() => {
+    console.log('🔄 [InvoiceDetail] SignalR reconnected, resyncing data...')
+    if (id) {
+      fetchInvoiceDetail() // ✅ Reload data thay vì reload page
+    }
+  })
 
   // Update title when invoice data loads
   useEffect(() => {

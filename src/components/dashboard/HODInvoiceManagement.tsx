@@ -63,6 +63,7 @@ import invoiceService, { InvoiceListItem, INVOICE_TYPE, getInvoiceTypeLabel, get
 import templateService from '@/services/templateService'
 import customerService from '@/services/customerService'
 import Spinner from '@/components/Spinner'
+import { useSignalR, useSignalRReconnect } from '@/hooks/useSignalR'
 import { useAuthContext } from '@/context/useAuthContext'
 import {
   INVOICE_INTERNAL_STATUS,
@@ -599,6 +600,21 @@ const HODInvoiceManagement = () => {
     loadInvoices()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 🔥 SignalR Realtime Updates
+  useSignalR({
+    onInvoiceChanged: (payload) => {
+      console.log('📨 [HODInvoiceManagement] InvoiceChanged event:', payload)
+      // Reload invoices khi có thay đổi
+      loadInvoices()
+    }
+  })
+
+  // Resync data khi SignalR reconnect
+  useSignalRReconnect(() => {
+    console.log('🔄 [HODInvoiceManagement] SignalR reconnected, resyncing...')
+    loadInvoices()
+  })
 
   // Handler khi filter thay đổi
   const handleFilterChange = (newFilters: InvoiceFilterState) => {

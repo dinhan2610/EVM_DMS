@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useSignalR, useSignalRReconnect } from '@/hooks/useSignalR'
 import {
   Box,
   Typography,
@@ -384,6 +385,21 @@ const StatementManagement = () => {
   useEffect(() => {
     loadStatements()
   }, [loadStatements])
+
+  // 🔥 SignalR Realtime Updates
+  useSignalR({
+    onInvoiceChanged: (payload) => {
+      console.log('📨 [StatementManagement] InvoiceChanged event:', payload)
+      // Reload statements khi có invoice thay đổi (có thể ảnh hưởng đến bảng kê)
+      loadStatements()
+    }
+  })
+
+  // Resync data khi SignalR reconnect
+  useSignalRReconnect(() => {
+    console.log('🔄 [StatementManagement] SignalR reconnected, resyncing...')
+    loadStatements()
+  })
 
   // ==================== HANDLERS ====================
 

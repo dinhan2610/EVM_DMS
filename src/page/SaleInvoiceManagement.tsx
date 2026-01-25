@@ -26,6 +26,7 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import DrawIcon from '@mui/icons-material/Draw'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useSignalR, useSignalRReconnect } from '@/hooks/useSignalR'
 import DownloadIcon from '@mui/icons-material/Download'
 import EmailIcon from '@mui/icons-material/Email'
 import PrintIcon from '@mui/icons-material/Print'
@@ -496,6 +497,21 @@ const SaleInvoiceManagement = () => {
     loadInvoices()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 🔥 SignalR Realtime Updates
+  useSignalR({
+    onInvoiceChanged: (payload) => {
+      console.log('📨 [SaleInvoiceManagement] InvoiceChanged event:', payload)
+      // Reload invoices khi có thay đổi
+      loadInvoices()
+    }
+  })
+
+  // Resync data khi SignalR reconnect
+  useSignalRReconnect(() => {
+    console.log('🔄 [SaleInvoiceManagement] SignalR reconnected, resyncing...')
+    loadInvoices()
+  })
 
   // Handler khi filter thay đổi
   const handleFilterChange = (newFilters: InvoiceFilterState) => {

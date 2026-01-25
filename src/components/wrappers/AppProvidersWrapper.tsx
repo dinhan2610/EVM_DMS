@@ -1,13 +1,44 @@
 import { ToastContainer } from 'react-toastify'
 import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
+import { useEffect } from 'react'
 
-import { AuthProvider } from '@/context/useAuthContext'
+import { AuthProvider, useAuthContext } from '@/context/useAuthContext'
 import { LayoutProvider } from '@/context/useLayoutContext'
 import { NotificationProvider } from '@/context/useNotificationContext'
 import { appTheme } from '@/theme/muiTheme'
 import type { ChildrenType } from '@/types/component-props'
 import { HelmetProvider } from 'react-helmet-async'
+import { signalRService } from '@/services/signalrService'
+
+/**
+ * SignalR Initializer Component
+ * Khởi tạo SignalR connection khi user đã authenticated
+ */
+const SignalRInitializer = () => {
+  const { isAuthenticated } = useAuthContext()
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Khởi tạo SignalR connection sau khi login
+      console.log('🔵 [App] User authenticated, initializing SignalR...')
+      signalRService.initialize().catch((error) => {
+        console.error('❌ [App] Failed to initialize SignalR:', error)
+      })
+    } else {
+      // Disconnect khi logout
+      console.log('🔴 [App] User logged out, disconnecting SignalR...')
+      signalRService.disconnect().catch(console.error)
+    }
+
+    // Cleanup on unmount
+    return () => {
+      signalRService.disconnect().catch(console.error)
+    }
+  }, [isAuthenticated])
+
+  return null
+}
 
 /**
  * AppProvidersWrapper
@@ -25,6 +56,7 @@ const AppProvidersWrapper = ({ children }: ChildrenType) => {
   return (
     <HelmetProvider>
       <AuthProvider>
+        <SignalRInitializer />
         <LayoutProvider>
           <NotificationProvider>
             <ThemeProvider theme={appTheme}>

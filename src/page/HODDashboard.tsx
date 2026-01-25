@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Box, Typography, Alert, CircularProgress } from '@mui/material'
 import FinancialHealthCards from '../components/dashboard/FinancialHealthCards'
 import CashFlowChart from '../components/dashboard/CashFlowChart'
 import DebtAgingChart from '../components/dashboard/DebtAgingChart'
 import ApprovalQueue from '../components/dashboard/ApprovalQueue'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useSignalR, useSignalRReconnect } from '@/hooks/useSignalR'
 import dashboardService from '@/services/dashboardService'
 import type { HODDashboardData, PendingInvoice } from '@/types/dashboard.types'
+import { USER_ROLES } from '@/constants/roles'
 
 const HODDashboard = () => {
   usePageTitle('Tổng quan - Kế toán trưởng')
@@ -16,23 +18,51 @@ const HODDashboard = () => {
   const [error, setError] = useState<string | null>(null)
 
   // Fetch HOD Dashboard data
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await dashboardService.getHODDashboard()
+      setData(response)
+      console.log('✅ [HODDashboard] Data loaded successfully')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không thể tải dữ liệu dashboard')
+      console.error('❌ Failed to fetch HOD dashboard:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const response = await dashboardService.getHODDashboard()
-        setData(response)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Không thể tải dữ liệu dashboard')
-        console.error('❌ Failed to fetch HOD dashboard:', err)
-      } finally {
-        setLoading(false)
+    fetchDashboardData()
+  }, [fetchDashboardData])
+
+  // 🔥 SignalR Realtime Updates
+  useSignalR({
+    onDashboardChanged: (payload) => {
+      console.log('📨 [HODDashboard] DashboardChanged event:', payload)
+      
+      // HOD chỉ refresh khi scope = Invoices
+      if (payload.scope === 'Invoices' && payload.roles.includes(USER_ROLES.HOD)) {
+        console.log('🔄 [HODDashboard] Refreshing dashboard data...')
+        fetchDashboardData()
+      }
+    },
+    onInvoiceChanged: (payload) => {
+      console.log('📨 [HODDashboard] InvoiceChanged event:', payload)
+      // Refresh dashboard khi có invoice thay đổi
+      if (payload.roles.includes(USER_ROLES.HOD)) {
+        console.log('🔄 [HODDashboard] Invoice changed, refreshing...')
+        fetchDashboardData()
       }
     }
+  })
 
+  // Resync data khi SignalR reconnect
+  useSignalRReconnect(() => {
+    console.log('🔄 [HODDashboard] SignalR reconnected, resyncing data...')
     fetchDashboardData()
-  }, [])
+  })
 
   // Event Handlers
   const handleBulkApprove = (invoiceIds: string[]) => {

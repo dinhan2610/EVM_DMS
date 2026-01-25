@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useSignalR, useSignalRReconnect } from '@/hooks/useSignalR'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Box,
@@ -517,6 +518,28 @@ const DebtManagement = () => {
     fetchCustomerDebtDetail()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCustomer, selectedMonth, selectedYear, invoicePagination.pageIndex, invoicePagination.pageSize, paymentPagination.pageIndex, paymentPagination.pageSize])
+
+  // 🔥 SignalR Realtime Updates
+  useSignalR({
+    onInvoiceChanged: (payload) => {
+      console.log('📨 [DebtManagement] InvoiceChanged event:', payload)
+      
+      // Reload customer list khi có invoice/payment thay đổi
+      if (selectedCustomer) {
+        console.log('🔄 [DebtManagement] Refreshing customer debt detail...')
+        // Trigger re-fetch bằng cách update refreshTrigger hoặc reload lại useEffect
+        setSelectedCustomer({ ...selectedCustomer }) // Force re-render
+      }
+    }
+  })
+
+  // Resync data khi SignalR reconnect
+  useSignalRReconnect(() => {
+    console.log('🔄 [DebtManagement] SignalR reconnected, resyncing...')
+    if (selectedCustomer) {
+      setSelectedCustomer({ ...selectedCustomer }) // Force reload
+    }
+  })
 
   /**
    * Refresh customer list after successful payment

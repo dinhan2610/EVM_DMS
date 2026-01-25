@@ -38,6 +38,7 @@ import PersonIcon from '@mui/icons-material/Person'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import DownloadIcon from '@mui/icons-material/Download'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useSignalR, useSignalRReconnect } from '@/hooks/useSignalR'
 import { useAuthContext } from '@/context/useAuthContext'
 import InvoiceRequestFilter, {
   InvoiceRequestFilterState,
@@ -579,6 +580,21 @@ const InvoiceRequestManagement = () => {
       fetchInvoiceRequests()
     }
   }, [refreshTrigger, fetchInvoiceRequests, usersMap])
+
+  // 🔥 SignalR Realtime Updates
+  useSignalR({
+    onInvoiceChanged: (payload) => {
+      console.log('📨 [InvoiceRequestManagement] InvoiceChanged event:', payload)
+      // Reload requests khi có invoice thay đổi
+      fetchInvoiceRequests()
+    }
+  })
+
+  // Resync data khi SignalR reconnect
+  useSignalRReconnect(() => {
+    console.log('🔄 [InvoiceRequestManagement] SignalR reconnected, resyncing...')
+    fetchInvoiceRequests()
+  })
 
   // ==================== FILTER LOGIC ====================
 

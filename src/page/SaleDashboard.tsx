@@ -6,6 +6,8 @@ import SalesTrendChart from '../components/salesdashboard/SalesTrendChart';
 import DebtWatchlist from '../components/salesdashboard/DebtWatchlist';
 import MyRecentInvoices from '../components/salesdashboard/MyRecentInvoices';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { useSignalR, useSignalRReconnect } from '@/hooks/useSignalR';
+import { USER_ROLES } from '@/constants/roles';
 import {
   currentSalesUser,
   mockSalesKPI,
@@ -18,6 +20,33 @@ import type { DebtCustomer } from '../types/sales.types';
 
 const SaleDashboard: React.FC = () => {
   usePageTitle('Tổng quan - Sales')
+  
+  // 🔥 SignalR Realtime Updates (Ready for future API integration)
+  useSignalR({
+    onDashboardChanged: (payload) => {
+      console.log('📨 [SaleDashboard] DashboardChanged event:', payload)
+      
+      // Sales refresh khi scope = Invoices
+      if (payload.scope === 'Invoices' && payload.roles.includes(USER_ROLES.SALES)) {
+        console.log('🔄 [SaleDashboard] Refreshing dashboard data...')
+        // TODO: Call API để reload dashboard khi có API thật
+        // fetchSalesDashboard()
+      }
+    },
+    onInvoiceChanged: (payload) => {
+      console.log('📨 [SaleDashboard] InvoiceChanged event:', payload)
+      if (payload.roles.includes(USER_ROLES.SALES)) {
+        console.log('🔄 [SaleDashboard] Invoice changed, refreshing...')
+        // TODO: Reload dashboard khi có API
+      }
+    }
+  })
+
+  // Resync khi reconnect
+  useSignalRReconnect(() => {
+    console.log('🔄 [SaleDashboard] SignalR reconnected')
+    // TODO: Resync data khi có API
+  })
   
   // Event Handlers
   const handleCall = (customer: DebtCustomer) => {
