@@ -58,6 +58,7 @@ import {
   uploadEvidenceFile,
   type BackendInvoiceRequestResponse,
 } from '@/services/invoiceService'
+import userService, { type UserApiResponse } from '@/services/userService'
 
 // Setup dayjs
 dayjs.extend(relativeTime)
@@ -381,6 +382,9 @@ const InvoiceRequestManagement = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  
+  // State quản lý users/sales mapping
+  const [usersMap, setUsersMap] = useState<Map<number, string>>(new Map())
 
   // Snackbar state
   const [snackbar, setSnackbar] = useState<{
@@ -448,9 +452,14 @@ const InvoiceRequestManagement = () => {
   /**
    * Map backend response to frontend InvoiceRequest type
    */
-  const mapBackendToFrontend = (backendData: BackendInvoiceRequestResponse): InvoiceRequest => {
+  const mapBackendToFrontend = useCallback((backendData: BackendInvoiceRequestResponse): InvoiceRequest => {
     const statusID = backendData.statusID || backendData.statusId || 1;
-    const saleName = backendData.salesName || backendData.saleName || 'N/A';
+    
+    // 🔍 Lấy tên sale từ usersMap nếu có salesID
+    const salesID = backendData.salesID || 0;
+    const saleName = salesID && usersMap.has(salesID) 
+      ? usersMap.get(salesID)! 
+      : (backendData.salesName || backendData.saleName || 'N/A');
     
     return {
       requestID: backendData.requestID,
@@ -504,7 +513,29 @@ const InvoiceRequestManagement = () => {
       invoiceNumber: backendData.invoiceNumber?.toString(),
       evidenceFilePath: backendData.evidenceFilePath || undefined,
     }
-  }
+  }, [usersMap])
+
+  /**
+   * Load users để mapping salesID -> fullName
+   */
+  const loadUsers = useCallback(async () => {
+    try {
+      const response = await userService.getUsers(1, 1000) // Load max users
+      const userMap = new Map<number, string>()
+      
+      response.items.forEach((user: UserApiResponse) => {
+        userMap.set(user.userID, user.fullName)
+      })
+      
+      setUsersMap(userMap)
+      
+      if (import.meta.env.DEV) {
+        console.log('[InvoiceRequestManagement] Loaded users map:', userMap.size, 'users')
+      }
+    } catch (err) {
+      console.error('[InvoiceRequestManagement] Failed to load users:', err)
+    }
+  }, [])
 
   /**
    * Fetch invoice requests from API
@@ -535,12 +566,19 @@ const InvoiceRequestManagement = () => {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [mapBackendToFrontend])
 
-  // Fetch data on mount and when refresh triggered
+  // Load users first, then fetch requests
   useEffect(() => {
-    fetchInvoiceRequests()
-  }, [refreshTrigger, fetchInvoiceRequests])
+    loadUsers()
+  }, [loadUsers])
+
+  // Fetch data on mount and when refresh triggered (after users loaded)
+  useEffect(() => {
+    if (usersMap.size > 0) {
+      fetchInvoiceRequests()
+    }
+  }, [refreshTrigger, fetchInvoiceRequests, usersMap])
 
   // ==================== FILTER LOGIC ====================
 

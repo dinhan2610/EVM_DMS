@@ -3040,7 +3040,7 @@ const CreateVatInvoice: React.FC = () => {
           {/* ✅ THÔNG TIN HÓA ĐƠN ĐIỀU CHỈNH */}
           <Stack spacing={1.5} sx={{ mb: 2, p: 2, bgcolor: '#fff8e1', borderRadius: 1, border: '1px solid #ffd54f' }}>
             <Typography variant="caption" sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#f57c00' }}>
-              📋 Thông tin hóa đơn điều chỉnh (bắt buộc)
+              Thông tin hóa đơn điều chỉnh (bắt buộc)
             </Typography>
             
             {/* Dòng tham chiếu */}
@@ -3470,7 +3470,7 @@ const CreateVatInvoice: React.FC = () => {
                       backgroundColor: '#ccc'
                     }
                   }}>
-                  {isSubmitting ? 'Đang xử lý...' : '📝 Tạo hóa đơn điều chỉnh (Chờ ký)'}
+                  {isSubmitting ? 'Đang xử lý...' : 'Tạo hóa đơn điều chỉnh'}
                 </Button>
               ) : (
                 // KẾ TOÁN: 2 nút - Lưu nháp và Gửi duyệt

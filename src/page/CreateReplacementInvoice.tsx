@@ -3384,7 +3384,7 @@ const CreateVatInvoice: React.FC = () => {
                       backgroundColor: '#ccc'
                     }
                   }}>
-                  {isSubmitting ? 'Đang xử lý...' : '📝 Tạo hóa đơn thay thế (Chờ ký)'}
+                  {isSubmitting ? 'Đang xử lý...' : 'Tạo hóa đơn thay thế'}
                 </Button>
               ) : (
                 // KẾ TOÁN: 2 nút - Lưu nháp và Gửi duyệt

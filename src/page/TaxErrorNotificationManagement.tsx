@@ -600,7 +600,7 @@ const TaxErrorNotificationManagement = () => {
       field: 'customerName',
       headerName: 'Khách hàng',
       flex: 1.5,
-      minWidth: 220,
+      minWidth: 250,
       sortable: true,
       align: 'left',
       headerAlign: 'center',
