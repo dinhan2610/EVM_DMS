@@ -1,7 +1,7 @@
 /**
  * HOD Invoice Management Component
  * Bảng quản lý hóa đơn dành cho role Kế toán trưởng (Head of Department)
- * 
+ *
  * ✨ Features (giống 100% với InvoiceManagement):
  * - DataGrid với tất cả cột: Ký hiệu, Khách hàng, MST, Ngày phát hành, Trạng thái, Trạng thái CQT, Loại HĐ
  * - Invoice type badges với rounded corners và tooltip
@@ -10,7 +10,7 @@
  * - Preview modal
  * - Sign dialog
  * - Snackbar notifications
- * 
+ *
  * 🔄 API: GET /api/Invoice/hodInvoices
  */
 
@@ -55,11 +55,13 @@ import RestoreIcon from '@mui/icons-material/Restore'
 import CancelIcon from '@mui/icons-material/Cancel'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import LinkIcon from '@mui/icons-material/Link'
+import UsbIcon from '@mui/icons-material/Usb'
 import { Link, useNavigate } from 'react-router-dom'
 import InvoiceFilter, { InvoiceFilterState } from '@/components/InvoiceFilter'
 import InvoicePreviewModal from '@/components/invoices/InvoicePreviewModal'
 import SendInvoiceEmailModal from '@/components/SendInvoiceEmailModal'
 import invoiceService, { InvoiceListItem, INVOICE_TYPE, getInvoiceTypeLabel, getInvoiceTypeColor } from '@/services/invoiceService'
+import localSignerService from '@/services/localSignerService'
 import templateService from '@/services/templateService'
 import customerService from '@/services/customerService'
 import Spinner from '@/components/Spinner'
@@ -91,12 +93,12 @@ export interface Invoice {
   taxStatusCode: string | null
   amount: number
   notes: string | null // ✅ Ghi chú (chứa lý do từ chối)
-  
+
   // ✅ Contact info từ invoice (để gửi email) - đồng bộ với Accountant page
   contactEmail: string | null
   contactPerson: string | null
   contactPhone: string | null
-  
+
   // Invoice type fields
   invoiceType: number
   originalInvoiceID: number | null
@@ -113,19 +115,19 @@ export interface Invoice {
 const mapInvoiceToUI = (
   item: InvoiceListItem,
   templateMap: Map<number, string>,
-  customerMap: Map<number, { name: string; taxCode: string }>
+  customerMap: Map<number, { name: string; taxCode: string }>,
 ): Invoice => {
   const template = templateMap.get(item.templateID)
   const customer = customerMap.get(item.customerID)
-  
+
   // ✅ Validate invoiceID
   if (!item.invoiceID || isNaN(Number(item.invoiceID))) {
     throw new Error(`Invalid invoice data: invoiceID is ${item.invoiceID}`)
   }
-  
+
   let taxStatusId: number | null = null
   let taxStatusLabel = 'Chưa gửi CQT'
-  
+
   if (item.taxApiStatusID !== null && item.taxApiStatusID !== undefined) {
     taxStatusId = item.taxApiStatusID
     taxStatusLabel = item.taxStatusName || getTaxStatusLabel(item.taxApiStatusID)
@@ -136,7 +138,7 @@ const mapInvoiceToUI = (
     taxStatusId = TAX_AUTHORITY_STATUS.NOT_SENT
     taxStatusLabel = 'Chưa gửi CQT'
   }
-  
+
   // 🔍 DEBUG: Log nếu status không xác định
   const statusLabel = INVOICE_INTERNAL_STATUS_LABELS[item.invoiceStatusID]
   if (!statusLabel) {
@@ -144,10 +146,10 @@ const mapInvoiceToUI = (
       invoiceID: item.invoiceID,
       invoiceNumber: item.invoiceNumber,
       invoiceStatusID: item.invoiceStatusID,
-      availableStatuses: Object.keys(INVOICE_INTERNAL_STATUS_LABELS).join(', ')
+      availableStatuses: Object.keys(INVOICE_INTERNAL_STATUS_LABELS).join(', '),
     })
   }
-  
+
   return {
     id: item.invoiceID.toString(),
     invoiceNumber: item.invoiceNumber?.toString() || '0',
@@ -162,13 +164,13 @@ const mapInvoiceToUI = (
     taxStatus: taxStatusLabel,
     taxStatusCode: item.taxStatusCode || null,
     amount: item.totalAmount,
-    notes: item.notes || null,  // ✅ Map notes field
-    
+    notes: item.notes || null, // ✅ Map notes field
+
     // ✅ Map contact info (đồng bộ với Accountant page)
-    contactEmail: item.customerEmail || item.contactEmail || null,  // Ưu tiên customerEmail từ backend
+    contactEmail: item.customerEmail || item.contactEmail || null, // Ưu tiên customerEmail từ backend
     contactPerson: item.contactPerson || null,
     contactPhone: item.contactPhone || null,
-    
+
     invoiceType: item.invoiceType || INVOICE_TYPE.ORIGINAL,
     originalInvoiceID: item.originalInvoiceID,
     originalInvoiceNumber: item.originalInvoiceNumber,
@@ -185,7 +187,7 @@ const mapInvoiceToUI = (
 interface InvoiceActionsMenuProps {
   invoice: Invoice
   onApprove: (id: string) => void // KTT duyệt hóa đơn
-  onReject: (id: string) => void  // ✅ KTT từ chối hóa đơn
+  onReject: (id: string) => void // ✅ KTT từ chối hóa đơn
   onSign: (id: string, invoiceNumber: string) => void
   onResendToTax: (id: string, invoiceNumber: string) => void
   // ❌ REMOVED: onCancel - Nút "Hủy" đã bị xóa
@@ -196,7 +198,16 @@ interface InvoiceActionsMenuProps {
   onOpenEmailModal: (invoice: Invoice) => void
 }
 
-const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTax, onPrintInvoice, isSending, onOpenEmailModal }: InvoiceActionsMenuProps) => {
+const InvoiceActionsMenu = ({
+  invoice,
+  onApprove,
+  onReject,
+  onSign,
+  onResendToTax,
+  onPrintInvoice,
+  isSending,
+  onOpenEmailModal,
+}: InvoiceActionsMenuProps) => {
   // ❌ REMOVED: useNavigate - Not used after removing adjustment/replacement menu items
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
@@ -215,10 +226,10 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTa
   const isPendingSign = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN // 7 - Chờ ký (sau khi KTT duyệt)
   const isSigned = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.SIGNED // 8 - Đã ký
   const isIssued = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.ISSUED // 2 - Đã phát hành
-  
+
   // ⚠️ Kiểm tra lỗi gửi CQT từ Tax Status (không phải Internal Status)
   const hasTaxError = invoice.taxStatusId !== null && isTaxStatusError(invoice.taxStatusId)
-  
+
   // 🔍 Kiểm tra có số hóa đơn chưa - Xử lý cả number và string
   const hasInvoiceNumber = (() => {
     if (!invoice.invoiceNumber) return false
@@ -230,10 +241,10 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTa
     const numStr = invoice.invoiceNumber.toString().trim()
     return numStr !== '' && numStr !== '0'
   })()
-  
+
   // 🎯 Logic hiển thị nút "Ký số & Phát hành" (Gộp 1 bước)
   // ✅ Backend đã sửa: /sign API cấp số luôn
-  // 
+  //
   // - Ký số & Phát hành: Cho phép khi:
   //   + Status = 7 (PENDING_SIGN) - Chờ ký (sau khi KTT duyệt)
   //   + HOẶC Status = 8 (SIGNED) - Đã ký, có thể phát hành lại
@@ -241,7 +252,7 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTa
   //   ➡️ Sau khi ký xong → TỰ ĐỘNG gửi CQT và phát hành
   const canSignAndIssue = (isPendingSign || isSigned) && !hasInvoiceNumber // ⚡ Gộp 1 bước
   // ❌ REMOVED: canCancel - Nút "Hủy" đã bị xóa khỏi menu Kế toán trưởng
-  
+
   // ❌ ĐÃ XÓA: Logic "Tạo HĐ điều chỉnh" và "Tạo HĐ thay thế" khỏi menu danh sách
   // → Chức năng này chỉ có trong trang InvoiceDetail (Xem chi tiết hóa đơn)
 
@@ -286,7 +297,7 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTa
       icon: <EmailIcon fontSize="small" />,
       enabled: true, // ✅ Luôn dùng được
       action: () => {
-        onOpenEmailModal(invoice)  // ✅ Mở modal gửi email (đồng bộ với Accountant page)
+        onOpenEmailModal(invoice) // ✅ Mở modal gửi email (đồng bộ với Accountant page)
         handleClose()
       },
       color: 'info.main',
@@ -335,8 +346,7 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTa
               color: 'primary.main',
               transform: 'scale(1.1)',
             },
-          }}
-        >
+          }}>
           <MoreVertIcon fontSize="small" />
         </IconButton>
       </Tooltip>
@@ -378,8 +388,7 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTa
               },
             },
           },
-        }}
-      >
+        }}>
         {menuItems.map((item, index) => {
           if ('divider' in item) {
             return <Divider key={`divider-${index}`} sx={{ my: 1 }} />
@@ -395,23 +404,23 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTa
                 px: 2.5,
                 gap: 1.5,
                 transition: 'all 0.2s ease',
-                '&:hover': item.enabled ? {
-                  backgroundColor: 'action.hover',
-                  transform: 'translateX(4px)',
-                } : {},
+                '&:hover': item.enabled
+                  ? {
+                      backgroundColor: 'action.hover',
+                      transform: 'translateX(4px)',
+                    }
+                  : {},
                 '&.Mui-disabled': {
                   opacity: 0.4,
                 },
                 cursor: item.enabled ? 'pointer' : 'not-allowed',
-              }}
-            >
+              }}>
               <ListItemIcon
                 sx={{
                   color: item.enabled ? item.color : 'text.disabled',
                   minWidth: 28,
                   transition: 'color 0.2s ease',
-                }}
-              >
+                }}>
                 {item.icon}
               </ListItemIcon>
               <ListItemText
@@ -434,20 +443,20 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTa
 const HODInvoiceManagement = () => {
   const navigate = useNavigate()
   const authContext = useAuthContext()
-  
+
   // State quản lý data
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [submittingId, setSubmittingId] = useState<string | null>(null)
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' })
-  
+
   // 📊 Pagination state
   const [paginationModel, setPaginationModel] = useState({
     pageSize: 10,
     page: 0,
   })
-  
+
   // State quản lý dialog ký số
   const [signDialog, setSignDialog] = useState({
     open: false,
@@ -455,24 +464,25 @@ const HODInvoiceManagement = () => {
     invoiceNumber: '',
   })
   const [isSigningInvoice, setIsSigningInvoice] = useState(false)
+  const [isSigningWithUSB, setIsSigningWithUSB] = useState(false) // 🔌 Ký bằng USB Token
   const [signingProgress, setSigningProgress] = useState<{
     step: 'signing' | 'submitting' | 'issuing'
     message: string
   } | null>(null)
   const [autoIssueAfterSign, setAutoIssueAfterSign] = useState(false) // ⚡ Tự động phát hành sau khi ký
   const signingInProgress = useRef<Set<number>>(new Set())
-  
+
   // ✅ State quản lý dialog từ chối
   const [rejectDialog, setRejectDialog] = useState({
     open: false,
     invoiceId: '',
     reason: '',
   })
-  
+
   // ✅ State quản lý send email modal (đồng bộ với Accountant page)
   const [sendEmailModalOpen, setSendEmailModalOpen] = useState(false)
   const [selectedInvoiceForEmail, setSelectedInvoiceForEmail] = useState<Invoice | null>(null)
-  
+
   // State quản lý preview modal
   const [previewModal, setPreviewModal] = useState({
     open: false,
@@ -482,7 +492,7 @@ const HODInvoiceManagement = () => {
     originalInvoiceNumber: undefined as number | undefined,
     adjustmentReason: undefined as string | undefined,
   })
-  
+
   // State quản lý bộ lọc
   const [filters, setFilters] = useState<InvoiceFilterState>({
     searchText: '',
@@ -499,40 +509,45 @@ const HODInvoiceManagement = () => {
     try {
       setLoading(true)
       setError(null)
-      
+
       if (!authContext?.isAuthenticated) {
         setError('Vui lòng đăng nhập để xem danh sách hóa đơn')
         navigate('/auth/sign-in')
         return
       }
-      
+
       // Load HOD invoices và data liên quan
       const [invoicesData, templatesData, customersData] = await Promise.all([
         invoiceService.getHODInvoices(), // ✅ Sử dụng API mới
         templateService.getAllTemplates(),
         customerService.getAllCustomers(),
       ])
-      
+
       console.log('📊 [HODInvoiceManagement] Loaded data:', {
         totalInvoices: invoicesData.length,
         totalTemplates: templatesData.length,
         totalCustomers: customersData.length,
       })
-      
-      interface Template { templateID: number; serial: string }
-      interface Customer { customerID: number; customerName: string; taxCode: string }
-      
-      const templateMap = new Map<number, string>(
-        (templatesData as Template[]).map((t: Template) => [t.templateID, t.serial])
-      )
+
+      interface Template {
+        templateID: number
+        serial: string
+      }
+      interface Customer {
+        customerID: number
+        customerName: string
+        taxCode: string
+      }
+
+      const templateMap = new Map<number, string>((templatesData as Template[]).map((t: Template) => [t.templateID, t.serial]))
       const customerMap = new Map<number, { name: string; taxCode: string }>(
-        (customersData as Customer[]).map((c: Customer) => [c.customerID, { name: c.customerName, taxCode: c.taxCode }])
+        (customersData as Customer[]).map((c: Customer) => [c.customerID, { name: c.customerName, taxCode: c.taxCode }]),
       )
-      
+
       let mappedData = invoicesData.map((item: InvoiceListItem) => mapInvoiceToUI(item, templateMap, customerMap))
-      
+
       // ✅ Preload notes cho các hóa đơn REJECTED (để hiển thị lý do từ chối trong tooltip)
-      const rejectedInvoices = mappedData.filter(inv => inv.internalStatusId === INVOICE_INTERNAL_STATUS.REJECTED)
+      const rejectedInvoices = mappedData.filter((inv) => inv.internalStatusId === INVOICE_INTERNAL_STATUS.REJECTED)
       if (rejectedInvoices.length > 0) {
         // Fetch notes từ detail API cho từng rejected invoice
         const notesPromises = rejectedInvoices.map(async (inv) => {
@@ -544,19 +559,19 @@ const HODInvoiceManagement = () => {
             return { id: inv.id, notes: null }
           }
         })
-        
+
         const notesResults = await Promise.all(notesPromises)
-        const notesMap = new Map(notesResults.map(r => [r.id, r.notes]))
-        
+        const notesMap = new Map(notesResults.map((r) => [r.id, r.notes]))
+
         // ⚡ Create NEW array với notes merged (để trigger React re-render)
-        mappedData = mappedData.map(inv => {
+        mappedData = mappedData.map((inv) => {
           if (notesMap.has(inv.id)) {
             return { ...inv, notes: notesMap.get(inv.id) || null }
           }
           return inv
         })
       }
-      
+
       setInvoices(mappedData)
     } catch (err) {
       console.error('Failed to load HOD invoices:', err)
@@ -577,7 +592,7 @@ const HODInvoiceManagement = () => {
       console.log('📨 [HODInvoiceManagement] InvoiceChanged event:', payload)
       // Reload invoices khi có thay đổi
       loadInvoices()
-    }
+    },
   })
 
   // Resync data khi SignalR reconnect
@@ -604,7 +619,7 @@ const HODInvoiceManagement = () => {
     })
   }
 
-  // ❌ REMOVED: adjustedInvoicesMap - Không cần nữa vì theo NĐ 123/2020, 
+  // ❌ REMOVED: adjustedInvoicesMap - Không cần nữa vì theo NĐ 123/2020,
   // hóa đơn có thể điều chỉnh NHIỀU LẦN, không cần check "đã điều chỉnh chưa"
 
   // Lọc invoices theo filters
@@ -619,7 +634,7 @@ const HODInvoiceManagement = () => {
           inv.customerName.toLowerCase().includes(searchLower) ||
           inv.taxCode.toLowerCase().includes(searchLower) ||
           inv.invoiceNumber.toLowerCase().includes(searchLower) ||
-          inv.symbol.toLowerCase().includes(searchLower)
+          inv.symbol.toLowerCase().includes(searchLower),
       )
     }
 
@@ -651,14 +666,12 @@ const HODInvoiceManagement = () => {
     if (filters.invoiceType && filters.invoiceType.length > 0 && !filters.invoiceType.includes('ALL')) {
       result = result.filter((inv) => filters.invoiceType.includes(String(inv.invoiceType)))
     }
-    
+
     if (import.meta.env.DEV) {
       console.log('📊 [HODInvoiceManagement] Filter result:', {
         totalInvoices: invoices.length,
         filteredInvoices: result.length,
-        activeFilters: Object.entries(filters).filter(([, v]) => 
-          v && (Array.isArray(v) ? v.length > 0 : true)
-        ).length,
+        activeFilters: Object.entries(filters).filter(([, v]) => v && (Array.isArray(v) ? v.length > 0 : true)).length,
       })
     }
 
@@ -678,15 +691,15 @@ const HODInvoiceManagement = () => {
   const handleApprove = async (invoiceId: string) => {
     try {
       setSubmittingId(invoiceId)
-      
+
       await invoiceService.approveInvoice(parseInt(invoiceId))
-      
+
       setSnackbar({
         open: true,
         message: `✅ Đã duyệt hóa đơn thành công!`,
         severity: 'success',
       })
-      
+
       await loadInvoices()
     } catch (err) {
       setSnackbar({
@@ -721,18 +734,18 @@ const HODInvoiceManagement = () => {
 
     try {
       setSubmittingId(rejectDialog.invoiceId)
-      
+
       await invoiceService.rejectInvoice(parseInt(rejectDialog.invoiceId), rejectDialog.reason)
-      
+
       setSnackbar({
         open: true,
         message: `✅ Đã từ chối hóa đơn thành công!`,
         severity: 'success',
       })
-      
+
       // Đóng dialog và reset
       setRejectDialog({ open: false, invoiceId: '', reason: '' })
-      
+
       await loadInvoices()
     } catch (err) {
       setSnackbar({
@@ -748,9 +761,10 @@ const HODInvoiceManagement = () => {
   // Handler ký số (mở dialog)
   const handleOpenSignDialog = (invoiceId: string, invoiceNumber: string) => {
     // ⚡ Check xem có cần tự động phát hành sau khi ký không
-    const invoice = invoices.find(inv => inv.id === invoiceId)
-    const shouldAutoIssue = invoice && (invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN || invoice.internalStatusId === INVOICE_INTERNAL_STATUS.SIGNED)
-    
+    const invoice = invoices.find((inv) => inv.id === invoiceId)
+    const shouldAutoIssue =
+      invoice && (invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN || invoice.internalStatusId === INVOICE_INTERNAL_STATUS.SIGNED)
+
     setAutoIssueAfterSign(shouldAutoIssue || false)
     setSignDialog({
       open: true,
@@ -781,56 +795,56 @@ const HODInvoiceManagement = () => {
     try {
       setIsSigningInvoice(true)
       signingInProgress.current.add(invoiceIdNum)
-      
+
       // BƯớc 1: Ký số
       setSigningProgress({ step: 'signing', message: '🔏 Ký số điện tử...' })
       const userId = authContext?.user?.id || 1
       const userIdNum = typeof userId === 'string' ? parseInt(userId) : userId
       await invoiceService.signInvoice(invoiceIdNum, userIdNum)
-      
+
       // 🔄 Load ngay sau ký để cập nhật trạng thái
       await loadInvoices()
-      
+
       // ⚡ TỰ ĐỘNG PHÁT HÀNH sau khi ký thành công
       if (autoIssueAfterSign) {
         // Bước 2: Gửi CQT
         setSigningProgress({ step: 'submitting', message: '🏛️ Gửi lên Cơ quan Thuế...' })
-        
+
         if (import.meta.env.DEV) {
           console.log(`🔵 [HOD] Submitting invoice ${invoiceIdNum} to Tax Authority...`)
         }
-        
+
         const taxCode = await invoiceService.submitToTaxAuthority(invoiceIdNum)
-        
+
         if (import.meta.env.DEV) {
           console.log(`✅ [HOD] Tax submission successful. Tax Code: ${taxCode}`)
         }
-        
+
         // 🔄 Load sau khi gửi CQT
         await loadInvoices()
-        
+
         // Bước 3: Phát hành
         setSigningProgress({ step: 'issuing', message: '✅ Phát hành hóa đơn...' })
-        
+
         if (import.meta.env.DEV) {
           console.log(`🔵 [HOD] Starting issueInvoice for invoice ${invoiceIdNum}...`)
         }
-        
+
         // ⚠️ Timeout protection: Nếu API không response trong 30s, throw error
         const issuePromise = invoiceService.issueInvoice(invoiceIdNum, userIdNum)
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Phát hành hóa đơn quá lâu (timeout 30s). Vui lòng kiểm tra lại trạng thái hóa đơn.')), 30000)
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Phát hành hóa đơn quá lâu (timeout 30s). Vui lòng kiểm tra lại trạng thái hóa đơn.')), 30000),
         )
-        
+
         await Promise.race([issuePromise, timeoutPromise])
-        
+
         if (import.meta.env.DEV) {
           console.log(`✅ [HOD] issueInvoice completed successfully`)
         }
-        
+
         // 🔄 Load cuối cùng
         await loadInvoices()
-        
+
         // ✅ Hoàn tất - hiển thị snackbar với mã CQT
         setSnackbar({
           open: true,
@@ -848,7 +862,7 @@ const HODInvoiceManagement = () => {
     } catch (err) {
       setAutoIssueAfterSign(false)
       setSigningProgress(null)
-      
+
       // Xác định lỗi ở bước nào
       const currentStep = signingProgress?.step || 'signing'
       const stepLabels = {
@@ -856,13 +870,13 @@ const HODInvoiceManagement = () => {
         submitting: 'gửi CQT',
         issuing: 'phát hành',
       }
-      
+
       setSnackbar({
         open: true,
         message: `❌ Lỗi khi ${stepLabels[currentStep as keyof typeof stepLabels] || 'xử lý'}: ${err instanceof Error ? err.message : 'Lỗi không xác định'}`,
         severity: 'error',
       })
-      
+
       // Load lại dữ liệu ngay cả khi lỗi để cập nhật trạng thái mới nhất
       await loadInvoices()
     } finally {
@@ -875,20 +889,112 @@ const HODInvoiceManagement = () => {
     }
   }
 
+  // 🔌 Handler ký số bằng USB Token (LocalSigner)
+  const handleSignWithUSB = async () => {
+    const { invoiceId, invoiceNumber } = signDialog
+    const invoiceIdNum = parseInt(invoiceId)
+
+    if (signingInProgress.current.has(invoiceIdNum)) {
+      console.warn(`⚠️ Invoice ${invoiceId} is already being signed. Skipping...`)
+      return
+    }
+
+    try {
+      setIsSigningWithUSB(true)
+      signingInProgress.current.add(invoiceIdNum)
+
+      // Bước 0: Kiểm tra LocalSigner có đang chạy không
+      setSigningProgress({ step: 'signing', message: '🔍 Kiểm tra kết nối USB Token...' })
+      const isRunning = await localSignerService.isLocalSignerRunning()
+      if (!isRunning) {
+        throw new Error('Ứng dụng LocalSigner chưa chạy. Vui lòng khởi động LocalSigner và thử lại.')
+      }
+
+      // Bước 1: Lấy hash từ backend
+      setSigningProgress({ step: 'signing', message: '📄 Lấy dữ liệu cần ký...' })
+      const hashData = await invoiceService.getInvoiceHashForSigning(invoiceIdNum)
+      console.log('📄 [HOD-USB] Got hash data:', { invoiceId: invoiceIdNum, signedInfoLength: hashData.signedInfoXml?.length })
+
+      // Bước 2: Gửi đến LocalSigner để ký
+      setSigningProgress({ step: 'signing', message: '🔏 Ký bằng USB Token...' })
+      const signResult = await localSignerService.signWithLocalCert(hashData.signedInfoXml)
+      console.log('✅ [HOD-USB] LocalSigner signed successfully')
+
+      // Bước 3: Gửi chữ ký về backend
+      setSigningProgress({ step: 'signing', message: '📤 Hoàn tất chữ ký...' })
+      await invoiceService.completeSigningWithUSB({
+        invoiceId: invoiceIdNum,
+        signatureBase64: signResult.signature,
+        certificateBase64: signResult.certificateBase64,
+      })
+      console.log('✅ [HOD-USB] Backend completed signing')
+
+      // 🔄 Load lại data sau khi ký
+      await loadInvoices()
+
+      // ⚡ TỰ ĐỘNG PHÁT HÀNH nếu cần
+      if (autoIssueAfterSign) {
+        // Bước 2: Gửi CQT
+        setSigningProgress({ step: 'submitting', message: '🏛️ Gửi lên Cơ quan Thuế...' })
+        const taxCode = await invoiceService.submitToTaxAuthority(invoiceIdNum)
+        console.log(`✅ [HOD-USB] Tax submission successful. Tax Code: ${taxCode}`)
+
+        await loadInvoices()
+
+        // Bước 3: Phát hành
+        setSigningProgress({ step: 'issuing', message: '✅ Phát hành hóa đơn...' })
+        const userId = authContext?.user?.id || 1
+        const userIdNum = typeof userId === 'string' ? parseInt(userId) : userId
+
+        const issuePromise = invoiceService.issueInvoice(invoiceIdNum, userIdNum)
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Phát hành hóa đơn quá lâu (timeout 30s).')), 30000))
+        await Promise.race([issuePromise, timeoutPromise])
+
+        await loadInvoices()
+
+        setSnackbar({
+          open: true,
+          message: `✅ Đã ký USB, gửi CQT và phát hành hóa đơn ${invoiceNumber} thành công!\n🏛️ Mã CQT: ${taxCode}`,
+          severity: 'success',
+        })
+      } else {
+        setSnackbar({
+          open: true,
+          message: `✅ Đã ký số hóa đơn ${invoiceNumber} bằng USB Token thành công!`,
+          severity: 'success',
+        })
+      }
+    } catch (err) {
+      console.error('❌ [HOD-USB] Signing failed:', err)
+      setSnackbar({
+        open: true,
+        message: `❌ Ký USB thất bại: ${err instanceof Error ? err.message : 'Lỗi không xác định'}`,
+        severity: 'error',
+      })
+      await loadInvoices()
+    } finally {
+      setIsSigningWithUSB(false)
+      setAutoIssueAfterSign(false)
+      setSigningProgress(null)
+      signingInProgress.current.delete(invoiceIdNum)
+      handleCloseSignDialog()
+    }
+  }
+
   // Handler gửi lại CQT
   const handleResendToTax = async (invoiceId: string, invoiceNumber: string) => {
     try {
       setSubmittingId(invoiceId)
-      
+
       const taxCode = await invoiceService.submitToTaxAuthority(parseInt(invoiceId))
       await invoiceService.markIssued(parseInt(invoiceId), taxCode)
-      
+
       setSnackbar({
         open: true,
         message: `✅ Đã gửi lại hóa đơn ${invoiceNumber} thành công!\nMã CQT: ${taxCode}`,
         severity: 'success',
       })
-      
+
       await loadInvoices()
     } catch (err) {
       setSnackbar({
@@ -902,11 +1008,11 @@ const HODInvoiceManagement = () => {
   }
 
   // ❌ REMOVED: handleCancelInvoice - Nút "Hủy" đã bị xóa khỏi menu Kế toán trưởng
-  
+
   // Handler xem preview & in hóa đơn
   const handlePrintInvoice = (invoiceId: string, invoiceNumber: string) => {
-    const invoice = invoices.find(inv => inv.id === invoiceId)
-    
+    const invoice = invoices.find((inv) => inv.id === invoiceId)
+
     setPreviewModal({
       open: true,
       invoiceId: parseInt(invoiceId),
@@ -921,9 +1027,9 @@ const HODInvoiceManagement = () => {
   const handleDownloadPDF = async (invoiceId: string, invoiceNumber: string) => {
     try {
       setSubmittingId(invoiceId)
-      
+
       await invoiceService.saveInvoicePDF(parseInt(invoiceId), invoiceNumber)
-      
+
       setSnackbar({
         open: true,
         message: `✅ Đã tải xuống hóa đơn ${invoiceNumber}.pdf`,
@@ -953,48 +1059,45 @@ const HODInvoiceManagement = () => {
     language: string
   }) => {
     if (!selectedInvoiceForEmail) return
-    
+
     const invoiceBeforeSend = {
       id: selectedInvoiceForEmail.id,
       number: selectedInvoiceForEmail.invoiceNumber,
       statusId: selectedInvoiceForEmail.internalStatusId,
     }
-    
+
     try {
       setSubmittingId(selectedInvoiceForEmail.id)
-      
+
       // Upload attachments nếu có (cần implement file upload API)
       const attachmentUrls: string[] = []
       if (emailData.attachments.length > 0) {
         console.log('⚠️ File upload not implemented yet. Attachments:', emailData.attachments)
       }
-      
+
       // Gọi API gửi email
-      const response = await invoiceService.sendInvoiceEmail(
-        parseInt(selectedInvoiceForEmail.id),
-        {
-          emailTemplateId: 0, // Default template
-          recipientEmail: emailData.email,
-          ccEmails: emailData.ccEmails.length > 0 ? emailData.ccEmails : undefined,
-          bccEmails: emailData.bccEmails.length > 0 ? emailData.bccEmails : undefined,
-          customMessage: undefined,
-          includeXml: emailData.includeXml,
-          includePdf: emailData.includePdf,
-          language: emailData.language || 'vi',
-          externalAttachmentUrls: attachmentUrls.length > 0 ? attachmentUrls : undefined,
-        }
-      )
-      
+      const response = await invoiceService.sendInvoiceEmail(parseInt(selectedInvoiceForEmail.id), {
+        emailTemplateId: 0, // Default template
+        recipientEmail: emailData.email,
+        ccEmails: emailData.ccEmails.length > 0 ? emailData.ccEmails : undefined,
+        bccEmails: emailData.bccEmails.length > 0 ? emailData.bccEmails : undefined,
+        customMessage: undefined,
+        includeXml: emailData.includeXml,
+        includePdf: emailData.includePdf,
+        language: emailData.language || 'vi',
+        externalAttachmentUrls: attachmentUrls.length > 0 ? attachmentUrls : undefined,
+      })
+
       console.log('✅ Email sent successfully:', {
         invoiceId: invoiceBeforeSend.id,
         invoiceNumber: invoiceBeforeSend.number,
         sentTo: response.sentTo,
       })
-      
+
       // 🔍 MONITORING: Verify status không bị thay đổi (chỉ log warning nếu có)
       try {
         const invoiceDetail = await invoiceService.getInvoiceById(parseInt(invoiceBeforeSend.id))
-        
+
         if (invoiceBeforeSend.statusId !== invoiceDetail.invoiceStatusID) {
           console.warn('⚠️ [WARNING] Invoice status changed after email send (backend bug detected):', {
             invoiceNumber: invoiceBeforeSend.number,
@@ -1006,25 +1109,24 @@ const HODInvoiceManagement = () => {
       } catch (verifyErr) {
         console.warn('⚠️ Could not verify status after email send:', verifyErr)
       }
-      
+
       // ✅ Reload data và show success
       await loadInvoices()
-      
+
       setSnackbar({
         open: true,
         message: `✅ Đã gửi email hóa đơn ${invoiceBeforeSend.number}\nĐến: ${response.sentTo}`,
         severity: 'success',
       })
-      
+
       setSendEmailModalOpen(false)
       setSelectedInvoiceForEmail(null)
-      
     } catch (err) {
       console.error('❌ Failed to send email:', {
         invoiceNumber: invoiceBeforeSend.number,
         error: err,
       })
-      
+
       setSnackbar({
         open: true,
         message: `❌ Không thể gửi email hóa đơn ${invoiceBeforeSend.number}\n${err instanceof Error ? err.message : 'Vui lòng thử lại'}`,
@@ -1034,8 +1136,6 @@ const HODInvoiceManagement = () => {
       setSubmittingId(null)
     }
   }
-
-
 
   // Định nghĩa columns
   const columns: GridColDef[] = [
@@ -1049,20 +1149,20 @@ const HODInvoiceManagement = () => {
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const value = params.value as string
-        if (!value) return (
-          <Typography 
-            variant="body2" 
-            sx={{ 
-              color: '#bdbdbd', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              height: '100%' 
-            }}
-          >
-            -
-          </Typography>
-        )
+        if (!value)
+          return (
+            <Typography
+              variant="body2"
+              sx={{
+                color: '#bdbdbd',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+              }}>
+              -
+            </Typography>
+          )
         return (
           <Typography
             variant="body2"
@@ -1115,20 +1215,20 @@ const HODInvoiceManagement = () => {
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const value = params.value as string
-        if (!value) return (
-          <Typography 
-            variant="body2" 
-            sx={{ 
-              color: '#bdbdbd', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              height: '100%' 
-            }}
-          >
-            -
-          </Typography>
-        )
+        if (!value)
+          return (
+            <Typography
+              variant="body2"
+              sx={{
+                color: '#bdbdbd',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+              }}>
+              -
+            </Typography>
+          )
         return (
           <Typography
             variant="body2"
@@ -1170,33 +1270,34 @@ const HODInvoiceManagement = () => {
         const statusId = params.row.internalStatusId
         const isRejected = statusId === INVOICE_INTERNAL_STATUS.REJECTED
         const notes = params.row.notes as string | null
-        
+
         // Extract rejection reason from notes (if available)
-        const rejectionReason = isRejected && notes && notes.includes('Từ chối:') 
-          ? notes.replace('Từ chối: ', '') 
-          : null
-        
+        const rejectionReason = isRejected && notes && notes.includes('Từ chối:') ? notes.replace('Từ chối: ', '') : null
+
         // Tooltip content - only show when rejection reason exists
-        const tooltipContent = isRejected && rejectionReason ? (
-          <Box sx={{ p: 1 }}>
-            <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
-              ❌ Hóa đơn bị từ chối duyệt
-            </Typography>
-            <Typography variant="caption" sx={{ display: 'block', opacity: 0.9, mb: 0.5 }}>
-              <strong>Lý do:</strong> {rejectionReason}
-            </Typography>
-            <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: '#ffeb3b' }}>
-              💡 Kế toán viên cần sửa và gửi lại
-            </Typography>
-          </Box>
-        ) : (params.value as string)
-        
+        const tooltipContent =
+          isRejected && rejectionReason ? (
+            <Box sx={{ p: 1 }}>
+              <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+                ❌ Hóa đơn bị từ chối duyệt
+              </Typography>
+              <Typography variant="caption" sx={{ display: 'block', opacity: 0.9, mb: 0.5 }}>
+                <strong>Lý do:</strong> {rejectionReason}
+              </Typography>
+              <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: '#ffeb3b' }}>
+                💡 Kế toán viên cần sửa và gửi lại
+              </Typography>
+            </Box>
+          ) : (
+            (params.value as string)
+          )
+
         const chipElement = (
-          <Chip 
-            label={params.value as string} 
-            color={getInternalStatusColor(statusId)} 
-            size="small" 
-            sx={{ 
+          <Chip
+            label={params.value as string}
+            color={getInternalStatusColor(statusId)}
+            size="small"
+            sx={{
               fontWeight: 600,
               ...(isRejected && {
                 animation: 'pulse 2s ease-in-out infinite',
@@ -1208,12 +1309,12 @@ const HODInvoiceManagement = () => {
             }}
           />
         )
-        
+
         // Wrap with Tooltip ONLY when rejection reason exists
         return isRejected && rejectionReason ? (
-          <Tooltip 
-            title={tooltipContent} 
-            arrow 
+          <Tooltip
+            title={tooltipContent}
+            arrow
             placement="top"
             componentsProps={{
               tooltip: {
@@ -1224,11 +1325,12 @@ const HODInvoiceManagement = () => {
                   },
                 },
               },
-            }}
-          >
+            }}>
             <span>{chipElement}</span>
           </Tooltip>
-        ) : chipElement
+        ) : (
+          chipElement
+        )
       },
     },
     {
@@ -1243,7 +1345,7 @@ const HODInvoiceManagement = () => {
         const taxStatusId = params.row.taxStatusId as number | null
         const taxAuthorityCode = params.row.taxAuthority as string // ✅ Mã CQT thực sự của hóa đơn (giống InvoiceManagement)
         const isError = taxStatusId !== null && isTaxStatusError(taxStatusId)
-        
+
         // ✅ Tooltip content giống 100% với InvoiceManagement
         const tooltipContent = (
           <Box sx={{ py: 0.5 }}>
@@ -1262,15 +1364,15 @@ const HODInvoiceManagement = () => {
             )}
           </Box>
         )
-        
+
         return (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
             <Tooltip title={tooltipContent} arrow placement="top">
-              <Chip 
-                label={params.value as string} 
-                color={getTaxStatusColor(taxStatusId)} 
+              <Chip
+                label={params.value as string}
+                color={getTaxStatusColor(taxStatusId)}
                 size="small"
-                sx={{ 
+                sx={{
                   fontWeight: 600,
                   fontSize: '0.75rem',
                   height: 28,
@@ -1313,19 +1415,19 @@ const HODInvoiceManagement = () => {
         const replacementReason = params.row.replacementReason as string | null | undefined
         const cancellationReason = params.row.cancellationReason as string | null | undefined
         const explanationText = params.row.explanationText as string | null | undefined
-        
+
         const label = getInvoiceTypeLabel(invoiceType)
         const color = getInvoiceTypeColor(invoiceType)
-        
+
         const badgeColorMap: Record<string, { bg: string; text: string; border: string }> = {
-          'default': { bg: '#f1f5f9', text: '#64748b', border: '#e2e8f0' },
-          'warning': { bg: '#fef3c7', text: '#f59e0b', border: '#fcd34d' },
-          'info': { bg: '#dbeafe', text: '#3b82f6', border: '#93c5fd' },
-          'error': { bg: '#fee2e2', text: '#ef4444', border: '#fca5a5' },
-          'secondary': { bg: '#f3e8ff', text: '#9c27b0', border: '#d8b4fe' },
+          default: { bg: '#f1f5f9', text: '#64748b', border: '#e2e8f0' },
+          warning: { bg: '#fef3c7', text: '#f59e0b', border: '#fcd34d' },
+          info: { bg: '#dbeafe', text: '#3b82f6', border: '#93c5fd' },
+          error: { bg: '#fee2e2', text: '#ef4444', border: '#fca5a5' },
+          secondary: { bg: '#f3e8ff', text: '#9c27b0', border: '#d8b4fe' },
         }
         const badgeColors = badgeColorMap[color] || badgeColorMap['default']
-        
+
         const formatDate = (dateStr?: string | null): string | null => {
           if (!dateStr) return null
           try {
@@ -1334,31 +1436,51 @@ const HODInvoiceManagement = () => {
             return null
           }
         }
-        
+
         const isLinkedInvoice = invoiceType === 2 || invoiceType === 3 || invoiceType === 4 || invoiceType === 5
-        
+
         let tooltipContent: React.ReactNode = null
         if (isLinkedInvoice) {
-          const actionText = 
-            invoiceType === 2 ? '📝 Hóa đơn điều chỉnh' :
-            invoiceType === 3 ? '🔄 Hóa đơn thay thế' :
-            invoiceType === 4 ? '❌ Hóa đơn hủy' :
-            invoiceType === 5 ? '📋 Hóa đơn giải trình' : ''
-          
-          const reason = 
-            invoiceType === 2 ? adjustmentReason :
-            invoiceType === 3 ? replacementReason :
-            invoiceType === 4 ? cancellationReason :
-            invoiceType === 5 ? explanationText : null
-          
+          const actionText =
+            invoiceType === 2
+              ? '📝 Hóa đơn điều chỉnh'
+              : invoiceType === 3
+                ? '🔄 Hóa đơn thay thế'
+                : invoiceType === 4
+                  ? '❌ Hóa đơn hủy'
+                  : invoiceType === 5
+                    ? '📋 Hóa đơn giải trình'
+                    : ''
+
+          const reason =
+            invoiceType === 2
+              ? adjustmentReason
+              : invoiceType === 3
+                ? replacementReason
+                : invoiceType === 4
+                  ? cancellationReason
+                  : invoiceType === 5
+                    ? explanationText
+                    : null
+
           const formattedDate = formatDate(originalInvoiceSignDate)
-          
+
           tooltipContent = (
             <Box sx={{ py: 1, px: 0.5, minWidth: 280, maxWidth: 420 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, pb: 0.75, borderBottom: '1px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  fontWeight: 700,
+                  mb: 1.5,
+                  pb: 0.75,
+                  borderBottom: '1px solid rgba(255,255,255,0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                }}>
                 {actionText}
               </Typography>
-              
+
               <Box sx={{ mb: 1.5 }}>
                 <Typography variant="caption" sx={{ display: 'block', color: 'rgba(255,255,255,0.7)', mb: 0.75 }}>
                   Liên quan đến hóa đơn:
@@ -1383,46 +1505,44 @@ const HODInvoiceManagement = () => {
                   </Typography>
                 )}
               </Box>
-              
+
               {reason && (
                 <Box sx={{ mb: 1.5 }}>
                   <Typography variant="caption" sx={{ display: 'block', color: 'rgba(255,255,255,0.7)', mb: 0.75 }}>
                     Lý do:
                   </Typography>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      fontSize: '12.5px', 
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontSize: '12.5px',
                       fontStyle: 'italic',
                       pl: 1,
                       color: 'rgba(255,255,255,0.95)',
                       lineHeight: 1.5,
-                    }}
-                  >
+                    }}>
                     "{reason}"
                   </Typography>
                 </Box>
               )}
-              
+
               {/* Action hint */}
               <Divider sx={{ my: 0.75, borderColor: 'rgba(255,255,255,0.2)' }} />
-              <Typography 
-                variant="caption" 
-                sx={{ 
-                  fontSize: '11px', 
+              <Typography
+                variant="caption"
+                sx={{
+                  fontSize: '11px',
                   fontStyle: 'italic',
                   color: 'rgba(255,255,255,0.7)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 0.5,
-                }}
-              >
+                }}>
                 {originalInvoiceID ? '💡 Click để xem chi tiết hóa đơn gốc' : 'ℹ️ Chưa liên kết hóa đơn gốc'}
               </Typography>
             </Box>
           )
         }
-        
+
         if (invoiceType === 1) {
           return (
             <Chip
@@ -1443,14 +1563,10 @@ const HODInvoiceManagement = () => {
             />
           )
         }
-        
+
         if (originalInvoiceID) {
           return (
-            <Tooltip 
-              title={tooltipContent}
-              arrow
-              placement="top"
-            >
+            <Tooltip title={tooltipContent} arrow placement="top">
               <Box
                 component={Link}
                 to={`/invoices/${originalInvoiceID}`}
@@ -1470,8 +1586,7 @@ const HODInvoiceManagement = () => {
                     boxShadow: `0 4px 12px ${badgeColors.border}`,
                     bgcolor: badgeColors.bg,
                   },
-                }}
-              >
+                }}>
                 <Typography
                   variant="body2"
                   sx={{
@@ -1479,8 +1594,7 @@ const HODInvoiceManagement = () => {
                     fontWeight: 600,
                     fontSize: '12px',
                     lineHeight: 1.2,
-                  }}
-                >
+                  }}>
                   {label}
                 </Typography>
                 <Box
@@ -1494,28 +1608,46 @@ const HODInvoiceManagement = () => {
                     bgcolor: 'rgba(255, 255, 255, 0.95)',
                     backdropFilter: 'blur(4px)',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  }}
-                >
-                  <LinkIcon 
-                    sx={{ 
-                      fontSize: 16, 
+                  }}>
+                  <LinkIcon
+                    sx={{
+                      fontSize: 16,
                       color: '#1976d2',
                       fontWeight: 'bold',
-                    }} 
+                    }}
                   />
                 </Box>
               </Box>
             </Tooltip>
           )
         }
-        
+
         return (
           <Tooltip title={tooltipContent} arrow placement="top">
-            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, padding: '6px 14px', borderRadius: '20px', bgcolor: badgeColors.bg, border: `1px solid ${badgeColors.border}` }}>
+            <Box
+              sx={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 0.75,
+                padding: '6px 14px',
+                borderRadius: '20px',
+                bgcolor: badgeColors.bg,
+                border: `1px solid ${badgeColors.border}`,
+              }}>
               <Typography variant="body2" sx={{ color: badgeColors.text, fontWeight: 600, fontSize: '12px', lineHeight: 1.2 }}>
                 {label}
               </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', bgcolor: 'rgba(200, 200, 200, 0.5)', backdropFilter: 'blur(4px)' }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  bgcolor: 'rgba(200, 200, 200, 0.5)',
+                  backdropFilter: 'blur(4px)',
+                }}>
                 <LinkIcon sx={{ fontSize: 16, color: '#9e9e9e', opacity: 0.6 }} />
               </Box>
             </Box>
@@ -1555,7 +1687,7 @@ const HODInvoiceManagement = () => {
       renderCell: (params: GridRenderCellParams) => {
         const isSending = submittingId === params.row.id
         const invoice = params.row as Invoice
-        
+
         return (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 0.5 }}>
             {/* Icon 1: Xem chi tiết */}
@@ -1571,12 +1703,11 @@ const HODInvoiceManagement = () => {
                     transform: 'scale(1.1)',
                   },
                   transition: 'all 0.2s ease-in-out',
-                }}
-              >
+                }}>
                 <VisibilityOutlinedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            
+
             {/* Icon 2: Tải PDF */}
             <Tooltip title="Tải PDF" arrow placement="top">
               <IconButton
@@ -1590,12 +1721,11 @@ const HODInvoiceManagement = () => {
                     transform: 'scale(1.1)',
                   },
                   transition: 'all 0.2s ease-in-out',
-                }}
-              >
+                }}>
                 <DownloadIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            
+
             {/* Icon 3: Menu 3 chấm */}
             <InvoiceActionsMenu
               invoice={invoice}
@@ -1629,13 +1759,12 @@ const HODInvoiceManagement = () => {
               <Typography variant="body2" sx={{ color: '#666' }}>
                 Danh sách hóa đơn cần xử lý bởi Kế toán trưởng
               </Typography>
-              
             </Box>
           </Box>
 
           {/* Bộ lọc nâng cao với nút Tạo hóa đơn */}
-          <InvoiceFilter 
-            onFilterChange={handleFilterChange} 
+          <InvoiceFilter
+            onFilterChange={handleFilterChange}
             onReset={handleResetFilter}
             totalResults={invoices.length}
             filteredResults={filteredInvoices.length}
@@ -1685,8 +1814,7 @@ const HODInvoiceManagement = () => {
                 borderRadius: 2,
                 overflow: 'hidden',
                 boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-              }}
-            >
+              }}>
               <DataGrid
                 rows={filteredInvoices}
                 columns={columns}
@@ -1759,22 +1887,17 @@ const HODInvoiceManagement = () => {
           )}
 
           {/* ✅ Reject Invoice Dialog */}
-          <Dialog 
-            open={rejectDialog.open} 
-            onClose={() => setRejectDialog({ open: false, invoiceId: '', reason: '' })} 
-            maxWidth="sm" 
-            fullWidth
-          >
+          <Dialog open={rejectDialog.open} onClose={() => setRejectDialog({ open: false, invoiceId: '', reason: '' })} maxWidth="sm" fullWidth>
             <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'error.main' }}>
-              <CancelIcon color="error" />
-              ❌ Từ chối duyệt hóa đơn
+              <CancelIcon color="error" />❌ Từ chối duyệt hóa đơn
             </DialogTitle>
             <DialogContent>
               <Alert severity="warning" sx={{ mb: 3 }}>
-                <strong>⚠️ Bắt buộc nhập lý do từ chối</strong><br />
+                <strong>⚠️ Bắt buộc nhập lý do từ chối</strong>
+                <br />
                 Lý do từ chối sẽ được gửi đến kế toán viên để sửa lại hóa đơn.
               </Alert>
-              
+
               <TextField
                 autoFocus
                 fullWidth
@@ -1791,10 +1914,7 @@ const HODInvoiceManagement = () => {
               />
             </DialogContent>
             <DialogActions sx={{ p: 2, pt: 0 }}>
-              <Button 
-                onClick={() => setRejectDialog({ open: false, invoiceId: '', reason: '' })}
-                disabled={!!submittingId}
-              >
+              <Button onClick={() => setRejectDialog({ open: false, invoiceId: '', reason: '' })} disabled={!!submittingId}>
                 Hủy
               </Button>
               <Button
@@ -1802,8 +1922,7 @@ const HODInvoiceManagement = () => {
                 color="error"
                 onClick={handleReject}
                 disabled={!!submittingId || !rejectDialog.reason.trim()}
-                startIcon={<CancelIcon />}
-              >
+                startIcon={<CancelIcon />}>
                 {submittingId ? 'Đang xử lý...' : 'Xác nhận từ chối'}
               </Button>
             </DialogActions>
@@ -1811,10 +1930,7 @@ const HODInvoiceManagement = () => {
 
           {/* Sign Invoice Dialog */}
           <Dialog open={signDialog.open} onClose={handleCloseSignDialog} maxWidth="sm" fullWidth>
-            <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-             
-              ✍️ Ký số hóa đơn
-            </DialogTitle>
+            <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>✍️ Ký số hóa đơn</DialogTitle>
             <DialogContent>
               {signingProgress ? (
                 <Box sx={{ py: 3, textAlign: 'center' }}>
@@ -1850,35 +1966,59 @@ const HODInvoiceManagement = () => {
                   <Alert severity="info" sx={{ mb: 2 }}>
                     {autoIssueAfterSign ? (
                       <>
-                        <strong>Ký số & Phát hành tự động</strong><br />
-                        Hệ thống sẽ tự động thực hiện:<br />
-                        1️⃣ Ký số điện tử<br />
-                        2️⃣ Gửi lên Cơ quan Thuế<br />
-                        3️⃣ Phát hành hóa đơn<br />
+                        <strong>Ký số & Phát hành tự động</strong>
+                        <br />
+                        Hệ thống sẽ tự động thực hiện:
+                        <br />
+                        1️⃣ Ký số điện tử
+                        <br />
+                        2️⃣ Gửi lên Cơ quan Thuế
+                        <br />
+                        3️⃣ Phát hành hóa đơn
+                        <br />
                         <em>(Quá trình có thể mất vài giây)</em>
                       </>
                     ) : (
                       <>
-                        <strong>Bước 1: Ký số điện tử</strong><br />
+                        <strong>Bước 1: Ký số điện tử</strong>
+                        <br />
                         Hóa đơn sẽ được ký bằng chữ ký số điện tử.
                       </>
                     )}
                   </Alert>
+
+                  {/* 🔌 Hướng dẫn ký USB */}
+                  <Alert severity="warning" sx={{ mt: 2 }}>
+                    <strong>🔌 Ký bằng USB Token:</strong>
+                    <br />
+                    Đảm bảo ứng dụng <strong>LocalSigner</strong> đang chạy và USB Token đã cắm vào máy.
+                  </Alert>
                 </>
               )}
             </DialogContent>
-            <DialogActions sx={{ p: 2, pt: 0 }}>
-              <Button onClick={handleCloseSignDialog} disabled={isSigningInvoice}>
+            <DialogActions sx={{ p: 2, pt: 0, gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <Button onClick={handleCloseSignDialog} disabled={isSigningInvoice || isSigningWithUSB}>
                 Hủy
               </Button>
+              {/* 🔌 Nút ký bằng USB Token */}
+              <Button
+                variant="contained"
+                color="warning"
+                onClick={handleSignWithUSB}
+                disabled={isSigningInvoice || isSigningWithUSB}
+                startIcon={<UsbIcon />}
+                sx={{ minWidth: 140 }}>
+                {isSigningWithUSB ? 'Đang ký USB...' : 'Ký bằng USB'}
+              </Button>
+              {/* 🖥️ Nút ký Server (giữ nguyên logic cũ) */}
               <Button
                 variant="contained"
                 color="secondary"
                 onClick={handleConfirmSign}
-                disabled={isSigningInvoice}
+                disabled={isSigningInvoice || isSigningWithUSB}
                 startIcon={<DrawIcon />}
-              >
-                {isSigningInvoice ? 'Đang xử lý...' : autoIssueAfterSign ? 'Ký & Phát hành' : 'Ký số'}
+                sx={{ minWidth: 140 }}>
+                {isSigningInvoice ? 'Đang xử lý...' : autoIssueAfterSign ? 'Ký Server & Phát hành' : 'Ký Server'}
               </Button>
             </DialogActions>
           </Dialog>
@@ -1888,8 +2028,7 @@ const HODInvoiceManagement = () => {
             open={snackbar.open}
             autoHideDuration={4000}
             onClose={() => setSnackbar({ ...snackbar, open: false })}
-            anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-          >
+            anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
             <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} sx={{ width: '100%' }}>
               {snackbar.message}
             </Alert>
@@ -1905,7 +2044,7 @@ const HODInvoiceManagement = () => {
             originalInvoiceNumber={previewModal.originalInvoiceNumber}
             adjustmentReason={previewModal.adjustmentReason}
           />
-          
+
           {/* ✅ Send Email Modal (đồng bộ với Accountant page) */}
           <SendInvoiceEmailModal
             open={sendEmailModalOpen}
