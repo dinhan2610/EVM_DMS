@@ -407,9 +407,199 @@ export const completeMinute = async (minuteId: number): Promise<void> => {
   }
 }
 
+// ============================================================
+// 🔍 MINUTE STATUS CONSTANTS
+// ============================================================
+
+/**
+ * Trạng thái biên bản theo backend EMinuteStatus
+ * API trả về dạng STRING, không phải number
+ */
+export const MINUTE_STATUS = {
+  PENDING: 'Pending',       // Chờ ký
+  SIGNED: 'Signed',         // Đã ký đầy đủ
+  SENT: 'Sent',             // Đã gửi
+  COMPLETE: 'Complete',     // Hai bên đồng thuận ✅
+  CANCELLED: 'Cancelled',   // Đã hủy
+} as const
+
+/**
+ * Loại biên bản
+ */
+export const MINUTE_TYPE = {
+  ADJUSTMENT: 1,   // Biên bản điều chỉnh
+  REPLACEMENT: 2,  // Biên bản thay thế
+} as const
+
+// ============================================================
+// 🔍 GET MINUTES BY INVOICE ID
+// ============================================================
+
+/**
+ * Lấy danh sách biên bản theo Invoice ID gốc
+ * Filter từ API getMinutes theo invoiceId
+ * 
+ * @param invoiceId - ID hóa đơn gốc
+ * @returns Promise<MinuteRecord[]> - Danh sách biên bản của hóa đơn
+ */
+export const getMinutesByInvoiceId = async (invoiceId: number): Promise<MinuteRecord[]> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log('[getMinutesByInvoiceId] Fetching minutes for invoice:', invoiceId)
+    }
+
+    // Lấy tất cả minutes rồi filter theo invoiceId
+    const response = await getMinutes(1, 1000)
+    
+    const filteredMinutes = response.items.filter(minute => minute.invoiceId === invoiceId)
+    
+    if (import.meta.env.DEV) {
+      console.log('[getMinutesByInvoiceId] ✅ Found minutes:', filteredMinutes.length)
+    }
+
+    return filteredMinutes
+  } catch (error) {
+    console.error('[getMinutesByInvoiceId] ❌ Error:', error)
+    throw error
+  }
+}
+
+/**
+ * Kiểm tra xem hóa đơn có biên bản điều chỉnh đã được 2 bên thỏa thuận hay không
+ * 
+ * @param invoiceId - ID hóa đơn gốc
+ * @returns Promise<{ hasValidMinute: boolean, minute: MinuteRecord | null, reason: string }>
+ */
+export const checkAdjustmentMinuteStatus = async (invoiceId: number): Promise<{
+  hasValidMinute: boolean
+  minute: MinuteRecord | null
+  reason: string
+}> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log('[checkAdjustmentMinuteStatus] Checking for invoice:', invoiceId)
+    }
+
+    const minutes = await getMinutesByInvoiceId(invoiceId)
+    
+    // Tìm biên bản điều chỉnh (Adjustment)
+    const adjustmentMinutes = minutes.filter(m => m.minuteType === 'Adjustment')
+    
+    if (adjustmentMinutes.length === 0) {
+      return {
+        hasValidMinute: false,
+        minute: null,
+        reason: 'Chưa có biên bản điều chỉnh. Vui lòng tạo biên bản điều chỉnh trước.',
+      }
+    }
+    
+    // Tìm biên bản đã được 2 bên thỏa thuận (status = "Complete")
+    const completedMinute = adjustmentMinutes.find(m => m.status === MINUTE_STATUS.COMPLETE)
+    
+    if (completedMinute) {
+      return {
+        hasValidMinute: true,
+        minute: completedMinute,
+        reason: `Biên bản ${completedMinute.minuteCode} đã được 2 bên thỏa thuận.`,
+      }
+    }
+    
+    // Có biên bản nhưng chưa Complete
+    const latestMinute = adjustmentMinutes[0]
+    
+    let statusText = 'chưa xác định'
+    if (latestMinute.status === MINUTE_STATUS.PENDING) statusText = 'đang chờ ký'
+    else if (latestMinute.status === MINUTE_STATUS.SIGNED) statusText = 'đã ký nhưng chưa hoàn thành'
+    else if (latestMinute.status === MINUTE_STATUS.SENT) statusText = 'đã gửi nhưng chưa được xác nhận'
+    else if (latestMinute.status === MINUTE_STATUS.CANCELLED) statusText = 'đã bị hủy'
+    
+    return {
+      hasValidMinute: false,
+      minute: latestMinute,
+      reason: `Biên bản ${latestMinute.minuteCode} ${statusText}. Cần 2 bên thỏa thuận xong mới được tạo HĐ điều chỉnh.`,
+    }
+  } catch (error) {
+    console.error('[checkAdjustmentMinuteStatus] ❌ Error:', error)
+    return {
+      hasValidMinute: false,
+      minute: null,
+      reason: 'Không thể kiểm tra trạng thái biên bản. Vui lòng thử lại.',
+    }
+  }
+}
+
+/**
+ * Kiểm tra xem hóa đơn có biên bản thay thế đã được 2 bên thỏa thuận hay không
+ * 
+ * @param invoiceId - ID hóa đơn gốc
+ * @returns Promise<{ hasValidMinute: boolean, minute: MinuteRecord | null, reason: string }>
+ */
+export const checkReplacementMinuteStatus = async (invoiceId: number): Promise<{
+  hasValidMinute: boolean
+  minute: MinuteRecord | null
+  reason: string
+}> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log('[checkReplacementMinuteStatus] Checking for invoice:', invoiceId)
+    }
+
+    const minutes = await getMinutesByInvoiceId(invoiceId)
+    
+    // Tìm biên bản thay thế (Replacement)
+    const replacementMinutes = minutes.filter(m => m.minuteType === 'Replacement')
+    
+    if (replacementMinutes.length === 0) {
+      return {
+        hasValidMinute: false,
+        minute: null,
+        reason: 'Chưa có biên bản thay thế. Vui lòng tạo biên bản thay thế trước.',
+      }
+    }
+    
+    // Tìm biên bản đã được 2 bên thỏa thuận (status = "Complete")
+    const completedMinute = replacementMinutes.find(m => m.status === MINUTE_STATUS.COMPLETE)
+    
+    if (completedMinute) {
+      return {
+        hasValidMinute: true,
+        minute: completedMinute,
+        reason: `Biên bản ${completedMinute.minuteCode} đã được 2 bên thỏa thuận.`,
+      }
+    }
+    
+    // Có biên bản nhưng chưa Complete
+    const latestMinute = replacementMinutes[0]
+    
+    let statusText = 'chưa xác định'
+    if (latestMinute.status === MINUTE_STATUS.PENDING) statusText = 'đang chờ ký'
+    else if (latestMinute.status === MINUTE_STATUS.SIGNED) statusText = 'đã ký nhưng chưa hoàn thành'
+    else if (latestMinute.status === MINUTE_STATUS.SENT) statusText = 'đã gửi nhưng chưa được xác nhận'
+    else if (latestMinute.status === MINUTE_STATUS.CANCELLED) statusText = 'đã bị hủy'
+    
+    return {
+      hasValidMinute: false,
+      minute: latestMinute,
+      reason: `Biên bản ${latestMinute.minuteCode} ${statusText}. Cần 2 bên thỏa thuận xong mới được tạo HĐ thay thế.`,
+    }
+  } catch (error) {
+    console.error('[checkReplacementMinuteStatus] ❌ Error:', error)
+    return {
+      hasValidMinute: false,
+      minute: null,
+      reason: 'Không thể kiểm tra trạng thái biên bản. Vui lòng thử lại.',
+    }
+  }
+}
+
 export default {
   uploadMinute,
   validatePdfFile,
   signMinuteSeller,
   completeMinute,
+  getMinutesByInvoiceId,
+  checkAdjustmentMinuteStatus,
+  checkReplacementMinuteStatus,
+  MINUTE_STATUS,
+  MINUTE_TYPE,
 }

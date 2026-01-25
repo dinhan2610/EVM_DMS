@@ -8,6 +8,7 @@ import invoiceService, {
 import customerService from '@/services/customerService'
 import productService, { Product } from '@/services/productService'
 import companyService, { Company } from '@/services/companyService'
+import { checkAdjustmentMinuteStatus } from '@/services/minuteService'
 import { numberToWords } from '@/utils/numberToWords'
 import { getUserIdFromToken } from '@/utils/tokenUtils'
 import { useAuthContext } from '@/context/useAuthContext'
@@ -877,6 +878,7 @@ const CreateVatInvoice: React.FC = () => {
   const [loadingOriginalInvoice, setLoadingOriginalInvoice] = useState(false)
   const [referenceText, setReferenceText] = useState<string>('') // ✅ Dòng tham chiếu BẮT BUỘC (pháp lý)
   const [adjustmentReason, setAdjustmentReason] = useState<string>('') // ✅ Lý do điều chỉnh (audit trail)
+  const [minuteCode, setMinuteCode] = useState<string>('') // ✅ Mã biên bản đã thỏa thuận
   
   // ✅ State cho loại hóa đơn (B2B/B2C) - Load từ hóa đơn gốc
   const [invoiceType, setInvoiceType] = useState<'B2B' | 'B2C'>('B2B') // Mặc định B2B, sẽ load từ originalInvoice
@@ -1158,6 +1160,29 @@ const CreateVatInvoice: React.FC = () => {
     loadProducts()
     loadCompany()
   }, [originalInvoiceId]) // ✅ Fixed: Removed products from deps to prevent infinite loop
+
+  // ✅ Auto-fill minuteCode từ biên bản điều chỉnh đã thỏa thuận
+  useEffect(() => {
+    const loadMinuteCode = async () => {
+      if (!originalInvoice?.invoiceID) return
+      
+      try {
+        console.log('🔍 [CreateAdjustmentInvoice] Checking adjustment minute for invoice:', originalInvoice.invoiceID)
+        const result = await checkAdjustmentMinuteStatus(originalInvoice.invoiceID)
+        
+        if (result.hasValidMinute && result.minute?.minuteCode) {
+          setMinuteCode(result.minute.minuteCode)
+          console.log('✅ [CreateAdjustmentInvoice] Auto-filled minuteCode:', result.minute.minuteCode)
+        } else {
+          console.log('⚠️ [CreateAdjustmentInvoice] No valid adjustment minute found:', result.reason)
+        }
+      } catch (error) {
+        console.error('❌ [CreateAdjustmentInvoice] Error loading minute code:', error)
+      }
+    }
+    
+    loadMinuteCode()
+  }, [originalInvoice?.invoiceID])
 
   // State quản lý danh sách hàng hóa
   const [items, setItems] = useState<InvoiceItem[]>([
@@ -2048,29 +2073,27 @@ const CreateVatInvoice: React.FC = () => {
         return
       }
       
-      // ⭐ REQUEST STRUCTURE - KHỞP VỚI BACKEND API SPEC
+      // ⭐ REQUEST STRUCTURE - KHỚP VỚI BACKEND API SPEC (Updated: 25/01/2026)
       // Backend API: POST /api/Invoice/adjustment
-      // Fields: originalInvoiceId, templateId, adjustmentReason, performedBy, adjustmentItems, rootPath?
+      // Fields: originalInvoiceId, templateId, invoiceStatusId, adjustmentReason, minuteCode?, adjustmentItems
       
       const requestData: CreateAdjustmentInvoiceRequest = {
         originalInvoiceId: originalInvoiceIdNum,
         templateId: templateIdNum,
-        adjustmentReason: adjustmentReason.trim(),  // ✅ Backend field
-        performedBy: userId,
+        invoiceStatusId: invoiceStatusID,  // ✅ Trạng thái: 6=PENDING_APPROVAL, 7=PENDING_SIGN
+        adjustmentReason: adjustmentReason.trim(),
+        ...(minuteCode.trim() && { minuteCode: minuteCode.trim() }),  // ✅ Mã biên bản (optional)
         adjustmentItems,
-        invoiceStatusID,  // ⚠️ PENDING: Chờ backend support field này
-        // rootPath: undefined  // ✅ Optional - backend tự lấy từ config
       }
       
       // 🔍 ENHANCED LOGGING for debugging
       console.group('📤 ADJUSTMENT INVOICE REQUEST')
       console.log(`Status: ${invoiceStatusID} - ${statusLabel}`)
-      console.log(`👤 Performed By (User ID from TOKEN): ${userId} (type: ${typeof userId})`)
       console.log(`🏢 Company ID: ${company?.companyID || 'N/A'}`)
       console.log(`Original Invoice ID: ${originalInvoiceIdNum} (type: ${typeof originalInvoiceIdNum})`)
       console.log(`Template ID: ${templateIdNum} (type: ${typeof templateIdNum})`)
       console.log(`Adjustment Reason: "${adjustmentReason.trim()}"`)
-      console.log(`Performed By: ${userId} (type: ${typeof userId})`)
+      console.log(`Minute Code: "${minuteCode.trim() || 'N/A'}"`)
       console.log(`Items Count: ${adjustmentItems.length}`)
       
       // 🔍 DETAILED VALIDATION
@@ -3071,31 +3094,61 @@ const CreateVatInvoice: React.FC = () => {
               />
             </Stack>
             
-            {/* Lý do điều chỉnh */}
-            <Stack spacing={0.5}>
-              <Typography variant="caption" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
-                Lý do điều chỉnh: <span style={{ color: '#d32f2f' }}>*</span>
-              </Typography>
-              <TextField
-                size="small"
-                fullWidth
-                multiline
-                rows={2}
-                placeholder="VD: Khách hàng trả lại 2 sản phẩm do không đúng quy cách"
-                value={adjustmentReason}
-                onChange={(e) => setAdjustmentReason(e.target.value)}
-                helperText={`${adjustmentReason.length}/10 ký tự tối thiểu`}
-                error={adjustmentReason.length > 0 && adjustmentReason.length < 10}
-                sx={{ 
-                  bgcolor: '#fff',
-                  '& .MuiOutlinedInput-root': {
-                    fontSize: '0.8125rem'
-                  },
-                  '& .MuiFormHelperText-root': {
-                    fontSize: '0.75rem'
-                  }
-                }}
-              />
+            {/* Lý do điều chỉnh + Mã biên bản (50/50) */}
+            <Stack direction="row" spacing={2}>
+              {/* Lý do điều chỉnh - 50% */}
+              <Stack spacing={0.5} sx={{ flex: 1 }}>
+                <Typography variant="caption" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+                  Lý do điều chỉnh: <span style={{ color: '#d32f2f' }}>*</span>
+                </Typography>
+                <TextField
+                  size="small"
+                  fullWidth
+                  multiline
+                  rows={2}
+                  placeholder="VD: Khách hàng trả lại 2 sản phẩm do không đúng quy cách"
+                  value={adjustmentReason}
+                  onChange={(e) => setAdjustmentReason(e.target.value)}
+                  helperText={`${adjustmentReason.length}/10 ký tự tối thiểu`}
+                  error={adjustmentReason.length > 0 && adjustmentReason.length < 10}
+                  sx={{ 
+                    bgcolor: '#fff',
+                    '& .MuiOutlinedInput-root': {
+                      fontSize: '0.8125rem'
+                    },
+                    '& .MuiFormHelperText-root': {
+                      fontSize: '0.75rem'
+                    }
+                  }}
+                />
+              </Stack>
+              
+              {/* Mã biên bản đã thỏa thuận - 50% */}
+              <Stack spacing={0.5} sx={{ flex: 1 }}>
+                <Typography variant="caption" sx={{ fontSize: '0.8125rem', fontWeight: 500 }}>
+                  Mã biên bản đã thỏa thuận:
+                </Typography>
+                <TextField
+                  size="small"
+                  fullWidth
+                  multiline
+                  rows={2}
+                  placeholder="VD: BB-DC-1C26TAI_35-1"
+                  value={minuteCode}
+                  onChange={(e) => setMinuteCode(e.target.value)}
+                  helperText="Nhập mã biên bản nếu có"
+                  sx={{ 
+                    bgcolor: '#fff',
+                    '& .MuiOutlinedInput-root': {
+                      fontSize: '0.8125rem'
+                    },
+                    '& .MuiFormHelperText-root': {
+                      fontSize: '0.75rem',
+                      color: '#666'
+                    }
+                  }}
+                />
+              </Stack>
             </Stack>
           </Stack>
 
@@ -3496,7 +3549,7 @@ const CreateVatInvoice: React.FC = () => {
                         color: '#ccc'
                       }
                     }}>
-                    {isSubmitting ? 'Đang lưu...' : '💾 Lưu nháp'}
+                    {isSubmitting ? 'Đang lưu...' : 'Lưu nháp'}
                   </Button>
                   <Button
                     size="small"
@@ -3517,7 +3570,7 @@ const CreateVatInvoice: React.FC = () => {
                         backgroundColor: '#ccc'
                       }
                     }}>
-                    {isSubmitting ? 'Đang xử lý...' : '📤 Gửi duyệt'}
+                    {isSubmitting ? 'Đang xử lý...' : 'Gửi duyệt'}
                   </Button>
                 </>
               )}

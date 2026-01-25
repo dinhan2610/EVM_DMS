@@ -41,6 +41,7 @@ import Spinner from '@/components/Spinner'
 import invoiceService, { InvoiceListItem, INVOICE_TYPE } from '@/services/invoiceService'
 import invoiceHistoryService, { InvoiceHistory } from '@/services/invoiceHistoryService'
 import companyService, { Company } from '@/services/companyService'
+import { checkAdjustmentMinuteStatus, checkReplacementMinuteStatus, type MinuteRecord } from '@/services/minuteService'
 import { INVOICE_INTERNAL_STATUS } from '@/constants/invoiceStatus'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useSignalR, useSignalRReconnect } from '@/hooks/useSignalR'
@@ -143,12 +144,28 @@ const InvoiceDetail: React.FC = () => {
   
   // State for Create Minute Dialog
   const [showCreateMinuteDialog, setShowCreateMinuteDialog] = useState(false)
+  
+  // ✅ State for Minute Status Check (Điều chỉnh/Thay thế)
+  const [adjustmentMinuteStatus, setAdjustmentMinuteStatus] = useState<{
+    hasValidMinute: boolean
+    minute: MinuteRecord | null
+    reason: string
+    loading: boolean
+  }>({ hasValidMinute: false, minute: null, reason: '', loading: true })
+  
+  const [replacementMinuteStatus, setReplacementMinuteStatus] = useState<{
+    hasValidMinute: boolean
+    minute: MinuteRecord | null
+    reason: string
+    loading: boolean
+  }>({ hasValidMinute: false, minute: null, reason: '', loading: true })
 
   // ✅ Logic actions menu - Đồng bộ 100% với InvoiceManagement & InvoiceApproval
-  const isAdjustmentInvoice = invoice?.invoiceType === INVOICE_TYPE.ADJUSTMENT
   const isReplacementInvoice = invoice?.invoiceType === INVOICE_TYPE.REPLACEMENT
   
-  // Note: Logic enable/disable sẽ cập nhật theo yêu cầu tiếp theo
+  // ✅ Kiểm tra điều kiện được tạo HĐ điều chỉnh/thay thế
+  const canCreateAdjustmentInvoice = adjustmentMinuteStatus.hasValidMinute
+  const canCreateReplacementInvoice = replacementMinuteStatus.hasValidMinute
 
   // Fetch invoice detail (extracted for reusability in SignalR)
   const fetchInvoiceDetail = useCallback(async () => {
@@ -231,6 +248,35 @@ const InvoiceDetail: React.FC = () => {
   useEffect(() => {
     fetchInvoiceDetail()
   }, [fetchInvoiceDetail])
+  
+  // ✅ Check Minute Status khi invoice load xong
+  useEffect(() => {
+    const checkMinuteStatus = async () => {
+      if (!invoice?.invoiceID) return
+      
+      console.log('🔍 [InvoiceDetail] Checking minute status for invoice:', invoice.invoiceID)
+      
+      // Check biên bản điều chỉnh
+      setAdjustmentMinuteStatus(prev => ({ ...prev, loading: true }))
+      const adjustmentResult = await checkAdjustmentMinuteStatus(invoice.invoiceID)
+      setAdjustmentMinuteStatus({
+        ...adjustmentResult,
+        loading: false,
+      })
+      console.log('📋 [InvoiceDetail] Adjustment minute status:', adjustmentResult)
+      
+      // Check biên bản thay thế
+      setReplacementMinuteStatus(prev => ({ ...prev, loading: true }))
+      const replacementResult = await checkReplacementMinuteStatus(invoice.invoiceID)
+      setReplacementMinuteStatus({
+        ...replacementResult,
+        loading: false,
+      })
+      console.log('📋 [InvoiceDetail] Replacement minute status:', replacementResult)
+    }
+    
+    checkMinuteStatus()
+  }, [invoice?.invoiceID])
 
   // 🔥 SignalR Realtime Updates
   useSignalR({
@@ -552,58 +598,80 @@ const InvoiceDetail: React.FC = () => {
           
           <Divider />
           
-          {/* Tạo HĐ điều chỉnh */}
+          {/* Tạo HĐ điều chỉnh - Yêu cầu biên bản điều chỉnh đã được 2 bên thỏa thuận */}
           <MenuItem
             onClick={() => {
+              if (!canCreateAdjustmentInvoice) return
               handleCloseActionsMenu()
               navigate(`/invoices/${invoice.invoiceID}/adjust`)
             }}
-            sx={{ py: 1.5 }}>
+            disabled={!canCreateAdjustmentInvoice || adjustmentMinuteStatus.loading}
+            sx={{ 
+              py: 1.5,
+              opacity: canCreateAdjustmentInvoice ? 1 : 0.6,
+            }}>
             <ListItemIcon>
-              <FindReplaceIcon fontSize="small" color="warning" />
+              <FindReplaceIcon 
+                fontSize="small" 
+                color={canCreateAdjustmentInvoice ? 'warning' : 'disabled'} 
+              />
             </ListItemIcon>
             <ListItemText
               primary="Tạo HĐ điều chỉnh"
               secondary={
-                isAdjustmentInvoice
-                  ? 'Điều chỉnh HĐ điều chỉnh (cho phép nhiều lần)'
-                  : isReplacementInvoice
-                  ? 'Điều chỉnh HĐ thay thế'
-                  : 'Tạo hóa đơn điều chỉnh'
+                adjustmentMinuteStatus.loading 
+                  ? 'Đang kiểm tra biên bản...'
+                  : canCreateAdjustmentInvoice
+                    ? `✅ ${adjustmentMinuteStatus.minute?.minuteCode || 'Biên bản đã thỏa thuận'}`
+                    : `⚠️ ${adjustmentMinuteStatus.reason}`
               }
               primaryTypographyProps={{
                 fontSize: '0.9rem',
                 fontWeight: 500,
+                color: canCreateAdjustmentInvoice ? 'text.primary' : 'text.disabled',
               }}
               secondaryTypographyProps={{
-                fontSize: '0.75rem',
+                fontSize: '0.7rem',
+                color: canCreateAdjustmentInvoice ? 'success.main' : 'warning.main',
               }}
             />
           </MenuItem>
           
-          {/* Tạo HĐ thay thế */}
+          {/* Tạo HĐ thay thế - Yêu cầu biên bản thay thế đã được 2 bên thỏa thuận */}
           <MenuItem
             onClick={() => {
+              if (!canCreateReplacementInvoice) return
               handleCloseActionsMenu()
               navigate(`/invoices/${invoice.invoiceID}/replace`)
             }}
-            sx={{ py: 1.5 }}>
+            disabled={!canCreateReplacementInvoice || replacementMinuteStatus.loading}
+            sx={{ 
+              py: 1.5,
+              opacity: canCreateReplacementInvoice ? 1 : 0.6,
+            }}>
             <ListItemIcon>
-              <RestoreIcon fontSize="small" color="warning" />
+              <RestoreIcon 
+                fontSize="small" 
+                color={canCreateReplacementInvoice ? 'warning' : 'disabled'} 
+              />
             </ListItemIcon>
             <ListItemText
               primary="Tạo HĐ thay thế"
               secondary={
-                isReplacementInvoice
-                  ? 'Thay thế HĐ thay thế (cho phép nhiều lần)'
-                  : 'Tạo hóa đơn thay thế'
+                replacementMinuteStatus.loading 
+                  ? 'Đang kiểm tra biên bản...'
+                  : canCreateReplacementInvoice
+                    ? `✅ ${replacementMinuteStatus.minute?.minuteCode || 'Biên bản đã thỏa thuận'}`
+                    : `⚠️ ${replacementMinuteStatus.reason}`
               }
               primaryTypographyProps={{
                 fontSize: '0.9rem',
                 fontWeight: 500,
+                color: canCreateReplacementInvoice ? 'text.primary' : 'text.disabled',
               }}
               secondaryTypographyProps={{
-                fontSize: '0.75rem',
+                fontSize: '0.7rem',
+                color: canCreateReplacementInvoice ? 'success.main' : 'warning.main',
               }}
             />
           </MenuItem>

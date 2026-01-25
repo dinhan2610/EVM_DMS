@@ -187,6 +187,9 @@ export interface InvoiceListItem {
   
   // ==================== CUSTOMER TYPE FIELD ====================
   invoiceCustomerType?: number | string; // ✅ 1 hoặc 'Customer' = B2C/Bán lẻ, 2 hoặc 'Business' = B2B/Doanh nghiệp
+  
+  // ==================== MINUTE FIELD ====================
+  minuteCode?: string | null;            // ✅ Mã biên bản đã thỏa thuận (cho HĐ điều chỉnh/thay thế)
 }
 
 export interface InvoiceItemResponse {
@@ -1254,6 +1257,39 @@ export const getInvoiceById = async (invoiceId: number): Promise<InvoiceListItem
   }
 };
 
+/**
+ * Tìm hóa đơn theo mã biên bản (minuteCode)
+ * Dùng để navigate từ biên bản sang HĐ điều chỉnh/thay thế tương ứng
+ * 
+ * @param minuteCode - Mã biên bản cần tìm
+ * @returns Invoice có minuteCode tương ứng hoặc null nếu không tìm thấy
+ */
+export const getInvoiceByMinuteCode = async (minuteCode: string): Promise<InvoiceListItem | null> => {
+  try {
+    console.log(`🔍 [getInvoiceByMinuteCode] Searching for invoice with minuteCode: ${minuteCode}`);
+    
+    // Lấy tất cả invoices và filter theo minuteCode
+    const allInvoices = await getAllInvoices();
+    const invoice = allInvoices.find(inv => inv.minuteCode === minuteCode);
+    
+    if (invoice) {
+      console.log(`✅ [getInvoiceByMinuteCode] Found invoice:`, {
+        invoiceID: invoice.invoiceID,
+        invoiceNumber: invoice.invoiceNumber,
+        invoiceType: invoice.invoiceType,
+        minuteCode: invoice.minuteCode
+      });
+      return invoice;
+    }
+    
+    console.log(`⚠️ [getInvoiceByMinuteCode] No invoice found with minuteCode: ${minuteCode}`);
+    return null;
+  } catch (error) {
+    console.error(`❌ [getInvoiceByMinuteCode] Error:`, error);
+    return null;
+  }
+};
+
 // ==================== UPDATE STATUS REQUEST ====================
 
 /**
@@ -1866,22 +1902,21 @@ export const getOriginalInvoice = async (
 
 /**
  * Request body cho tạo hóa đơn điều chỉnh
+ * API: POST /api/Invoice/adjustment
+ * Updated: 25/01/2026
  */
 export interface CreateAdjustmentInvoiceRequest {
-  originalInvoiceId: number;
-  templateId: number;
-  // ❌ REMOVED: referenceText - Backend không có field này
-  adjustmentReason: string;         // ✅ Backend: adjustmentReason
-  performedBy: number;              // ✅ Backend: performedBy
+  originalInvoiceId: number;        // ✅ ID hóa đơn gốc
+  templateId: number;               // ✅ ID template
+  invoiceStatusId: number;          // ✅ Trạng thái hóa đơn (6=PENDING_APPROVAL, 7=PENDING_SIGN)
+  adjustmentReason: string;         // ✅ Lý do điều chỉnh
+  minuteCode?: string;              // ✅ Mã biên bản đã thỏa thuận (optional)
   adjustmentItems: Array<{
-    productID: number;              // ✅ Backend: productID
-    quantity: number;               // ✅ Backend: quantity (có thể âm)
-    unitPrice: number;              // ✅ Backend: unitPrice (có thể âm)
-    overrideVATRate?: number;       // ✅ Backend: overrideVATRate (optional)
+    productID: number;              // ✅ ID sản phẩm
+    quantity: number;               // ✅ Số lượng (có thể âm)
+    unitPrice: number;              // ✅ Đơn giá (có thể âm)
+    overrideVATRate?: number;       // ✅ Thuế suất VAT tùy chỉnh (optional)
   }>;
-  invoiceStatusID?: number;         // ⚠️ PENDING: Chờ backend thêm field này vào API
-  // Status: 6=PENDING_APPROVAL (Accountant), 7=PENDING_SIGN (HOD)
-  rootPath?: string;                // ✅ Backend: rootPath (optional - backend tự lấy từ config)
 }
 
 /**
@@ -2074,17 +2109,20 @@ export const saveInvoicePDF = async (
  * @param originalInvoiceId - ID hóa đơn gốc cần thay thế
  * @param reason - Lý do thay thế (bắt buộc, tối thiểu 10 ký tự)
  * @param data - Invoice data mới (đã map qua adapter)
+ * @param minuteCode - Mã biên bản đã thỏa thuận (optional)
  * @returns Created replacement invoice response
  */
 export const createReplacementInvoice = async (
   originalInvoiceId: number,
   reason: string,
-  data: BackendInvoiceRequest
+  data: BackendInvoiceRequest,
+  minuteCode?: string
 ): Promise<BackendInvoiceResponse> => {
   try {
     const payload = {
       originalInvoiceId,
       reason,
+      ...(minuteCode && { minuteCode }),  // ✅ Mã biên bản (optional)
       ...data,
     };
     
@@ -2125,6 +2163,7 @@ const invoiceService = {
   getHODInvoices,       // ✅ NEW: API cho role Kế toán trưởng
   getSaleAssignedInvoices, // ✅ NEW: API cho role Sale - filtered by backend
   getInvoiceById,
+  getInvoiceByMinuteCode, // ✅ NEW: Tìm invoice theo mã biên bản
   
   // Adjustment Invoice ✨ NEW
   createAdjustmentInvoice,

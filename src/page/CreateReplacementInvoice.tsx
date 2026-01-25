@@ -4,6 +4,7 @@ import invoiceService, { Template, InvoiceListItem } from '@/services/invoiceSer
 import customerService, { Customer } from '@/services/customerService'
 import productService, { Product } from '@/services/productService'
 import companyService, { Company } from '@/services/companyService'
+import { checkReplacementMinuteStatus } from '@/services/minuteService'
 import { mapToBackendInvoiceRequest } from '@/utils/invoiceAdapter'
 import { numberToWords } from '@/utils/numberToWords'
 import { getUserIdFromToken } from '@/utils/tokenUtils'
@@ -811,6 +812,7 @@ const CreateVatInvoice: React.FC = () => {
   // ✅ State cho hóa đơn thay thế
   const [originalInvoice, setOriginalInvoice] = useState<InvoiceListItem | null>(null)
   const [replacementReason, setReplacementReason] = useState<string>('')
+  const [minuteCode, setMinuteCode] = useState<string>('') // ✅ Mã biên bản đã thỏa thuận
   
   // ✅ State cho loại hóa đơn (B2B/B2C) - Load từ hóa đơn gốc
   const [invoiceType, setInvoiceType] = useState<'B2B' | 'B2C'>('B2B') // Mặc định B2B, sẽ load từ originalInvoice
@@ -1050,6 +1052,29 @@ const CreateVatInvoice: React.FC = () => {
       loadOriginalInvoice()
     }
   }, [isReplacementMode, originalInvoiceId, templates, navigate])
+
+  // ✅ Auto-fill minuteCode từ biên bản thay thế đã thỏa thuận
+  useEffect(() => {
+    const loadMinuteCode = async () => {
+      if (!originalInvoice?.invoiceID) return
+      
+      try {
+        console.log('🔍 [CreateReplacementInvoice] Checking replacement minute for invoice:', originalInvoice.invoiceID)
+        const result = await checkReplacementMinuteStatus(originalInvoice.invoiceID)
+        
+        if (result.hasValidMinute && result.minute?.minuteCode) {
+          setMinuteCode(result.minute.minuteCode)
+          console.log('✅ [CreateReplacementInvoice] Auto-filled minuteCode:', result.minute.minuteCode)
+        } else {
+          console.log('⚠️ [CreateReplacementInvoice] No valid replacement minute found:', result.reason)
+        }
+      } catch (error) {
+        console.error('❌ [CreateReplacementInvoice] Error loading minute code:', error)
+      }
+    }
+    
+    loadMinuteCode()
+  }, [originalInvoice?.invoiceID])
 
   // ✅ Load invoice data when in edit mode
   useEffect(() => {
@@ -1940,10 +1965,12 @@ const CreateVatInvoice: React.FC = () => {
         // ⭐ Replacement mode: call createReplacementInvoice
         console.log(`🔄 Creating REPLACEMENT invoice for original ID: ${originalInvoiceId}`)
         console.log(`📝 Replacement reason: ${replacementReason}`)
+        console.log(`📋 Minute code: ${minuteCode || 'N/A'}`)
         response = await invoiceService.createReplacementInvoice(
           originalInvoiceId,
           replacementReason,
-          backendRequest
+          backendRequest,
+          minuteCode.trim() || undefined  // ✅ Pass minuteCode if available
         )
       } else if (editMode && editInvoiceId) {
         // Edit mode: call updateInvoice
@@ -2361,8 +2388,9 @@ const CreateVatInvoice: React.FC = () => {
                 Phát hành ngày: <strong>{originalInvoice.signDate ? new Date(originalInvoice.signDate).toLocaleDateString('vi-VN') : 'N/A'}</strong> • Vui lòng kiểm tra và nhập lại toàn bộ thông tin đúng.
               </Typography>
               
-              {/* ✅ Input Lý do thay thế */}
-              <Box sx={{ mt: 1 }}>
+              {/* ✅ Input Lý do thay thế + Mã biên bản (50/50) */}
+              <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
+                {/* Lý do thay thế - 50% */}
                 <TextField
                   fullWidth
                   multiline
@@ -2375,6 +2403,7 @@ const CreateVatInvoice: React.FC = () => {
                   error={!replacementReason}
                   helperText={!replacementReason ? 'Vui lòng nhập lý do thay thế hóa đơn' : ''}
                   sx={{
+                    flex: 1,
                     backgroundColor: '#fff',
                     '& .MuiOutlinedInput-root': {
                       fontSize: '0.875rem',
@@ -2384,7 +2413,32 @@ const CreateVatInvoice: React.FC = () => {
                     }
                   }}
                 />
-              </Box>
+                
+                {/* Mã biên bản đã thỏa thuận - 50% */}
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={2}
+                  label="Mã biên bản đã thỏa thuận"
+                  placeholder="VD: BB-TT-1C26TAI_35-1"
+                  value={minuteCode}
+                  onChange={(e) => setMinuteCode(e.target.value)}
+                  helperText="Nhập mã biên bản nếu có"
+                  sx={{
+                    flex: 1,
+                    backgroundColor: '#fff',
+                    '& .MuiOutlinedInput-root': {
+                      fontSize: '0.875rem',
+                    },
+                    '& .MuiInputLabel-root': {
+                      fontSize: '0.875rem',
+                    },
+                    '& .MuiFormHelperText-root': {
+                      color: '#666',
+                    }
+                  }}
+                />
+              </Stack>
               
               <Divider sx={{ my: 0.5, borderColor: '#ffcc80' }} />
              

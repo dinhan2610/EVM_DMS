@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Typography,
@@ -37,6 +38,7 @@ import Spinner from '@/components/Spinner'
 import UploadMinuteDialog from '@/components/UploadMinuteDialog'
 
 import { getMinutes, uploadMinute, validatePdfFile, signMinuteSeller, completeMinute, type MinuteRecord } from '@/services/minuteService'
+import { getInvoiceByMinuteCode } from '@/services/invoiceService'
 
 // ============================================================
 // 📋 INTERFACE DEFINITIONS - Cập nhật theo API response
@@ -208,6 +210,9 @@ interface FilterState {
 
 const AdjustmentReplacementRecordManagement = () => {
   usePageTitle('Biên Bản Điều Chỉnh/Thay Thế')
+  
+  // Navigation hook
+  const navigate = useNavigate()
   
   // ============================================================
   // 📊 STATE MANAGEMENT
@@ -389,6 +394,39 @@ const AdjustmentReplacementRecordManagement = () => {
       setSnackbar({
         open: true,
         message: err instanceof Error ? err.message : 'Không thể ký biên bản',
+        severity: 'error',
+      })
+    }
+  }
+  
+  /**
+   * Navigate đến chi tiết HĐ điều chỉnh/thay thế theo mã biên bản
+   * Tìm invoice có minuteCode tương ứng và navigate đến detail page
+   */
+  const handleNavigateToInvoiceByMinuteCode = async (minuteCode: string) => {
+    try {
+      console.log('🔍 Finding invoice with minuteCode:', minuteCode)
+      
+      // Tìm invoice theo minuteCode
+      const invoice = await getInvoiceByMinuteCode(minuteCode)
+      
+      if (invoice) {
+        console.log('✅ Found invoice:', invoice.invoiceID)
+        // Navigate đến chi tiết hóa đơn
+        navigate(`/invoices/${invoice.invoiceID}`)
+      } else {
+        // Chưa có HĐ điều chỉnh/thay thế được tạo từ biên bản này
+        setSnackbar({
+          open: true,
+          message: `Chưa có hóa đơn điều chỉnh/thay thế được tạo từ biên bản ${minuteCode}`,
+          severity: 'warning',
+        })
+      }
+    } catch (err) {
+      console.error('❌ Navigate to invoice error:', err)
+      setSnackbar({
+        open: true,
+        message: 'Không thể tìm hóa đơn tương ứng',
         severity: 'error',
       })
     }
@@ -647,7 +685,7 @@ const AdjustmentReplacementRecordManagement = () => {
   // ============================================================
   
   const columns: GridColDef[] = [
-    // 1. Mã biên bản
+    // 1. Mã biên bản (Click để xem HĐ điều chỉnh/thay thế tương ứng)
     {
       field: 'minuteCode',
       headerName: 'Mã biên bản',
@@ -658,24 +696,25 @@ const AdjustmentReplacementRecordManagement = () => {
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const value = params.value as string
-        const record = params.row as AdjustmentReplacementRecord
         return (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-            <Typography
-              variant="body2"
-              sx={{
-                fontWeight: 600,
-                letterSpacing: '0.02em',
-                color: 'primary.main',
-                fontSize: '0.875rem',
-                cursor: 'pointer',
-                '&:hover': {
-                  textDecoration: 'underline',
-                },
-              }}
-              onClick={() => handleSignSeller(record.id.toString(), record.minuteCode)}>
-              {value || '-'}
-            </Typography>
+            <Tooltip title="Click để xem HĐ điều chỉnh/thay thế">
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 600,
+                  letterSpacing: '0.02em',
+                  color: 'primary.main',
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  '&:hover': {
+                    textDecoration: 'underline',
+                  },
+                }}
+                onClick={() => handleNavigateToInvoiceByMinuteCode(value)}>
+                {value || '-'}
+              </Typography>
+            </Tooltip>
           </Box>
         )
       },
@@ -720,17 +759,32 @@ const AdjustmentReplacementRecordManagement = () => {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
+        const record = params.row as AdjustmentReplacementRecord
         const value = params.value as string
+        const hasInvoice = record.invoiceId && value && value !== 'Chưa có'
+        
         return (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-            <Tooltip title={value ? `Hóa đơn: ${value}` : 'Chưa có hóa đơn'} arrow placement="top">
+            <Tooltip 
+              title={hasInvoice ? `Click để xem chi tiết hóa đơn: ${value}` : 'Chưa có hóa đơn'} 
+              arrow 
+              placement="top"
+            >
               <Typography
                 variant="body2"
+                onClick={hasInvoice ? () => navigate(`/invoices/${record.invoiceId}`) : undefined}
                 sx={{
                   fontWeight: 600,
-                  color: '#2c3e50',
+                  color: hasInvoice ? 'primary.main' : '#2c3e50',
                   fontSize: '0.875rem',
-                }}>
+                  cursor: hasInvoice ? 'pointer' : 'default',
+                  textDecoration: hasInvoice ? 'underline' : 'none',
+                  '&:hover': hasInvoice ? {
+                    color: 'primary.dark',
+                    textDecoration: 'underline',
+                  } : {},
+                }}
+              >
                 {value || '-'}
               </Typography>
             </Tooltip>

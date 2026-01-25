@@ -91,15 +91,15 @@ interface MinuteTypeOption {
 const MINUTE_TYPE_OPTIONS: MinuteTypeOption[] = [
   {
     value: MINUTE_TYPE.ADJUSTMENT,
-    label: 'Điều Chỉnh',
-    description: 'Lập biên bản điều chỉnh hóa đơn khi có sai sót về số liệu',
+    label: 'Thay Thế',
+    description: 'Lập biên bản thay thế hóa đơn khi có sai sót nghiêm trọng',
     icon: <FindReplaceIcon fontSize="small" />,
     color: 'warning',
   },
   {
     value: MINUTE_TYPE.REPLACEMENT,
-    label: 'Thay Thế',
-    description: 'Lập biên bản thay thế hóa đơn khi có sai sót nghiêm trọng',
+    label:'Điều Chỉnh',
+    description: 'Lập biên bản điều chỉnh hóa đơn khi có sai sót về số liệu' ,
     icon: <RestoreIcon fontSize="small" />,
     color: 'info',
   },
