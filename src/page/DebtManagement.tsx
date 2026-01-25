@@ -217,7 +217,7 @@ const DebtManagement = () => {
   const [selectedTab, setSelectedTab] = useState<'invoices' | 'history'>('invoices')
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<DebtInvoice | null>(null)
-  const [selectedInvoicePayments, setSelectedInvoicePayments] = useState<PaymentRecord[]>([]) // ✅ Lịch sử thanh toán của hoá đơn
+  const [selectedInvoicePayments] = useState<PaymentRecord[]>([]) // Lịch sử thanh toán của hoá đơn (kept for future use)
   // ✅ NEW - Payment detail modal state
   const [paymentDetailModalOpen, setPaymentDetailModalOpen] = useState(false)
   const [selectedPaymentDetail, setSelectedPaymentDetail] = useState<PaymentResponse | null>(null)
@@ -752,36 +752,6 @@ const DebtManagement = () => {
     setSelectedTab('invoices')
   }, [])
 
-  const handlePaymentClick = useCallback(async (invoice: DebtInvoice) => {
-    setSelectedInvoice(invoice)
-    setPaymentData({
-      amount: invoice.remainingAmount,
-      method: PAYMENT_METHODS.BANK_TRANSFER,
-      transactionCode: '',
-      note: '',
-    })
-    // Reset validation errors
-    setFormErrors({
-      amount: '',
-      method: '',
-    })
-    
-    // ✅ NEW: Fetch payment history for this specific invoice
-    try {
-      const invoicePayments = await paymentService.getPayments({
-        invoiceId: invoice.id,
-        pageSize: 50, // Get last 50 payments
-      })
-      setSelectedInvoicePayments(invoicePayments.data)
-      console.log(`[Invoice ${invoice.id}] Payment history:`, invoicePayments.data.length, 'payments')
-    } catch (error) {
-      console.error('Failed to fetch invoice payments:', error)
-      setSelectedInvoicePayments([])
-    }
-    
-    setPaymentModalOpen(true)
-  }, []) // Empty deps OK - only using setters which are stable
-
   const handlePaymentSubmit = useCallback(async () => {
     if (!selectedInvoice || !user) return
 
@@ -1077,60 +1047,11 @@ const DebtManagement = () => {
           )
         },
       },
-      {
-        field: 'actions',
-        headerName: 'Thao tác',
-        width: 90,
-        align: 'center',
-        headerAlign: 'center',
-        sortable: false,
-        renderCell: (params: GridRenderCellParams) => {
-          const invoice = params.row as DebtInvoice
-          
-          // ✅ OPTIMIZATION 1: Ẩn icon nếu hóa đơn có tổng tiền âm (hóa đơn điều chỉnh giảm/hoàn tiền)
-          if (invoice.totalAmount < 0) return null
-          
-          // Ẩn icon nếu đã thanh toán đủ
-          if (invoice.paymentStatus === 'Paid') return null
-          
-          return (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-              <Tooltip title="Ghi nhận thanh toán">
-                <IconButton
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handlePaymentClick(invoice)
-                  }}
-                  sx={{
-                    color: '#2e7d32',
-                    '&:hover': {
-                      backgroundColor: alpha('#2e7d32', 0.1),
-                    },
-                  }}
-                >
-                  <PaymentIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          )
-        },
-      },
     ]
     
-    // ✅ OPTIMIZATION 2: Ẩn cột "Thao tác" với role Sale
-    // Chỉ Accountant và HOD mới có quyền ghi nhận thanh toán
-    const isSale = user?.role === USER_ROLES.SALES || user?.role === 'Sale'
-    
-    if (isSale) {
-      // Sale chỉ xem, không có cột thao tác - Filter ra cột 'actions'
-      return baseColumns.filter(col => col.field !== 'actions')
-    }
-    
-    // Accountant/HOD có đầy đủ cột (bao gồm cột thao tác)
     return baseColumns
   },
-    [handlePaymentClick, handleInvoiceRowClick, user?.role]
+    [handleInvoiceRowClick]
   )
 
   // DataGrid columns for payment history

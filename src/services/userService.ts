@@ -199,6 +199,21 @@ const userService = {
     } catch (error) {
       throw new Error(handleApiError(error))
     }
+  },
+
+  /**
+   * Reset password for user by email
+   * PUT /api/Auth/reset
+   * Body: { email: string }
+   * 
+   * Sends password reset email to the user
+   */
+  async resetPassword(email: string): Promise<void> {
+    try {
+      await httpClient.put('/Auth/reset', { email })
+    } catch (error) {
+      throw new Error(handleApiError(error))
+    }
   }
 }
 

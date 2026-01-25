@@ -470,19 +470,32 @@ const UserManagement = () => {
     setIsResetModalOpen(false)
   }
 
-  const handleConfirmResetPassword = () => {
+  const handleConfirmResetPassword = async () => {
     if (!selectedUserForReset) return
 
-    // Simulate API call
-    console.log('Sending reset password email to:', selectedUserForReset.email)
+    setActionLoading(true)
     
-    setSnackbar({
-      open: true,
-      message: `Đã gửi email đặt lại mật khẩu cho ${selectedUserForReset.fullName}`,
-      severity: 'success',
-    })
-    
-    handleCloseResetModal()
+    try {
+      // Call API to reset password
+      await userService.resetPassword(selectedUserForReset.email)
+      
+      setSnackbar({
+        open: true,
+        message: `✅ Đã gửi email đặt lại mật khẩu cho ${selectedUserForReset.fullName}`,
+        severity: 'success',
+      })
+      
+      handleCloseResetModal()
+    } catch (error) {
+      console.error('Reset password error:', error)
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Không thể đặt lại mật khẩu',
+        severity: 'error',
+      })
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   // Helper function to get role color (Tối ưu cho 3 vai trò - Backend roles)
@@ -692,16 +705,13 @@ const UserManagement = () => {
           </span>
         </Tooltip>,
         <Tooltip title="Đặt lại mật khẩu" key="reset">
-          <span>
-            <IconButton
-              size="small"
-              color="warning"
-              onClick={() => handleOpenResetModal(params.row)}
-              disabled
-            >
-              <VpnKeyOutlinedIcon fontSize="small" />
-            </IconButton>
-          </span>
+          <IconButton
+            size="small"
+            color="warning"
+            onClick={() => handleOpenResetModal(params.row)}
+          >
+            <VpnKeyOutlinedIcon fontSize="small" />
+          </IconButton>
         </Tooltip>,
         <Tooltip
           title={params.row.status === 'Active' ? 'Vô hiệu hóa' : 'Kích hoạt'}
@@ -1410,32 +1420,32 @@ const UserManagement = () => {
             >
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>
                       Người dùng
                     </Typography>
                   </Box>
-                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                  <Typography variant="body1" sx={{ fontWeight: 600, fontSize: '0.9375rem' }}>
                     {selectedUserForReset?.fullName}
                   </Typography>
                 </Grid>
 
                 <Grid size={{ xs: 12 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                     <EmailOutlinedIcon sx={{ fontSize: 16, color: 'action.active' }} />
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>
                       Email nhận liên kết
                     </Typography>
                   </Box>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', color: 'primary.main' }}>
+                  <Typography variant="body1" sx={{ fontWeight: 600, fontSize: '0.9375rem', color: 'primary.main' }}>
                     {selectedUserForReset?.email}
                   </Typography>
                 </Grid>
 
                 <Grid size={{ xs: 12 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                     <VpnKeyOutlinedIcon sx={{ fontSize: 16, color: 'action.active' }} />
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>
                       Vai trò
                     </Typography>
                   </Box>
@@ -1443,7 +1453,7 @@ const UserManagement = () => {
                     label={selectedUserForReset?.role === 'Admin' ? 'Quản trị viên' : selectedUserForReset?.role === 'Accountant' ? 'Kế toán' : 'Quản lý Dự án'}
                     size="small"
                     color={selectedUserForReset?.role === 'Admin' ? 'error' : selectedUserForReset?.role === 'Accountant' ? 'success' : 'info'}
-                    sx={{ fontWeight: 500 }}
+                    sx={{ fontWeight: 600, fontSize: '0.8125rem' }}
                   />
                 </Grid>
               </Grid>
@@ -1460,6 +1470,7 @@ const UserManagement = () => {
             <Button
               onClick={handleCloseResetModal}
               color="inherit"
+              disabled={actionLoading}
               sx={{
                 textTransform: 'none',
                 borderRadius: 2,
@@ -1472,7 +1483,8 @@ const UserManagement = () => {
               onClick={handleConfirmResetPassword}
               variant="contained"
               color="warning"
-              startIcon={<EmailOutlinedIcon />}
+              disabled={actionLoading}
+              startIcon={actionLoading ? <CircularProgress size={20} /> : <EmailOutlinedIcon />}
               sx={{
                 textTransform: 'none',
                 borderRadius: 2,
@@ -1483,7 +1495,7 @@ const UserManagement = () => {
                 },
               }}
             >
-              Gửi Email Đặt lại
+              {actionLoading ? 'Đang gửi...' : 'Gửi Email Đặt lại'}
             </Button>
           </DialogActions>
         </Dialog>
