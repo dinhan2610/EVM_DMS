@@ -275,7 +275,7 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTa
       tooltip: 'Từ chối duyệt hóa đơn (bắt buộc nhập lý do)',
     },
     {
-      label: '⚡ Ký số & Phát hành',
+      label: 'Ký số & Phát hành',
       icon: <SendIcon fontSize="small" />,
       enabled: canSignAndIssue,
       action: () => {
@@ -809,7 +809,7 @@ const HODInvoiceManagement = () => {
       if (autoIssueAfterSign) {
         // Bước 2: Gửi CQT
         setSigningProgress({ step: 'submitting', message: '🏛️ Gửi lên Cơ quan Thuế...' })
-        const taxCode = await invoiceService.submitToTaxAuthority(invoiceIdNum)
+
         
         // 🔄 Load sau khi gửi CQT
         await loadInvoices()
@@ -839,7 +839,7 @@ const HODInvoiceManagement = () => {
         // ✅ Hoàn tất - hiển thị snackbar
         setSnackbar({
           open: true,
-          message: `✅ Đã ký số và phát hành hóa đơn ${invoiceNumber} thành công!\n🏛️ Mã CQT: ${taxCode}`,
+          message: `Đã ký số và phát hành hóa đơn thành công!`,
           severity: 'success',
         })
       } else {
@@ -1562,7 +1562,7 @@ const HODInvoiceManagement = () => {
         const invoice = params.row as Invoice
         
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 0.5 }}>
             {/* Icon 1: Xem chi tiết */}
             <Tooltip title="Xem chi tiết" arrow placement="top">
               <IconButton
@@ -1817,7 +1817,7 @@ const HODInvoiceManagement = () => {
           {/* Sign Invoice Dialog */}
           <Dialog open={signDialog.open} onClose={handleCloseSignDialog} maxWidth="sm" fullWidth>
             <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <DrawIcon color="secondary" />
+             
               ✍️ Ký số hóa đơn
             </DialogTitle>
             <DialogContent>
@@ -1855,7 +1855,7 @@ const HODInvoiceManagement = () => {
                   <Alert severity="info" sx={{ mb: 2 }}>
                     {autoIssueAfterSign ? (
                       <>
-                        <strong>⚡ Ký số & Phát hành tự động</strong><br />
+                        <strong>Ký số & Phát hành tự động</strong><br />
                         Hệ thống sẽ tự động thực hiện:<br />
                         1️⃣ Ký số điện tử<br />
                         2️⃣ Gửi lên Cơ quan Thuế<br />
@@ -1869,9 +1869,6 @@ const HODInvoiceManagement = () => {
                       </>
                     )}
                   </Alert>
-                  <Typography variant="body1" sx={{ mb: 1 }}>
-                    <strong>Hóa đơn:</strong> {signDialog.invoiceNumber || '<Chưa cấp số>'}
-                  </Typography>
                 </>
               )}
             </DialogContent>

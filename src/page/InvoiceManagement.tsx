@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   Box,
   Typography,
@@ -12,10 +12,6 @@ import {
   ListItemIcon,
   ListItemText,
   Divider,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
 } from '@mui/material'
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
@@ -26,7 +22,6 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import SendIcon from '@mui/icons-material/Send'
-import DrawIcon from '@mui/icons-material/Draw'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DownloadIcon from '@mui/icons-material/Download'
@@ -175,7 +170,6 @@ const mapInvoiceToUI = (
 interface InvoiceActionsMenuProps {
   invoice: Invoice
   onSendForApproval: (id: string) => void
-  onSign: (id: string, invoiceNumber: string) => void
   onResendToTax: (id: string, invoiceNumber: string) => void
   onCancel: (id: string, invoiceNumber: string) => void
   onPrintInvoice: (id: string, invoiceNumber: string) => void
@@ -185,7 +179,7 @@ interface InvoiceActionsMenuProps {
   onOpenEmailModal: (invoice: Invoice) => void
 }
 
-const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax, onCancel, onPrintInvoice, isSending, onOpenEmailModal }: InvoiceActionsMenuProps) => {
+const InvoiceActionsMenu = ({ invoice, onSendForApproval, onResendToTax, onCancel, onPrintInvoice, isSending, onOpenEmailModal }: InvoiceActionsMenuProps) => {
   const navigate = useNavigate()
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
@@ -201,41 +195,14 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax,
   // Xác định trạng thái hóa đơn theo luồng mới
   const isDraft = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.DRAFT // 1
   const isPendingApproval = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_APPROVAL // 6
-  const isPendingSign = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN // 7 - Chờ ký (sau khi KTT duyệt)
-  const isSigned = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.SIGNED // 8 - Đã ký
   const isIssued = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.ISSUED // 2 - Đã phát hành
   const isRejected = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.REJECTED // 16 - Bị từ chối
   
   // ⚠️ Kiểm tra lỗi gửi CQT từ Tax Status (không phải Internal Status)
   const hasTaxError = invoice.taxStatusId !== null && isTaxStatusError(invoice.taxStatusId)
   
-  // 🔍 Kiểm tra có số hóa đơn chưa - Xử lý cả number và string
-  const hasInvoiceNumber = (() => {
-    if (!invoice.invoiceNumber) return false
-    // Backend có thể trả về number 0 hoặc string '0'
-    if (typeof invoice.invoiceNumber === 'number') {
-      return invoice.invoiceNumber > 0
-    }
-    // Nếu là string
-    const numStr = invoice.invoiceNumber.toString().trim()
-    return numStr !== '' && numStr !== '0'
-  })()
-  
-  // 🎯 Logic hiển thị nút "Ký số & Phát hành" (Gộp 1 bước)
-  // ✅ Backend đã sửa: /sign API cấp số luôn
-  // 
-  // - Ký số & Phát hành: Cho phép khi:
-  //   + Status = 7 (PENDING_SIGN) - Chờ ký (sau khi KTT duyệt)
-  //   + HOẶC Status = 8 (SIGNED) - Đã ký, có thể phát hành lại
-  //   + VÀ CHƯA CÓ SỐ (chưa ký)
-  //   ➡️ Sau khi ký xong → TỰ ĐỘNG gửi CQT và phát hành
-  // 
-  // - Phát hành (fallback): Chỉ hiển thị khi:
-  //   + Status = 8 (SIGNED) - Đã ký, chờ phát hành
-  //   + VÀ ĐÃ CÓ SỐ (đã ký rồi)
-  //   ➡️ Trường hợp ký thành công nhưng chưa phát hành (lỗi, gián đoạn)
-  const canSignAndIssue = (isPendingSign || isSigned) && !hasInvoiceNumber // ⚡ Gộp 1 bước
-  const canCancel = isPendingApproval || isPendingSign // Có thể hủy khi Chờ duyệt HOẶC Chờ ký
+  // ✅ ĐÃ XÓA chức năng "Ký số & Phát hành" - Không cần logic này nữa
+  const canCancel = isPendingApproval // Có thể hủy khi Chờ duyệt
   
   // 📋 Logic "Tạo HĐ điều chỉnh" - Theo NĐ 123/2020
   // Điều kiện:
@@ -283,17 +250,6 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onSign, onResendToTax,
       tooltip: isRejected 
         ? 'Gửi lại hóa đơn sau khi đã sửa theo yêu cầu của KTT'
         : 'Gửi hóa đơn cho Kế toán trưởng duyệt',
-    },
-    {
-      label: '⚡ Ký số & Phát hành',
-      icon: <SendIcon fontSize="small" />,
-      enabled: canSignAndIssue,
-      action: () => {
-        onSign(invoice.id, invoice.invoiceNumber)
-        handleClose()
-      },
-      color: 'success.main',
-      tooltip: 'Ký chữ ký số điện tử và phát hành hóa đơn (1 bước)',
     },
     { divider: true },
     {
@@ -515,20 +471,6 @@ const InvoiceManagement = () => {
     page: 0,
   })
   
-  // State quản lý dialog ký số
-  const [signDialog, setSignDialog] = useState({
-    open: false,
-    invoiceId: '',
-    invoiceNumber: '',
-  })
-  const [isSigningInvoice, setIsSigningInvoice] = useState(false)
-  const [signingProgress, setSigningProgress] = useState<{
-    step: 'signing' | 'submitting' | 'issuing'
-    message: string
-  } | null>(null)
-  const [autoIssueAfterSign, setAutoIssueAfterSign] = useState(false) // ⚡ Tự động phát hành sau khi ký
-  const signingInProgress = useRef<Set<number>>(new Set())
-  
   // State quản lý preview modal
   const [previewModal, setPreviewModal] = useState({
     open: false,
@@ -696,128 +638,8 @@ const InvoiceManagement = () => {
       setSubmittingId(null)
     }
   }
-  
-  // Handler mở dialog ký số
-  const handleOpenSignDialog = (invoiceId: string, invoiceNumber: string) => {
-    // ⚡ Check xem có cần tự động phát hành sau khi ký không
-    const invoice = invoices.find(inv => inv.id === invoiceId)
-    const shouldAutoIssue = invoice && (invoice.internalStatusId === INVOICE_INTERNAL_STATUS.PENDING_SIGN || invoice.internalStatusId === INVOICE_INTERNAL_STATUS.SIGNED)
-    
-    setAutoIssueAfterSign(shouldAutoIssue || false)
-    setSignDialog({
-      open: true,
-      invoiceId,
-      invoiceNumber,
-    })
-  }
-  
-  // Handler đóng dialog ký số
-  const handleCloseSignDialog = () => {
-    setSignDialog({
-      open: false,
-      invoiceId: '',
-      invoiceNumber: '',
-    })
-  }
-  
-  // Handler xác nhận ký số
-  const handleConfirmSign = async () => {
-    const userId = parseInt(localStorage.getItem('userId') || '1')
-    const invoiceId = parseInt(signDialog.invoiceId)
-    
-    if (signingInProgress.current.has(invoiceId)) {
-      console.warn(`🚫 Duplicate sign request blocked for invoice ${invoiceId}`)
-      return
-    }
-    
-    try {
-      signingInProgress.current.add(invoiceId)
-      setIsSigningInvoice(true)
-      
-      // Bước 1: Ký số
-      setSigningProgress({ step: 'signing', message: '🖊️ Ký số điện tử...' })
-      await invoiceService.signInvoice(invoiceId, userId)
-      
-      // 🔄 Load ngay sau ký để cập nhật trạng thái
-      await loadInvoices()
-      
-      // ⚡ TỰ ĐỘNG PHÁT HÀNH sau khi ký thành công
-      if (autoIssueAfterSign) {
-        // Bước 2: Gửi CQT
-        setSigningProgress({ step: 'submitting', message: '🏛️ Gửi lên Cơ quan Thuế...' })
-        const taxCode = await invoiceService.submitToTaxAuthority(invoiceId)
-        
-        // 🔄 Load sau khi gửi CQT
-        await loadInvoices()
-        
-        // Bước 3: Phát hành
-        setSigningProgress({ step: 'issuing', message: '✅ Phát hành hóa đơn...' })
-        
-        if (import.meta.env.DEV) {
-          console.log(`🔵 [Accountant] Starting issueInvoice for invoice ${invoiceId}...`)
-        }
-        
-        // ⚠️ Timeout protection: Nếu API không response trong 30s, throw error
-        const issuePromise = invoiceService.issueInvoice(invoiceId, userId)
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Phát hành hóa đơn quá lâu (timeout 30s). Vui lòng kiểm tra lại trạng thái hóa đơn.')), 30000)
-        )
-        
-        await Promise.race([issuePromise, timeoutPromise])
-        
-        if (import.meta.env.DEV) {
-          console.log(`✅ [Accountant] issueInvoice completed successfully`)
-        }
-        
-        // 🔄 Load cuối cùng
-        await loadInvoices()
-        
-        // ✅ Hoàn tất - hiển thị snackbar
-        setSnackbar({
-          open: true,
-          message: `✅ Đã ký số và phát hành hóa đơn ${signDialog.invoiceNumber} thành công!\n🏛️ Mã CQT: ${taxCode}`,
-          severity: 'success',
-        })
-      } else {
-        // Chỉ ký số, không phát hành
-        setSnackbar({
-          open: true,
-          message: `✅ Đã ký số hóa đơn ${signDialog.invoiceNumber} thành công!\n🔑 Hóa đơn đã có chữ ký số điện tử.`,
-          severity: 'success',
-        })
-      }
-      
-    } catch (err) {
-      console.error('❌ Sign error:', err)
-      setAutoIssueAfterSign(false)
-      setSigningProgress(null)
-      
-      // Xác định lỗi ở bước nào
-      const currentStep = signingProgress?.step || 'signing'
-      const stepLabels = {
-        signing: 'ký số',
-        submitting: 'gửi CQT',
-        issuing: 'phát hành',
-      }
-      
-      setSnackbar({
-        open: true,
-        message: `❌ Lỗi khi ${stepLabels[currentStep as keyof typeof stepLabels] || 'xử lý'}: ${err instanceof Error ? err.message : 'Lỗi không xác định'}`,
-        severity: 'error',
-      })
-      
-      // Load lại dữ liệu ngay cả khi lỗi để cập nhật trạng thái mới nhất
-      await loadInvoices()
-      
-    } finally {
-      // ✅ Reset TẤT CẢ states đồng thời trong finally để đảm bảo dialog đóng đúng cách
-      setIsSigningInvoice(false)
-      setAutoIssueAfterSign(false)
-      setSigningProgress(null)
-      signingInProgress.current.delete(invoiceId)
-      handleCloseSignDialog()
-    }
-  }
+
+  // ✅ ĐÃ XÓA: Handler ký số - Không còn chức năng này nữa
   
   // Handler gửi lại CQT (cho hóa đơn đã ký nhưng có lỗi Tax Status)
   const handleResendToTax = async (invoiceId: string, invoiceNumber: string) => {
@@ -1663,7 +1485,6 @@ const InvoiceManagement = () => {
             <InvoiceActionsMenu
               invoice={invoice}
               onSendForApproval={handleSendForApproval}
-              onSign={handleOpenSignDialog}
               onResendToTax={handleResendToTax}
               onCancel={handleCancelInvoice}
               onPrintInvoice={handlePrintInvoice}
@@ -1887,97 +1708,6 @@ const InvoiceManagement = () => {
             />
           </Paper>
         )}
-        
-        {/* Sign Invoice Dialog */}
-        <Dialog
-          open={signDialog.open}
-          onClose={handleCloseSignDialog}
-          maxWidth="sm"
-          fullWidth>
-          <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <DrawIcon color="secondary" />
-            ✍️ Ký số hóa đơn
-          </DialogTitle>
-          <DialogContent>
-            {signingProgress ? (
-              <Box sx={{ py: 3, textAlign: 'center' }}>
-                <Box sx={{ mb: 2 }}>
-                  <Box
-                    sx={{
-                      width: 60,
-                      height: 60,
-                      margin: '0 auto',
-                      borderRadius: '50%',
-                      border: '4px solid',
-                      borderColor: 'primary.main',
-                      borderTopColor: 'transparent',
-                      animation: 'spin 1s linear infinite',
-                      '@keyframes spin': {
-                        '0%': { transform: 'rotate(0deg)' },
-                        '100%': { transform: 'rotate(360deg)' },
-                      },
-                    }}
-                  />
-                </Box>
-                <Typography variant="h6" gutterBottom>
-                  {signingProgress.message}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {signingProgress.step === 'signing' && 'Đang ký chữ ký số điện tử...'}
-                  {signingProgress.step === 'submitting' && 'Gửi hóa đơn lên cơ quan thuế...'}
-                  {signingProgress.step === 'issuing' && 'Hoàn tất quá trình phát hành...'}
-                </Typography>
-              </Box>
-            ) : (
-              <>
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  {autoIssueAfterSign ? (
-                    <>
-                      <strong>⚡ Ký số & Phát hành tự động</strong><br />
-                      Hệ thống sẽ tự động thực hiện:<br />
-                      1️⃣ Ký số điện tử<br />
-                      2️⃣ Gửi lên Cơ quan Thuế<br />
-                      3️⃣ Phát hành hóa đơn<br />
-                      <em>(Quá trình có thể mất vài giây)</em>
-                    </>
-                  ) : (
-                    <>
-                      <strong>Bước 1: Ký số điện tử</strong><br />
-                      Hóa đơn sẽ được ký bằng chữ ký số điện tử.
-                    </>
-                  )}
-                </Alert>
-                <Typography variant="body1" sx={{ mb: 1 }}>
-                  <strong>Hóa đơn:</strong> {signDialog.invoiceNumber || '<Chưa cấp số>'}
-                </Typography>
-                {!autoIssueAfterSign && (
-                  <>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      Hóa đơn đã được Kế toán trưởng duyệt. Nhấn <strong>"Ký số"</strong> để:
-                    </Typography>
-                    <Box component="ul" sx={{ pl: 2, mb: 0 }}>
-                      <li><Typography variant="body2">✍️ Ký số điện tử vào hóa đơn</Typography></li>
-                      <li><Typography variant="body2">📝 Chuyển sang trạng thái "Đã ký"</Typography></li>
-                    </Box>
-                  </>
-                )}
-              </>
-            )}
-          </DialogContent>
-          <DialogActions sx={{ p: 2, pt: 0 }}>
-            <Button onClick={handleCloseSignDialog} disabled={isSigningInvoice}>
-              Hủy
-            </Button>
-            <Button
-              variant="contained"
-              color="secondary"
-              onClick={handleConfirmSign}
-              disabled={isSigningInvoice}
-              startIcon={<DrawIcon />}>
-              {isSigningInvoice ? 'Đang xử lý...' : autoIssueAfterSign ? 'Ký & Phát hành' : 'Ký số'}
-            </Button>
-          </DialogActions>
-        </Dialog>
         
         {/* Snackbar for notifications */}
         <Snackbar
