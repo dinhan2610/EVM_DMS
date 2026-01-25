@@ -38,7 +38,7 @@ import InvoicePreviewModal from '@/components/invoices/InvoicePreviewModal'
 import TaxErrorNotificationModal from '@/components/TaxErrorNotificationModal_v2'
 import CreateMinuteDialog from '@/components/CreateMinuteDialog'
 import Spinner from '@/components/Spinner'
-import invoiceService, { InvoiceListItem, INVOICE_TYPE } from '@/services/invoiceService'
+import invoiceService, { InvoiceListItem, INVOICE_TYPE, checkHasAdjustmentChild, checkHasReplacementChild } from '@/services/invoiceService'
 import invoiceHistoryService, { InvoiceHistory } from '@/services/invoiceHistoryService'
 import companyService, { Company } from '@/services/companyService'
 import { checkAdjustmentMinuteStatus, checkReplacementMinuteStatus, type MinuteRecord } from '@/services/minuteService'
@@ -165,13 +165,31 @@ const InvoiceDetail: React.FC = () => {
     reason: string
     loading: boolean
   }>({ hasValidMinute: false, minute: null, reason: '', loading: true })
-
-  // ✅ Logic actions menu - Đồng bộ 100% với InvoiceManagement & InvoiceApproval
-  const isReplacementInvoice = invoice?.invoiceType === INVOICE_TYPE.REPLACEMENT
   
-  // ✅ Kiểm tra điều kiện được tạo HĐ điều chỉnh/thay thế
-  const canCreateAdjustmentInvoice = adjustmentMinuteStatus.hasValidMinute
-  const canCreateReplacementInvoice = replacementMinuteStatus.hasValidMinute
+  // ✅ NEW: State for child invoice checks (Business Rules)
+  const [hasAdjustmentChildState, setHasAdjustmentChildState] = useState(false)
+  const [hasReplacementChildState, setHasReplacementChildState] = useState(false)
+
+  // ✅ Logic actions menu - Business Rules Implementation
+  const isAdjustmentInvoice = invoice?.invoiceType === INVOICE_TYPE.ADJUSTMENT
+  const isReplacementInvoice = invoice?.invoiceType === INVOICE_TYPE.REPLACEMENT
+  const isIssued = invoice?.invoiceStatusID === INVOICE_INTERNAL_STATUS.ISSUED
+  const isAdjusted = invoice?.invoiceStatusID === INVOICE_INTERNAL_STATUS.ADJUSTED
+  
+  // ✅ Kiểm tra điều kiện được tạo HĐ điều chỉnh/thay thế theo Business Rules Table
+  // Logic tạo HĐ điều chỉnh: (ISSUED || ADJUSTED) && !hasReplacementChild && hasValidMinute
+  const canCreateAdjustmentInvoice = 
+    (isIssued || isAdjusted) && 
+    !hasReplacementChildState && 
+    adjustmentMinuteStatus.hasValidMinute
+  
+  // Logic tạo HĐ thay thế: (ISSUED || ADJUSTED) && !isAdjustment && !hasAdjustmentChild && !hasReplacementChild && hasValidMinute
+  const canCreateReplacementInvoice = 
+    (isIssued || isAdjusted) && 
+    !isAdjustmentInvoice && 
+    !hasAdjustmentChildState && 
+    !hasReplacementChildState && 
+    replacementMinuteStatus.hasValidMinute
 
   // Fetch invoice detail (extracted for reusability in SignalR)
   const fetchInvoiceDetail = useCallback(async () => {
@@ -279,6 +297,16 @@ const InvoiceDetail: React.FC = () => {
         loading: false,
       })
       console.log('📋 [InvoiceDetail] Replacement minute status:', replacementResult)
+      
+      // ✅ Check child invoice existence (Business Rules)
+      console.log('🔍 [InvoiceDetail] Checking child invoice existence...')
+      const [hasAdjChild, hasReplChild] = await Promise.all([
+        checkHasAdjustmentChild(invoice.invoiceID),
+        checkHasReplacementChild(invoice.invoiceID)
+      ])
+      setHasAdjustmentChildState(hasAdjChild)
+      setHasReplacementChildState(hasReplChild)
+      console.log('👶 [InvoiceDetail] Child invoice status:', { hasAdjChild, hasReplChild })
     }
     
     checkMinuteStatus()

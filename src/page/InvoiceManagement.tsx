@@ -29,7 +29,7 @@ import DownloadIcon from '@mui/icons-material/Download'
 import EmailIcon from '@mui/icons-material/Email'
 import PrintIcon from '@mui/icons-material/Print'
 import RestoreIcon from '@mui/icons-material/Restore'
-import FindReplaceIcon from '@mui/icons-material/FindReplace'
+// ❌ REMOVED: FindReplaceIcon - Not used after removing adjustment/replacement menu items
 import CancelIcon from '@mui/icons-material/Cancel'
 import LinkIcon from '@mui/icons-material/Link'
 import { Link, useNavigate } from 'react-router-dom'
@@ -170,6 +170,7 @@ const mapInvoiceToUI = (
 // Component menu thao tác cho mỗi hóa đơn
 interface InvoiceActionsMenuProps {
   invoice: Invoice
+  // ❌ REMOVED: invoices prop - Not needed after removing adjustment/replacement menu items
   onSendForApproval: (id: string) => void
   onResendToTax: (id: string, invoiceNumber: string) => void
   onCancel: (id: string, invoiceNumber: string) => void
@@ -205,23 +206,8 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onResendToTax, onCance
   // ✅ ĐÃ XÓA chức năng "Ký số & Phát hành" - Không cần logic này nữa
   const canCancel = isPendingApproval // Có thể hủy khi Chờ duyệt
   
-  // 📋 Logic "Tạo HĐ điều chỉnh" - Theo NĐ 123/2020
-  // Điều kiện:
-  // 1. Hóa đơn đã phát hành (status = 2 ISSUED) HOẶC Đã điều chỉnh (status = 4 ADJUSTED)
-  // 2. ✅ CHO PHÉP ĐIỀU CHỈNH NHIỀU LẦN - Không giới hạn invoiceType
-  // 3. HĐ điều chỉnh có thể điều chỉnh tiếp (NĐ 123/2020/NĐ-CP Điều 19)
-  const isAdjustmentInvoice = invoice.invoiceType === INVOICE_TYPE.ADJUSTMENT
-  const isReplacementInvoice = invoice.invoiceType === INVOICE_TYPE.REPLACEMENT
-  const isAdjusted = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.ADJUSTED // Status 4
-  
-  // ✅ Cho phép điều chỉnh: ISSUED hoặc ADJUSTED, KHÔNG giới hạn invoiceType
-  const canAdjust = isIssued || isAdjusted
-  
-  // 🚫 KHÔNG cho phép thay thế nếu:
-  // 1. Hóa đơn là "Hóa đơn điều chỉnh" (invoiceType = 2)
-  // 2. Hóa đơn đã có trạng thái "Đã điều chỉnh" (status = 4)
-  // ✅ Chỉ cho phép thay thế: ISSUED hoặc ADJUSTED, NHƯNG không phải HĐ điều chỉnh và chưa bị điều chỉnh
-  const canReplace = (isIssued || isAdjusted) && !isAdjustmentInvoice && !isAdjusted
+  // ❌ ĐÃ XÓA: Logic "Tạo HĐ điều chỉnh" và "Tạo HĐ thay thế" khỏi menu danh sách
+  // → Chức năng này chỉ có trong trang InvoiceDetail (Xem chi tiết hóa đơn)
 
   const menuItems = [
     {
@@ -287,40 +273,8 @@ const InvoiceActionsMenu = ({ invoice, onSendForApproval, onResendToTax, onCance
       color: 'warning.main',
       tooltip: 'Gửi lại hóa đơn lên Cơ quan Thuế khi có lỗi',
     },
-    {
-      label: 'Tạo HĐ điều chỉnh',
-      icon: <FindReplaceIcon fontSize="small" />,
-      enabled: canAdjust,
-      action: () => {
-        console.log('Tạo HĐ điều chỉnh:', invoice.id)
-        navigate(`/invoices/${invoice.id}/adjust`)
-        handleClose()
-      },
-      color: 'warning.main',
-      tooltip: isAdjustmentInvoice
-        ? 'Điều chỉnh HĐ điều chỉnh (cho phép điều chỉnh nhiều lần)'
-        : isReplacementInvoice
-        ? 'Điều chỉnh HĐ thay thế (cho phép điều chỉnh nhiều lần)'
-        : 'Tạo hóa đơn điều chỉnh (không giới hạn số lần)',
-    },
-    {
-      label: 'Tạo HĐ thay thế',
-      icon: <RestoreIcon fontSize="small" />,
-      enabled: canReplace,
-      action: () => {
-        console.log('Tạo HĐ thay thế:', invoice.id)
-        navigate(`/invoices/${invoice.id}/replace`)
-        handleClose()
-      },
-      color: 'warning.main',
-      tooltip: !canReplace && isAdjustmentInvoice
-        ? '🚫 Không thể thay thế hóa đơn điều chỉnh. Chỉ có thể điều chỉnh tiếp.'
-        : !canReplace && isAdjusted
-        ? '🚫 Hóa đơn đã điều chỉnh. Chỉ có thể điều chỉnh tiếp, không thể thay thế.'
-        : isReplacementInvoice
-        ? 'Thay thế HĐ thay thế (cho phép thay thế nhiều lần)'
-        : 'Tạo hóa đơn thay thế',
-    },
+    // ❌ REMOVED: "Tạo HĐ điều chỉnh" và "Tạo HĐ thay thế"
+    // → Chức năng này chỉ có trong trang InvoiceDetail (Chi tiết hóa đơn)
     {
       label: 'Hủy',
       icon: <CancelIcon fontSize="small" />,

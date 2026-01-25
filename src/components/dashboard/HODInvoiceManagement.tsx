@@ -51,7 +51,7 @@ import DownloadIcon from '@mui/icons-material/Download'
 import EmailIcon from '@mui/icons-material/Email'
 import PrintIcon from '@mui/icons-material/Print'
 import RestoreIcon from '@mui/icons-material/Restore'
-import FindReplaceIcon from '@mui/icons-material/FindReplace'
+// ❌ REMOVED: FindReplaceIcon - Not used after removing adjustment/replacement menu items
 import CancelIcon from '@mui/icons-material/Cancel'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import LinkIcon from '@mui/icons-material/Link'
@@ -197,7 +197,7 @@ interface InvoiceActionsMenuProps {
 }
 
 const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTax, onPrintInvoice, isSending, onOpenEmailModal }: InvoiceActionsMenuProps) => {
-  const navigate = useNavigate()
+  // ❌ REMOVED: useNavigate - Not used after removing adjustment/replacement menu items
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
 
@@ -242,14 +242,8 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTa
   const canSignAndIssue = (isPendingSign || isSigned) && !hasInvoiceNumber // ⚡ Gộp 1 bước
   // ❌ REMOVED: canCancel - Nút "Hủy" đã bị xóa khỏi menu Kế toán trưởng
   
-  // 📋 Logic "Tạo HĐ điều chỉnh" - Theo NĐ 123/2020
-  // Điều kiện:
-  // 1. Hóa đơn đã phát hành (status = 2 ISSUED) HOẶC Đã điều chỉnh (status = 4 ADJUSTED)
-  // 2. Chính nó KHÔNG phải là hóa đơn điều chỉnh (invoiceType !== ADJUSTMENT)
-  // ✅ CHO PHÉP ĐIỀU CHỈNH NHIỀU LẦN theo NĐ 123/2020/NĐ-CP Điều 19
-  const isAdjustmentInvoice = invoice.invoiceType === INVOICE_TYPE.ADJUSTMENT
-  const isAdjusted = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.ADJUSTED // Status 4
-  const canAdjust = (isIssued || isAdjusted) && !isAdjustmentInvoice
+  // ❌ ĐÃ XÓA: Logic "Tạo HĐ điều chỉnh" và "Tạo HĐ thay thế" khỏi menu danh sách
+  // → Chức năng này chỉ có trong trang InvoiceDetail (Xem chi tiết hóa đơn)
 
   const menuItems = [
     // ❌ REMOVED: Nút "Chỉnh sửa" - Kế toán trưởng không được chỉnh sửa hóa đơn
@@ -321,32 +315,8 @@ const InvoiceActionsMenu = ({ invoice, onApprove, onReject, onSign, onResendToTa
       color: 'warning.main',
       tooltip: 'Gửi lại hóa đơn lên Cơ quan Thuế khi có lỗi',
     },
-    {
-      label: 'Tạo HĐ điều chỉnh',
-      icon: <FindReplaceIcon fontSize="small" />,
-      enabled: canAdjust,
-      action: () => {
-        console.log('Tạo HĐ điều chỉnh:', invoice.id)
-        navigate(`/invoices/${invoice.id}/adjust`)
-        handleClose()
-      },
-      color: 'warning.main',
-      tooltip: isAdjustmentInvoice
-        ? '⚠️ Hóa đơn điều chỉnh không thể điều chỉnh tiếp (chỉ điều chỉnh HĐ gốc)'
-        : 'Tạo hóa đơn điều chỉnh (có thể nhiều lần theo NĐ 123/2020)',
-    },
-    {
-      label: 'Tạo HĐ thay thế',
-      icon: <RestoreIcon fontSize="small" />,
-      enabled: isIssued, // ✅ Thay thế bao nhiêu lần cũng được
-      action: () => {
-        console.log('Tạo HĐ thay thế:', invoice.id)
-        navigate(`/invoices/${invoice.id}/replace`)
-        handleClose()
-      },
-      color: 'warning.main',
-      tooltip: 'Tạo hóa đơn thay thế (không giới hạn số lần)',
-    },
+    // ❌ REMOVED: "Tạo HĐ điều chỉnh" và "Tạo HĐ thay thế"
+    // → Chức năng này chỉ có trong trang InvoiceDetail (Chi tiết hóa đơn)
     // ❌ REMOVED: Nút "Hủy" - Không hiển thị cho Kế toán trưởng
     // ❌ REMOVED: Nút "Xóa" - Kế toán trưởng không được xóa hóa đơn
   ]

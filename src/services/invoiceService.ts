@@ -252,6 +252,76 @@ export const getInvoiceTypeColor = (invoiceType: number): string => {
   return INVOICE_TYPE_COLORS[invoiceType] || 'default';
 };
 
+/**
+ * ✅ NEW: Helper function to check if invoice has adjustment child
+ * Kiểm tra xem hóa đơn này có HĐ con điều chỉnh không
+ * 
+ * @param invoice - Hóa đơn cần kiểm tra
+ * @param allInvoices - Danh sách tất cả hóa đơn
+ * @returns true nếu có HĐ con điều chỉnh
+ */
+export const hasAdjustmentChild = (invoice: InvoiceListItem, allInvoices: InvoiceListItem[]): boolean => {
+  return allInvoices.some(inv => 
+    inv.originalInvoiceID === invoice.invoiceID && 
+    inv.invoiceType === INVOICE_TYPE.ADJUSTMENT
+  );
+};
+
+/**
+ * ✅ NEW: Helper function to check if invoice has replacement child
+ * Kiểm tra xem hóa đơn này có HĐ con thay thế không
+ * 
+ * @param invoice - Hóa đơn cần kiểm tra
+ * @param allInvoices - Danh sách tất cả hóa đơn
+ * @returns true nếu có HĐ con thay thế
+ */
+export const hasReplacementChild = (invoice: InvoiceListItem, allInvoices: InvoiceListItem[]): boolean => {
+  return allInvoices.some(inv => 
+    inv.originalInvoiceID === invoice.invoiceID && 
+    inv.invoiceType === INVOICE_TYPE.REPLACEMENT
+  );
+};
+
+/**
+ * ✅ NEW: Check if single invoice has adjustment child (for InvoiceDetail page)
+ * Kiểm tra xem hóa đơn này có HĐ con điều chỉnh không (query backend)
+ * 
+ * @param invoiceId - ID của hóa đơn cần kiểm tra
+ * @returns true nếu có HĐ con điều chỉnh
+ */
+export const checkHasAdjustmentChild = async (invoiceId: number): Promise<boolean> => {
+  try {
+    const allInvoices = await getAllInvoices()
+    return allInvoices.some(inv => 
+      inv.originalInvoiceID === invoiceId && 
+      inv.invoiceType === INVOICE_TYPE.ADJUSTMENT
+    )
+  } catch (error) {
+    console.error('❌ Error checking adjustment child:', error)
+    return false
+  }
+};
+
+/**
+ * ✅ NEW: Check if single invoice has replacement child (for InvoiceDetail page)
+ * Kiểm tra xem hóa đơn này có HĐ con thay thế không (query backend)
+ * 
+ * @param invoiceId - ID của hóa đơn cần kiểm tra
+ * @returns true nếu có HĐ con thay thế
+ */
+export const checkHasReplacementChild = async (invoiceId: number): Promise<boolean> => {
+  try {
+    const allInvoices = await getAllInvoices()
+    return allInvoices.some(inv => 
+      inv.originalInvoiceID === invoiceId && 
+      inv.invoiceType === INVOICE_TYPE.REPLACEMENT
+    )
+  } catch (error) {
+    console.error('❌ Error checking replacement child:', error)
+    return false
+  }
+};
+
 // Invoice status mapping
 export const INVOICE_STATUS: Record<number, string> = {
   1: 'Đã tạo',

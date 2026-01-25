@@ -35,12 +35,12 @@ import SendIcon from '@mui/icons-material/Send'
 import EmailIcon from '@mui/icons-material/Email'
 import PrintIcon from '@mui/icons-material/Print'
 import DownloadIcon from '@mui/icons-material/Download'
-import FindReplaceIcon from '@mui/icons-material/FindReplace'
+// ❌ REMOVED: FindReplaceIcon - Not used after removing adjustment/replacement menu items
 import RestoreIcon from '@mui/icons-material/Restore'
 import AddIcon from '@mui/icons-material/Add'
 import { Link, useNavigate } from 'react-router-dom'
 import InvoiceFilter, { InvoiceFilterState } from '@/components/InvoiceFilter'
-import invoiceService, { InvoiceListItem, INVOICE_TYPE } from '@/services/invoiceService'
+import invoiceService, { InvoiceListItem } from '@/services/invoiceService'
 import templateService from '@/services/templateService'
 import customerService from '@/services/customerService'
 import Spinner from '@/components/Spinner'
@@ -136,11 +136,8 @@ const InvoiceApprovalActionsMenu = ({ invoice, onApprove, onReject, onSign, onIs
   const isSignedPendingIssue = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.SIGNED // 8 - Đã ký số, chờ phát hành
   const isSigned = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.SIGNED // 8 - Đã ký
   const isIssued = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.ISSUED // 2 - Đã phát hành (đã ký + gửi)
-  const isAdjusted = invoice.internalStatusId === INVOICE_INTERNAL_STATUS.ADJUSTED // 4 - Đã điều chỉnh
+  // ❌ REMOVED: isAdjusted, isAdjustmentInvoice - Not used after removing adjustment/replacement menu items
   const hasTaxError = isTaxStatusError(invoice.taxStatusId)  // ✨ Check Tax Status error
-  
-  // Xác định loại hóa đơn
-  const isAdjustmentInvoice = invoice.invoiceType === INVOICE_TYPE.ADJUSTMENT // 2 - Hóa đơn điều chỉnh
   
   // Kiểm tra có số hóa đơn chưa - Xử lý cả number và string
   const hasInvoiceNumber = (() => {
@@ -162,11 +159,8 @@ const InvoiceApprovalActionsMenu = ({ invoice, onApprove, onReject, onSign, onIs
   // Logic điều khiển menu
   const canCancel = isPendingApproval || isPendingSign // Có thể hủy khi Chờ duyệt HOẶC Chờ ký
   
-  // 🚫 KHÔNG cho phép thay thế nếu:
-  // 1. Hóa đơn là "Hóa đơn điều chỉnh" (invoiceType = 2)
-  // 2. Hóa đơn đã có trạng thái "Đã điều chỉnh" (status = 4)
-  // ✅ Chỉ cho phép thay thế: ISSUED, NHƯNG không phải HĐ điều chỉnh và chưa bị điều chỉnh
-  const canReplace = isIssued && !isAdjustmentInvoice && !isAdjusted
+  // ❌ ĐÃ XÓA: Logic "Tạo HĐ điều chỉnh" và "Tạo HĐ thay thế" khỏi menu danh sách
+  // → Chức năng này chỉ có trong trang InvoiceDetail (Xem chi tiết hóa đơn)
   
   // Backend workflow: /sign generates invoice number, then /issue publishes
   // Can only issue when SIGNED (status 8 or 10) AND has invoice number
@@ -269,33 +263,9 @@ const InvoiceApprovalActionsMenu = ({ invoice, onApprove, onReject, onSign, onIs
       },
       color: 'text.primary',
     },
+    // ❌ REMOVED: "Tạo HĐ điều chỉnh" và "Tạo HĐ thay thế"
+    // → Chức năng này chỉ có trong trang InvoiceDetail (Chi tiết hóa đơn)
     { divider: true },
-    {
-      label: 'Tạo HĐ điều chỉnh',
-      icon: <FindReplaceIcon fontSize="small" />,
-      enabled: isIssued || isAdjusted, // ✅ Cho phép điều chỉnh nhiều lần
-      action: () => {
-        console.log('Tạo HĐ điều chỉnh:', invoice.id)
-        handleClose()
-      },
-      color: 'warning.main',
-      tooltip: 'Tạo hóa đơn điều chỉnh (cho phép điều chỉnh nhiều lần)',
-    },
-    {
-      label: 'Tạo HĐ thay thế',
-      icon: <RestoreIcon fontSize="small" />,
-      enabled: canReplace,
-      action: () => {
-        console.log('Tạo HĐ thay thế:', invoice.id)
-        handleClose()
-      },
-      color: 'warning.main',
-      tooltip: !canReplace && isAdjustmentInvoice
-        ? '🚫 Không thể thay thế hóa đơn điều chỉnh. Chỉ có thể điều chỉnh tiếp.'
-        : !canReplace && isAdjusted
-        ? '🚫 Hóa đơn đã điều chỉnh. Chỉ có thể điều chỉnh tiếp, không thể thay thế.'
-        : 'Tạo hóa đơn thay thế',
-    },
     {
       label: 'Hủy',
       icon: <CancelIcon fontSize="small" />,
