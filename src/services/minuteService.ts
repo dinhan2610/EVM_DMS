@@ -245,6 +245,80 @@ export const uploadMinute = async (data: UploadMinuteRequest): Promise<UploadMin
 }
 
 /**
+ * Update file PDF cho minute đã tồn tại
+ * API: PUT /api/Minute/{minuteId}/file
+ * 
+ * Dùng khi cần upload/cập nhật file PDF cho minute đã được tạo
+ * Tối ưu hơn uploadMinute vì không cần gửi lại metadata
+ * 
+ * @param minuteId - ID của minute cần update file
+ * @param file - File PDF mới
+ * @returns Promise<void>
+ */
+export const updateMinuteFile = async (minuteId: number, file: File): Promise<void> => {
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    if (import.meta.env.DEV) {
+      console.log('[updateMinuteFile] Updating file for minute:', {
+        minuteId,
+        fileName: file.name,
+        fileSize: `${(file.size / 1024).toFixed(2)} KB`,
+      })
+    }
+
+    await axios.put(
+      `${API_BASE_URL}/Minute/${minuteId}/file`,
+      formData,
+      {
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    )
+
+    if (import.meta.env.DEV) {
+      console.log('[updateMinuteFile] ✅ Success')
+    }
+  } catch (error) {
+    console.error('[updateMinuteFile] ❌ Error:', error)
+    
+    if (axios.isAxiosError(error)) {
+      console.error('[updateMinuteFile] Response status:', error.response?.status)
+      console.error('[updateMinuteFile] Response data:', error.response?.data)
+      
+      const status = error.response?.status
+      const responseData = error.response?.data
+      
+      let errorMessage = ''
+      if (typeof responseData === 'string') {
+        errorMessage = responseData
+      } else if (responseData?.message) {
+        errorMessage = responseData.message
+      } else if (responseData?.title) {
+        errorMessage = responseData.title
+      }
+      
+      if (status === 400) {
+        throw new Error(errorMessage || 'File không hợp lệ')
+      }
+      if (status === 404) {
+        throw new Error(errorMessage || 'Không tìm thấy biên bản')
+      }
+      if (status === 403) {
+        throw new Error(errorMessage || 'Bạn không có quyền cập nhật biên bản này')
+      }
+      
+      throw new Error(errorMessage || 'Không thể cập nhật file biên bản')
+    }
+    
+    throw new Error('Lỗi không xác định khi cập nhật file biên bản')
+  }
+}
+
+/**
  * Validate PDF file before upload
  * 
  * @param file - File to validate

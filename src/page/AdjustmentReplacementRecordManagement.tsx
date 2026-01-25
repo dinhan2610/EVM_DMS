@@ -18,7 +18,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   Stack,
   CircularProgress,
 } from '@mui/material'
@@ -36,8 +35,10 @@ import PersonIcon from '@mui/icons-material/Person'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import Spinner from '@/components/Spinner'
 import UploadMinuteDialog from '@/components/UploadMinuteDialog'
+import { useAuthContext } from '@/context/useAuthContext'
+import { USER_ROLES } from '@/constants/roles'
 
-import { getMinutes, uploadMinute, validatePdfFile, signMinuteSeller, completeMinute, type MinuteRecord } from '@/services/minuteService'
+import { getMinutes, validatePdfFile, signMinuteSeller, completeMinute, updateMinuteFile, type MinuteRecord } from '@/services/minuteService'
 import { getInvoiceByMinuteCode } from '@/services/invoiceService'
 
 // ============================================================
@@ -173,6 +174,18 @@ const getStatusColor = (status: string | number): 'default' | 'primary' | 'succe
 }
 
 /**
+ * Kiểm tra biên bản đã hoàn thành (không cho phép upload nữa)
+ * Trả về true nếu status là Complete hoặc Cancelled
+ */
+const isMinuteFinalized = (status: string | number): boolean => {
+  if (typeof status === 'number') {
+    return status === 4 || status === 5 // Complete hoặc Cancelled
+  }
+  const statusStr = status.toString().toLowerCase()
+  return statusStr === 'complete' || statusStr === 'cancelled'
+}
+
+/**
  * Map role name từ tiếng Anh sang tiếng Việt
  */
 const mapRoleNameToVietnamese = (roleName: string): string => {
@@ -215,7 +228,21 @@ const AdjustmentReplacementRecordManagement = () => {
   const navigate = useNavigate()
   
   // ============================================================
-  // 📊 STATE MANAGEMENT
+  // � AUTH & ROLE MANAGEMENT
+  // ============================================================
+  const { user } = useAuthContext()
+  
+  /**
+   * Phân quyền thao tác:
+   * - Sale: Chỉ được XEM (không được ký, upload, xác nhận NM)
+   * - Accountant: Full quyền thao tác
+   * - Các role khác: Full quyền (Admin, HOD)
+   */
+  const isSaleRole = user?.role === USER_ROLES.SALES
+  const canPerformActions = !isSaleRole // Kế toán và các role khác có thể thao tác
+  
+  // ============================================================
+  // �📊 STATE MANAGEMENT
   // ============================================================
   
   const [records, setRecords] = useState<AdjustmentReplacementRecord[]>([])
@@ -257,7 +284,6 @@ const AdjustmentReplacementRecordManagement = () => {
     minuteType: 'Adjustment' | 'Replacement'
   } | null>(null)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
-  const [uploadDescription, setUploadDescription] = useState('')
   const [uploadDialogForRecordOpen, setUploadDialogForRecordOpen] = useState(false)
   
   // State for buyer confirmation modal (NM - Người Mua)
@@ -558,12 +584,12 @@ const AdjustmentReplacementRecordManagement = () => {
       minuteType: record.minuteType,
     })
     setUploadFile(null)
-    setUploadDescription('')
     setUploadDialogForRecordOpen(true)
   }
 
   /**
-   * Upload file PDF cho biên bản
+   * Upload file PDF cho biên bản đã tồn tại
+   * Sử dụng API PUT /api/Minute/{id}/file
    */
   const handleUploadFileForRecord = async () => {
     if (!uploadingMinute || !uploadFile) {
@@ -588,19 +614,13 @@ const AdjustmentReplacementRecordManagement = () => {
 
     setLoading(true)
     try {
-      const minuteTypeNumber = uploadingMinute.minuteType === 'Adjustment' ? 1 : 2
-
-      await uploadMinute({
-        invoiceId: uploadingMinute.invoiceId,
-        minuteType: minuteTypeNumber,
-        description: uploadDescription,
-        pdfFile: uploadFile,
-      })
+      // Sử dụng API PUT /api/Minute/{id}/file để update file
+      // Tối ưu hơn API tạo mới vì chỉ cần gửi file
+      await updateMinuteFile(uploadingMinute.recordId, uploadFile)
 
       setUploadDialogForRecordOpen(false)
       setUploadingMinute(null)
       setUploadFile(null)
-      setUploadDescription('')
       
       setSnackbar({
         open: true,
@@ -954,14 +974,16 @@ const AdjustmentReplacementRecordManagement = () => {
               />
             </Tooltip>
             
-            {/* NM - Người Mua (clickable khi NB đã ký) */}
+            {/* NM - Người Mua (clickable khi NB đã ký và có quyền thao tác) */}
             <Tooltip 
               title={
-                record.isBuyerSigned 
-                  ? 'Người mua đã xác nhận' 
-                  : canConfirmBuyer 
-                    ? 'Click để xác nhận người mua' 
-                    : 'Cần người bán ký trước'
+                !canPerformActions
+                  ? 'Bạn không có quyền xác nhận'
+                  : record.isBuyerSigned 
+                    ? 'Người mua đã xác nhận' 
+                    : canConfirmBuyer 
+                      ? 'Click để xác nhận người mua' 
+                      : 'Cần người bán ký trước'
               } 
               arrow
             >
@@ -969,17 +991,18 @@ const AdjustmentReplacementRecordManagement = () => {
                 label="NM" 
                 size="small"
                 color={record.isBuyerSigned ? 'success' : 'default'}
-                onClick={canConfirmBuyer ? () => handleOpenBuyerConfirm(record.id, record.minuteCode) : undefined}
+                onClick={(canPerformActions && canConfirmBuyer) ? () => handleOpenBuyerConfirm(record.id, record.minuteCode) : undefined}
                 sx={{ 
                   fontWeight: 600,
                   fontSize: '0.7rem',
                   height: 26,
                   minWidth: 40,
                   transition: 'all 0.2s ease',
-                  cursor: canConfirmBuyer ? 'pointer' : 'default',
+                  cursor: (canPerformActions && canConfirmBuyer) ? 'pointer' : 'default',
+                  opacity: !canPerformActions ? 0.6 : 1,
                   '&:hover': {
-                    transform: canConfirmBuyer ? 'scale(1.1)' : 'scale(1.05)',
-                    backgroundColor: canConfirmBuyer ? 'primary.light' : undefined,
+                    transform: (canPerformActions && canConfirmBuyer) ? 'scale(1.1)' : 'scale(1.05)',
+                    backgroundColor: (canPerformActions && canConfirmBuyer) ? 'primary.light' : undefined,
                   },
                 }}
               />
@@ -1003,7 +1026,13 @@ const AdjustmentReplacementRecordManagement = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 0.5 }}>
             {/* Icon 1: Ký số */}
             <Tooltip 
-              title={record.isSellerSigned ? 'Đã ký số' : 'Ký số'} 
+              title={
+                !canPerformActions 
+                  ? 'Bạn không có quyền ký số' 
+                  : record.isSellerSigned 
+                    ? 'Đã ký số' 
+                    : 'Ký số'
+              } 
               arrow 
               placement="top"
             >
@@ -1011,16 +1040,16 @@ const AdjustmentReplacementRecordManagement = () => {
                 <IconButton
                   size="small"
                   onClick={() => handleSignSeller(record.id.toString(), record.minuteCode)}
-                  disabled={record.isSellerSigned}
+                  disabled={!canPerformActions || record.isSellerSigned}
                   sx={{
-                    color: record.isSellerSigned ? 'success.main' : 'warning.main',
+                    color: record.isSellerSigned ? 'success.main' : !canPerformActions ? 'text.disabled' : 'warning.main',
                     '&:hover': {
-                      backgroundColor: record.isSellerSigned ? 'transparent' : 'warning.lighter',
-                      transform: record.isSellerSigned ? 'none' : 'scale(1.1)',
+                      backgroundColor: record.isSellerSigned || !canPerformActions ? 'transparent' : 'warning.lighter',
+                      transform: record.isSellerSigned || !canPerformActions ? 'none' : 'scale(1.1)',
                     },
                     transition: 'all 0.2s ease-in-out',
                     '&.Mui-disabled': {
-                      color: 'success.main',
+                      color: record.isSellerSigned ? 'success.main' : 'text.disabled',
                     },
                   }}
                 >
@@ -1030,21 +1059,37 @@ const AdjustmentReplacementRecordManagement = () => {
             </Tooltip>
             
             {/* Icon 2: Upload file PDF */}
-            <Tooltip title="Upload file PDF" arrow placement="top">
-              <IconButton
-                size="small"
-                onClick={() => handleOpenUploadForRecord(record)}
-                sx={{
-                  color: 'success.main',
-                  '&:hover': {
-                    backgroundColor: 'success.lighter',
-                    transform: 'scale(1.1)',
-                  },
-                  transition: 'all 0.2s ease-in-out',
-                }}
-              >
-                <UploadIcon fontSize="small" />
-              </IconButton>
+            <Tooltip 
+              title={
+                !canPerformActions 
+                  ? 'Bạn không có quyền upload' 
+                  : isMinuteFinalized(record.status) 
+                    ? 'Không thể upload - Biên bản đã hoàn thành' 
+                    : 'Upload file PDF'
+              } 
+              arrow 
+              placement="top"
+            >
+              <span> {/* Wrap in span to show tooltip on disabled button */}
+                <IconButton
+                  size="small"
+                  onClick={() => handleOpenUploadForRecord(record)}
+                  disabled={!canPerformActions || isMinuteFinalized(record.status)}
+                  sx={{
+                    color: (!canPerformActions || isMinuteFinalized(record.status)) ? 'text.disabled' : 'success.main',
+                    '&:hover': {
+                      backgroundColor: (!canPerformActions || isMinuteFinalized(record.status)) ? 'transparent' : 'success.lighter',
+                      transform: (!canPerformActions || isMinuteFinalized(record.status)) ? 'none' : 'scale(1.1)',
+                    },
+                    transition: 'all 0.2s ease-in-out',
+                    '&.Mui-disabled': {
+                      color: 'text.disabled',
+                    },
+                  }}
+                >
+                  <UploadIcon fontSize="small" />
+                </IconButton>
+              </span>
             </Tooltip>
             
             {/* Icon 3: Xem PDF */}
@@ -1352,6 +1397,7 @@ const AdjustmentReplacementRecordManagement = () => {
 
         {/* ============================================================ */}
         {/* UPLOAD FILE FOR SPECIFIC RECORD DIALOG */}
+        {/* Sử dụng API PUT /api/Minute/{id}/file */}
         {/* ============================================================ */}
         <Dialog
           open={uploadDialogForRecordOpen}
@@ -1359,13 +1405,12 @@ const AdjustmentReplacementRecordManagement = () => {
             setUploadDialogForRecordOpen(false)
             setUploadingMinute(null)
             setUploadFile(null)
-            setUploadDescription('')
           }}
           maxWidth="sm"
           fullWidth
         >
           <DialogTitle>
-            Upload File PDF cho Biên Bản
+            Cập Nhật File PDF Biên Bản
             {uploadingMinute && (
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                 Loại: <strong>{uploadingMinute.minuteType === 'Adjustment' ? 'Điều chỉnh' : 'Thay thế'}</strong>
@@ -1399,18 +1444,10 @@ const AdjustmentReplacementRecordManagement = () => {
                     }}
                   />
                 </Button>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  File mới sẽ thay thế file PDF hiện tại của biên bản
+                </Typography>
               </Box>
-
-              {/* Description */}
-              <TextField
-                label="Mô tả"
-                multiline
-                rows={3}
-                value={uploadDescription}
-                onChange={(e) => setUploadDescription(e.target.value)}
-                placeholder="Nhập mô tả cho biên bản (không bắt buộc)"
-                fullWidth
-              />
             </Stack>
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -1419,7 +1456,6 @@ const AdjustmentReplacementRecordManagement = () => {
                 setUploadDialogForRecordOpen(false)
                 setUploadingMinute(null)
                 setUploadFile(null)
-                setUploadDescription('')
               }}
               disabled={loading}
             >
