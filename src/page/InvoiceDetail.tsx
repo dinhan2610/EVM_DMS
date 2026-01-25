@@ -30,11 +30,13 @@ import {
   History as HistoryIcon,
   Close as CloseIcon,
   Link as LinkIcon,
+  Description as DescriptionIcon,
 } from '@mui/icons-material'
 import { Timeline, TimelineItem, TimelineSeparator, TimelineConnector, TimelineContent, TimelineDot, TimelineOppositeContent } from '@mui/lab'
 import { useParams, useNavigate } from 'react-router-dom'
 import InvoicePreviewModal from '@/components/invoices/InvoicePreviewModal'
 import TaxErrorNotificationModal from '@/components/TaxErrorNotificationModal_v2'
+import CreateMinuteDialog from '@/components/CreateMinuteDialog'
 import Spinner from '@/components/Spinner'
 import invoiceService, { InvoiceListItem, INVOICE_TYPE } from '@/services/invoiceService'
 import invoiceHistoryService, { InvoiceHistory } from '@/services/invoiceHistoryService'
@@ -138,22 +140,15 @@ const InvoiceDetail: React.FC = () => {
   const [showHistoryModal, setShowHistoryModal] = useState(false)
   const [historyData, setHistoryData] = useState<InvoiceHistory[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
+  
+  // State for Create Minute Dialog
+  const [showCreateMinuteDialog, setShowCreateMinuteDialog] = useState(false)
 
   // ✅ Logic actions menu - Đồng bộ 100% với InvoiceManagement & InvoiceApproval
-  const isIssued = invoice?.invoiceStatusID === INVOICE_INTERNAL_STATUS.ISSUED
-  const isAdjusted = invoice?.invoiceStatusID === INVOICE_INTERNAL_STATUS.ADJUSTED
   const isAdjustmentInvoice = invoice?.invoiceType === INVOICE_TYPE.ADJUSTMENT
   const isReplacementInvoice = invoice?.invoiceType === INVOICE_TYPE.REPLACEMENT
   
-  // ✅ Cho phép điều chỉnh: ISSUED hoặc ADJUSTED, KHÔNG giới hạn invoiceType
-  // HĐ điều chỉnh có thể điều chỉnh tiếp, HĐ thay thế có thể điều chỉnh
-  const canAdjust = isIssued || isAdjusted
-  
-  // 🚫 KHÔNG cho phép thay thế nếu:
-  // 1. Hóa đơn là "Hóa đơn điều chỉnh" (invoiceType = 2)
-  // 2. Hóa đơn đã có trạng thái "Đã điều chỉnh" (status = 4)
-  // ✅ Chỉ cho phép thay thế: ISSUED hoặc ADJUSTED, NHƯNG không phải HĐ điều chỉnh và chưa bị điều chỉnh
-  const canReplace = (isIssued || isAdjusted) && !isAdjustmentInvoice && !isAdjusted
+  // Note: Logic enable/disable sẽ cập nhật theo yêu cầu tiếp theo
 
   // Fetch invoice detail (extracted for reusability in SignalR)
   const fetchInvoiceDetail = useCallback(async () => {
@@ -326,6 +321,20 @@ const InvoiceDetail: React.FC = () => {
 
   const handleCloseHistoryModal = () => {
     setShowHistoryModal(false)
+  }
+
+  // Handle Create Adjustment Report (Biên Bản ĐC/TT)
+  const handleCreateAdjustmentReport = () => {
+    handleCloseActionsMenu()
+    console.log('📋 [InvoiceDetail] Tạo Biên Bản ĐC/TT cho invoice:', invoice?.invoiceID)
+    setShowCreateMinuteDialog(true)
+  }
+  
+  // Handle Create Minute Success
+  const handleCreateMinuteSuccess = () => {
+    console.log('✅ [InvoiceDetail] Biên bản đã được tạo thành công!')
+    // Có thể refresh lại invoice data hoặc hiển thị thông báo success
+    fetchInvoiceDetail()
   }
 
   const handleBack = () => {
@@ -512,16 +521,46 @@ const InvoiceDetail: React.FC = () => {
           
           <Divider />
           
+          {/* Tạo Biên Bản ĐC/TT */}
+          <MenuItem
+            onClick={handleCreateAdjustmentReport}
+            sx={{
+              py: 1.5,
+              '&:hover': {
+                backgroundColor: 'primary.lighter',
+              },
+            }}>
+            <ListItemIcon>
+              <DescriptionIcon 
+                fontSize="small" 
+                color="primary" 
+              />
+            </ListItemIcon>
+            <ListItemText
+              primary="Tạo Biên Bản ĐC/TT"
+              secondary="Lập biên bản điều chỉnh/thay thế hóa đơn"
+              primaryTypographyProps={{
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                color: 'primary.main',
+              }}
+              secondaryTypographyProps={{
+                fontSize: '0.75rem',
+              }}
+            />
+          </MenuItem>
+          
+          <Divider />
+          
           {/* Tạo HĐ điều chỉnh */}
           <MenuItem
             onClick={() => {
               handleCloseActionsMenu()
               navigate(`/invoices/${invoice.invoiceID}/adjust`)
             }}
-            disabled={!canAdjust}
             sx={{ py: 1.5 }}>
             <ListItemIcon>
-              <FindReplaceIcon fontSize="small" color={canAdjust ? 'warning' : 'action'} />
+              <FindReplaceIcon fontSize="small" color="warning" />
             </ListItemIcon>
             <ListItemText
               primary="Tạo HĐ điều chỉnh"
@@ -534,7 +573,7 @@ const InvoiceDetail: React.FC = () => {
               }
               primaryTypographyProps={{
                 fontSize: '0.9rem',
-                fontWeight: canAdjust ? 500 : 400,
+                fontWeight: 500,
               }}
               secondaryTypographyProps={{
                 fontSize: '0.75rem',
@@ -548,25 +587,20 @@ const InvoiceDetail: React.FC = () => {
               handleCloseActionsMenu()
               navigate(`/invoices/${invoice.invoiceID}/replace`)
             }}
-            disabled={!canReplace}
             sx={{ py: 1.5 }}>
             <ListItemIcon>
-              <RestoreIcon fontSize="small" color={canReplace ? 'warning' : 'action'} />
+              <RestoreIcon fontSize="small" color="warning" />
             </ListItemIcon>
             <ListItemText
               primary="Tạo HĐ thay thế"
               secondary={
-                !canReplace && isAdjustmentInvoice
-                  ? 'Không thể thay thế HĐ điều chỉnh. Chỉ điều chỉnh tiếp.'
-                  : !canReplace && isAdjusted
-                  ? 'HĐ đã điều chỉnh. Chỉ điều chỉnh tiếp, không thay thế.'
-                  : isReplacementInvoice
+                isReplacementInvoice
                   ? 'Thay thế HĐ thay thế (cho phép nhiều lần)'
                   : 'Tạo hóa đơn thay thế'
               }
               primaryTypographyProps={{
                 fontSize: '0.9rem',
-                fontWeight: canReplace ? 500 : 400,
+                fontWeight: 500,
               }}
               secondaryTypographyProps={{
                 fontSize: '0.75rem',
@@ -775,6 +809,17 @@ const InvoiceDetail: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      
+      {/* Create Minute Dialog (Biên Bản ĐC/TT) */}
+      {invoice && (
+        <CreateMinuteDialog
+          open={showCreateMinuteDialog}
+          onClose={() => setShowCreateMinuteDialog(false)}
+          onSuccess={handleCreateMinuteSuccess}
+          invoiceId={invoice.invoiceID}
+          invoiceNumber={invoice.invoiceNumber}
+        />
+      )}
     </>
   )
 }

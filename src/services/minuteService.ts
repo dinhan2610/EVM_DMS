@@ -270,7 +270,146 @@ export const validatePdfFile = (file: File): string | null => {
   return null
 }
 
+/**
+ * Ký số biên bản (Bên bán)
+ * API: POST /api/Minute/sign-seller/{minuteId}
+ * 
+ * @param minuteId - ID của biên bản cần ký
+ * @returns Promise<void>
+ */
+export const signMinuteSeller = async (minuteId: number): Promise<void> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log('[signMinuteSeller] Signing minute:', minuteId)
+    }
+
+    await axios.post(
+      `${API_BASE_URL}/Minute/sign-seller/${minuteId}`,
+      {},
+      {
+        headers: getAuthHeaders(),
+      }
+    )
+
+    if (import.meta.env.DEV) {
+      console.log('[signMinuteSeller] ✅ Success')
+    }
+  } catch (error) {
+    console.error('[signMinuteSeller] ❌ Error:', error)
+    
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status
+      const responseData = error.response?.data
+      
+      // Log chi tiết response để debug
+      console.error('[signMinuteSeller] Response status:', status)
+      console.error('[signMinuteSeller] Response data:', responseData)
+      
+      // Trích xuất error message từ nhiều format khác nhau
+      let errorMessage = ''
+      if (typeof responseData === 'string') {
+        errorMessage = responseData
+      } else if (responseData?.message) {
+        errorMessage = responseData.message
+      } else if (responseData?.title) {
+        errorMessage = responseData.title
+      } else if (responseData?.errors) {
+        // Xử lý validation errors
+        const errors = responseData.errors
+        if (Array.isArray(errors)) {
+          errorMessage = errors.join(', ')
+        } else if (typeof errors === 'object') {
+          errorMessage = Object.values(errors).flat().join(', ')
+        }
+      }
+      
+      if (status === 400) {
+        throw new Error(errorMessage || 'Biên bản không hợp lệ hoặc đã được ký')
+      }
+      if (status === 404) {
+        throw new Error(errorMessage || 'Không tìm thấy biên bản')
+      }
+      if (status === 403) {
+        throw new Error(errorMessage || 'Bạn không có quyền ký biên bản này')
+      }
+      
+      throw new Error(errorMessage || 'Không thể ký biên bản')
+    }
+    
+    throw new Error('Lỗi không xác định khi ký biên bản')
+  }
+}
+
+/**
+ * Xác nhận hoàn thành biên bản (Người mua đã xác nhận)
+ * API: PUT /api/Minute/{minuteId}/complete
+ * 
+ * @param minuteId - ID của biên bản cần xác nhận
+ * @returns Promise<void>
+ */
+export const completeMinute = async (minuteId: number): Promise<void> => {
+  try {
+    if (import.meta.env.DEV) {
+      console.log('[completeMinute] Completing minute:', minuteId)
+    }
+
+    await axios.put(
+      `${API_BASE_URL}/Minute/${minuteId}/complete`,
+      {},
+      {
+        headers: getAuthHeaders(),
+      }
+    )
+
+    if (import.meta.env.DEV) {
+      console.log('[completeMinute] ✅ Success')
+    }
+  } catch (error) {
+    console.error('[completeMinute] ❌ Error:', error)
+    
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status
+      const responseData = error.response?.data
+      
+      console.error('[completeMinute] Response status:', status)
+      console.error('[completeMinute] Response data:', responseData)
+      
+      let errorMessage = ''
+      if (typeof responseData === 'string') {
+        errorMessage = responseData
+      } else if (responseData?.message) {
+        errorMessage = responseData.message
+      } else if (responseData?.title) {
+        errorMessage = responseData.title
+      } else if (responseData?.errors) {
+        const errors = responseData.errors
+        if (Array.isArray(errors)) {
+          errorMessage = errors.join(', ')
+        } else if (typeof errors === 'object') {
+          errorMessage = Object.values(errors).flat().join(', ')
+        }
+      }
+      
+      if (status === 400) {
+        throw new Error(errorMessage || 'Biên bản không hợp lệ hoặc chưa đủ điều kiện hoàn thành')
+      }
+      if (status === 404) {
+        throw new Error(errorMessage || 'Không tìm thấy biên bản')
+      }
+      if (status === 403) {
+        throw new Error(errorMessage || 'Bạn không có quyền xác nhận biên bản này')
+      }
+      
+      throw new Error(errorMessage || 'Không thể xác nhận biên bản')
+    }
+    
+    throw new Error('Lỗi không xác định khi xác nhận biên bản')
+  }
+}
+
 export default {
   uploadMinute,
   validatePdfFile,
+  signMinuteSeller,
+  completeMinute,
 }

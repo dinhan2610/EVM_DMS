@@ -26,18 +26,17 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import dayjs from 'dayjs'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
-import DownloadIcon from '@mui/icons-material/Download'
+import DrawIcon from '@mui/icons-material/Draw'
 import UploadIcon from '@mui/icons-material/Upload'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined'
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'
 import PersonIcon from '@mui/icons-material/Person'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useNavigate } from 'react-router-dom'
 import Spinner from '@/components/Spinner'
 import UploadMinuteDialog from '@/components/UploadMinuteDialog'
 
-import { getMinutes, uploadMinute, validatePdfFile, type MinuteRecord } from '@/services/minuteService'
+import { getMinutes, uploadMinute, validatePdfFile, signMinuteSeller, completeMinute, type MinuteRecord } from '@/services/minuteService'
 
 // ============================================================
 // 📋 INTERFACE DEFINITIONS - Cập nhật theo API response
@@ -209,7 +208,6 @@ interface FilterState {
 
 const AdjustmentReplacementRecordManagement = () => {
   usePageTitle('Biên Bản Điều Chỉnh/Thay Thế')
-  const navigate = useNavigate()
   
   // ============================================================
   // 📊 STATE MANAGEMENT
@@ -256,6 +254,13 @@ const AdjustmentReplacementRecordManagement = () => {
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadDescription, setUploadDescription] = useState('')
   const [uploadDialogForRecordOpen, setUploadDialogForRecordOpen] = useState(false)
+  
+  // State for buyer confirmation modal (NM - Người Mua)
+  const [confirmBuyerModal, setConfirmBuyerModal] = useState<{
+    open: boolean
+    minuteId: number | null
+    minuteCode: string
+  }>({ open: false, minuteId: null, minuteCode: '' })
 
   // ============================================================
   // 🔌 API INTEGRATION - TODO: Implement your API calls
@@ -354,12 +359,96 @@ const AdjustmentReplacementRecordManagement = () => {
   }
   
   /**
-   * Xem chi tiết biên bản
+   * Ký số biên bản (Bên bán)
+   * API: POST /api/Minute/sign-seller/{minuteId}
    */
-  const handleViewDetail = (recordId: string) => {
-    // TODO: Navigate to detail page or open modal
-    console.log('View detail:', recordId)
-    navigate(`/adjustment-replacement-records/${recordId}`)
+  const handleSignSeller = async (recordId: string, minuteCode: string) => {
+    try {
+      const minuteId = parseInt(recordId, 10)
+      if (isNaN(minuteId)) {
+        throw new Error('ID biên bản không hợp lệ')
+      }
+      
+      console.log('✍️ Signing minute:', { minuteId, minuteCode })
+      
+      // Gọi API ký số
+      await signMinuteSeller(minuteId)
+      
+      // Hiển thị thông báo thành công
+      setSnackbar({
+        open: true,
+        message: `✅ Đã ký số biên bản ${minuteCode} thành công!`,
+        severity: 'success',
+      })
+      
+      // Reload danh sách để cập nhật trạng thái
+      await loadRecords()
+      
+    } catch (err) {
+      console.error('❌ Sign seller error:', err)
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : 'Không thể ký biên bản',
+        severity: 'error',
+      })
+    }
+  }
+  
+  /**
+   * Mở modal xác nhận người mua (NM)
+   */
+  const handleOpenBuyerConfirm = (recordId: number, minuteCode: string) => {
+    setConfirmBuyerModal({
+      open: true,
+      minuteId: recordId,
+      minuteCode: minuteCode,
+    })
+  }
+  
+  /**
+   * Đóng modal xác nhận người mua
+   */
+  const handleCloseBuyerConfirm = () => {
+    setConfirmBuyerModal({ open: false, minuteId: null, minuteCode: '' })
+  }
+  
+  /**
+   * Xác nhận hoàn thành biên bản (Người mua đã xác nhận)
+   * API: PUT /api/Minute/{minuteId}/complete
+   */
+  const handleConfirmBuyer = async () => {
+    if (!confirmBuyerModal.minuteId) return
+    
+    try {
+      console.log('✅ Completing minute:', { 
+        minuteId: confirmBuyerModal.minuteId, 
+        minuteCode: confirmBuyerModal.minuteCode 
+      })
+      
+      // Gọi API complete
+      await completeMinute(confirmBuyerModal.minuteId)
+      
+      // Đóng modal
+      handleCloseBuyerConfirm()
+      
+      // Hiển thị thông báo thành công
+      setSnackbar({
+        open: true,
+        message: `✅ Đã xác nhận biên bản ${confirmBuyerModal.minuteCode} thành công!`,
+        severity: 'success',
+      })
+      
+      // Reload danh sách để cập nhật trạng thái
+      await loadRecords()
+      
+    } catch (err) {
+      console.error('❌ Complete minute error:', err)
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : 'Không thể xác nhận biên bản',
+        severity: 'error',
+      })
+    }
   }
   
   /**
@@ -397,12 +486,6 @@ const AdjustmentReplacementRecordManagement = () => {
       setTimeout(() => {
         document.body.removeChild(link)
       }, 100)
-      
-      setSnackbar({
-        open: true,
-        message: `✅ Đang tải xuống biên bản ${minuteCode}.pdf`,
-        severity: 'success',
-      })
       
     } catch (err) {
       console.error('❌ Download PDF error:', err)
@@ -590,7 +673,7 @@ const AdjustmentReplacementRecordManagement = () => {
                   textDecoration: 'underline',
                 },
               }}
-              onClick={() => handleViewDetail(record.id.toString())}>
+              onClick={() => handleSignSeller(record.id.toString(), record.minuteCode)}>
               {value || '-'}
             </Typography>
           </Box>
@@ -792,8 +875,13 @@ const AdjustmentReplacementRecordManagement = () => {
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const record = params.row as AdjustmentReplacementRecord
+        
+        // NM chỉ có thể click khi NB đã ký và NM chưa xác nhận
+        const canConfirmBuyer = record.isSellerSigned && !record.isBuyerSigned
+        
         return (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 1 }}>
+            {/* NB - Người Bán */}
             <Tooltip title={record.isSellerSigned ? 'Người bán đã ký' : 'Người bán chưa ký'} arrow>
               <Chip 
                 label="NB" 
@@ -811,19 +899,33 @@ const AdjustmentReplacementRecordManagement = () => {
                 }}
               />
             </Tooltip>
-            <Tooltip title={record.isBuyerSigned ? 'Người mua đã ký' : 'Người mua chưa ký'} arrow>
+            
+            {/* NM - Người Mua (clickable khi NB đã ký) */}
+            <Tooltip 
+              title={
+                record.isBuyerSigned 
+                  ? 'Người mua đã xác nhận' 
+                  : canConfirmBuyer 
+                    ? 'Click để xác nhận người mua' 
+                    : 'Cần người bán ký trước'
+              } 
+              arrow
+            >
               <Chip 
                 label="NM" 
                 size="small"
                 color={record.isBuyerSigned ? 'success' : 'default'}
+                onClick={canConfirmBuyer ? () => handleOpenBuyerConfirm(record.id, record.minuteCode) : undefined}
                 sx={{ 
                   fontWeight: 600,
                   fontSize: '0.7rem',
                   height: 26,
                   minWidth: 40,
                   transition: 'all 0.2s ease',
+                  cursor: canConfirmBuyer ? 'pointer' : 'default',
                   '&:hover': {
-                    transform: 'scale(1.05)',
+                    transform: canConfirmBuyer ? 'scale(1.1)' : 'scale(1.05)',
+                    backgroundColor: canConfirmBuyer ? 'primary.light' : undefined,
                   },
                 }}
               />
@@ -845,22 +947,32 @@ const AdjustmentReplacementRecordManagement = () => {
         
         return (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 0.5 }}>
-            {/* Icon 1: Xem chi tiết */}
-            <Tooltip title="Xem chi tiết" arrow placement="top">
-              <IconButton
-                size="small"
-                onClick={() => handleViewDetail(record.id.toString())}
-                sx={{
-                  color: 'primary.main',
-                  '&:hover': {
-                    backgroundColor: 'primary.lighter',
-                    transform: 'scale(1.1)',
-                  },
-                  transition: 'all 0.2s ease-in-out',
-                }}
-              >
-                <VisibilityOutlinedIcon fontSize="small" />
-              </IconButton>
+            {/* Icon 1: Ký số */}
+            <Tooltip 
+              title={record.isSellerSigned ? 'Đã ký số' : 'Ký số'} 
+              arrow 
+              placement="top"
+            >
+              <span> {/* Wrap in span to show tooltip on disabled button */}
+                <IconButton
+                  size="small"
+                  onClick={() => handleSignSeller(record.id.toString(), record.minuteCode)}
+                  disabled={record.isSellerSigned}
+                  sx={{
+                    color: record.isSellerSigned ? 'success.main' : 'warning.main',
+                    '&:hover': {
+                      backgroundColor: record.isSellerSigned ? 'transparent' : 'warning.lighter',
+                      transform: record.isSellerSigned ? 'none' : 'scale(1.1)',
+                    },
+                    transition: 'all 0.2s ease-in-out',
+                    '&.Mui-disabled': {
+                      color: 'success.main',
+                    },
+                  }}
+                >
+                  <DrawIcon fontSize="small" />
+                </IconButton>
+              </span>
             </Tooltip>
             
             {/* Icon 2: Upload file PDF */}
@@ -881,22 +993,21 @@ const AdjustmentReplacementRecordManagement = () => {
               </IconButton>
             </Tooltip>
             
-            {/* Icon 3: Tải PDF */}
-            <Tooltip title="Tải PDF" arrow placement="top">
+            {/* Icon 3: Xem PDF */}
+            <Tooltip title="Xem PDF" arrow placement="top">
               <IconButton
                 size="small"
                 onClick={() => handleDownloadPDF(record.id.toString(), record.minuteCode)}
                 sx={{
-                  color: 'text.secondary',
+                  color: 'primary.main',
                   '&:hover': {
-                    backgroundColor: 'action.hover',
-                    color: 'error.main',
+                    backgroundColor: 'primary.lighter',
                     transform: 'scale(1.1)',
                   },
                   transition: 'all 0.2s ease-in-out',
                 }}
               >
-                <DownloadIcon fontSize="small" />
+                <VisibilityOutlinedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </Box>
@@ -1267,6 +1378,72 @@ const AdjustmentReplacementRecordManagement = () => {
               startIcon={loading ? <CircularProgress size={20} /> : <UploadIcon />}
             >
               {loading ? 'Đang upload...' : 'Upload'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* ============================================================ */}
+        {/* BUYER CONFIRMATION MODAL (NM - Người Mua) */}
+        {/* ============================================================ */}
+        <Dialog
+          open={confirmBuyerModal.open}
+          onClose={handleCloseBuyerConfirm}
+          maxWidth="xs"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 2,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            },
+          }}
+        >
+          <DialogTitle sx={{ 
+            pb: 1, 
+            fontWeight: 600,
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+          }}>
+            Xác Nhận Người Mua
+          </DialogTitle>
+          <DialogContent sx={{ pt: 3, marginTop: 1}}>
+            <Stack spacing={2}>
+              <Typography variant="body1" color="text.secondary">
+                Bạn đang xác nhận cho biên bản:
+              </Typography>
+              <Box sx={{ 
+                bgcolor: 'primary.lighter', 
+                p: 2, 
+                borderRadius: 1,
+                border: '1px solid',
+                borderColor: 'primary.light',
+              }}>
+                <Typography variant="subtitle1" fontWeight={600} color="primary.main">
+                  {confirmBuyerModal.minuteCode}
+                </Typography>
+              </Box>
+              <Alert severity="warning" sx={{ mt: 1 }}>
+                <Typography variant="body2">
+                  Vui lòng đảm bảo bạn đã <strong>kiểm tra đầy đủ thông tin</strong> trước khi xác nhận.
+                  Hành động này không thể hoàn tác.
+                </Typography>
+              </Alert>
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+            <Button
+              variant="outlined"
+              onClick={handleCloseBuyerConfirm}
+              color="inherit"
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleConfirmBuyer}
+              color="success"
+              startIcon={<PersonIcon />}
+            >
+              Xác Nhận
             </Button>
           </DialogActions>
         </Dialog>
