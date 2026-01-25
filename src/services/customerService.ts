@@ -19,6 +19,16 @@ export interface Customer {
   isActive: boolean;
 }
 
+// Paginated response from backend
+export interface PaginatedResponse<T> {
+  items: T[];
+  pageIndex: number;
+  totalPages: number;
+  totalCount: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
 export interface CreateCustomerRequest {
   saleID: number | null;   // ✅ ID nhân viên sales phụ trách (null = unassigned)
   customerName: string;
@@ -84,39 +94,104 @@ const handleApiError = (error: unknown, context: string): never => {
 // ============================
 
 /**
- * Get all customers
- * GET /api/Customer
+ * Get all customers (fetches ALL pages)
+ * GET /api/Customer?PageNumber=1&PageSize=1000
  * Response: Paginated { items: Customer[], pageIndex, totalPages, totalCount, ... }
+ * 
+ * ⚠️ Note: API uses pagination. This function fetches with large PageSize to get all.
+ * For very large datasets (>1000), consider using getCustomersPaginated() instead.
  */
 export const getAllCustomers = async (): Promise<Customer[]> => {
   try {
-    console.log('[getAllCustomers] Fetching customers...');
+    console.log('[getAllCustomers] Fetching all customers...');
     
-    const response = await axios.get<{
-      items: Customer[];
-      pageIndex: number;
-      totalPages: number;
-      totalCount: number;
-      hasPreviousPage: boolean;
-      hasNextPage: boolean;
-    }>(
+    // First request to get totalCount
+    const firstResponse = await axios.get<PaginatedResponse<Customer>>(
       '/api/Customer',
-      { headers: getAuthHeaders() }
+      { 
+        headers: getAuthHeaders(),
+        params: {
+          PageNumber: 1,
+          PageSize: 1000  // Large page size to get all in one request
+        }
+      }
     );
     
-    // Backend trả về paginated response với items array
-    const customers = response.data.items || [];
+    const { items, totalCount, totalPages } = firstResponse.data;
+    console.log(`[getAllCustomers] Got ${items.length}/${totalCount} customers (${totalPages} pages)`);
     
-    console.log('[getAllCustomers] Success:', customers.length, 'customers');
-    return customers;
+    // If all items fit in first page, return immediately
+    if (items.length >= totalCount || totalPages <= 1) {
+      console.log('[getAllCustomers] All customers fetched in single request');
+      return items;
+    }
+    
+    // Otherwise, fetch remaining pages in parallel
+    const allCustomers = [...items];
+    const remainingPageRequests = [];
+    
+    for (let page = 2; page <= totalPages; page++) {
+      remainingPageRequests.push(
+        axios.get<PaginatedResponse<Customer>>(
+          '/api/Customer',
+          { 
+            headers: getAuthHeaders(),
+            params: {
+              PageNumber: page,
+              PageSize: 1000
+            }
+          }
+        )
+      );
+    }
+    
+    const remainingResponses = await Promise.all(remainingPageRequests);
+    for (const response of remainingResponses) {
+      allCustomers.push(...response.data.items);
+    }
+    
+    console.log('[getAllCustomers] Success:', allCustomers.length, 'total customers');
+    return allCustomers;
   } catch (error) {
     return handleApiError(error, 'getAllCustomers');
   }
 };
 
 /**
+ * Get customers with pagination (for paginated UI)
+ * GET /api/Customer?PageNumber=X&PageSize=Y&SearchTerm=Z
+ */
+export const getCustomersPaginated = async (params: {
+  pageNumber?: number;
+  pageSize?: number;
+  searchTerm?: string;
+}): Promise<PaginatedResponse<Customer>> => {
+  try {
+    const { pageNumber = 1, pageSize = 10, searchTerm } = params;
+    console.log('[getCustomersPaginated] Fetching page', pageNumber, 'size', pageSize);
+    
+    const response = await axios.get<PaginatedResponse<Customer>>(
+      '/api/Customer',
+      { 
+        headers: getAuthHeaders(),
+        params: {
+          PageNumber: pageNumber,
+          PageSize: pageSize,
+          ...(searchTerm && { SearchTerm: searchTerm })
+        }
+      }
+    );
+    
+    console.log('[getCustomersPaginated] Success:', response.data.items.length, 'items, total:', response.data.totalCount);
+    return response.data;
+  } catch (error) {
+    return handleApiError(error, 'getCustomersPaginated');
+  }
+};
+
+/**
  * Get only active customers (isActive = true)
- * GET /api/Customer/active
+ * GET /api/Customer/active?PageNumber=1&PageSize=1000
  * Response: Paginated { items: Customer[], pageIndex, totalPages, totalCount, ... }
  * 
  * ✅ USE THIS for invoice/request creation to prevent inactive customers from being selected
@@ -125,72 +200,115 @@ export const getActiveCustomers = async (): Promise<Customer[]> => {
   try {
     console.log('[getActiveCustomers] Fetching active customers...');
     
-    const response = await axios.get<{
-      items: Customer[];
-      pageIndex: number;
-      totalPages: number;
-      totalCount: number;
-      hasPreviousPage: boolean;
-      hasNextPage: boolean;
-    }>(
+    // First request to get totalCount
+    const firstResponse = await axios.get<PaginatedResponse<Customer>>(
       '/api/Customer/active',
-      { headers: getAuthHeaders() }
+      { 
+        headers: getAuthHeaders(),
+        params: {
+          PageNumber: 1,
+          PageSize: 1000  // Large page size to get all in one request
+        }
+      }
     );
     
-    // Backend trả về paginated response với items array (chỉ customers có isActive = true)
-    const customers = response.data.items || [];
+    const { items, totalCount, totalPages } = firstResponse.data;
+    console.log(`[getActiveCustomers] Got ${items.length}/${totalCount} active customers (${totalPages} pages)`);
     
-    console.log('[getActiveCustomers] Success:', customers.length, 'active customers');
-    return customers;
+    // If all items fit in first page, return immediately
+    if (items.length >= totalCount || totalPages <= 1) {
+      console.log('[getActiveCustomers] All active customers fetched in single request');
+      return items;
+    }
+    
+    // Otherwise, fetch remaining pages in parallel
+    const allCustomers = [...items];
+    const remainingPageRequests = [];
+    
+    for (let page = 2; page <= totalPages; page++) {
+      remainingPageRequests.push(
+        axios.get<PaginatedResponse<Customer>>(
+          '/api/Customer/active',
+          { 
+            headers: getAuthHeaders(),
+            params: {
+              PageNumber: page,
+              PageSize: 1000
+            }
+          }
+        )
+      );
+    }
+    
+    const remainingResponses = await Promise.all(remainingPageRequests);
+    for (const response of remainingResponses) {
+      allCustomers.push(...response.data.items);
+    }
+    
+    console.log('[getActiveCustomers] Success:', allCustomers.length, 'total active customers');
+    return allCustomers;
   } catch (error) {
     return handleApiError(error, 'getActiveCustomers');
   }
 };
 
 /**
- * Paginated response from Customer API
- */
-export interface CustomerPaginatedResponse {
-  items: Customer[];
-  pageIndex: number;
-  totalPages: number;
-  totalCount: number;
-  hasPreviousPage: boolean;
-  hasNextPage: boolean;
-}
-
-/**
  * Get customers by Sale ID (for Sales role)
- * GET /api/Customer/by-sale/{saleId}?pageIndex=1&pageSize=10
+ * GET /api/Customer/by-sale/{saleId}?PageNumber=1&PageSize=1000
  * 
  * @param saleId - ID của nhân viên Sales
- * @param pageIndex - Trang hiện tại (default: 1)
- * @param pageSize - Số records mỗi trang (default: 100 để lấy hết)
- * @returns Danh sách khách hàng của Sales đó
+ * @returns Danh sách tất cả khách hàng của Sales đó
  */
-export const getCustomersBySaleId = async (
-  saleId: number,
-  pageIndex: number = 1,
-  pageSize: number = 100
-): Promise<Customer[]> => {
+export const getCustomersBySaleId = async (saleId: number): Promise<Customer[]> => {
   try {
-    console.log('[getCustomersBySaleId] Fetching customers for saleId:', saleId);
+    console.log('[getCustomersBySaleId] Fetching all customers for saleId:', saleId);
     
-    const response = await axios.get<CustomerPaginatedResponse>(
-      `/api/Customer/by-sale/${saleId}?pageIndex=${pageIndex}&pageSize=${pageSize}`,
-      { headers: getAuthHeaders() }
+    // First request to get totalCount
+    const firstResponse = await axios.get<PaginatedResponse<Customer>>(
+      `/api/Customer/by-sale/${saleId}`,
+      { 
+        headers: getAuthHeaders(),
+        params: {
+          PageNumber: 1,
+          PageSize: 1000
+        }
+      }
     );
     
-    const customers = response.data.items || [];
+    const { items, totalCount, totalPages } = firstResponse.data;
+    console.log(`[getCustomersBySaleId] Got ${items.length}/${totalCount} customers (${totalPages} pages)`);
     
-    console.log('[getCustomersBySaleId] Success:', customers.length, 'customers for saleId:', saleId);
-    console.log('[getCustomersBySaleId] Pagination:', {
-      pageIndex: response.data.pageIndex,
-      totalPages: response.data.totalPages,
-      totalCount: response.data.totalCount,
-    });
+    // If all items fit in first page, return immediately
+    if (items.length >= totalCount || totalPages <= 1) {
+      return items;
+    }
     
-    return customers;
+    // Otherwise, fetch remaining pages in parallel
+    const allCustomers = [...items];
+    const remainingPageRequests = [];
+    
+    for (let page = 2; page <= totalPages; page++) {
+      remainingPageRequests.push(
+        axios.get<PaginatedResponse<Customer>>(
+          `/api/Customer/by-sale/${saleId}`,
+          { 
+            headers: getAuthHeaders(),
+            params: {
+              PageNumber: page,
+              PageSize: 1000
+            }
+          }
+        )
+      );
+    }
+    
+    const remainingResponses = await Promise.all(remainingPageRequests);
+    for (const response of remainingResponses) {
+      allCustomers.push(...response.data.items);
+    }
+    
+    console.log('[getCustomersBySaleId] Success:', allCustomers.length, 'total customers for saleId:', saleId);
+    return allCustomers;
   } catch (error) {
     return handleApiError(error, 'getCustomersBySaleId');
   }
@@ -296,6 +414,27 @@ export const setCustomerInactive = async (id: number): Promise<void> => {
 };
 
 /**
+ * Get customer by ID
+ * GET /api/Customer/{id}
+ * Response: Single customer object
+ */
+export const getCustomerById = async (id: number): Promise<Customer> => {
+  try {
+    console.log('[getCustomerById] Fetching customer:', id);
+    
+    const response = await axios.get<Customer>(
+      `/api/Customer/${id}`,
+      { headers: getAuthHeaders() }
+    );
+    
+    console.log('[getCustomerById] Success:', response.data);
+    return response.data;
+  } catch (error) {
+    return handleApiError(error, `getCustomerById(${id})`);
+  }
+};
+
+/**
  * Find customer by tax code
  * GET /api/Customer/find?q={taxCode}
  * Response: Array with single customer or empty array
@@ -332,8 +471,10 @@ export const findCustomerByTaxCode = async (taxCode: string): Promise<Customer |
 
 const customerService = {
   getAllCustomers,
-  getActiveCustomers,      // ✅ Thêm function mới để lấy active customers
-  getCustomersBySaleId,    // ✅ Thêm function mới
+  getActiveCustomers,
+  getCustomersBySaleId,
+  getCustomersPaginated,   // 🆕 New paginated function
+  getCustomerById,         // 🆕 Get single customer by ID
   createCustomer,
   updateCustomer,
   setCustomerActive,

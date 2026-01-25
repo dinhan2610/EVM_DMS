@@ -820,8 +820,8 @@ const SalesCustomerManagement = () => {
               />
             </Grid>
 
-            {/* Email - Full Width */}
-            <Grid size={{ xs: 12 }}>
+            {/* Email - Chung hàng với Phone */}
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Email"

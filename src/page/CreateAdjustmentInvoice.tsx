@@ -1928,6 +1928,30 @@ const CreateVatInvoice: React.FC = () => {
         return
       }
       
+      // ✅ 4.1. Validate minute code và check xem đã được sử dụng chưa
+      if (minuteCode && minuteCode.trim()) {
+        try {
+          console.log('🔍 [CreateAdjustmentInvoice] Checking if minute code is already used:', minuteCode)
+          const existingInvoice = await invoiceService.getInvoiceByMinuteCode(minuteCode.trim())
+          
+          if (existingInvoice) {
+            setSnackbar({
+              open: true,
+              message: `❌ Biên bản ${minuteCode} đã được sử dụng để tạo hóa đơn số ${existingInvoice.invoiceNumber}.\n\n📌 Mỗi biên bản chỉ được sử dụng 1 lần duy nhất.\n💡 Vui lòng tạo biên bản mới nếu cần điều chỉnh tiếp.`,
+              severity: 'error'
+            })
+            setIsSubmitting(false)
+            return
+          }
+          
+          console.log('✅ [CreateAdjustmentInvoice] Minute code is available for use')
+        } catch (error) {
+          console.error('❌ [CreateAdjustmentInvoice] Error checking minute code:', error)
+          // Nếu không check được, vẫn cho phép tiếp tục (fail-safe)
+          console.warn('⚠️ Skipping minute code validation due to error')
+        }
+      }
+      
       // 5. Validate có ít nhất 1 item có adjustment
       const hasAdjustment = items.some(item => 
         item.adjustmentQuantity !== 0 || item.adjustmentPrice !== 0

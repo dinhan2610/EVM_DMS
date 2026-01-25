@@ -906,22 +906,25 @@ const SaleInvoiceManagement = () => {
       flex: 0.8,
       minWidth: 100,
       sortable: true,
-      align: 'center',
+      align: 'left',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const value = params.value as string
-        if (!value) return <Typography variant="body2" sx={{ color: '#bdbdbd', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>-</Typography>
+        if (!value) return (
+          <Typography variant="body2" sx={{ color: '#bdbdbd', py: 1.5, px: 2 }}>
+            -
+          </Typography>
+        )
         return (
           <Typography
             variant="body2"
             sx={{
               fontWeight: 600,
-              letterSpacing: '0.02em',
+              letterSpacing: '0.03em',
               color: '#1976d2',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
+              py: 1.5,
+              px: 2,
+              fontSize: '0.875rem',
             }}>
             {value}
           </Typography>
@@ -934,8 +937,22 @@ const SaleInvoiceManagement = () => {
       flex: 1.5,
       minWidth: 180,
       sortable: true,
-      align: 'center',
+      align: 'left',
       headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams) => (
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            py: 1.5, 
+            px: 2, 
+            fontWeight: 500,
+            color: '#1a1a1a',
+            fontSize: '0.875rem',
+          }}
+        >
+          {params.value as string}
+        </Typography>
+      ),
     },
     {
       field: 'taxCode',
@@ -943,22 +960,25 @@ const SaleInvoiceManagement = () => {
       flex: 1,
       minWidth: 120,
       sortable: true,
-      align: 'center',
+      align: 'left',
       headerAlign: 'center',
       renderCell: (params: GridRenderCellParams) => {
         const value = params.value as string
-        if (!value) return <Typography variant="body2" sx={{ color: '#bdbdbd', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>-</Typography>
+        if (!value) return (
+          <Typography variant="body2" sx={{ color: '#bdbdbd', py: 1.5, px: 2 }}>
+            -
+          </Typography>
+        )
         return (
           <Typography
             variant="body2"
             sx={{
               fontWeight: 500,
-              letterSpacing: '0.02em',
-              color: '#2c3e50',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
+              letterSpacing: '0.03em',
+              color: '#424242',
+              py: 1.5,
+              px: 2,
+              fontSize: '0.875rem',
             }}>
             {value}
           </Typography>
@@ -975,7 +995,21 @@ const SaleInvoiceManagement = () => {
       align: 'center',
       headerAlign: 'center',
       valueGetter: (value: string) => new Date(value),
-      renderCell: (params: GridRenderCellParams) => dayjs(params.value as Date).format('DD/MM/YYYY'),
+      renderCell: (params: GridRenderCellParams) => (
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            py: 1.5, 
+            px: 2, 
+            fontWeight: 500, 
+            color: '#616161',
+            fontSize: '0.875rem',
+            letterSpacing: '0.01em',
+          }}
+        >
+          {dayjs(params.value as Date).format('DD/MM/YYYY')}
+        </Typography>
+      ),
     },
     {
       field: 'internalStatus',
@@ -1397,12 +1431,24 @@ const SaleInvoiceManagement = () => {
       field: 'amount',
       headerName: 'Tổng tiền',
       flex: 1,
-      minWidth: 120,
+      minWidth: 140,
       sortable: true,
-      align: 'center',
+      align: 'right',
       headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams) =>
-        new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(params.value as number),
+      renderCell: (params: GridRenderCellParams) => (
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            py: 1.5, 
+            px: 2, 
+            fontWeight: 600, 
+            color: '#2e7d32',
+            letterSpacing: '0.01em',
+          }}
+        >
+          {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(params.value as number)}
+        </Typography>
+      ),
     },
     {
       field: 'actions',
@@ -1628,20 +1674,42 @@ const SaleInvoiceManagement = () => {
               onPaginationModelChange={setPaginationModel}
               pageSizeOptions={[5, 10, 25, 50, 100]}
               autoHeight={false}
-              getRowHeight={() => 'auto'}
+              rowHeight={60}
               density="comfortable"
               sx={{
                 border: 'none',
+                fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+                WebkitFontSmoothing: 'antialiased',
+                MozOsxFontSmoothing: 'grayscale',
                 '& .MuiDataGrid-cell': {
                   borderBottom: '1px solid #f0f0f0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  py: 0,
                 },
                 '& .MuiDataGrid-columnHeaders': {
-                  backgroundColor: '#f8f9fa',
+                  backgroundColor: '#f5f7fa',
                   borderBottom: '2px solid #e0e0e0',
                   fontWeight: 600,
+                  fontSize: '0.8125rem',
+                  color: '#37474f',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
                 },
-                '& .MuiDataGrid-row:hover': {
-                  backgroundColor: '#f8f9fa',
+                '& .MuiDataGrid-row': {
+                  '&:nth-of-type(even)': {
+                    backgroundColor: '#fafbfc',
+                  },
+                  '&:hover': {
+                    backgroundColor: '#e3f2fd !important',
+                    transition: 'background-color 0.2s ease',
+                  },
+                  '&.Mui-selected': {
+                    backgroundColor: '#e8f4fd !important',
+                    '&:hover': {
+                      backgroundColor: '#d1e7f7 !important',
+                    },
+                  },
                 },
                 '& .MuiDataGrid-footerContainer': {
                   borderTop: '2px solid #e0e0e0',

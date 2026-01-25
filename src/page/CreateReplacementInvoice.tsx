@@ -1859,6 +1859,30 @@ const CreateVatInvoice: React.FC = () => {
         return
       }
       
+      // ✅ 0.1. Validate minute code và check xem đã được sử dụng chưa
+      if (isReplacementMode && minuteCode && minuteCode.trim()) {
+        try {
+          console.log('🔍 [CreateReplacementInvoice] Checking if minute code is already used:', minuteCode)
+          const existingInvoice = await invoiceService.getInvoiceByMinuteCode(minuteCode.trim())
+          
+          if (existingInvoice) {
+            setSnackbar({
+              open: true,
+              message: `❌ Biên bản ${minuteCode} đã được sử dụng để tạo hóa đơn số ${existingInvoice.invoiceNumber}.\n\n📌 Mỗi biên bản chỉ được sử dụng 1 lần duy nhất.\n💡 Vui lòng tạo biên bản mới nếu cần thay thế tiếp.`,
+              severity: 'error'
+            })
+            setIsSubmitting(false)
+            return
+          }
+          
+          console.log('✅ [CreateReplacementInvoice] Minute code is available for use')
+        } catch (error) {
+          console.error('❌ [CreateReplacementInvoice] Error checking minute code:', error)
+          // Nếu không check được, vẫn cho phép tiếp tục (fail-safe)
+          console.warn('⚠️ Skipping minute code validation due to error')
+        }
+      }
+      
       // ✅ BỎ VALIDATION: Template và thông tin người mua
       // - Template: User có thể đổi mẫu hóa đơn nếu muốn
       // - Thông tin người mua: Đã copy từ hóa đơn gốc, user có thể sửa nếu sai
@@ -3464,7 +3488,7 @@ const CreateVatInvoice: React.FC = () => {
                         color: '#ccc'
                       }
                     }}>
-                    {isSubmitting ? 'Đang lưu...' : '💾 Lưu nháp'}
+                    {isSubmitting ? 'Đang lưu...' : 'Lưu nháp'}
                   </Button>
                   <Button
                     size="small"
@@ -3485,7 +3509,7 @@ const CreateVatInvoice: React.FC = () => {
                         backgroundColor: '#ccc'
                       }
                     }}>
-                    {isSubmitting ? 'Đang xử lý...' : '📤 Gửi duyệt'}
+                    {isSubmitting ? 'Đang xử lý...' : 'Gửi duyệt'}
                   </Button>
                 </>
               )}

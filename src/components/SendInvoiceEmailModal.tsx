@@ -12,16 +12,14 @@ import {
   Button,
   Divider,
   Stack,
-  Chip,
-  Checkbox,
-  FormControlLabel,
+  
 } from '@mui/material'
 import {
   Close as CloseIcon,
-  AttachFile as AttachFileIcon,
+  
   Email as EmailIcon,
   Send as SendIcon,
-  InfoOutlined as InfoIcon,
+  
 } from '@mui/icons-material'
 
 // Props interface
@@ -104,18 +102,7 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
     }
   }, [open, invoiceData])
 
-  // Handlers
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (files) {
-      const newFiles = Array.from(files).filter((file) => file.size <= 5 * 1024 * 1024) // Max 5MB
-      setAttachments([...attachments, ...newFiles])
-    }
-  }
-
-  const handleRemoveFile = (index: number) => {
-    setAttachments(attachments.filter((_, i) => i !== index))
-  }
+  
 
   const handleSend = () => {
     const data: EmailData = {
@@ -394,145 +381,7 @@ const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({
         <Divider sx={{ my: 2.5 }} />
 
         {/* Attachment & Options */}
-        <Stack spacing={1.5}>
-          {/* File Attachment */}
-          <Box>
-            <Button
-              component="label"
-              variant="outlined"
-              size="small"
-              startIcon={<AttachFileIcon sx={{ fontSize: 18 }} />}
-              sx={{
-                textTransform: 'none',
-                fontWeight: 500,
-                borderStyle: 'dashed',
-                color: '#1976d2',
-                borderColor: '#90caf9',
-                fontSize: '0.8125rem',
-                px: 1.5,
-                py: 0.5,
-                '&:hover': {
-                  borderColor: '#1976d2',
-                  backgroundColor: '#e3f2fd',
-                },
-              }}>
-              Đính kèm tệp tin
-              <Typography variant="caption" color="text.secondary" sx={{ ml: 0.75, fontSize: '0.7rem' }}>
-                (Tối đa 5MB)
-              </Typography>
-              <input type="file" hidden multiple onChange={handleFileChange} />
-            </Button>
-
-            {/* Display attached files */}
-            {attachments.length > 0 && (
-              <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: 'wrap' }} useFlexGap>
-                {attachments.map((file, index) => (
-                  <Chip
-                    key={index}
-                    label={file.name}
-                    onDelete={() => handleRemoveFile(index)}
-                    size="small"
-                    sx={{ maxWidth: 200 }}
-                  />
-                ))}
-              </Stack>
-            )}
-
-            {/* ✅ Checkboxes for XML and PDF */}
-            <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #e0e0e0' }}>
-              <Typography variant="body2" sx={{ mb: 1.5, fontWeight: 600, color: '#444', fontSize: '0.8125rem' }}>
-                Tệp đính kèm tự động:
-              </Typography>
-              <Stack spacing={1}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={includePdf}
-                      onChange={(e) => setIncludePdf(e.target.checked)}
-                      size="small"
-                      sx={{
-                        color: '#1976d2',
-                        '&.Mui-checked': { color: '#1976d2' },
-                      }}
-                    />
-                  }
-                  label={
-                    <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>
-                      Gửi kèm file PDF (Hóa đơn)
-                    </Typography>
-                  }
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={includeXml}
-                      onChange={(e) => setIncludeXml(e.target.checked)}
-                      size="small"
-                      sx={{
-                        color: '#1976d2',
-                        '&.Mui-checked': { color: '#1976d2' },
-                      }}
-                    />
-                  }
-                  label={
-                    <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>
-                      Gửi kèm file XML (Dữ liệu hóa đơn điện tử)
-                    </Typography>
-                  }
-                />
-              </Stack>
-            </Box>
-          </Box>
-
-          {/* SMS Setup Notification */}
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-              pt: 0.5,
-            }}>
-            <Box
-              sx={{
-                width: 24,
-                height: 24,
-                borderRadius: '50%',
-                backgroundColor: 'rgba(25, 118, 210, 0.08)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 0 8px rgba(25, 118, 210, 0.2)',
-                animation: 'pulse 2s ease-in-out infinite',
-                '@keyframes pulse': {
-                  '0%, 100%': {
-                    boxShadow: '0 0 8px rgba(25, 118, 210, 0.2)',
-                  },
-                  '50%': {
-                    boxShadow: '0 0 12px rgba(25, 118, 210, 0.4)',
-                  },
-                },
-              }}>
-              <InfoIcon sx={{ color: '#1976d2', fontSize: 13 }} />
-            </Box>
-            <Typography variant="caption" sx={{ color: '#666', fontSize: '0.6rem' }}>
-              Hãy{' '}
-              <Typography
-                component="span"
-                sx={{
-                  color: '#1976d2',
-                  fontWeight: 600,
-                  fontSize: '0.6rem',
-                  cursor: 'pointer',
-                  '&:hover': {
-                    textDecoration: 'underline',
-                  },
-                }}>
-                Thiết lập dịch vụ SMS
-              </Typography>{' '}
-              để có thể gửi tin nhắn cho khách hàng
-            </Typography>
-          </Box>
-        </Stack>
+        
       </DialogContent>
 
       {/* Footer Actions */}

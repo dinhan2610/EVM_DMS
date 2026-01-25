@@ -767,6 +767,7 @@ export interface InvoicePreviewPayload {
   items: {
     productId: number;
     productName: string;
+    productCode?: string;      // ✅ Mã sản phẩm (optional - có thể backend chưa trả)
     unit: string;
     quantity: number;
     amount: number;

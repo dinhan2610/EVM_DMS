@@ -1071,9 +1071,27 @@ const CreateVatInvoice: React.FC = () => {
         setBuyerAddress(invoiceData.address || '')
         setBuyerEmail(invoiceData.contactEmail || '')
         setBuyerPhone(invoiceData.contactPhone || '')
-        // ✅ Autofill contactPerson vào buyerName nếu có
-        if (invoiceData.contactPerson) {
+        
+        // ✅ Autofill contactPerson với fallback logic thông minh
+        if (invoiceData.contactPerson && invoiceData.contactPerson.trim() !== '') {
+          // Nếu API trả contactPerson hợp lệ, dùng luôn
           setBuyerName(invoiceData.contactPerson)
+          console.log('✅ Using contactPerson from prefill API:', invoiceData.contactPerson)
+        } else if (invoiceData.customerID && invoiceData.customerID > 0) {
+          // ✅ Nếu contactPerson trống, fetch từ Customer API
+          try {
+            const customerDetails = await customerService.getCustomerById(invoiceData.customerID)
+            if (customerDetails.contactPerson && customerDetails.contactPerson.trim() !== '') {
+              setBuyerName(customerDetails.contactPerson)
+              console.log('✅ Fetched contactPerson from Customer API:', customerDetails.contactPerson)
+            } else {
+              console.warn('⚠️ Customer data không có contactPerson, để trống để user nhập')
+            }
+          } catch (error) {
+            console.warn(`⚠️ Could not fetch customer details for customerID ${invoiceData.customerID}:`, error)
+          }
+        } else {
+          console.warn('⚠️ Không có contactPerson từ API và không có customerID để fetch')
         }
         // ✅ Map payment method từ English sang Vietnamese
         const mappedPaymentMethod = invoiceData.paymentMethod 
@@ -1108,24 +1126,42 @@ const CreateVatInvoice: React.FC = () => {
         
         // Auto-fill items
         if (invoiceData.items && invoiceData.items.length > 0) {
-          const mappedItems: InvoiceItem[] = invoiceData.items.map((item, index) => ({
-            id: index + 1,
-            stt: index + 1,
-            productId: item.productId,
-            type: 'Hàng hóa, dịch vụ',
-            code: '',
-            name: item.productName || '',
-            unit: item.unit || '',
-            quantity: item.quantity || 0,
-            priceAfterTax: item.amount / (item.quantity || 1), // Đơn giá chưa thuế
-            discountPercent: 0,
-            discountAmount: 0,
-            totalAfterTax: item.amount,
-            vatRate: item.vatAmount > 0 && item.amount > 0 
-              ? Math.round((item.vatAmount / item.amount) * 100)
-              : 0,
-            vatTax: item.vatAmount,
-          }))
+          // ✅ Fetch product details để lấy productCode nếu backend chưa trả
+          const mappedItemsPromises = invoiceData.items.map(async (item, index) => {
+            let productCode = item.productCode || '' // ✅ Ưu tiên lấy từ API response nếu có
+            
+            // ✅ Nếu API không trả productCode nhưng có productId, fetch từ Product API
+            if (!productCode && item.productId) {
+              try {
+                const productDetails = await productService.getProductById(item.productId)
+                productCode = productDetails.code || ''
+                console.log(`✅ Fetched productCode for ${item.productName}:`, productCode)
+              } catch (error) {
+                console.warn(`⚠️ Could not fetch productCode for productId ${item.productId}:`, error)
+              }
+            }
+            
+            return {
+              id: index + 1,
+              stt: index + 1,
+              productId: item.productId,
+              type: 'Hàng hóa, dịch vụ',
+              code: productCode, // ✅ Sử dụng productCode đã fetch được
+              name: item.productName || '',
+              unit: item.unit || '',
+              quantity: item.quantity || 0,
+              priceAfterTax: item.amount / (item.quantity || 1), // Đơn giá chưa thuế
+              discountPercent: 0,
+              discountAmount: 0,
+              totalAfterTax: item.amount,
+              vatRate: item.vatAmount > 0 && item.amount > 0 
+                ? Math.round((item.vatAmount / item.amount) * 100)
+                : 0,
+              vatTax: item.vatAmount,
+            }
+          })
+          
+          const mappedItems = await Promise.all(mappedItemsPromises)
           setItems(mappedItems)
         }
         

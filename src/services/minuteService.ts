@@ -540,6 +540,7 @@ export const getMinutesByInvoiceId = async (invoiceId: number): Promise<MinuteRe
 
 /**
  * Kiểm tra xem hóa đơn có biên bản điều chỉnh đã được 2 bên thỏa thuận hay không
+ * ✅ ENHANCED: Cũng kiểm tra xem biên bản đã được sử dụng để tạo HĐ điều chỉnh chưa
  * 
  * @param invoiceId - ID hóa đơn gốc
  * @returns Promise<{ hasValidMinute: boolean, minute: MinuteRecord | null, reason: string }>
@@ -571,6 +572,23 @@ export const checkAdjustmentMinuteStatus = async (invoiceId: number): Promise<{
     const completedMinute = adjustmentMinutes.find(m => m.status === MINUTE_STATUS.COMPLETE)
     
     if (completedMinute) {
+      // ✅ ENHANCED: Kiểm tra xem biên bản này đã được sử dụng chưa
+      try {
+        const { default: invoiceService } = await import('./invoiceService')
+        const existingInvoice = await invoiceService.getInvoiceByMinuteCode(completedMinute.minuteCode)
+        
+        if (existingInvoice) {
+          return {
+            hasValidMinute: false,
+            minute: completedMinute,
+            reason: `Biên bản ${completedMinute.minuteCode} đã được sử dụng để tạo hóa đơn số ${existingInvoice.invoiceNumber}. Mỗi biên bản chỉ được sử dụng 1 lần.`,
+          }
+        }
+      } catch (error) {
+        console.warn('[checkAdjustmentMinuteStatus] Could not check if minute is used, allowing to proceed:', error)
+        // Fail-safe: Nếu không check được, vẫn cho phép sử dụng
+      }
+      
       return {
         hasValidMinute: true,
         minute: completedMinute,
@@ -604,6 +622,7 @@ export const checkAdjustmentMinuteStatus = async (invoiceId: number): Promise<{
 
 /**
  * Kiểm tra xem hóa đơn có biên bản thay thế đã được 2 bên thỏa thuận hay không
+ * ✅ ENHANCED: Cũng kiểm tra xem biên bản đã được sử dụng để tạo HĐ thay thế chưa
  * 
  * @param invoiceId - ID hóa đơn gốc
  * @returns Promise<{ hasValidMinute: boolean, minute: MinuteRecord | null, reason: string }>
@@ -635,6 +654,23 @@ export const checkReplacementMinuteStatus = async (invoiceId: number): Promise<{
     const completedMinute = replacementMinutes.find(m => m.status === MINUTE_STATUS.COMPLETE)
     
     if (completedMinute) {
+      // ✅ ENHANCED: Kiểm tra xem biên bản này đã được sử dụng chưa
+      try {
+        const { default: invoiceService } = await import('./invoiceService')
+        const existingInvoice = await invoiceService.getInvoiceByMinuteCode(completedMinute.minuteCode)
+        
+        if (existingInvoice) {
+          return {
+            hasValidMinute: false,
+            minute: completedMinute,
+            reason: `Biên bản ${completedMinute.minuteCode} đã được sử dụng để tạo hóa đơn số ${existingInvoice.invoiceNumber}. Mỗi biên bản chỉ được sử dụng 1 lần.`,
+          }
+        }
+      } catch (error) {
+        console.warn('[checkReplacementMinuteStatus] Could not check if minute is used, allowing to proceed:', error)
+        // Fail-safe: Nếu không check được, vẫn cho phép sử dụng
+      }
+      
       return {
         hasValidMinute: true,
         minute: completedMinute,

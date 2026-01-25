@@ -45,6 +45,8 @@ import { checkAdjustmentMinuteStatus, checkReplacementMinuteStatus, type MinuteR
 import { INVOICE_INTERNAL_STATUS } from '@/constants/invoiceStatus'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useSignalR, useSignalRReconnect } from '@/hooks/useSignalR'
+import { useAuthContext } from '@/context/useAuthContext'
+import { USER_ROLES } from '@/constants/roles'
 
 /**
  * 🔧 HELPER: Process HTML preview from backend API
@@ -114,9 +116,13 @@ const processInvoiceHTML = (
 const InvoiceDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user } = useAuthContext()
   
   // Set initial title, will update dynamically when invoice loads
   const { setTitle } = usePageTitle('Chi tiết hóa đơn')
+  
+  // ✅ Role-based access control
+  const isSalesRole = user?.role === USER_ROLES.SALES
   
   // States
   const [invoice, setInvoice] = useState<InvoiceListItem | null>(null)
@@ -513,32 +519,36 @@ const InvoiceDetail: React.FC = () => {
             },
           }}>
           
-          {/* Gửi thông báo sai sót (04) */}
-          <MenuItem
-            onClick={handleOpenTaxErrorModal}
-            sx={{
-              py: 1.5,
-              '&:hover': {
-                backgroundColor: 'error.lighter',
-              },
-            }}>
-            <ListItemIcon>
-              <ErrorOutlineIcon fontSize="small" color="error" />
-            </ListItemIcon>
-            <ListItemText
-              primary="Gửi thông báo sai sót (04)"
-              secondary="Thông báo sai sót đến CQT"
-              primaryTypographyProps={{
-                fontWeight: 500,
-                fontSize: '0.9rem',
-              }}
-              secondaryTypographyProps={{
-                fontSize: '0.75rem',
-              }}
-            />
-          </MenuItem>
-          
-          <Divider />
+          {/* Gửi thông báo sai sót (04) - ❌ Ẩn với Sale role */}
+          {!isSalesRole && (
+            <>
+              <MenuItem
+                onClick={handleOpenTaxErrorModal}
+                sx={{
+                  py: 1.5,
+                  '&:hover': {
+                    backgroundColor: 'error.lighter',
+                  },
+                }}>
+                <ListItemIcon>
+                  <ErrorOutlineIcon fontSize="small" color="error" />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Gửi thông báo sai sót (04)"
+                  secondary="Thông báo sai sót đến CQT"
+                  primaryTypographyProps={{
+                    fontWeight: 500,
+                    fontSize: '0.9rem',
+                  }}
+                  secondaryTypographyProps={{
+                    fontSize: '0.75rem',
+                  }}
+                />
+              </MenuItem>
+              
+              <Divider />
+            </>
+          )}
           
           {/* Lịch sử thao tác */}
           <MenuItem
@@ -598,83 +608,88 @@ const InvoiceDetail: React.FC = () => {
           
           <Divider />
           
-          {/* Tạo HĐ điều chỉnh - Yêu cầu biên bản điều chỉnh đã được 2 bên thỏa thuận */}
-          <MenuItem
-            onClick={() => {
-              if (!canCreateAdjustmentInvoice) return
-              handleCloseActionsMenu()
-              navigate(`/invoices/${invoice.invoiceID}/adjust`)
-            }}
-            disabled={!canCreateAdjustmentInvoice || adjustmentMinuteStatus.loading}
-            sx={{ 
-              py: 1.5,
-              opacity: canCreateAdjustmentInvoice ? 1 : 0.6,
-            }}>
-            <ListItemIcon>
-              <FindReplaceIcon 
-                fontSize="small" 
-                color={canCreateAdjustmentInvoice ? 'warning' : 'disabled'} 
-              />
-            </ListItemIcon>
-            <ListItemText
-              primary="Tạo HĐ điều chỉnh"
-              secondary={
-                adjustmentMinuteStatus.loading 
-                  ? 'Đang kiểm tra biên bản...'
-                  : canCreateAdjustmentInvoice
-                    ? `✅ ${adjustmentMinuteStatus.minute?.minuteCode || 'Biên bản đã thỏa thuận'}`
-                    : `⚠️ ${adjustmentMinuteStatus.reason}`
-              }
-              primaryTypographyProps={{
-                fontSize: '0.9rem',
-                fontWeight: 500,
-                color: canCreateAdjustmentInvoice ? 'text.primary' : 'text.disabled',
-              }}
-              secondaryTypographyProps={{
-                fontSize: '0.7rem',
-                color: canCreateAdjustmentInvoice ? 'success.main' : 'warning.main',
-              }}
-            />
-          </MenuItem>
-          
-          {/* Tạo HĐ thay thế - Yêu cầu biên bản thay thế đã được 2 bên thỏa thuận */}
-          <MenuItem
-            onClick={() => {
-              if (!canCreateReplacementInvoice) return
-              handleCloseActionsMenu()
-              navigate(`/invoices/${invoice.invoiceID}/replace`)
-            }}
-            disabled={!canCreateReplacementInvoice || replacementMinuteStatus.loading}
-            sx={{ 
-              py: 1.5,
-              opacity: canCreateReplacementInvoice ? 1 : 0.6,
-            }}>
-            <ListItemIcon>
-              <RestoreIcon 
-                fontSize="small" 
-                color={canCreateReplacementInvoice ? 'warning' : 'disabled'} 
-              />
-            </ListItemIcon>
-            <ListItemText
-              primary="Tạo HĐ thay thế"
-              secondary={
-                replacementMinuteStatus.loading 
-                  ? 'Đang kiểm tra biên bản...'
-                  : canCreateReplacementInvoice
-                    ? `✅ ${replacementMinuteStatus.minute?.minuteCode || 'Biên bản đã thỏa thuận'}`
-                    : `⚠️ ${replacementMinuteStatus.reason}`
-              }
-              primaryTypographyProps={{
-                fontSize: '0.9rem',
-                fontWeight: 500,
-                color: canCreateReplacementInvoice ? 'text.primary' : 'text.disabled',
-              }}
-              secondaryTypographyProps={{
-                fontSize: '0.7rem',
-                color: canCreateReplacementInvoice ? 'success.main' : 'warning.main',
-              }}
-            />
-          </MenuItem>
+          {/* Tạo HĐ điều chỉnh/thay thế - ❌ Ẩn với Sale role */}
+          {!isSalesRole && (
+            <>
+              {/* Tạo HĐ điều chỉnh - Yêu cầu biên bản điều chỉnh đã được 2 bên thỏa thuận */}
+              <MenuItem
+                onClick={() => {
+                  if (!canCreateAdjustmentInvoice) return
+                  handleCloseActionsMenu()
+                  navigate(`/invoices/${invoice.invoiceID}/adjust`)
+                }}
+                disabled={!canCreateAdjustmentInvoice || adjustmentMinuteStatus.loading}
+                sx={{ 
+                  py: 1.5,
+                  opacity: canCreateAdjustmentInvoice ? 1 : 0.6,
+                }}>
+                <ListItemIcon>
+                  <FindReplaceIcon 
+                    fontSize="small" 
+                    color={canCreateAdjustmentInvoice ? 'warning' : 'disabled'} 
+                  />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Tạo HĐ điều chỉnh"
+                  secondary={
+                    adjustmentMinuteStatus.loading 
+                      ? 'Đang kiểm tra biên bản...'
+                      : canCreateAdjustmentInvoice
+                        ? `✅ ${adjustmentMinuteStatus.minute?.minuteCode || 'Biên bản đã thỏa thuận'}`
+                        : `⚠️ ${adjustmentMinuteStatus.reason}`
+                  }
+                  primaryTypographyProps={{
+                    fontSize: '0.9rem',
+                    fontWeight: 500,
+                    color: canCreateAdjustmentInvoice ? 'text.primary' : 'text.disabled',
+                  }}
+                  secondaryTypographyProps={{
+                    fontSize: '0.7rem',
+                    color: canCreateAdjustmentInvoice ? 'success.main' : 'warning.main',
+                  }}
+                />
+              </MenuItem>
+              
+              {/* Tạo HĐ thay thế - Yêu cầu biên bản thay thế đã được 2 bên thỏa thuận */}
+              <MenuItem
+                onClick={() => {
+                  if (!canCreateReplacementInvoice) return
+                  handleCloseActionsMenu()
+                  navigate(`/invoices/${invoice.invoiceID}/replace`)
+                }}
+                disabled={!canCreateReplacementInvoice || replacementMinuteStatus.loading}
+                sx={{ 
+                  py: 1.5,
+                  opacity: canCreateReplacementInvoice ? 1 : 0.6,
+                }}>
+                <ListItemIcon>
+                  <RestoreIcon 
+                    fontSize="small" 
+                    color={canCreateReplacementInvoice ? 'warning' : 'disabled'} 
+                  />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Tạo HĐ thay thế"
+                  secondary={
+                    replacementMinuteStatus.loading 
+                      ? 'Đang kiểm tra biên bản...'
+                      : canCreateReplacementInvoice
+                        ? `✅ ${replacementMinuteStatus.minute?.minuteCode || 'Biên bản đã thỏa thuận'}`
+                        : `⚠️ ${replacementMinuteStatus.reason}`
+                  }
+                  primaryTypographyProps={{
+                    fontSize: '0.9rem',
+                    fontWeight: 500,
+                    color: canCreateReplacementInvoice ? 'text.primary' : 'text.disabled',
+                  }}
+                  secondaryTypographyProps={{
+                    fontSize: '0.7rem',
+                    color: canCreateReplacementInvoice ? 'success.main' : 'warning.main',
+                  }}
+                />
+              </MenuItem>
+            </>
+          )}
         </Menu>
 
       <Box 
