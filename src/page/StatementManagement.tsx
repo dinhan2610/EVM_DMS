@@ -21,7 +21,6 @@ import {
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid'
 import AddIcon from '@mui/icons-material/Add'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
-import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import HistoryIcon from '@mui/icons-material/History'
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive'
@@ -107,14 +106,13 @@ function convertToLegacyFormat(item: StatementListItem): Statement {
 
 interface StatementActionsMenuProps {
   statement: Statement
-  onExportPDF: (id: string, code: string) => void
   onSendEmail: (id: string, code: string, customerName: string) => void
   onSendDebtReminder: (id: string, code: string, customerName: string) => void
   onUpdatePayment: (id: string) => void
-  onViewHistory: (id: string) => void
+  userRole?: string
 }
 
-const StatementActionsMenu = ({ statement, onExportPDF, onSendEmail, onSendDebtReminder, onUpdatePayment, onViewHistory }: StatementActionsMenuProps) => {
+const StatementActionsMenu = ({ statement, onSendEmail, onSendDebtReminder, onUpdatePayment, userRole }: StatementActionsMenuProps) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const open = Boolean(anchorEl)
 
@@ -126,25 +124,7 @@ const StatementActionsMenu = ({ statement, onExportPDF, onSendEmail, onSendDebtR
     setAnchorEl(null)
   }
 
-  const menuItems = [
-    {
-      label: 'Xem chi tiết',
-      icon: <VisibilityOutlinedIcon fontSize="small" />,
-      action: () => {
-        console.log('Xem chi tiết:', statement.id)
-        handleClose()
-      },
-      color: 'primary.main',
-    },
-    {
-      label: 'Xuất PDF',
-      icon: <PictureAsPdfIcon fontSize="small" />,
-      action: () => {
-        onExportPDF(statement.id, statement.code)
-        handleClose()
-      },
-      color: 'error.main',
-    },
+  const allMenuItems = [
     {
       label: 'Cập nhật thanh toán',
       icon: <PaymentIcon fontSize="small" />,
@@ -153,15 +133,7 @@ const StatementActionsMenu = ({ statement, onExportPDF, onSendEmail, onSendDebtR
         handleClose()
       },
       color: '#2e7d32',
-    },
-    {
-      label: 'Lịch sử thanh toán',
-      icon: <HistoryIcon fontSize="small" />,
-      action: () => {
-        onViewHistory(statement.id)
-        handleClose()
-      },
-      color: '#9c27b0',
+      hideForSales: true, // ❌ Hide for Sales role
     },
     {
       label: 'Gửi email',
@@ -182,6 +154,14 @@ const StatementActionsMenu = ({ statement, onExportPDF, onSendEmail, onSendDebtR
       color: '#ff6f00',
     },
   ]
+
+  // Filter menu items based on user role
+  const menuItems = allMenuItems.filter(item => {
+    if (userRole === USER_ROLES.SALES && item.hideForSales) {
+      return false // Hide payment update for Sales
+    }
+    return true
+  })
 
   return (
     <>
@@ -887,23 +867,61 @@ const StatementManagement = () => {
     {
       field: 'actions',
       headerName: 'Thao tác',
-      width: 100,
+      width: 150,
       sortable: false,
       align: 'center',
       headerAlign: 'center',
       disableColumnMenu: true,
       renderCell: (params: GridRenderCellParams<Statement>) => (
-        <StatementActionsMenu 
-          statement={params.row} 
-          onExportPDF={handleExportPDF}
-          onSendEmail={handleSendEmail}
-          onSendDebtReminder={handleSendDebtReminder}
-          onUpdatePayment={(id) => {
-            const statement = statements.find(s => s.id === id)
-            if (statement) handleOpenPaymentModal(statement)
-          }}
-          onViewHistory={handleViewHistory}
-        />
+        <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center', alignItems: 'center' }}>
+          {/* PDF Export Button */}
+          <Tooltip title="Xuất PDF" arrow placement="top">
+            <IconButton
+              size="small"
+              onClick={() => handleExportPDF(params.row.id, params.row.code)}
+              sx={{
+                color: '#d32f2f',
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  backgroundColor: 'rgba(211, 47, 47, 0.08)',
+                  transform: 'scale(1.15)',
+                },
+              }}
+            >
+              <PictureAsPdfIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          
+          {/* Payment History Button */}
+          <Tooltip title="Lịch sử thanh toán" arrow placement="top">
+            <IconButton
+              size="small"
+              onClick={() => handleViewHistory(params.row.id)}
+              sx={{
+                color: '#9c27b0',
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  backgroundColor: 'rgba(156, 39, 176, 0.08)',
+                  transform: 'scale(1.15)',
+                },
+              }}
+            >
+              <HistoryIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          
+          {/* More Actions Menu */}
+          <StatementActionsMenu 
+            statement={params.row} 
+            onSendEmail={handleSendEmail}
+            onSendDebtReminder={handleSendDebtReminder}
+            onUpdatePayment={(id) => {
+              const statement = statements.find(s => s.id === id)
+              if (statement) handleOpenPaymentModal(statement)
+            }}
+            userRole={user?.role}
+          />
+        </Box>
       ),
     },
   ]
