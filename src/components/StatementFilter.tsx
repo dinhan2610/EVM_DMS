@@ -46,11 +46,12 @@ interface StatementFilterProps {
 
 // ==================== DATA ====================
 
-// Trạng thái Bảng kê (7 statuses)
+// Trạng thái Bảng kê (8 statuses)
 const allStatuses = [
   { value: STATEMENT_STATUS.DRAFT, label: STATEMENT_STATUS_LABELS[STATEMENT_STATUS.DRAFT] },
   { value: STATEMENT_STATUS.PUBLISHED, label: STATEMENT_STATUS_LABELS[STATEMENT_STATUS.PUBLISHED] },
   { value: STATEMENT_STATUS.SENT, label: STATEMENT_STATUS_LABELS[STATEMENT_STATUS.SENT] },
+  { value: STATEMENT_STATUS.WAIT_FOR_PAYMENT, label: STATEMENT_STATUS_LABELS[STATEMENT_STATUS.WAIT_FOR_PAYMENT] },
   { value: STATEMENT_STATUS.PARTIALLY_PAID, label: STATEMENT_STATUS_LABELS[STATEMENT_STATUS.PARTIALLY_PAID] },
   { value: STATEMENT_STATUS.PAID, label: STATEMENT_STATUS_LABELS[STATEMENT_STATUS.PAID] },
   { value: STATEMENT_STATUS.CANCELLED, label: STATEMENT_STATUS_LABELS[STATEMENT_STATUS.CANCELLED] },
@@ -59,13 +60,7 @@ const allStatuses = [
 
 // ==================== MAIN COMPONENT ====================
 
-const StatementFilter: React.FC<StatementFilterProps> = ({
-  onFilterChange,
-  onReset,
-  totalResults = 0,
-  filteredResults = 0,
-  actionButton,
-}) => {
+const StatementFilter: React.FC<StatementFilterProps> = ({ onFilterChange, onReset, totalResults = 0, filteredResults = 0, actionButton }) => {
   // State
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [customers, setCustomers] = useState<Array<{ label: string; value: string }>>([])
@@ -278,8 +273,8 @@ const StatementFilter: React.FC<StatementFilterProps> = ({
           {/* 2. Nút Lọc */}
           <Tooltip title={advancedOpen ? 'Thu gọn bộ lọc' : 'Mở rộng bộ lọc'} arrow>
             <Box sx={{ flex: '0 0 auto', minWidth: 120 }}>
-              <Badge 
-                badgeContent={getActiveFilterCount()} 
+              <Badge
+                badgeContent={getActiveFilterCount()}
                 color="primary"
                 invisible={getActiveFilterCount() === 0}
                 sx={{
@@ -308,9 +303,7 @@ const StatementFilter: React.FC<StatementFilterProps> = ({
                     transition: 'all 0.3s ease',
                     '&:hover': {
                       transform: 'translateY(-1px)',
-                      boxShadow: advancedOpen
-                        ? '0 4px 16px rgba(25, 118, 210, 0.4)'
-                        : '0 2px 8px rgba(25, 118, 210, 0.2)',
+                      boxShadow: advancedOpen ? '0 4px 16px rgba(25, 118, 210, 0.4)' : '0 2px 8px rgba(25, 118, 210, 0.2)',
                     },
                   }}>
                   Lọc
@@ -320,11 +313,7 @@ const StatementFilter: React.FC<StatementFilterProps> = ({
           </Tooltip>
 
           {/* 3. Nút Action (ví dụ: Tạo Bảng kê mới) */}
-          {actionButton && (
-            <Box sx={{ flex: '0 0 auto', ml: 'auto' }}>
-              {actionButton}
-            </Box>
-          )}
+          {actionButton && <Box sx={{ flex: '0 0 auto', ml: 'auto' }}>{actionButton}</Box>}
         </Box>
 
         {/* === BỘ LỌC NÂNG CAO === */}
@@ -336,7 +325,7 @@ const StatementFilter: React.FC<StatementFilterProps> = ({
             </Box>
 
             {/* Row: 3 filters chính */}
-           
+
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
               {/* Kỳ cước */}
               <Box sx={{ flex: '1 1 30%', minWidth: 200 }}>
@@ -400,15 +389,11 @@ const StatementFilter: React.FC<StatementFilterProps> = ({
                         backgroundColor: '#fff',
                         boxShadow: '0 0 0 2px rgba(25, 118, 210, 0.1)',
                       },
-                    }}
-                  >
+                    }}>
                     {/* Option "Chọn tất cả" */}
                     <MenuItem value="ALL">
                       <Checkbox checked={filters.status.includes('ALL')} />
-                      <ListItemText
-                        primary="Chọn tất cả"
-                        sx={{ fontWeight: 600, color: '#1976d2' }}
-                      />
+                      <ListItemText primary="Chọn tất cả" sx={{ fontWeight: 600, color: '#1976d2' }} />
                     </MenuItem>
                     <Divider />
                     {allStatuses.map((status) => (

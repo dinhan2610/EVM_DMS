@@ -57,30 +57,24 @@ import { USER_ROLES } from '@/constants/roles'
  * @param invoiceData - Invoice data from frontend (for injection)
  * @returns Processed HTML with injections and boolean indicating if buyer name was missing
  */
-const processInvoiceHTML = (
-  html: string, 
-  invoiceData: InvoiceListItem
-): { processedHtml: string; hasMissingBuyerName: boolean } => {
+const processInvoiceHTML = (html: string, invoiceData: InvoiceListItem): { processedHtml: string; hasMissingBuyerName: boolean } => {
   let processedHtml = html
-  
+
   // 1️⃣ DETECT MISSING BUYER NAME trong HTML
   // Pattern: <span ...>Họ tên người mua hàng...</span><span ...></span> (empty second span)
   const buyerNamePattern = /Họ tên người mua hàng[^<]*<\/span>\s*<span[^>]*>\s*<\/span>/i
   const hasMissingBuyerName = buyerNamePattern.test(html)
-  
+
   if (hasMissingBuyerName) {
     console.warn('⚠️ [processInvoiceHTML] Detected missing buyer name in HTML')
-    
+
     // Inject buyer name from contactPerson field if available
     if (invoiceData.contactPerson && invoiceData.contactPerson.trim()) {
-      processedHtml = processedHtml.replace(
-        /(Họ tên người mua hàng[^<]*<\/span>\s*<span[^>]*>)\s*(<\/span>)/i,
-        `$1${invoiceData.contactPerson}$2`
-      )
+      processedHtml = processedHtml.replace(/(Họ tên người mua hàng[^<]*<\/span>\s*<span[^>]*>)\s*(<\/span>)/i, `$1${invoiceData.contactPerson}$2`)
       console.log(`✅ [processInvoiceHTML] Injected buyer name: "${invoiceData.contactPerson}"`)
     }
   }
-  
+
   // 2️⃣ CSS OVERRIDE for page width and styling
   const cssOverride = `
     <style>
@@ -95,7 +89,7 @@ const processInvoiceHTML = (
       }
     </style>
   `
-  
+
   // 3️⃣ INSERT CSS before </head> tag
   if (processedHtml.includes('</head>')) {
     processedHtml = processedHtml.replace('</head>', `${cssOverride}</head>`)
@@ -104,12 +98,12 @@ const processInvoiceHTML = (
   } else {
     processedHtml += cssOverride
   }
-  
+
   // 4️⃣ VALIDATION: Check if HTML is valid
   if (!processedHtml.includes('<html') && !processedHtml.includes('<body')) {
     throw new Error('Invalid HTML structure from backend')
   }
-  
+
   return { processedHtml, hasMissingBuyerName }
 }
 
@@ -117,40 +111,40 @@ const InvoiceDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuthContext()
-  
+
   // Set initial title, will update dynamically when invoice loads
   const { setTitle } = usePageTitle('Chi tiết hóa đơn')
-  
+
   // ✅ Role-based access control
   const isSalesRole = user?.role === USER_ROLES.SALES
-  
+
   // States
   const [invoice, setInvoice] = useState<InvoiceListItem | null>(null)
   const [company, setCompany] = useState<Company | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
-  
+
   // HTML Preview states
   const [htmlPreview, setHtmlPreview] = useState<string>('')
   const [loadingHtml, setLoadingHtml] = useState(false)
   const [htmlMissingBuyerName, setHtmlMissingBuyerName] = useState(false)
-  
+
   // State for Actions menu
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const openActionsMenu = Boolean(anchorEl)
-  
+
   // State for Tax Error Notification Modal
   const [showTaxErrorModal, setShowTaxErrorModal] = useState(false)
-  
+
   // State for Invoice History Modal
   const [showHistoryModal, setShowHistoryModal] = useState(false)
   const [historyData, setHistoryData] = useState<InvoiceHistory[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
-  
+
   // State for Create Minute Dialog
   const [showCreateMinuteDialog, setShowCreateMinuteDialog] = useState(false)
-  
+
   // ✅ State for Minute Status Check (Điều chỉnh/Thay thế)
   const [adjustmentMinuteStatus, setAdjustmentMinuteStatus] = useState<{
     hasValidMinute: boolean
@@ -158,14 +152,14 @@ const InvoiceDetail: React.FC = () => {
     reason: string
     loading: boolean
   }>({ hasValidMinute: false, minute: null, reason: '', loading: true })
-  
+
   const [replacementMinuteStatus, setReplacementMinuteStatus] = useState<{
     hasValidMinute: boolean
     minute: MinuteRecord | null
     reason: string
     loading: boolean
   }>({ hasValidMinute: false, minute: null, reason: '', loading: true })
-  
+
   // ✅ NEW: State for child invoice checks (Business Rules)
   const [hasAdjustmentChildState, setHasAdjustmentChildState] = useState(false)
   const [hasReplacementChildState, setHasReplacementChildState] = useState(false)
@@ -175,20 +169,17 @@ const InvoiceDetail: React.FC = () => {
   const isReplacementInvoice = invoice?.invoiceType === INVOICE_TYPE.REPLACEMENT
   const isIssued = invoice?.invoiceStatusID === INVOICE_INTERNAL_STATUS.ISSUED
   const isAdjusted = invoice?.invoiceStatusID === INVOICE_INTERNAL_STATUS.ADJUSTED
-  
+
   // ✅ Kiểm tra điều kiện được tạo HĐ điều chỉnh/thay thế theo Business Rules Table
   // Logic tạo HĐ điều chỉnh: (ISSUED || ADJUSTED) && !hasReplacementChild && hasValidMinute
-  const canCreateAdjustmentInvoice = 
-    (isIssued || isAdjusted) && 
-    !hasReplacementChildState && 
-    adjustmentMinuteStatus.hasValidMinute
-  
+  const canCreateAdjustmentInvoice = (isIssued || isAdjusted) && !hasReplacementChildState && adjustmentMinuteStatus.hasValidMinute
+
   // Logic tạo HĐ thay thế: (ISSUED || ADJUSTED) && !isAdjustment && !hasAdjustmentChild && !hasReplacementChild && hasValidMinute
-  const canCreateReplacementInvoice = 
-    (isIssued || isAdjusted) && 
-    !isAdjustmentInvoice && 
-    !hasAdjustmentChildState && 
-    !hasReplacementChildState && 
+  const canCreateReplacementInvoice =
+    (isIssued || isAdjusted) &&
+    !isAdjustmentInvoice &&
+    !hasAdjustmentChildState &&
+    !hasReplacementChildState &&
     replacementMinuteStatus.hasValidMinute
 
   // Fetch invoice detail (extracted for reusability in SignalR)
@@ -199,18 +190,18 @@ const InvoiceDetail: React.FC = () => {
       setLoading(false)
       return
     }
-    
+
     const invoiceId = Number(id)
     if (isNaN(invoiceId) || invoiceId <= 0) {
       setError(`ID hóa đơn không hợp lệ: ${id}`)
       setLoading(false)
       return
     }
-    
+
     try {
       setLoading(true)
       setError(null)
-      
+
       // Load invoice data
       const invoiceData = await invoiceService.getInvoiceById(invoiceId)
       console.log('🔍 Invoice data loaded:', {
@@ -218,41 +209,40 @@ const InvoiceDetail: React.FC = () => {
         invoiceNumber: invoiceData.invoiceNumber,
         invoiceStatusID: invoiceData.invoiceStatusID,
         taxAuthorityCode: invoiceData.taxAuthorityCode,
-        notes: invoiceData.notes
+        notes: invoiceData.notes,
       })
       console.log('📝 Full invoice data:', JSON.stringify(invoiceData, null, 2))
       setInvoice(invoiceData)
-      
+
       // Load company data for invoice info display
       const companyData = await companyService.getDefaultCompany()
       setCompany(companyData)
-      
+
       // ✨ ALWAYS try to load HTML preview from backend API
       // Backend có thể generate HTML cho BẤT KỲ invoice nào (draft hoặc issued)
       // API: GET /api/Invoice/preview-by-invoice/{id}
       // Nếu API lỗi → Fallback to error message
-      
+
       console.log('🎯 [InvoiceDetail] Loading HTML preview from backend for invoice:', {
         invoiceID: invoiceData.invoiceID,
         invoiceNumber: invoiceData.invoiceNumber,
-        invoiceType: invoiceData.invoiceType
+        invoiceType: invoiceData.invoiceType,
       })
-      
+
       setLoadingHtml(true)
       try {
         const rawHtml = await invoiceService.getInvoiceHTML(Number(id))
-        
+
         // ==================== HTML PROCESSING & OPTIMIZATION ====================
         const { processedHtml, hasMissingBuyerName } = processInvoiceHTML(rawHtml, invoiceData)
-        
+
         setHtmlPreview(processedHtml)
         setHtmlMissingBuyerName(hasMissingBuyerName)
-        
+
         // Logging
         const typeLabel = invoiceData.invoiceType > 1 ? ` (Type: ${invoiceData.invoiceType})` : ''
         const injectedLabel = hasMissingBuyerName && invoiceData.contactPerson ? ' [✓ Buyer name injected]' : ''
         console.log(`✅ [InvoiceDetail] HTML preview processed${typeLabel}${injectedLabel} (width: 209mm)`)
-        
       } catch (htmlError) {
         console.error('⚠️ [InvoiceDetail] HTML preview failed:', htmlError)
         setError('Không thể tải HTML preview từ backend. Vui lòng thử lại sau.')
@@ -260,7 +250,6 @@ const InvoiceDetail: React.FC = () => {
       } finally {
         setLoadingHtml(false)
       }
-      
     } catch (err) {
       console.error('Failed to load invoice:', err)
       setError(err instanceof Error ? err.message : 'Không thể tải chi tiết hóa đơn')
@@ -272,43 +261,40 @@ const InvoiceDetail: React.FC = () => {
   useEffect(() => {
     fetchInvoiceDetail()
   }, [fetchInvoiceDetail])
-  
+
   // ✅ Check Minute Status khi invoice load xong
   useEffect(() => {
     const checkMinuteStatus = async () => {
       if (!invoice?.invoiceID) return
-      
+
       console.log('🔍 [InvoiceDetail] Checking minute status for invoice:', invoice.invoiceID)
-      
+
       // Check biên bản điều chỉnh
-      setAdjustmentMinuteStatus(prev => ({ ...prev, loading: true }))
+      setAdjustmentMinuteStatus((prev) => ({ ...prev, loading: true }))
       const adjustmentResult = await checkAdjustmentMinuteStatus(invoice.invoiceID)
       setAdjustmentMinuteStatus({
         ...adjustmentResult,
         loading: false,
       })
       console.log('📋 [InvoiceDetail] Adjustment minute status:', adjustmentResult)
-      
+
       // Check biên bản thay thế
-      setReplacementMinuteStatus(prev => ({ ...prev, loading: true }))
+      setReplacementMinuteStatus((prev) => ({ ...prev, loading: true }))
       const replacementResult = await checkReplacementMinuteStatus(invoice.invoiceID)
       setReplacementMinuteStatus({
         ...replacementResult,
         loading: false,
       })
       console.log('📋 [InvoiceDetail] Replacement minute status:', replacementResult)
-      
+
       // ✅ Check child invoice existence (Business Rules)
       console.log('🔍 [InvoiceDetail] Checking child invoice existence...')
-      const [hasAdjChild, hasReplChild] = await Promise.all([
-        checkHasAdjustmentChild(invoice.invoiceID),
-        checkHasReplacementChild(invoice.invoiceID)
-      ])
+      const [hasAdjChild, hasReplChild] = await Promise.all([checkHasAdjustmentChild(invoice.invoiceID), checkHasReplacementChild(invoice.invoiceID)])
       setHasAdjustmentChildState(hasAdjChild)
       setHasReplacementChildState(hasReplChild)
       console.log('👶 [InvoiceDetail] Child invoice status:', { hasAdjChild, hasReplChild })
     }
-    
+
     checkMinuteStatus()
   }, [invoice?.invoiceID])
 
@@ -316,13 +302,13 @@ const InvoiceDetail: React.FC = () => {
   useSignalR({
     onInvoiceChanged: (payload) => {
       console.log('📨 [InvoiceDetail] InvoiceChanged event:', payload)
-      
+
       // Chỉ refresh nếu đúng invoice đang xem
       if (payload.invoiceId.toString() === id) {
         console.log('🔄 [InvoiceDetail] Current invoice changed, reloading data...')
         fetchInvoiceDetail() // ✅ Chỉ reload data, không reload toàn trang
       }
-    }
+    },
   })
 
   // Resync data khi SignalR reconnect
@@ -386,7 +372,7 @@ const InvoiceDetail: React.FC = () => {
     handleCloseActionsMenu()
     setShowHistoryModal(true)
     setLoadingHistory(true)
-    
+
     try {
       if (invoice) {
         const history = await invoiceHistoryService.getInvoiceHistory(invoice.invoiceID)
@@ -409,7 +395,7 @@ const InvoiceDetail: React.FC = () => {
     console.log('📋 [InvoiceDetail] Tạo Biên Bản ĐC/TT cho invoice:', invoice?.invoiceID)
     setShowCreateMinuteDialog(true)
   }
-  
+
   // Handle Create Minute Success
   const handleCreateMinuteSuccess = () => {
     console.log('✅ [InvoiceDetail] Biên bản đã được tạo thành công!')
@@ -434,32 +420,29 @@ const InvoiceDetail: React.FC = () => {
     return (
       <Box sx={{ p: 3 }}>
         <Alert severity="error">{error || 'Không tìm thấy hóa đơn'}</Alert>
-        <Button onClick={handleBack} sx={{ mt: 2 }}>Quay lại</Button>
+        <Button onClick={handleBack} sx={{ mt: 2 }}>
+          Quay lại
+        </Button>
       </Box>
     )
   }
 
   return (
     <>
-      <Box 
-        sx={{ 
+      <Box
+        sx={{
           p: 3,
           width: '100%',
           maxWidth: '100vw',
           overflow: 'hidden',
           boxSizing: 'border-box',
-        }}
-      >
+        }}>
         {/* Button Row */}
         <Stack direction="row" justifyContent="flex-end" spacing={1.5} sx={{ mb: 2 }}>
-          <Button
-            variant="outlined"
-            startIcon={<ArrowBack />}
-            onClick={handleBack}
-            sx={{ textTransform: 'none' }}>
+          <Button variant="outlined" startIcon={<ArrowBack />} onClick={handleBack} sx={{ textTransform: 'none' }}>
             Quay lại
           </Button>
-          
+
           <Button
             variant="outlined"
             startIcon={<Download />}
@@ -473,22 +456,14 @@ const InvoiceDetail: React.FC = () => {
             sx={{ textTransform: 'none' }}>
             Tải PDF
           </Button>
-          
-          <Button
-            variant="contained"
-            startIcon={<Print />}
-            onClick={handlePrint}
-            sx={{ textTransform: 'none' }}>
+
+          <Button variant="contained" startIcon={<Print />} onClick={handlePrint} sx={{ textTransform: 'none' }}>
             In hóa đơn
           </Button>
-          
+
           {/* Actions Menu */}
           {invoice.invoiceNumber > 0 && (
-            <Button
-              variant="outlined"
-              endIcon={<MoreVertIcon />}
-              onClick={handleOpenActionsMenu}
-              sx={{ textTransform: 'none', minWidth: 120 }}>
+            <Button variant="outlined" endIcon={<MoreVertIcon />} onClick={handleOpenActionsMenu} sx={{ textTransform: 'none', minWidth: 120 }}>
               Thao tác
             </Button>
           )}
@@ -503,12 +478,10 @@ const InvoiceDetail: React.FC = () => {
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   {isReplacementInvoice ? 'Lý do thay thế:' : 'Lý do điều chỉnh:'}
                 </Typography>
-                <Typography variant="body2">
-                  {invoice.adjustmentReason}
-                </Typography>
+                <Typography variant="body2">{invoice.adjustmentReason}</Typography>
               </Alert>
             )}
-            
+
             {/* ✅ Display rejection reason if invoice is REJECTED */}
             {invoice.invoiceStatusID === INVOICE_INTERNAL_STATUS.REJECTED && invoice.notes && invoice.notes.includes('Từ chối:') && (
               <Alert severity="error" icon={<ErrorIcon />} sx={{ mt: 2 }}>
@@ -546,7 +519,6 @@ const InvoiceDetail: React.FC = () => {
               borderRadius: 1.5,
             },
           }}>
-          
           {/* Gửi thông báo sai sót (04) - ❌ Ẩn với Sale role */}
           {!isSalesRole && (
             <>
@@ -573,11 +545,11 @@ const InvoiceDetail: React.FC = () => {
                   }}
                 />
               </MenuItem>
-              
+
               <Divider />
             </>
           )}
-          
+
           {/* Lịch sử thao tác */}
           <MenuItem
             onClick={handleOpenHistoryModal}
@@ -602,9 +574,9 @@ const InvoiceDetail: React.FC = () => {
               }}
             />
           </MenuItem>
-          
+
           <Divider />
-          
+
           {/* Tạo Biên Bản ĐC/TT */}
           <MenuItem
             onClick={handleCreateAdjustmentReport}
@@ -615,10 +587,7 @@ const InvoiceDetail: React.FC = () => {
               },
             }}>
             <ListItemIcon>
-              <DescriptionIcon 
-                fontSize="small" 
-                color="primary" 
-              />
+              <DescriptionIcon fontSize="small" color="primary" />
             </ListItemIcon>
             <ListItemText
               primary="Tạo Biên Bản ĐC/TT"
@@ -633,9 +602,9 @@ const InvoiceDetail: React.FC = () => {
               }}
             />
           </MenuItem>
-          
+
           <Divider />
-          
+
           {/* Tạo HĐ điều chỉnh/thay thế - ❌ Ẩn với Sale role */}
           {!isSalesRole && (
             <>
@@ -647,20 +616,17 @@ const InvoiceDetail: React.FC = () => {
                   navigate(`/invoices/${invoice.invoiceID}/adjust`)
                 }}
                 disabled={!canCreateAdjustmentInvoice || adjustmentMinuteStatus.loading}
-                sx={{ 
+                sx={{
                   py: 1.5,
                   opacity: canCreateAdjustmentInvoice ? 1 : 0.6,
                 }}>
                 <ListItemIcon>
-                  <FindReplaceIcon 
-                    fontSize="small" 
-                    color={canCreateAdjustmentInvoice ? 'warning' : 'disabled'} 
-                  />
+                  <FindReplaceIcon fontSize="small" color={canCreateAdjustmentInvoice ? 'warning' : 'disabled'} />
                 </ListItemIcon>
                 <ListItemText
                   primary="Tạo HĐ điều chỉnh"
                   secondary={
-                    adjustmentMinuteStatus.loading 
+                    adjustmentMinuteStatus.loading
                       ? 'Đang kiểm tra biên bản...'
                       : canCreateAdjustmentInvoice
                         ? `✅ ${adjustmentMinuteStatus.minute?.minuteCode || 'Biên bản đã thỏa thuận'}`
@@ -677,7 +643,7 @@ const InvoiceDetail: React.FC = () => {
                   }}
                 />
               </MenuItem>
-              
+
               {/* Tạo HĐ thay thế - Yêu cầu biên bản thay thế đã được 2 bên thỏa thuận */}
               <MenuItem
                 onClick={() => {
@@ -686,20 +652,17 @@ const InvoiceDetail: React.FC = () => {
                   navigate(`/invoices/${invoice.invoiceID}/replace`)
                 }}
                 disabled={!canCreateReplacementInvoice || replacementMinuteStatus.loading}
-                sx={{ 
+                sx={{
                   py: 1.5,
                   opacity: canCreateReplacementInvoice ? 1 : 0.6,
                 }}>
                 <ListItemIcon>
-                  <RestoreIcon 
-                    fontSize="small" 
-                    color={canCreateReplacementInvoice ? 'warning' : 'disabled'} 
-                  />
+                  <RestoreIcon fontSize="small" color={canCreateReplacementInvoice ? 'warning' : 'disabled'} />
                 </ListItemIcon>
                 <ListItemText
                   primary="Tạo HĐ thay thế"
                   secondary={
-                    replacementMinuteStatus.loading 
+                    replacementMinuteStatus.loading
                       ? 'Đang kiểm tra biên bản...'
                       : canCreateReplacementInvoice
                         ? `✅ ${replacementMinuteStatus.minute?.minuteCode || 'Biên bản đã thỏa thuận'}`
@@ -720,94 +683,87 @@ const InvoiceDetail: React.FC = () => {
           )}
         </Menu>
 
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          justifyContent: 'center',
-          width: '100%',
-          overflow: 'hidden', // Prevent horizontal scroll
-        }}
-      >
-        <Box 
-          sx={{ 
-            maxWidth: '21cm',
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
             width: '100%',
-            '@media (max-width: 900px)': {
-              maxWidth: '100%',
-              px: 1,
-            },
-          }}
-        >
-          {/* Loading State */}
-          {loadingHtml && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}>
-              <Stack alignItems="center" spacing={2}>
-                <CircularProgress />
-                <Typography variant="body2" color="text.secondary">
-                  Đang tải HTML preview từ backend...
-                </Typography>
-              </Stack>
-            </Box>
-          )}
-          
-          {/* Warning banner nếu HTML thiếu buyer name */}
-          {!loadingHtml && htmlPreview && htmlMissingBuyerName && invoice.contactPerson && (
-            <Alert 
-              severity="warning" 
-              icon={<ErrorOutlineIcon />}
-              sx={{ mb: 2 }}
-            >
-              <Typography variant="body2">
-                ⚠️ <strong>Backend HTML thiếu thông tin:</strong> "Họ tên người mua hàng" đã được bổ sung từ dữ liệu frontend: <strong>{invoice.contactPerson}</strong>
-              </Typography>
-            </Alert>
-          )}
-          
-          {/* HTML Preview Display */}
-          {!loadingHtml && htmlPreview && (
-            <Box 
-              sx={{ 
-                border: '1px solid #e0e0e0',
-                borderRadius: 1,
-                overflow: 'hidden',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                mb: 2,
-              }}
-            >
-              <iframe
-                srcDoc={htmlPreview}
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  minHeight: '297mm', // A4 height
-                  border: 'none',
-                  display: 'block',
-                }}
-                title={`Invoice ${invoice?.invoiceNumber || invoice?.invoiceID} Preview`}
-                onLoad={(e) => {
-                  const iframe = e.target as HTMLIFrameElement
-                  if (iframe.contentWindow) {
-                    try {
-                      const contentHeight = iframe.contentWindow.document.body.scrollHeight
-                      iframe.style.height = contentHeight + 'px'
-                    } catch (err) {
-                      console.log('Cannot access iframe content height (CORS):', err)
-                    }
-                  }
-                }}
-              />
-            </Box>
-          )}
-          
-          {/* Error State - No HTML */}
-          {!loadingHtml && !htmlPreview && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              ❌ Không thể tải HTML preview từ backend. Vui lòng kiểm tra API hoặc thử lại sau.
-            </Alert>
-          )}
-        </Box>
-      </Box>
+            overflow: 'hidden', // Prevent horizontal scroll
+          }}>
+          <Box
+            sx={{
+              maxWidth: '21cm',
+              width: '100%',
+              '@media (max-width: 900px)': {
+                maxWidth: '100%',
+                px: 1,
+              },
+            }}>
+            {/* Loading State */}
+            {loadingHtml && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}>
+                <Stack alignItems="center" spacing={2}>
+                  <CircularProgress />
+                  <Typography variant="body2" color="text.secondary">
+                    Đang tải HTML preview từ backend...
+                  </Typography>
+                </Stack>
+              </Box>
+            )}
 
+            {/* Warning banner nếu HTML thiếu buyer name */}
+            {!loadingHtml && htmlPreview && htmlMissingBuyerName && invoice.contactPerson && (
+              <Alert severity="warning" icon={<ErrorOutlineIcon />} sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  ⚠️ <strong>Backend HTML thiếu thông tin:</strong> "Họ tên người mua hàng" đã được bổ sung từ dữ liệu frontend:{' '}
+                  <strong>{invoice.contactPerson}</strong>
+                </Typography>
+              </Alert>
+            )}
+
+            {/* HTML Preview Display */}
+            {!loadingHtml && htmlPreview && (
+              <Box
+                sx={{
+                  border: '1px solid #e0e0e0',
+                  borderRadius: 1,
+                  overflow: 'hidden',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  mb: 2,
+                }}>
+                <iframe
+                  srcDoc={htmlPreview}
+                  style={{
+                    width: '100%',
+                    height: 'auto',
+                    minHeight: '297mm', // A4 height
+                    border: 'none',
+                    display: 'block',
+                  }}
+                  title={`Invoice ${invoice?.invoiceNumber || invoice?.invoiceID} Preview`}
+                  onLoad={(e) => {
+                    const iframe = e.target as HTMLIFrameElement
+                    if (iframe.contentWindow) {
+                      try {
+                        const contentHeight = iframe.contentWindow.document.body.scrollHeight
+                        iframe.style.height = contentHeight + 'px'
+                      } catch (err) {
+                        console.log('Cannot access iframe content height (CORS):', err)
+                      }
+                    }
+                  }}
+                />
+              </Box>
+            )}
+
+            {/* Error State - No HTML */}
+            {!loadingHtml && !htmlPreview && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                ❌ Không thể tải HTML preview từ backend. Vui lòng kiểm tra API hoặc thử lại sau.
+              </Alert>
+            )}
+          </Box>
+        </Box>
       </Box>
 
       {invoice && invoice.invoiceNumber > 0 && (
@@ -821,7 +777,7 @@ const InvoiceDetail: React.FC = () => {
           adjustmentReason={invoice.adjustmentReason || undefined}
         />
       )}
-      
+
       {/* Tax Error Notification Modal */}
       <TaxErrorNotificationModal
         open={showTaxErrorModal}
@@ -854,7 +810,7 @@ const InvoiceDetail: React.FC = () => {
             <CloseIcon />
           </IconButton>
         </DialogTitle>
-        
+
         <DialogContent dividers>
           {loadingHistory ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -862,9 +818,7 @@ const InvoiceDetail: React.FC = () => {
             </Box>
           ) : historyData.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 4 }}>
-              <Typography color="text.secondary">
-                Chưa có lịch sử thao tác
-              </Typography>
+              <Typography color="text.secondary">Chưa có lịch sử thao tác</Typography>
             </Box>
           ) : (
             <Timeline position="right">
@@ -878,25 +832,22 @@ const InvoiceDetail: React.FC = () => {
                       {new Date(item.date).toLocaleTimeString('vi-VN')}
                     </Typography>
                   </TimelineOppositeContent>
-                  
+
                   <TimelineSeparator>
-                    <TimelineDot 
-                      color={invoiceHistoryService.getActionTypeColor(item.actionType)}
-                      variant={index === 0 ? 'filled' : 'outlined'}
-                    />
+                    <TimelineDot color={invoiceHistoryService.getActionTypeColor(item.actionType)} variant={index === 0 ? 'filled' : 'outlined'} />
                     {index < historyData.length - 1 && <TimelineConnector />}
                   </TimelineSeparator>
-                  
+
                   <TimelineContent sx={{ py: 1.5 }}>
                     <Box>
                       <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
                         {invoiceHistoryService.getActionTypeLabel(item.actionType)}
                       </Typography>
-                      
+
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                        Người thực hiện: {item.performerName}
+                        Người thực hiện: {invoiceHistoryService.getPerformerNameVietnamese(item.performerName)}
                       </Typography>
-                      
+
                       {item.referenceInvoiceID && item.referenceInvoiceNumber && (
                         <Chip
                           icon={<LinkIcon sx={{ fontSize: 14 }} />}
@@ -913,14 +864,14 @@ const InvoiceDetail: React.FC = () => {
             </Timeline>
           )}
         </DialogContent>
-        
+
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Button onClick={handleCloseHistoryModal} variant="contained">
             Đóng
           </Button>
         </DialogActions>
       </Dialog>
-      
+
       {/* Create Minute Dialog (Biên Bản ĐC/TT) */}
       {invoice && (
         <CreateMinuteDialog

@@ -1,17 +1,17 @@
 /**
  * 🎯 USER FILTER COMPONENT
  * Professional filter system for User Management page
- * 
+ *
  * @component UserFilter
  * @description Advanced filtering with expandable/collapsible sections
- * 
+ *
  * Design principles:
  * - Clean, modern UI with smooth transitions
  * - Responsive layout (mobile-first)
  * - Color consistency: Primary blue (#1976d2), Neutral grays
  * - Accessibility: Tooltips, ARIA labels, keyboard navigation
  * - Performance: Optimized re-renders, debounced search
- * 
+ *
  * @author EIMS Team
  * @created 2026-01-20 - Optimized from InvoiceFilter pattern
  */
@@ -57,11 +57,11 @@ import { Dayjs } from 'dayjs'
  * Essential filter criteria cho User Management
  */
 export interface UserFilterState {
-  searchText: string           // Tìm kiếm tên/email/số ĐT
-  roles: string[]              // Lọc theo vai trò (Admin, HOD, Accountant, Sale)
-  status: string               // Trạng thái: Tất cả, Hoạt động, Vô hiệu
-  dateFrom: Dayjs | null       // Ngày tham gia từ
-  dateTo: Dayjs | null         // Ngày tham gia đến
+  searchText: string // Tìm kiếm tên/email/số ĐT
+  roles: string[] // Lọc theo vai trò (Admin, HOD, Accountant, Sale)
+  status: string // Trạng thái: Tất cả, Hoạt động, Vô hiệu
+  dateFrom: Dayjs | null // Ngày tham gia từ
+  dateTo: Dayjs | null // Ngày tham gia đến
 }
 
 /**
@@ -89,23 +89,18 @@ const ALL_ROLES = [
   { value: 'Admin', label: 'Quản trị viên', color: '#d32f2f' },
   { value: 'HOD', label: 'Kế toán trưởng', color: '#f57c00' },
   { value: 'Accountant', label: 'Kế toán', color: '#388e3c' },
-  { value: 'Sale', label: 'Nhân viên bán hàng', color: '#1976d2' },
+  { value: 'Staff', label: 'Nhân viên bán hàng', color: '#1976d2' },
 ]
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
-const UserFilter: React.FC<UserFilterProps> = ({ 
-  onFilterChange, 
-  onReset,
-  showAdvancedByDefault = false,
-  onAddUser
-}) => {
+const UserFilter: React.FC<UserFilterProps> = ({ onFilterChange, onReset, showAdvancedByDefault = false, onAddUser }) => {
   // ========================================
   // STATE MANAGEMENT
   // ========================================
-  
+
   // Trạng thái mở/đóng bộ lọc nâng cao
   const [advancedOpen, setAdvancedOpen] = useState(showAdvancedByDefault)
 
@@ -118,14 +113,23 @@ const UserFilter: React.FC<UserFilterProps> = ({
     dateTo: null,
   })
 
+  // ✅ Track if initial render to avoid triggering on mount
+  const isInitialMount = React.useRef(true)
+  const isFirstStatusChange = React.useRef(true)
+
   // ✅ OPTIMIZATION: Debounced search for real-time filtering
   useEffect(() => {
-    // Debounce search: wait 500ms after user stops typing
+    // Skip on initial mount
+    if (isInitialMount.current) {
+      return
+    }
+
+    // Debounce search: wait 400ms after user stops typing
     const debounceTimer = setTimeout(() => {
       if (onFilterChange) {
         onFilterChange(filters)
       }
-    }, 500)
+    }, 400)
 
     return () => clearTimeout(debounceTimer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -133,11 +137,32 @@ const UserFilter: React.FC<UserFilterProps> = ({
 
   // ✅ Trigger immediately for other filters (no debounce needed)
   useEffect(() => {
+    // Mark as no longer initial mount after first render
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+
     if (onFilterChange) {
       onFilterChange(filters)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.roles, filters.status, filters.dateFrom, filters.dateTo])
+  }, [filters.roles, filters.dateFrom, filters.dateTo])
+
+  // ✅ SPECIAL: Status filter - luôn trigger ngay lập tức (bao gồm lần đầu thay đổi)
+  useEffect(() => {
+    // Skip chỉ lần mount đầu tiên
+    if (isFirstStatusChange.current) {
+      isFirstStatusChange.current = false
+      return
+    }
+
+    // Trigger ngay lập tức khi status thay đổi
+    if (onFilterChange) {
+      onFilterChange(filters)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.status])
 
   // ========================================
   // HANDLERS
@@ -238,7 +263,7 @@ const UserFilter: React.FC<UserFilterProps> = ({
               variant="outlined"
               placeholder="Tìm kiếm theo Tên, Email, Số điện thoại..."
               value={filters.searchText}
-              onChange={(e) => handleChange('searchText', e.target.value.trim())}
+              onChange={(e) => handleChange('searchText', e.target.value)}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -256,8 +281,7 @@ const UserFilter: React.FC<UserFilterProps> = ({
                           '&:hover': {
                             backgroundColor: 'rgba(0, 0, 0, 0.04)',
                           },
-                        }}
-                      >
+                        }}>
                         <CloseIcon sx={{ fontSize: '1.1rem', color: '#666' }} />
                       </IconButton>
                     </Tooltip>
@@ -317,9 +341,7 @@ const UserFilter: React.FC<UserFilterProps> = ({
                   transition: 'all 0.3s ease',
                   '&:hover': {
                     transform: 'translateY(-1px)',
-                    boxShadow: advancedOpen
-                      ? '0 4px 16px rgba(25, 118, 210, 0.4)'
-                      : '0 2px 8px rgba(25, 118, 210, 0.2)',
+                    boxShadow: advancedOpen ? '0 4px 16px rgba(25, 118, 210, 0.4)' : '0 2px 8px rgba(25, 118, 210, 0.2)',
                   },
                 }}>
                 Lọc
@@ -363,8 +385,7 @@ const UserFilter: React.FC<UserFilterProps> = ({
                     transform: 'translateY(-1px)',
                     boxShadow: '0 4px 16px rgba(25, 118, 210, 0.4)',
                   },
-                }}
-              >
+                }}>
                 Thêm Người dùng
               </Button>
             </Box>
@@ -404,9 +425,7 @@ const UserFilter: React.FC<UserFilterProps> = ({
                     renderValue={(selected) =>
                       selected.length > 2
                         ? `${selected.length} vai trò`
-                        : selected
-                            .map((role) => ALL_ROLES.find((r) => r.value === role)?.label || role)
-                            .join(', ')
+                        : selected.map((role) => ALL_ROLES.find((r) => r.value === role)?.label || role).join(', ')
                     }
                     sx={{
                       backgroundColor: '#f8f9fa',
@@ -432,22 +451,22 @@ const UserFilter: React.FC<UserFilterProps> = ({
                             },
                           }}
                         />
-                        <ListItemText 
+                        <ListItemText
                           primary={
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               <Typography variant="body2">{role.label}</Typography>
-                              <Chip 
-                                label={role.value} 
-                                size="small" 
-                                sx={{ 
-                                  height: 18, 
+                              <Chip
+                                label={role.value}
+                                size="small"
+                                sx={{
+                                  height: 18,
                                   fontSize: '0.65rem',
                                   backgroundColor: `${role.color}20`,
                                   color: role.color,
-                                }} 
+                                }}
                               />
                             </Box>
-                          } 
+                          }
                         />
                       </MenuItem>
                     ))}

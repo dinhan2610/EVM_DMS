@@ -2000,7 +2000,7 @@ const HODInvoiceManagement = () => {
               <Button onClick={handleCloseSignDialog} disabled={isSigningInvoice || isSigningWithUSB}>
                 Hủy
               </Button>
-              {/* 🔌 Nút ký bằng USB Token */}
+              {/*Nút ký bằng USB Token */}
               <Button
                 variant="contained"
                 color="warning"

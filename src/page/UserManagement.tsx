@@ -55,7 +55,7 @@ export interface User {
 const mapApiResponseToUser = (apiUser: UserApiResponse): User => {
   // Generate a temporary ID if userID is missing (for newly created users)
   const id = apiUser.userID || Date.now()
-  
+
   return {
     id,
     fullName: apiUser.fullName || '',
@@ -86,7 +86,7 @@ const initialFormState: UserFormData = {
 
 const UserManagement = () => {
   usePageTitle('Quản lý người dùng')
-  
+
   // Theme & Responsive
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
@@ -154,7 +154,7 @@ const UserManagement = () => {
     setLoading(true)
     try {
       let response
-      
+
       // ✅ Smart API call based on filter
       switch (filters.status) {
         case 'active':
@@ -166,7 +166,7 @@ const UserManagement = () => {
         default:
           response = await userService.getUsers(1, 100)
       }
-      
+
       const mappedUsers = response.items.map(mapApiResponseToUser)
       setUsers(mappedUsers)
     } catch (error) {
@@ -189,49 +189,65 @@ const UserManagement = () => {
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
       // 1. Search text (name, email, phone) - Optimized with trim & normalize
-      const matchesSearch = !filters.searchText || (() => {
-        const searchLower = filters.searchText.toLowerCase().trim()
-        if (!searchLower) return true
-        
-        const fullNameMatch = (user.fullName?.toLowerCase() || '').includes(searchLower)
-        const emailMatch = (user.email?.toLowerCase() || '').includes(searchLower)
-        // Phone search: remove spaces/dashes for flexible matching
-        const userPhone = (user.phoneNumber || '').replace(/[\s-]/g, '')
-        const searchPhone = searchLower.replace(/[\s-]/g, '')
-        const phoneMatch = userPhone.includes(searchPhone)
-        
-        return fullNameMatch || emailMatch || phoneMatch
-      })()
-      
-      // 2. Filter by role
+      const matchesSearch =
+        !filters.searchText ||
+        (() => {
+          const searchLower = filters.searchText.toLowerCase().trim()
+          if (!searchLower) return true
+
+          const fullNameMatch = (user.fullName?.toLowerCase() || '').includes(searchLower)
+          const emailMatch = (user.email?.toLowerCase() || '').includes(searchLower)
+          // Phone search: remove spaces/dashes for flexible matching
+          const userPhone = (user.phoneNumber || '').replace(/[\s-]/g, '')
+          const searchPhone = searchLower.replace(/[\s-]/g, '')
+          const phoneMatch = userPhone.includes(searchPhone)
+
+          return fullNameMatch || emailMatch || phoneMatch
+        })()
+
+      // 2. Filter by role - với mapping chính xác
       let matchesRole = filters.roles.length === 0 // If no roles selected, show all
       if (!matchesRole) {
-        const userRoleLower = (user.role || '').toLowerCase()
-        matchesRole = filters.roles.some(role => userRoleLower === role.toLowerCase())
+        const userRole = (user.role || '').toLowerCase().trim()
+        // Map role names: API trả về Staff, Filter dùng Sale
+        matchesRole = filters.roles.some((filterRole) => {
+          const filterRoleLower = filterRole.toLowerCase().trim()
+          // Exact match hoặc alias match (Staff = Sale)
+          if (userRole === filterRoleLower) return true
+          if ((filterRoleLower === 'sale' && userRole === 'staff') || (filterRoleLower === 'staff' && userRole === 'sale')) return true
+          return false
+        })
       }
-      
+
       // 3. Filter by status (Active/Inactive)
-      let matchesStatus = true
-      if (filters.status !== 'all') {
-        if (filters.status === 'active') {
-          matchesStatus = user.status === 'Active'
-        } else if (filters.status === 'inactive') {
-          matchesStatus = user.status === 'Inactive'
-        }
-      }
-      
-      // 4. Date range filter (join date)
+      // ⚠️ Lưu ý: Khi filters.status !== 'all', API đã lọc sẵn (getActiveUsers/getInactiveUsers)
+      // Nên client-side không cần lọc thêm, chỉ cần filter khi status = 'all' và user muốn xem cả 2
+      // => Luôn return true vì API đã handle việc này
+      const matchesStatus = true // API đã lọc theo status
+
+      // 4. Date range filter (join date) - với timezone handling
       let matchesDateRange = true
       if (filters.dateFrom || filters.dateTo) {
         const userDate = new Date(user.joinDate)
-        if (filters.dateFrom && userDate < filters.dateFrom.toDate()) {
-          matchesDateRange = false
+        // Reset time để so sánh chỉ theo ngày
+        userDate.setHours(0, 0, 0, 0)
+
+        if (filters.dateFrom) {
+          const fromDate = filters.dateFrom.toDate()
+          fromDate.setHours(0, 0, 0, 0)
+          if (userDate < fromDate) {
+            matchesDateRange = false
+          }
         }
-        if (filters.dateTo && userDate > filters.dateTo.toDate()) {
-          matchesDateRange = false
+        if (filters.dateTo) {
+          const toDate = filters.dateTo.toDate()
+          toDate.setHours(23, 59, 59, 999) // End of day
+          if (userDate > toDate) {
+            matchesDateRange = false
+          }
         }
       }
-      
+
       return matchesSearch && matchesRole && matchesStatus && matchesDateRange
     })
   }, [users, filters])
@@ -314,13 +330,13 @@ const UserManagement = () => {
           phoneNumber: formData.phoneNumber,
           roleName: formData.role,
         }
-        
+
         // ✅ Call API to create user
         await userService.createUser(createData)
-        
+
         // ✅ Reload fresh data from server
         await fetchUsers()
-        
+
         setSnackbar({
           open: true,
           message: sendInviteEmail
@@ -397,22 +413,16 @@ const UserManagement = () => {
     }
 
     setActionLoading(true)
-    
+
     // ✅ OPTIMISTIC UPDATE: Cập nhật UI ngay lập tức
     const newStatus: 'Active' | 'Inactive' = selectedUserForToggle.status === 'Active' ? 'Inactive' : 'Active'
     const previousUsers = [...users] // Backup để rollback nếu lỗi
     const userToToggle = selectedUserForToggle // Save reference
     const reasonToSave = deactivationReason // Save reason
-    
+
     // Cập nhật UI ngay (optimistic)
-    setUsers((prev) =>
-      prev.map((user) =>
-        user.id === userToToggle.id
-          ? { ...user, status: newStatus }
-          : user
-      )
-    )
-    
+    setUsers((prev) => prev.map((user) => (user.id === userToToggle.id ? { ...user, status: newStatus } : user)))
+
     try {
       if (userToToggle.status === 'Active') {
         // Deactivate user
@@ -431,22 +441,21 @@ const UserManagement = () => {
           severity: 'success',
         })
       }
-      
+
       // ✅ API thành công - Đóng modal với flushSync để force immediate update
       setActionLoading(false)
-      
+
       // Use setTimeout to ensure state updates are flushed
       setTimeout(() => {
         setConfirmToggleModalOpen(false)
         setSelectedUserForToggle(null)
         setDeactivationReason('')
       }, 0)
-      
     } catch (error) {
       // ❌ ROLLBACK: Khôi phục lại state cũ nếu API fail
       setUsers(previousUsers)
       setActionLoading(false)
-      
+
       setSnackbar({
         open: true,
         message: error instanceof Error ? error.message : 'Không thể thay đổi trạng thái người dùng',
@@ -474,17 +483,17 @@ const UserManagement = () => {
     if (!selectedUserForReset) return
 
     setActionLoading(true)
-    
+
     try {
       // Call API to reset password
       await userService.resetPassword(selectedUserForReset.email)
-      
+
       setSnackbar({
         open: true,
-        message: `✅ Đã gửi email đặt lại mật khẩu cho ${selectedUserForReset.fullName}`,
+        message: `Đã gửi email đặt lại mật khẩu cho ${selectedUserForReset.fullName}`,
         severity: 'success',
       })
-      
+
       handleCloseResetModal()
     } catch (error) {
       console.error('Reset password error:', error)
@@ -539,8 +548,7 @@ const UserManagement = () => {
               fontWeight: 500,
               color: '#2c3e50',
               fontSize: '0.875rem',
-            }}
-          >
+            }}>
             {params.row.fullName}
           </Typography>
         </Box>
@@ -564,8 +572,7 @@ const UserManagement = () => {
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
-              }}
-            >
+              }}>
               {params.row.email}
             </Typography>
           </Tooltip>
@@ -586,8 +593,7 @@ const UserManagement = () => {
               fontSize: '0.875rem',
               color: '#2c3e50',
               fontWeight: 500,
-            }}
-          >
+            }}>
             {params.row.phoneNumber}
           </Typography>
         </Box>
@@ -605,7 +611,7 @@ const UserManagement = () => {
             label={getRoleLabel(params.row.role)}
             color={getRoleColor(params.row.role)}
             size="small"
-            sx={{ 
+            sx={{
               fontWeight: 600,
               fontSize: '0.75rem',
               height: 28,
@@ -660,8 +666,7 @@ const UserManagement = () => {
                   fontSize: '0.875rem',
                   color: '#546e7a',
                   fontWeight: 500,
-                }}
-              >
+                }}>
                 {formattedDate}
               </Typography>
             </Box>
@@ -669,7 +674,9 @@ const UserManagement = () => {
         } catch {
           return (
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-              <Typography variant="body2" sx={{ color: '#bdbdbd' }}>-</Typography>
+              <Typography variant="body2" sx={{ color: '#bdbdbd' }}>
+                -
+              </Typography>
             </Box>
           )
         }
@@ -684,49 +691,25 @@ const UserManagement = () => {
       headerAlign: 'center',
       getActions: (params) => [
         <Tooltip title="Xem chi tiết" key="view">
-          <IconButton
-            size="small"
-            color="info"
-            onClick={() => handleViewDetail(params.row.id)}
-          >
+          <IconButton size="small" color="info" onClick={() => handleViewDetail(params.row.id)}>
             <VisibilityOutlinedIcon fontSize="small" />
           </IconButton>
         </Tooltip>,
         <Tooltip title="Chỉnh sửa" key="edit">
           <span>
-            <IconButton
-              size="small"
-              color="primary"
-              onClick={() => handleOpenModal(params.row)}
-              disabled
-            >
+            <IconButton size="small" color="primary" onClick={() => handleOpenModal(params.row)} disabled>
               <EditOutlinedIcon fontSize="small" />
             </IconButton>
           </span>
         </Tooltip>,
         <Tooltip title="Đặt lại mật khẩu" key="reset">
-          <IconButton
-            size="small"
-            color="warning"
-            onClick={() => handleOpenResetModal(params.row)}
-          >
+          <IconButton size="small" color="warning" onClick={() => handleOpenResetModal(params.row)}>
             <VpnKeyOutlinedIcon fontSize="small" />
           </IconButton>
         </Tooltip>,
-        <Tooltip
-          title={params.row.status === 'Active' ? 'Vô hiệu hóa' : 'Kích hoạt'}
-          key="toggle"
-        >
-          <IconButton
-            size="small"
-            color={params.row.status === 'Active' ? 'error' : 'success'}
-            onClick={() => handleToggleStatus(params.row.id)}
-          >
-            {params.row.status === 'Active' ? (
-              <LockOutlinedIcon fontSize="small" />
-            ) : (
-              <LockOpenOutlinedIcon fontSize="small" />
-            )}
+        <Tooltip title={params.row.status === 'Active' ? 'Vô hiệu hóa' : 'Kích hoạt'} key="toggle">
+          <IconButton size="small" color={params.row.status === 'Active' ? 'error' : 'success'} onClick={() => handleToggleStatus(params.row.id)}>
+            {params.row.status === 'Active' ? <LockOutlinedIcon fontSize="small" /> : <LockOpenOutlinedIcon fontSize="small" />}
           </IconButton>
         </Tooltip>,
       ],
@@ -760,944 +743,1078 @@ const UserManagement = () => {
         onAddUser={() => handleOpenModal()}
       />
 
-        {/* DataGrid */}
-        <Paper
+      {/* DataGrid */}
+      <Paper
+        sx={{
+          borderRadius: 2,
+          overflow: 'hidden',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          position: 'relative',
+        }}>
+        {/* ✅ Chỉ hiển thị loading khi fetch initial data */}
+        {loading && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'rgba(255, 255, 255, 0.7)',
+              zIndex: 1000,
+            }}>
+            <CircularProgress />
+          </Box>
+        )}
+        <DataGrid
+          rows={filteredUsers}
+          columns={columns}
+          autoHeight
+          disableRowSelectionOnClick
+          loading={loading} // ✅ Chỉ loading khi fetch
+          initialState={{
+            pagination: {
+              paginationModel: { pageSize: 10 },
+            },
+          }}
+          pageSizeOptions={[5, 10, 25, 50]}
           sx={{
-            borderRadius: 2,
-            overflow: 'hidden',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-            position: 'relative',
-          }}
-        >
-          {/* ✅ Chỉ hiển thị loading khi fetch initial data */}
-          {loading && (
-            <Box
-              sx={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'rgba(255, 255, 255, 0.7)',
-                zIndex: 1000,
-              }}
-            >
-              <CircularProgress />
-            </Box>
-          )}
-          <DataGrid
-            rows={filteredUsers}
-            columns={columns}
-            autoHeight
-            disableRowSelectionOnClick
-            loading={loading} // ✅ Chỉ loading khi fetch
-            initialState={{
-              pagination: {
-                paginationModel: { pageSize: 10 },
-              },
-            }}
-            pageSizeOptions={[5, 10, 25, 50]}
-            sx={{
-              border: 'none',
-              '& .MuiDataGrid-cell:focus': {
-                outline: 'none',
-              },
-              '& .MuiDataGrid-row:hover': {
-                backgroundColor: 'action.hover',
-              },
-              '& .MuiDataGrid-columnHeaders': {
-                backgroundColor: 'grey.50',
-                borderBottom: 2,
-                borderColor: 'divider',
-              },
-              '& .MuiDataGrid-footerContainer': {
-                borderTop: 2,
-                borderColor: 'divider',
-                minHeight: '52px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              },
-              '& .MuiTablePagination-root': {
-                overflow: 'visible',
-              },
-              '& .MuiTablePagination-toolbar': {
-                flexWrap: 'nowrap',
-                minHeight: '52px',
-              },
-              '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
-                margin: 0,
-              },
-            }}
-          />
-        </Paper>
-
-        {/* Modal - Add/Edit User */}
-        <Dialog
-          open={isModalOpen}
-          onClose={handleCloseModal}
-          fullScreen={isMobile}
-          maxWidth="sm"
-          fullWidth
-          PaperProps={{
-            sx: {
-              borderRadius: { xs: 0, sm: 3 },
-              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            border: 'none',
+            '& .MuiDataGrid-cell:focus': {
+              outline: 'none',
             },
-          }}
-        >
-          <DialogTitle
-            sx={{
+            '& .MuiDataGrid-row:hover': {
+              backgroundColor: 'action.hover',
+            },
+            '& .MuiDataGrid-columnHeaders': {
+              backgroundColor: 'grey.50',
+              borderBottom: 2,
+              borderColor: 'divider',
+            },
+            '& .MuiDataGrid-footerContainer': {
+              borderTop: 2,
+              borderColor: 'divider',
+              minHeight: '52px',
               display: 'flex',
               alignItems: 'center',
-              gap: 1,
-              fontWeight: 600,
-              p: { xs: 2, sm: 3 },
-            }}
-          >
-            <PersonAddOutlinedIcon color="primary" />
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              {editingUser ? 'Chỉnh sửa Người dùng' : 'Thêm Người dùng mới'}
-            </Typography>
-          </DialogTitle>
-
-          <Divider />
-
-          <DialogContent sx={{ p: { xs: 2, sm: 3 } }}>
-            <Grid container spacing={2.5}>
-              {/* Alert hiển thị đầu tiên khi Thêm mới */}
-              {!editingUser && (
-                <Grid size={{ xs: 12 }}>
-                  <Alert severity="info" sx={{ borderRadius: 2, mb: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
-                      🔐 Cấp tài khoản cho nhân viên nội bộ
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Mật khẩu mặc định sẽ được tạo tự động và gửi qua email cho nhân viên.
-                    </Typography>
-                  </Alert>
-                </Grid>
-              )}
-
-              <Grid size={{ xs: 12 }}>
-                <TextField
-                  autoFocus
-                  fullWidth
-                  label="Họ và Tên"
-                  type="text"
-                  size="small"
-                  margin="dense"
-                  required
-                  value={formData.fullName}
-                  onChange={(e) => handleFormChange('fullName', e.target.value)}
-                  placeholder="Nhập họ và tên đầy đủ"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                    },
-                  }}
-                />
-              </Grid>
-
-              <Grid size={{ xs: 12 }}>
-                <TextField
-                  fullWidth
-                  label="Email"
-                  type="email"
-                  size="small"
-                  margin="dense"
-                  required
-                  value={formData.email}
-                  onChange={(e) => handleFormChange('email', e.target.value)}
-                  placeholder="example@company.com"
-                  disabled={!!editingUser}
-                  helperText={editingUser ? 'Email không thể thay đổi sau khi tạo' : ''}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                    },
-                  }}
-                />
-              </Grid>
-
-              <Grid size={{ xs: 12 }}>
-                <TextField
-                  fullWidth
-                  label="Số điện thoại"
-                  type="tel"
-                  size="small"
-                  margin="dense"
-                  required
-                  value={formData.phoneNumber}
-                  onChange={(e) => handleFormChange('phoneNumber', e.target.value)}
-                  placeholder="0123456789"
-                  disabled={!!editingUser}
-                  helperText={editingUser ? 'Số điện thoại không thể thay đổi sau khi tạo' : 'Nhập 10-11 số'}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                    },
-                  }}
-                />
-              </Grid>
-
-              <Grid size={{ xs: 12 }}>
-                <FormControl fullWidth required size="small" margin="dense">
-                  <InputLabel>Vai trò</InputLabel>
-                  <Select
-                    value={formData.role}
-                    label="Vai trò"
-                    onChange={(e) => handleFormChange('role', e.target.value)}
-                    sx={{ borderRadius: 2 }}
-                  >
-                    <MenuItem value="Admin">
-                      <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          Quản trị viên
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Full quyền quản trị hệ thống, quản lý người dùng
-                        </Typography>
-                      </Box>
-                    </MenuItem>
-                    <MenuItem value="HOD">
-                      <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          Kế toán trưởng
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Duyệt và ký số hóa đơn, quản lý hoạt động kế toán
-                        </Typography>
-                      </Box>
-                    </MenuItem>
-                    <MenuItem value="Accountant">
-                      <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          Kế toán
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Quản lý danh sách hóa đơn, tạo và xử lý chứng từ
-                        </Typography>
-                      </Box>
-                    </MenuItem>
-                    <MenuItem value="Sale">
-                      <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          Nhân viên bán hàng
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Quản lý khách hàng, tạo yêu cầu xuất hóa đơn
-                        </Typography>
-                      </Box>
-                    </MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              {/* Switch: Chỉ hiện khi Sửa */}
-              {editingUser && (
-                <Grid size={{ xs: 12 }}>
-                  <Box
-                    sx={{
-                      p: 2,
-                      borderRadius: 2,
-                      bgcolor: 'action.hover',
-                      border: 1,
-                      borderColor: 'divider',
-                    }}
-                  >
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={formData.status === 'Active'}
-                          onChange={(e) =>
-                            handleFormChange('status', e.target.checked ? 'Active' : 'Inactive')
-                          }
-                          color="success"
-                        />
-                      }
-                      label={
-                        <Box>
-                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                            Trạng thái: {formData.status === 'Active' ? 'Hoạt động' : 'Vô hiệu'}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {formData.status === 'Active'
-                              ? 'Người dùng có thể đăng nhập và sử dụng hệ thống'
-                              : 'Người dùng không thể đăng nhập vào hệ thống'}
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                  </Box>
-                </Grid>
-              )}
-
-              {/* Checkbox: Chỉ hiện khi Thêm mới */}
-              {!editingUser && (
-                <Grid size={{ xs: 12 }}>
-                  <Box
-                    sx={{
-                      p: 2,
-                      borderRadius: 2,
-                      bgcolor: 'action.hover',
-                      border: 1,
-                      borderColor: 'divider',
-                    }}
-                  >
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={sendInviteEmail}
-                          onChange={(e) => setSendInviteEmail(e.target.checked)}
-                          color="primary"
-                        />
-                      }
-                      label={
-                        <Box>
-                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                            Tự động gửi email mời và kích hoạt
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Hệ thống sẽ gửi email chứa thông tin đăng nhập và link kích hoạt tài khoản
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                  </Box>
-                </Grid>
-              )}
-            </Grid>
-          </DialogContent>
-
-          <Divider />
-
-          <DialogActions sx={{ p: { xs: 2, sm: 3 }, gap: 1 }}>
-            <Button
-              onClick={handleCloseModal}
-              color="inherit"
-              sx={{
-                textTransform: 'none',
-                borderRadius: 2,
-                px: 3,
-              }}
-            >
-              Hủy
-            </Button>
-            <Button
-              onClick={handleSaveUser}
-              variant="contained"
-              disabled={actionLoading}
-              startIcon={actionLoading ? <CircularProgress size={16} color="inherit" /> : null}
-              sx={{
-                textTransform: 'none',
-                borderRadius: 2,
-                px: 3,
-                boxShadow: 2,
-                '&:hover': {
-                  boxShadow: 4,
-                },
-              }}
-            >
-              {actionLoading ? 'Đang xử lý...' : (editingUser ? 'Cập nhật' : 'Thêm mới')}
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* User Detail Modal */}
-        <Dialog
-          open={isDetailModalOpen}
-          onClose={handleCloseDetailModal}
-          maxWidth="md"
-          fullWidth
-          PaperProps={{
-            sx: {
-              borderRadius: 3,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              justifyContent: 'space-between',
+            },
+            '& .MuiTablePagination-root': {
+              overflow: 'visible',
+            },
+            '& .MuiTablePagination-toolbar': {
+              flexWrap: 'nowrap',
+              minHeight: '52px',
+            },
+            '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+              margin: 0,
             },
           }}
-        >
-          <DialogTitle
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1.5,
-              fontWeight: 600,
-              p: 3,
-              bgcolor: 'primary.lighter',
-            }}
-          >
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 48,
-                height: 48,
-                borderRadius: '50%',
-                bgcolor: 'primary.main',
-                color: 'white',
-              }}
-            >
-              <VisibilityOutlinedIcon sx={{ fontSize: 28 }} />
-            </Box>
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Thông tin chi tiết người dùng
-            </Typography>
-          </DialogTitle>
+        />
+      </Paper>
 
-          <Divider />
+      {/* Modal - Add/Edit User */}
+      <Dialog
+        open={isModalOpen}
+        onClose={handleCloseModal}
+        fullScreen={isMobile}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: { xs: 0, sm: 3 },
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          },
+        }}>
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            fontWeight: 600,
+            p: { xs: 2, sm: 3 },
+          }}>
+          <PersonAddOutlinedIcon color="primary" />
+          <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
+            {editingUser ? 'Chỉnh sửa Người dùng' : 'Thêm Người dùng mới'}
+          </Typography>
+        </DialogTitle>
 
-          <DialogContent sx={{ p: 3 }}>
-            {detailLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 5 }}>
-                <CircularProgress />
-              </Box>
-            ) : selectedUserDetail ? (
-              <Grid container spacing={3}>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2.5,
-                      bgcolor: 'grey.50',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderRadius: 2,
-                    }}
-                  >
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, mb: 1, display: 'block' }}>
-                      ID Người dùng
-                    </Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 600, fontFamily: 'monospace', color: 'primary.main' }}>
-                      #{selectedUserDetail.userID}
-                    </Typography>
-                  </Paper>
-                </Grid>
+        <Divider />
 
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2.5,
-                      bgcolor: 'grey.50',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderRadius: 2,
-                    }}
-                  >
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, mb: 1, display: 'block' }}>
-                      Trạng thái
-                    </Typography>
-                    <Chip
-                      label={selectedUserDetail.isActive ? 'Hoạt động' : 'Vô hiệu'}
-                      color={selectedUserDetail.isActive ? 'success' : 'default'}
-                      size="medium"
-                      sx={{ fontWeight: 600 }}
-                    />
-                  </Paper>
-                </Grid>
-
-                <Grid size={{ xs: 12 }}>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2.5,
-                      bgcolor: 'grey.50',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderRadius: 2,
-                    }}
-                  >
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, mb: 1, display: 'block' }}>
-                      Họ và Tên
-                    </Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>
-                      {selectedUserDetail.fullName}
-                    </Typography>
-                  </Paper>
-                </Grid>
-
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2.5,
-                      bgcolor: 'grey.50',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderRadius: 2,
-                    }}
-                  >
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, mb: 1, display: 'block' }}>
-                      Email
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontFamily: 'monospace', color: 'primary.main', wordBreak: 'break-all' }}>
-                      {selectedUserDetail.email}
-                    </Typography>
-                  </Paper>
-                </Grid>
-
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2.5,
-                      bgcolor: 'grey.50',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderRadius: 2,
-                    }}
-                  >
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, mb: 1, display: 'block' }}>
-                      Số điện thoại
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
-                      {selectedUserDetail.phoneNumber}
-                    </Typography>
-                  </Paper>
-                </Grid>
-
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2.5,
-                      bgcolor: 'grey.50',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderRadius: 2,
-                    }}
-                  >
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, mb: 1, display: 'block' }}>
-                      Vai trò
-                    </Typography>
-                    <Chip
-                      label={
-                        selectedUserDetail.roleName === 'HOD' 
-                          ? 'Kế toán trưởng' 
-                          : selectedUserDetail.roleName === 'Accountant' 
-                          ? 'Kế toán' 
-                          : 'Nhân viên bán hàng'
-                      }
-                      color={
-                        selectedUserDetail.roleName === 'HOD' 
-                          ? 'error' 
-                          : selectedUserDetail.roleName === 'Accountant' 
-                          ? 'success' 
-                          : 'info'
-                      }
-                      size="medium"
-                      sx={{ fontWeight: 600 }}
-                    />
-                  </Paper>
-                </Grid>
-
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2.5,
-                      bgcolor: 'grey.50',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderRadius: 2,
-                    }}
-                  >
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, mb: 1, display: 'block' }}>
-                      Ngày tham gia
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {selectedUserDetail.createdAt ? new Date(selectedUserDetail.createdAt).toLocaleString('vi-VN', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      }) : '-'}
-                    </Typography>
-                  </Paper>
-                </Grid>
-              </Grid>
-            ) : null}
-          </DialogContent>
-
-          <Divider />
-
-          <DialogActions sx={{ p: 3 }}>
-            <Button
-              onClick={handleCloseDetailModal}
-              variant="contained"
-              color="primary"
-              sx={{
-                textTransform: 'none',
-                borderRadius: 2,
-                px: 4,
-              }}
-            >
-              Đóng
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Snackbar Notification */}
-        <Snackbar
-          open={snackbar.open}
-          autoHideDuration={4000}
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-        >
-          <Alert
-            onClose={() => setSnackbar({ ...snackbar, open: false })}
-            severity={snackbar.severity}
-            variant="filled"
-            sx={{ borderRadius: 2 }}
-          >
-            {snackbar.message}
-          </Alert>
-        </Snackbar>
-
-        {/* Reset Password Confirmation Dialog */}
-        <Dialog
-          open={isResetModalOpen}
-          onClose={handleCloseResetModal}
-          maxWidth="sm"
-          fullWidth
-          PaperProps={{
-            sx: {
-              borderRadius: 3,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-            },
-          }}
-        >
-          <DialogTitle
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1.5,
-              fontWeight: 600,
-              p: 3,
-            }}
-          >
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 48,
-                height: 48,
-                borderRadius: '50%',
-                bgcolor: 'warning.lighter',
-              }}
-            >
-              <WarningAmberOutlinedIcon sx={{ fontSize: 28, color: 'warning.main' }} />
-            </Box>
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Xác nhận Đặt lại Mật khẩu
-            </Typography>
-          </DialogTitle>
-
-          <Divider />
-
-          <DialogContent sx={{ p: 3 }}>
-            <Alert severity="info" sx={{ mb: 2.5, borderRadius: 2 }}>
-              <Typography variant="body2">
-                Email chứa liên kết đặt lại mật khẩu sẽ được gửi đến địa chỉ email của người dùng.
-              </Typography>
-            </Alert>
-
-            <Box
-              sx={{
-                bgcolor: 'grey.50',
-                p: 2.5,
-                borderRadius: 2,
-                border: '1px solid',
-                borderColor: 'divider',
-              }}
-            >
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 12 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>
-                      Người dùng
-                    </Typography>
-                  </Box>
-                  <Typography variant="body1" sx={{ fontWeight: 600, fontSize: '0.9375rem' }}>
-                    {selectedUserForReset?.fullName}
+        <DialogContent sx={{ p: { xs: 2, sm: 3 } }}>
+          <Grid container spacing={2.5}>
+            {/* Alert hiển thị đầu tiên khi Thêm mới */}
+            {!editingUser && (
+              <Grid size={{ xs: 12 }}>
+                <Alert severity="info" sx={{ borderRadius: 2, mb: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
+                    🔐 Cấp tài khoản cho nhân viên nội bộ
                   </Typography>
-                </Grid>
-
-                <Grid size={{ xs: 12 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                    <EmailOutlinedIcon sx={{ fontSize: 16, color: 'action.active' }} />
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>
-                      Email nhận liên kết
-                    </Typography>
-                  </Box>
-                  <Typography variant="body1" sx={{ fontWeight: 600, fontSize: '0.9375rem', color: 'primary.main' }}>
-                    {selectedUserForReset?.email}
+                  <Typography variant="caption" color="text.secondary">
+                    Mật khẩu mặc định sẽ được tạo tự động và gửi qua email cho nhân viên.
                   </Typography>
-                </Grid>
-
-                <Grid size={{ xs: 12 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                    <VpnKeyOutlinedIcon sx={{ fontSize: 16, color: 'action.active' }} />
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>
-                      Vai trò
-                    </Typography>
-                  </Box>
-                  <Chip
-                    label={selectedUserForReset?.role === 'Admin' ? 'Quản trị viên' : selectedUserForReset?.role === 'Accountant' ? 'Kế toán' : 'Quản lý Dự án'}
-                    size="small"
-                    color={selectedUserForReset?.role === 'Admin' ? 'error' : selectedUserForReset?.role === 'Accountant' ? 'success' : 'info'}
-                    sx={{ fontWeight: 600, fontSize: '0.8125rem' }}
-                  />
-                </Grid>
+                </Alert>
               </Grid>
-            </Box>
+            )}
 
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2, fontStyle: 'italic' }}>
-              * Liên kết đặt lại mật khẩu có hiệu lực trong 24 giờ.
-            </Typography>
-          </DialogContent>
-
-          <Divider />
-
-          <DialogActions sx={{ p: 3, gap: 1 }}>
-            <Button
-              onClick={handleCloseResetModal}
-              color="inherit"
-              disabled={actionLoading}
-              sx={{
-                textTransform: 'none',
-                borderRadius: 2,
-                px: 3,
-              }}
-            >
-              Hủy
-            </Button>
-            <Button
-              onClick={handleConfirmResetPassword}
-              variant="contained"
-              color="warning"
-              disabled={actionLoading}
-              startIcon={actionLoading ? <CircularProgress size={20} /> : <EmailOutlinedIcon />}
-              sx={{
-                textTransform: 'none',
-                borderRadius: 2,
-                px: 3,
-                boxShadow: 2,
-                '&:hover': {
-                  boxShadow: 4,
-                },
-              }}
-            >
-              {actionLoading ? 'Đang gửi...' : 'Gửi Email Đặt lại'}
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Toggle Status Confirmation Dialog */}
-        <Dialog
-          open={confirmToggleModalOpen}
-          onClose={actionLoading ? undefined : handleCloseToggleModal}
-          disableEscapeKeyDown={actionLoading}
-          maxWidth="sm"
-          fullWidth
-          PaperProps={{
-            sx: {
-              borderRadius: 3,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-            },
-          }}
-        >
-          <DialogTitle
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1.5,
-              fontWeight: 600,
-              p: 3,
-            }}
-          >
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 48,
-                height: 48,
-                borderRadius: '50%',
-                bgcolor: selectedUserForToggle?.status === 'Active' ? 'error.lighter' : 'success.lighter',
-              }}
-            >
-              <WarningAmberOutlinedIcon 
-                sx={{ 
-                  fontSize: 28, 
-                  color: selectedUserForToggle?.status === 'Active' ? 'error.main' : 'success.main' 
-                }} 
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                autoFocus
+                fullWidth
+                label="Họ và Tên"
+                type="text"
+                size="small"
+                margin="dense"
+                required
+                value={formData.fullName}
+                onChange={(e) => handleFormChange('fullName', e.target.value)}
+                placeholder="Nhập họ và tên đầy đủ"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                  },
+                }}
               />
-            </Box>
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Xác nhận thay đổi trạng thái
-            </Typography>
-          </DialogTitle>
+            </Grid>
 
-          <Divider />
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                label="Email"
+                type="email"
+                size="small"
+                margin="dense"
+                required
+                value={formData.email}
+                onChange={(e) => handleFormChange('email', e.target.value)}
+                placeholder="example@company.com"
+                disabled={!!editingUser}
+                helperText={editingUser ? 'Email không thể thay đổi sau khi tạo' : ''}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                  },
+                }}
+              />
+            </Grid>
 
-          <DialogContent sx={{ p: 3 }}>
-            <Typography variant="body1" sx={{ mb: 2.5 }}>
-              Bạn có chắc chắn muốn{' '}
-              <strong>
-                {selectedUserForToggle?.status === 'Active' ? 'vô hiệu hóa' : 'kích hoạt'}
-              </strong>{' '}
-              tài khoản người dùng sau?
-            </Typography>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                label="Số điện thoại"
+                type="tel"
+                size="small"
+                margin="dense"
+                required
+                value={formData.phoneNumber}
+                onChange={(e) => handleFormChange('phoneNumber', e.target.value)}
+                placeholder="0123456789"
+                disabled={!!editingUser}
+                helperText={editingUser ? 'Số điện thoại không thể thay đổi sau khi tạo' : 'Nhập 10-11 số'}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                  },
+                }}
+              />
+            </Grid>
 
-            <Paper
-              elevation={0}
+            <Grid size={{ xs: 12 }}>
+              <FormControl fullWidth required size="small" margin="dense">
+                <InputLabel>Vai trò</InputLabel>
+                <Select value={formData.role} label="Vai trò" onChange={(e) => handleFormChange('role', e.target.value)} sx={{ borderRadius: 2 }}>
+                  <MenuItem value="Admin">
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        Quản trị viên
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Full quyền quản trị hệ thống, quản lý người dùng
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                  <MenuItem value="HOD">
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        Kế toán trưởng
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Duyệt và ký số hóa đơn, quản lý hoạt động kế toán
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                  <MenuItem value="Accountant">
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        Kế toán
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Quản lý danh sách hóa đơn, tạo và xử lý chứng từ
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                  <MenuItem value="Sale">
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        Nhân viên bán hàng
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Quản lý khách hàng, tạo yêu cầu xuất hóa đơn
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {/* Switch: Chỉ hiện khi Sửa */}
+            {editingUser && (
+              <Grid size={{ xs: 12 }}>
+                <Box
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    bgcolor: 'action.hover',
+                    border: 1,
+                    borderColor: 'divider',
+                  }}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={formData.status === 'Active'}
+                        onChange={(e) => handleFormChange('status', e.target.checked ? 'Active' : 'Inactive')}
+                        color="success"
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          Trạng thái: {formData.status === 'Active' ? 'Hoạt động' : 'Vô hiệu'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {formData.status === 'Active'
+                            ? 'Người dùng có thể đăng nhập và sử dụng hệ thống'
+                            : 'Người dùng không thể đăng nhập vào hệ thống'}
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </Box>
+              </Grid>
+            )}
+
+            {/* Checkbox: Chỉ hiện khi Thêm mới */}
+            {!editingUser && (
+              <Grid size={{ xs: 12 }}>
+                <Box
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    bgcolor: 'action.hover',
+                    border: 1,
+                    borderColor: 'divider',
+                  }}>
+                  <FormControlLabel
+                    control={<Checkbox checked={sendInviteEmail} onChange={(e) => setSendInviteEmail(e.target.checked)} color="primary" />}
+                    label={
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          Tự động gửi email mời và kích hoạt
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Hệ thống sẽ gửi email chứa thông tin đăng nhập và link kích hoạt tài khoản
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </Box>
+              </Grid>
+            )}
+          </Grid>
+        </DialogContent>
+
+        <Divider />
+
+        <DialogActions sx={{ p: { xs: 2, sm: 3 }, gap: 1 }}>
+          <Button
+            onClick={handleCloseModal}
+            color="inherit"
+            sx={{
+              textTransform: 'none',
+              borderRadius: 2,
+              px: 3,
+            }}>
+            Hủy
+          </Button>
+          <Button
+            onClick={handleSaveUser}
+            variant="contained"
+            disabled={actionLoading}
+            startIcon={actionLoading ? <CircularProgress size={16} color="inherit" /> : null}
+            sx={{
+              textTransform: 'none',
+              borderRadius: 2,
+              px: 3,
+              boxShadow: 2,
+              '&:hover': {
+                boxShadow: 4,
+              },
+            }}>
+            {actionLoading ? 'Đang xử lý...' : editingUser ? 'Cập nhật' : 'Thêm mới'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* User Detail Modal - IMPROVED VERSION */}
+      <Dialog
+        open={isDetailModalOpen}
+        onClose={handleCloseDetailModal}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
+            overflow: 'hidden',
+          },
+        }}>
+        {/* Header với gradient background */}
+        <DialogTitle
+          sx={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            p: 3,
+            position: 'relative',
+            overflow: 'hidden',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(255,255,255,0.1)',
+              backdropFilter: 'blur(10px)',
+            },
+          }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, position: 'relative', zIndex: 1 }}>
+            {/* Avatar Circle */}
+            <Box
               sx={{
-                p: 2.5,
-                bgcolor: 'grey.50',
-                border: '1px solid',
-                borderColor: 'divider',
-                borderRadius: 2,
-                mb: 2.5,
-              }}
-            >
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 12 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
-                    Tên người dùng
-                  </Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 600, mt: 0.5 }}>
-                    {selectedUserForToggle?.fullName}
-                  </Typography>
-                </Grid>
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 64,
+                height: 64,
+                borderRadius: '50%',
+                bgcolor: 'rgba(255,255,255,0.25)',
+                backdropFilter: 'blur(10px)',
+                border: '3px solid rgba(255,255,255,0.3)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              }}>
+              <VisibilityOutlinedIcon sx={{ fontSize: 32, color: 'white' }} />
+            </Box>
 
-                <Grid size={{ xs: 12 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
-                    Email
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 0.5, fontFamily: 'monospace', color: 'primary.main' }}>
-                    {selectedUserForToggle?.email}
-                  </Typography>
-                </Grid>
+            {/* Title */}
+            <Box sx={{ flex: 1 }}>
+              <Typography
+                variant="h5"
+                sx={{
+                  fontWeight: 700,
+                  mb: 0.5,
+                  fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+                  letterSpacing: '-0.02em',
+                }}>
+                Thông tin chi tiết người dùng
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{
+                  opacity: 0.9,
+                  fontSize: '0.875rem',
+                  fontFamily: '"Inter", "Roboto", sans-serif',
+                  fontWeight: 400,
+                }}>
+                Xem đầy đủ thông tin tài khoản và quyền hạn
+              </Typography>
+            </Box>
+          </Box>
+        </DialogTitle>
 
-                <Grid size={{ xs: 12 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+        <DialogContent sx={{ p: 0 }}>
+          {detailLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+              <CircularProgress size={48} thickness={4} />
+            </Box>
+          ) : selectedUserDetail ? (
+            <Box>
+              {/* Status Banner */}
+              <Box
+                sx={{
+                  p: 2.5,
+                  bgcolor: selectedUserDetail.isActive ? 'success.lighter' : 'grey.200',
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Box
+                      sx={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        bgcolor: selectedUserDetail.isActive ? 'success.main' : 'grey.500',
+                        boxShadow: selectedUserDetail.isActive ? '0 0 0 3px rgba(76, 175, 80, 0.2)' : 'none',
+                        animation: selectedUserDetail.isActive ? 'pulse 2s infinite' : 'none',
+                        '@keyframes pulse': {
+                          '0%, 100%': { opacity: 1 },
+                          '50%': { opacity: 0.5 },
+                        },
+                      }}
+                    />
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: 600,
+                        fontFamily: '"Inter", "Roboto", sans-serif',
+                        fontSize: '0.875rem',
+                      }}>
+                      Trạng thái: {selectedUserDetail.isActive ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}
+                    </Typography>
+                  </Box>
+
+                  <Chip
+                    label={`ID: #${selectedUserDetail.userID}`}
+                    size="small"
+                    sx={{
+                      fontWeight: 700,
+                      fontFamily: '"JetBrains Mono", "Fira Code", "Consolas", monospace',
+                      bgcolor: 'rgba(0,0,0,0.06)',
+                      fontSize: '0.8125rem',
+                      letterSpacing: '0.02em',
+                    }}
+                  />
+                </Box>
+              </Box>
+
+              {/* Main Content */}
+              <Box sx={{ p: 3 }}>
+                <Grid container spacing={2.5}>
+                  {/* Full Name - Prominent */}
+                  <Grid size={{ xs: 12 }}>
+                    <Paper
+                      elevation={0}
+                      sx={{
+                        p: 3,
+                        background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+                        borderRadius: 2,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                      }}>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontWeight: 600,
+                          color: 'text.secondary',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.08em',
+                          fontSize: '0.6875rem',
+                          mb: 1,
+                          display: 'block',
+                          fontFamily: '"Inter", "Roboto", sans-serif',
+                        }}>
+                        👤 Họ và Tên
+                      </Typography>
+                      <Typography
+                        variant="h5"
+                        sx={{
+                          fontWeight: 700,
+                          color: 'primary.main',
+                          letterSpacing: '-0.02em',
+                          fontFamily: '"Inter", "Roboto", "Helvetica", sans-serif',
+                          fontSize: '1.5rem',
+                          lineHeight: 1.3,
+                        }}>
+                        {selectedUserDetail.fullName}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+
+                  {/* Email */}
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Paper
+                      elevation={0}
+                      sx={{
+                        p: 2.5,
+                        bgcolor: 'grey.50',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 2,
+                        height: '100%',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                          transform: 'translateY(-2px)',
+                        },
+                      }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                        <EmailOutlinedIcon sx={{ fontSize: 20, color: 'info.main' }} />
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontWeight: 600,
+                            color: 'text.secondary',
+                            textTransform: 'uppercase',
+                            fontSize: '0.6875rem',
+                            letterSpacing: '0.08em',
+                            fontFamily: '"Inter", "Roboto", sans-serif',
+                          }}>
+                          Email
+                        </Typography>
+                      </Box>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontFamily: '"JetBrains Mono", "Fira Code", "SF Mono", "Consolas", monospace',
+                          color: 'primary.main',
+                          fontWeight: 500,
+                          fontSize: '0.9rem',
+                          wordBreak: 'break-all',
+                          letterSpacing: '0.01em',
+                          lineHeight: 1.5,
+                        }}>
+                        {selectedUserDetail.email}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+
+                  {/* Phone */}
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Paper
+                      elevation={0}
+                      sx={{
+                        p: 2.5,
+                        bgcolor: 'grey.50',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 2,
+                        height: '100%',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                          transform: 'translateY(-2px)',
+                        },
+                      }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                        <Typography sx={{ fontSize: 20 }}>📱</Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontWeight: 600,
+                            color: 'text.secondary',
+                            textTransform: 'uppercase',
+                            fontSize: '0.6875rem',
+                            letterSpacing: '0.08em',
+                            fontFamily: '"Inter", "Roboto", sans-serif',
+                          }}>
+                          Số điện thoại
+                        </Typography>
+                      </Box>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontFamily: '"JetBrains Mono", "Fira Code", "SF Mono", "Consolas", monospace',
+                          fontWeight: 600,
+                          fontSize: '1rem',
+                          color: 'text.primary',
+                          letterSpacing: '0.05em',
+                        }}>
+                        {selectedUserDetail.phoneNumber}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+
+                  {/* Role */}
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Paper
+                      elevation={0}
+                      sx={{
+                        p: 2.5,
+                        bgcolor: 'grey.50',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 2,
+                        height: '100%',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                          transform: 'translateY(-2px)',
+                        },
+                      }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                        <VpnKeyOutlinedIcon sx={{ fontSize: 20, color: 'warning.main' }} />
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontWeight: 600,
+                            color: 'text.secondary',
+                            textTransform: 'uppercase',
+                            fontSize: '0.6875rem',
+                            letterSpacing: '0.08em',
+                            fontFamily: '"Inter", "Roboto", sans-serif',
+                          }}>
+                          Vai trò
+                        </Typography>
+                      </Box>
+                      <Chip
+                        label={
+                          selectedUserDetail.roleName === 'HOD'
+                            ? 'Kế toán trưởng'
+                            : selectedUserDetail.roleName === 'Accountant'
+                              ? 'Kế toán'
+                              : selectedUserDetail.roleName === 'Staff'
+                                ? 'Nhân viên bán hàng'
+                                : selectedUserDetail.roleName
+                        }
+                        color={selectedUserDetail.roleName === 'HOD' ? 'error' : selectedUserDetail.roleName === 'Accountant' ? 'success' : 'info'}
+                        size="medium"
+                        sx={{
+                          fontWeight: 700,
+                          fontSize: '0.875rem',
+                          height: 36,
+                          px: 2,
+                          fontFamily: '"Inter", "Roboto", sans-serif',
+                          letterSpacing: '0.01em',
+                        }}
+                      />
+                    </Paper>
+                  </Grid>
+
+                  {/* Join Date */}
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Paper
+                      elevation={0}
+                      sx={{
+                        p: 2.5,
+                        bgcolor: 'grey.50',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 2,
+                        height: '100%',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                          transform: 'translateY(-2px)',
+                        },
+                      }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                        <Typography sx={{ fontSize: 20 }}>📅</Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontWeight: 600,
+                            color: 'text.secondary',
+                            textTransform: 'uppercase',
+                            fontSize: '0.6875rem',
+                            letterSpacing: '0.08em',
+                            fontFamily: '"Inter", "Roboto", sans-serif',
+                          }}>
+                          Ngày tham gia
+                        </Typography>
+                      </Box>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 500,
+                          fontSize: '0.9375rem',
+                          color: 'text.primary',
+                          fontFamily: '"Inter", "Roboto", sans-serif',
+                          lineHeight: 1.5,
+                        }}>
+                        {selectedUserDetail.createdAt
+                          ? new Date(selectedUserDetail.createdAt).toLocaleString('vi-VN', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '-'}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
+              </Box>
+            </Box>
+          ) : null}
+        </DialogContent>
+
+        <Divider />
+
+        {/* Footer với gradient button */}
+        <DialogActions
+          sx={{
+            p: 3,
+            background: 'linear-gradient(to right, #f8f9fa 0%, #e9ecef 100%)',
+          }}>
+          <Button
+            onClick={handleCloseDetailModal}
+            variant="contained"
+            size="large"
+            sx={{
+              textTransform: 'none',
+              borderRadius: 2,
+              px: 4,
+              fontWeight: 600,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #5568d3 0%, #6a4293 100%)',
+                boxShadow: '0 6px 16px rgba(102, 126, 234, 0.5)',
+                transform: 'translateY(-1px)',
+              },
+              transition: 'all 0.3s ease',
+            }}>
+            Đóng
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar Notification */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} variant="filled" sx={{ borderRadius: 2 }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+      {/* Reset Password Confirmation Dialog */}
+      <Dialog
+        open={isResetModalOpen}
+        onClose={handleCloseResetModal}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          },
+        }}>
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            fontWeight: 600,
+            p: 3,
+          }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 48,
+              height: 48,
+              borderRadius: '50%',
+              bgcolor: 'warning.lighter',
+            }}>
+            <WarningAmberOutlinedIcon sx={{ fontSize: 28, color: 'warning.main' }} />
+          </Box>
+          <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
+            Xác nhận Đặt lại Mật khẩu
+          </Typography>
+        </DialogTitle>
+
+        <Divider />
+
+        <DialogContent sx={{ p: 3 }}>
+          <Alert severity="info" sx={{ mb: 2.5, borderRadius: 2 }}>
+            <Typography variant="body2">Email chứa liên kết đặt lại mật khẩu sẽ được gửi đến địa chỉ email của người dùng.</Typography>
+          </Alert>
+
+          <Box
+            sx={{
+              bgcolor: 'grey.50',
+              p: 2.5,
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: 'divider',
+            }}>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>
+                    Người dùng
+                  </Typography>
+                </Box>
+                <Typography variant="body1" sx={{ fontWeight: 600, fontSize: '0.9375rem' }}>
+                  {selectedUserForReset?.fullName}
+                </Typography>
+              </Grid>
+
+              <Grid size={{ xs: 12 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  <EmailOutlinedIcon sx={{ fontSize: 16, color: 'action.active' }} />
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>
+                    Email nhận liên kết
+                  </Typography>
+                </Box>
+                <Typography variant="body1" sx={{ fontWeight: 600, fontSize: '0.9375rem', color: 'primary.main' }}>
+                  {selectedUserForReset?.email}
+                </Typography>
+              </Grid>
+
+              <Grid size={{ xs: 12 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  <VpnKeyOutlinedIcon sx={{ fontSize: 16, color: 'action.active' }} />
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>
                     Vai trò
                   </Typography>
-                  <Box sx={{ mt: 0.5 }}>
-                    <Chip
-                      label={
-                        selectedUserForToggle?.role === 'Admin' 
-                          ? 'Quản trị viên' 
-                          : selectedUserForToggle?.role === 'Accountant' 
-                          ? 'Kế toán' 
-                          : 'Quản lý Dự án'
-                      }
-                      size="small"
-                      color={
-                        selectedUserForToggle?.role === 'Admin' 
-                          ? 'error' 
-                          : selectedUserForToggle?.role === 'Accountant' 
-                          ? 'success' 
-                          : 'info'
-                      }
-                      sx={{ fontWeight: 500 }}
-                    />
-                  </Box>
-                </Grid>
-              </Grid>
-            </Paper>
-
-            <Alert 
-              severity={selectedUserForToggle?.status === 'Active' ? 'warning' : 'info'}
-              sx={{ borderRadius: 2 }}
-            >
-              <Typography variant="body2">
-                {selectedUserForToggle?.status === 'Active' ? (
-                  <>
-                    Người dùng sẽ <strong>không thể đăng nhập</strong> và truy cập hệ thống sau khi bị vô hiệu hóa.
-                  </>
-                ) : (
-                  <>
-                    Người dùng sẽ có thể <strong>đăng nhập trở lại</strong> và truy cập hệ thống sau khi được kích hoạt.
-                  </>
-                )}
-              </Typography>
-            </Alert>
-
-            {/* Admin Notes Field - Only show when deactivating */}
-            {selectedUserForToggle?.status === 'Active' && (
-              <Box sx={{ mt: 2.5 }}>
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={3}
-                  label="Lý do khóa tài khoản"
-                  placeholder="Nhập lý do vô hiệu hóa tài khoản (bắt buộc)..."
-                  value={deactivationReason}
-                  onChange={(e) => setDeactivationReason(e.target.value)}
-                  required
-                  error={!deactivationReason.trim() && deactivationReason !== ''}
-                  helperText="Vui lòng nhập lý do để tiếp tục"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                    },
-                  }}
+                </Box>
+                <Chip
+                  label={
+                    selectedUserForReset?.role === 'Admin'
+                      ? 'Quản trị viên'
+                      : selectedUserForReset?.role === 'Accountant'
+                        ? 'Kế toán'
+                        : 'Quản lý Dự án'
+                  }
+                  size="small"
+                  color={selectedUserForReset?.role === 'Admin' ? 'error' : selectedUserForReset?.role === 'Accountant' ? 'success' : 'info'}
+                  sx={{ fontWeight: 600, fontSize: '0.8125rem' }}
                 />
-              </Box>
-            )}
-          </DialogContent>
+              </Grid>
+            </Grid>
+          </Box>
 
-          <Divider />
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2, fontStyle: 'italic' }}>
+            * Liên kết đặt lại mật khẩu có hiệu lực trong 24 giờ.
+          </Typography>
+        </DialogContent>
 
-          <DialogActions sx={{ p: 3, gap: 1 }}>
-            <Button
-              onClick={handleCloseToggleModal}
-              color="inherit"
+        <Divider />
+
+        <DialogActions sx={{ p: 3, gap: 1 }}>
+          <Button
+            onClick={handleCloseResetModal}
+            color="inherit"
+            disabled={actionLoading}
+            sx={{
+              textTransform: 'none',
+              borderRadius: 2,
+              px: 3,
+            }}>
+            Hủy
+          </Button>
+          <Button
+            onClick={handleConfirmResetPassword}
+            variant="contained"
+            color="warning"
+            disabled={actionLoading}
+            startIcon={actionLoading ? <CircularProgress size={20} /> : <EmailOutlinedIcon />}
+            sx={{
+              textTransform: 'none',
+              borderRadius: 2,
+              px: 3,
+              boxShadow: 2,
+              '&:hover': {
+                boxShadow: 4,
+              },
+            }}>
+            {actionLoading ? 'Đang gửi...' : 'Gửi Email Đặt lại'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Toggle Status Confirmation Dialog */}
+      <Dialog
+        open={confirmToggleModalOpen}
+        onClose={actionLoading ? undefined : handleCloseToggleModal}
+        disableEscapeKeyDown={actionLoading}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          },
+        }}>
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            fontWeight: 600,
+            p: 3,
+          }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 48,
+              height: 48,
+              borderRadius: '50%',
+              bgcolor: selectedUserForToggle?.status === 'Active' ? 'error.lighter' : 'success.lighter',
+            }}>
+            <WarningAmberOutlinedIcon
               sx={{
-                textTransform: 'none',
-                borderRadius: 2,
-                px: 3,
+                fontSize: 28,
+                color: selectedUserForToggle?.status === 'Active' ? 'error.main' : 'success.main',
               }}
-            >
-              Hủy
-            </Button>
-            <Button
-              onClick={handleConfirmToggleStatus}
-              variant="contained"
-              color={selectedUserForToggle?.status === 'Active' ? 'error' : 'success'}
-              disabled={actionLoading}
-              startIcon={
-                actionLoading ? <CircularProgress size={16} color="inherit" /> :
-                selectedUserForToggle?.status === 'Active' ? 
-                <LockOutlinedIcon /> : 
+            />
+          </Box>
+          <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
+            Xác nhận thay đổi trạng thái
+          </Typography>
+        </DialogTitle>
+
+        <Divider />
+
+        <DialogContent sx={{ p: 3 }}>
+          <Typography variant="body1" sx={{ mb: 2.5 }}>
+            Bạn có chắc chắn muốn <strong>{selectedUserForToggle?.status === 'Active' ? 'vô hiệu hóa' : 'kích hoạt'}</strong> tài khoản người dùng
+            sau?
+          </Typography>
+
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2.5,
+              bgcolor: 'grey.50',
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 2,
+              mb: 2.5,
+            }}>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                  Tên người dùng
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 600, mt: 0.5 }}>
+                  {selectedUserForToggle?.fullName}
+                </Typography>
+              </Grid>
+
+              <Grid size={{ xs: 12 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                  Email
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.5, fontFamily: 'monospace', color: 'primary.main' }}>
+                  {selectedUserForToggle?.email}
+                </Typography>
+              </Grid>
+
+              <Grid size={{ xs: 12 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                  Vai trò
+                </Typography>
+                <Box sx={{ mt: 0.5 }}>
+                  <Chip
+                    label={
+                      selectedUserForToggle?.role === 'Admin'
+                        ? 'Quản trị viên'
+                        : selectedUserForToggle?.role === 'Accountant'
+                          ? 'Kế toán'
+                          : 'Quản lý Dự án'
+                    }
+                    size="small"
+                    color={selectedUserForToggle?.role === 'Admin' ? 'error' : selectedUserForToggle?.role === 'Accountant' ? 'success' : 'info'}
+                    sx={{ fontWeight: 500 }}
+                  />
+                </Box>
+              </Grid>
+            </Grid>
+          </Paper>
+
+          <Alert severity={selectedUserForToggle?.status === 'Active' ? 'warning' : 'info'} sx={{ borderRadius: 2 }}>
+            <Typography variant="body2">
+              {selectedUserForToggle?.status === 'Active' ? (
+                <>
+                  Người dùng sẽ <strong>không thể đăng nhập</strong> và truy cập hệ thống sau khi bị vô hiệu hóa.
+                </>
+              ) : (
+                <>
+                  Người dùng sẽ có thể <strong>đăng nhập trở lại</strong> và truy cập hệ thống sau khi được kích hoạt.
+                </>
+              )}
+            </Typography>
+          </Alert>
+
+          {/* Admin Notes Field - Only show when deactivating */}
+          {selectedUserForToggle?.status === 'Active' && (
+            <Box sx={{ mt: 2.5 }}>
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                label="Lý do khóa tài khoản"
+                placeholder="Nhập lý do vô hiệu hóa tài khoản (bắt buộc)..."
+                value={deactivationReason}
+                onChange={(e) => setDeactivationReason(e.target.value)}
+                required
+                error={!deactivationReason.trim() && deactivationReason !== ''}
+                helperText="Vui lòng nhập lý do để tiếp tục"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                  },
+                }}
+              />
+            </Box>
+          )}
+        </DialogContent>
+
+        <Divider />
+
+        <DialogActions sx={{ p: 3, gap: 1 }}>
+          <Button
+            onClick={handleCloseToggleModal}
+            color="inherit"
+            sx={{
+              textTransform: 'none',
+              borderRadius: 2,
+              px: 3,
+            }}>
+            Hủy
+          </Button>
+          <Button
+            onClick={handleConfirmToggleStatus}
+            variant="contained"
+            color={selectedUserForToggle?.status === 'Active' ? 'error' : 'success'}
+            disabled={actionLoading}
+            startIcon={
+              actionLoading ? (
+                <CircularProgress size={16} color="inherit" />
+              ) : selectedUserForToggle?.status === 'Active' ? (
+                <LockOutlinedIcon />
+              ) : (
                 <LockOpenOutlinedIcon />
-              }
-              sx={{
-                textTransform: 'none',
-                borderRadius: 2,
-                px: 3,
-                boxShadow: 2,
-                '&:hover': {
-                  boxShadow: 4,
-                },
-              }}
-            >
-              {actionLoading ? 'Đang xử lý...' : (selectedUserForToggle?.status === 'Active' ? 'Vô hiệu hóa' : 'Kích hoạt')}
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </Box>
-    )
+              )
+            }
+            sx={{
+              textTransform: 'none',
+              borderRadius: 2,
+              px: 3,
+              boxShadow: 2,
+              '&:hover': {
+                boxShadow: 4,
+              },
+            }}>
+            {actionLoading ? 'Đang xử lý...' : selectedUserForToggle?.status === 'Active' ? 'Vô hiệu hóa' : 'Kích hoạt'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  )
 }
 
 export default UserManagement
-
