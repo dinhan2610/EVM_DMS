@@ -30,10 +30,8 @@ import {
   TemplatePreview,
   EmailTemplateManagement,
   UserManagement,
-  RolesPermissions,
   SystemConfiguration,
   AuditLogsPage,
-  ReportsPage,
   CustomerManagement,
   SalesCustomerPage,
   CreateSalesOrder,
@@ -299,15 +297,6 @@ const appsRoutes: RoutesProps[] = [
     ),
   },
   {
-    name: 'Roles & Permissions',
-    path: '/admin/roles-permissions',
-    element: (
-      <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
-        <RolesPermissions />
-      </ProtectedRoute>
-    ),
-  },
-  {
     name: 'System Configuration',
     path: '/admin/settings',
     element: (
@@ -324,11 +313,6 @@ const appsRoutes: RoutesProps[] = [
         <AuditLogsPage />
       </ProtectedRoute>
     ),
-  },
-  {
-    name: 'Reports Center',
-    path: '/admin/reports',
-    element: <ReportsPage />,
   },
   {
     name: 'Customer Management',

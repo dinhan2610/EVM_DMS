@@ -8,11 +8,11 @@ import { useNotificationContext } from '@/context/useNotificationContext'
 import authService, { type LoginRequest } from '@/services/authService'
 import type { UserType } from '@/types/auth'
 
-const REMEMBER_ME_KEY = 'eims_remember_me'
+const REMEMBER_ME_KEY = 'eims_remember_email'
 
 const loginFormSchema = yup.object({
-  email: yup.string().email('Please enter a valid email').required('Please enter your email'),
-  password: yup.string().required('Please enter your password'),
+  email: yup.string().email('Vui lòng nhập email hợp lệ').required('Vui lòng nhập email'),
+  password: yup.string().required('Vui lòng nhập mật khẩu'),
   rememberMe: yup.boolean(),
 })
 
@@ -28,23 +28,21 @@ const useSignIn = () => {
   const { control, handleSubmit, setValue } = useForm({
     resolver: yupResolver(loginFormSchema),
     defaultValues: {
-      email: 'admin@eims.local',
-      password: 'P3ssword!',
+      email: '',
+      password: '',
       rememberMe: false,
     },
   })
 
-  // Load saved credentials on mount
+  // Load saved email on mount (only email, NOT password for security)
   useEffect(() => {
-    const savedCredentials = localStorage.getItem(REMEMBER_ME_KEY)
-    if (savedCredentials) {
+    const savedEmail = localStorage.getItem(REMEMBER_ME_KEY)
+    if (savedEmail) {
       try {
-        const { email, password } = JSON.parse(savedCredentials)
-        setValue('email', email)
-        setValue('password', password)
+        setValue('email', savedEmail)
         setValue('rememberMe', true)
       } catch (error) {
-        console.error('Failed to load saved credentials:', error)
+        console.error('Failed to load saved email:', error)
         localStorage.removeItem(REMEMBER_ME_KEY)
       }
     }
@@ -53,12 +51,9 @@ const useSignIn = () => {
   const login = handleSubmit(async (values: LoginFormFields) => {
     setLoading(true)
     try {
-      // Handle Remember Me
+      // Handle Remember Me - ONLY save email, never password
       if (values.rememberMe) {
-        localStorage.setItem(REMEMBER_ME_KEY, JSON.stringify({
-          email: values.email,
-          password: values.password,
-        }))
+        localStorage.setItem(REMEMBER_ME_KEY, values.email)
       } else {
         localStorage.removeItem(REMEMBER_ME_KEY)
       }
@@ -80,19 +75,19 @@ const useSignIn = () => {
       }
 
       saveSession(user)
-      
+
       const redirectLink = searchParams.get('redirectTo')
       navigate(redirectLink || '/')
-      
-      showNotification({ 
-        message: 'Đăng nhập thành công!', 
-        variant: 'success' 
+
+      showNotification({
+        message: 'Đăng nhập thành công!',
+        variant: 'success',
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Đã có lỗi xảy ra'
-      showNotification({ 
-        message, 
-        variant: 'danger' 
+      showNotification({
+        message,
+        variant: 'danger',
       })
     } finally {
       setLoading(false)

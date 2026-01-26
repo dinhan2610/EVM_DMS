@@ -40,14 +40,6 @@ const adminUsers: MenuItemType = {
   roles: [USER_ROLES.ADMIN],
 }
 
-const adminRolesPermissions: MenuItemType = {
-  key: 'admin-roles-permissions',
-  icon: 'iconamoon:shield-yes-duotone',
-  label: 'Vai trò & Phân quyền',
-  url: '/admin/roles-permissions',
-  roles: [USER_ROLES.ADMIN],
-}
-
 const adminSettings: MenuItemType = {
   key: 'admin-settings',
   icon: 'iconamoon:settings-duotone',
@@ -62,14 +54,6 @@ const adminAuditLogs: MenuItemType = {
   label: 'Nhật ký hệ thống',
   url: '/admin/audit-logs',
   roles: [USER_ROLES.ADMIN],
-}
-
-const adminReports: MenuItemType = {
-  key: 'admin-reports',
-  icon: 'iconamoon:lightning-2-duotone',
-  label: 'Trung tâm Báo cáo',
-  url: '/admin/reports',
-  roles: [USER_ROLES.ADMIN, USER_ROLES.HOD],
 }
 
 const adminCustomers: MenuItemType = {
@@ -218,10 +202,8 @@ export const getMenuItemsByRole = (userRole?: string): MenuItemType[] => {
     adminTemplates,
     adminEmailTemplates,
     adminUsers,
-    adminRolesPermissions,
     adminSettings,
     adminAuditLogs,
-    adminReports,
     adminCustomers,
     // Invoice menus
     invoicesList,
@@ -251,7 +233,7 @@ export const getMenuItemsByRole = (userRole?: string): MenuItemType[] => {
  * Helper function: Filter menu based on role (simplified for flat structure)
  */
 const filterMenuByRole = (items: MenuItemType[], userRole: UserRole): MenuItemType[] => {
-  return items.filter(item => {
+  return items.filter((item) => {
     // Nếu item có roles, check xem user có role đó không
     if (item.roles && !item.roles.includes(userRole)) {
       return false
@@ -269,10 +251,8 @@ export const MENU_ITEMS: MenuItemType[] = [
   adminTemplates,
   adminEmailTemplates,
   adminUsers,
-  adminRolesPermissions,
   adminSettings,
   adminAuditLogs,
-  adminReports,
   adminCustomers,
   // Invoice menus
   invoicesList,

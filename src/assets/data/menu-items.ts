@@ -48,12 +48,6 @@ export const MENU_ITEMS: MenuItemType[] = [
         parentKey: 'apps-admin',
       },
       {
-        key: 'admin-roles-permissions',
-        label: 'Vai trò & Phân quyền',
-        url: '/admin/roles-permissions',
-        parentKey: 'apps-admin',
-      },
-      {
         key: 'admin-settings',
         label: 'Cấu hình hệ thống',
         url: '/admin/settings',
@@ -63,12 +57,6 @@ export const MENU_ITEMS: MenuItemType[] = [
         key: 'admin-audit-logs',
         label: 'Nhật ký hệ thống',
         url: '/admin/audit-logs',
-        parentKey: 'apps-admin',
-      },
-      {
-        key: 'admin-reports',
-        label: 'Trung tâm Báo cáo',
-        url: '/admin/reports',
         parentKey: 'apps-admin',
       },
       {
@@ -190,8 +178,6 @@ export const MENU_ITEMS: MenuItemType[] = [
         url: '/auth/sign-up',
         parentKey: 'page-authentication',
       },
-      
     ],
   },
-  
 ]
