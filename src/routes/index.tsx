@@ -6,7 +6,6 @@ import { USER_ROLES } from '@/constants/roles'
 import {
   HODDashboard,
   AdminDashboard,
-  StaffDashboard,
   AccountantDashboard,
   SaleDashboard,
   CustomerDashboard,

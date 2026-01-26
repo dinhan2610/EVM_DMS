@@ -496,7 +496,7 @@ export const createTemplate = async (data: CreateTemplateRequest): Promise<Templ
       templateName: data.templateName,
       serialID: data.serialID,
       templateTypeID: data.templateTypeID,
-      layoutDefinition: data.layoutDefinition, // ✅ Send as OBJECT, Axios will handle
+      layoutDefinition: data.layoutDefinition as Record<string, unknown>, // ✅ Send as OBJECT, Axios will handle
       templateFrameID: data.templateFrameID,
       logoUrl: data.logoUrl,
       renderedHtml: data.renderedHtml, // ✅ NEW: Template HTML
@@ -668,7 +668,7 @@ export const updateTemplate = async (
       logoUrl: data.logoUrl,
       isActive: data.isActive,
       layoutDefinitionType: typeof data.layoutDefinition,
-      layoutDefinitionLength: data.layoutDefinition.length,
+      layoutDefinitionLength: JSON.stringify(data.layoutDefinition).length,
     })
     
     const response = await axios.put<TemplateResponse>(
